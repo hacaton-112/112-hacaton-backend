@@ -10,6 +10,7 @@ import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { IS_DEV_ENV } from "./config/app.config";
 import { envValidationSchema } from "./config/env-validation.config";
 import { throttlerConfig } from "./config/throttler.config";
+import { DatabaseModule } from "./database/database.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { throttlerConfig } from "./config/throttler.config";
       validationSchema: envValidationSchema,
     }),
     ThrottlerModule.forRoot(throttlerConfig),
+    DatabaseModule,
   ],
   providers: [
     {

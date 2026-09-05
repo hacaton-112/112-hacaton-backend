@@ -16,6 +16,12 @@ export const envValidationSchema = Joi.object({
   CORS_ORIGINS: Joi.string()
     .default("http://localhost:1420,tauri://localhost")
     .description("Comma-separated list of allowed CORS origins"),
+
+  // ── Database ─────────────────────────────────────────────────
+  DATABASE_URL: Joi.string()
+    .uri({ scheme: ["postgresql", "postgres"] })
+    .required()
+    .description("URL подключения к PostgreSQL"),
 })
   .unknown()
   .required();
