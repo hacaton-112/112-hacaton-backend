@@ -7,6 +7,7 @@ import { ZodSerializerInterceptor, ZodValidationPipe } from "nestjs-zod";
 import { GlobalExceptionFilter } from "@/common/filters/global-exception.filter";
 import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
+import { HealthModule } from "@/modules/health/health.module";
 
 import { IS_DEV_ENV } from "./config/app.config";
 import { envValidationSchema } from "./config/env-validation.config";
@@ -23,6 +24,7 @@ import { DatabaseModule } from "./database/database.module";
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
     AuditLogModule,
+    HealthModule,
   ],
   providers: [
     {
