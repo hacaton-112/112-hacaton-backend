@@ -8,9 +8,10 @@ import { GlobalExceptionFilter } from "@/common/filters/global-exception.filter"
 import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { HealthModule } from "@/modules/health/health.module";
+import { AsrModule } from "@/modules/asr/asr.module";
 
 import { IS_DEV_ENV } from "./config/app.config";
-import { envValidationSchema } from "./config/env-validation.config";
+import "./config/env.config";
 import { throttlerConfig } from "./config/throttler.config";
 import { DatabaseModule } from "./database/database.module";
 
@@ -19,12 +20,12 @@ import { DatabaseModule } from "./database/database.module";
     ConfigModule.forRoot({
       ignoreEnvFile: !IS_DEV_ENV,
       isGlobal: true,
-      validationSchema: envValidationSchema,
     }),
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
     AuditLogModule,
     HealthModule,
+    AsrModule,
   ],
   providers: [
     {

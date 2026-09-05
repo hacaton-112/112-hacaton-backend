@@ -1,9 +1,9 @@
 import { Logger, VersioningType } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
 import { WinstonModule } from "nest-winston";
 
+import { env } from "@/core/config/env.config";
 import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
 
@@ -17,9 +17,8 @@ async function bootstrap(): Promise<void> {
     }),
   });
 
-  const config: ConfigService = app.get(ConfigService);
-  const host = config.getOrThrow<string>("HOST");
-  const port = config.getOrThrow<number>("PORT");
+  const host = env.HOST;
+  const port = env.PORT;
 
   // ── Security Headers ─────────────────────────────────────────
   app.use(helmet());
@@ -33,10 +32,9 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── CORS ─────────────────────────────────────────────────────
-  const corsOrigins = config
-    .getOrThrow<string>("CORS_ORIGINS")
-    .split(",")
-    .map((origin) => origin.trim());
+  const corsOrigins = env.CORS_ORIGINS.split(",").map((origin) =>
+    origin.trim(),
+  );
 
   app.enableCors({
     origin: corsOrigins,
