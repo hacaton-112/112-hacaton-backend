@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+
+import { env } from "@/core/config/env.config";
 
 export interface AsrHealth {
   status: string;
@@ -20,10 +21,8 @@ export interface AsrSession {
 export class AsrService {
   private readonly serviceUrl: string;
 
-  constructor(config: ConfigService) {
-    this.serviceUrl = config
-      .get<string>("ASR_SERVICE_URL", "http://127.0.0.1:8787")
-      .replace(/\/$/, "");
+  constructor() {
+    this.serviceUrl = env.ASR_SERVICE_URL.replace(/\/$/, "");
   }
 
   health(): Promise<AsrHealth> {
