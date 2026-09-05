@@ -1,5 +1,6 @@
 import {
   CallerReplySchema,
+  DialogueGenerationResultSchema,
   GenerateCallerReplyRequestSchema,
   MAX_ALLOWED_FACTS,
   MAX_CALLER_REPLY_LENGTH,
@@ -148,6 +149,50 @@ describe(
           context: { ...validRequest.context, hiddenFacts: [] },
         }).success,
       ).toBe(false);
+    });
+  },
+);
+
+describe(
+  DialogueGenerationResultSchema.description ?? "DialogueGenerationResultSchema",
+  () => {
+    const validResult = {
+      reply: validReply,
+      source: "model",
+      attempts: [
+        {
+          attempt: 1,
+          timeToFirstTokenMs: 12,
+          durationMs: 40,
+          outcome: "success",
+        },
+      ],
+    } as const;
+
+    it("accepts a valid generation result", () => {
+      expect(DialogueGenerationResultSchema.safeParse(validResult).success).toBe(
+        true,
+      );
+    });
+
+    it.each([
+      [
+        "unknown outcome",
+        {
+          ...validResult,
+          attempts: [{ ...validResult.attempts[0], outcome: "timeout" }],
+        },
+      ],
+      [
+        "invalid attempt",
+        {
+          ...validResult,
+          attempts: [{ ...validResult.attempts[0], attempt: 3 }],
+        },
+      ],
+      ["unknown field", { ...validResult, provider: "alice-ai" }],
+    ])("rejects %s", (_name, value) => {
+      expect(DialogueGenerationResultSchema.safeParse(value).success).toBe(false);
     });
   },
 );
