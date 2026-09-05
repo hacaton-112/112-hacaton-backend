@@ -22,6 +22,10 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ["postgresql", "postgres"] })
     .required()
     .description("URL подключения к PostgreSQL"),
+  ASR_SERVICE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("http://127.0.0.1:8787")
+    .description("Axum ASR service base URL"),
 })
   .unknown()
   .required();
