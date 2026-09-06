@@ -118,6 +118,29 @@ export const LlmStreamEventSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 
+export const GenerationAttemptOutcomeSchema = z.enum([
+  "success",
+  "invalid-response",
+  "provider-error",
+]);
+
+export const GenerationAttemptMetricsSchema = z
+  .object({
+    attempt: z.number().int().min(1).max(2),
+    timeToFirstTokenMs: z.number().nonnegative().nullable(),
+    durationMs: z.number().nonnegative(),
+    outcome: GenerationAttemptOutcomeSchema,
+  })
+  .strict();
+
+export const DialogueGenerationResultSchema = z
+  .object({
+    reply: CallerReplySchema,
+    source: z.enum(["model", "fallback"]),
+    attempts: z.array(GenerationAttemptMetricsSchema).min(1).max(2),
+  })
+  .strict();
+
 export type AiIdentifier = z.infer<typeof AiIdentifierSchema>;
 export type FactId = z.infer<typeof FactIdSchema>;
 export type CallerEmotion = z.infer<typeof CallerEmotionSchema>;
@@ -133,3 +156,12 @@ export type GenerateCallerReplyRequest = z.infer<
 >;
 export type CallerReply = z.infer<typeof CallerReplySchema>;
 export type LlmStreamEvent = z.infer<typeof LlmStreamEventSchema>;
+export type GenerationAttemptOutcome = z.infer<
+  typeof GenerationAttemptOutcomeSchema
+>;
+export type GenerationAttemptMetrics = z.infer<
+  typeof GenerationAttemptMetricsSchema
+>;
+export type DialogueGenerationResult = z.infer<
+  typeof DialogueGenerationResultSchema
+>;

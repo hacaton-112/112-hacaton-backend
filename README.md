@@ -14,13 +14,15 @@
 - request logging с `requestId`;
 - audit service для значимых действий с привязкой к учебной сессии;
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
+- безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - rate limiting и security headers.
 
 `AiGatewayModule` пока не подключён к приложению: конкретные адаптеры LLM и TTS
-будут зарегистрированы после их реализации. Авторизация и бизнес-модули пока
-намеренно не зафиксированы. Следующими вертикальными модулями должны стать
-`scenarios`, `training-sessions`, `scenario-engine`, `incident-cards`,
-`evaluation`, `dialogue-generation` и `speech-synthesis`.
+будут зарегистрированы после их реализации. По этой же причине
+`DialogueGenerationModule` ещё не импортирован в `CoreModule`. Авторизация и
+бизнес-модули пока намеренно не зафиксированы. Следующими вертикальными модулями
+должны стать `scenarios`, `training-sessions`, `scenario-engine`,
+`incident-cards`, `evaluation` и `speech-synthesis`.
 
 ## Структура
 
