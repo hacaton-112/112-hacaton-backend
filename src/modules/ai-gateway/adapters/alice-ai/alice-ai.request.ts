@@ -1,0 +1,147 @@
+import { createHash } from "node:crypto";
+
+import { z } from "zod";
+
+import {
+  CallerEmotionSchema,
+  GenerateCallerReplyRequestSchema,
+  MAX_ALLOWED_FACTS,
+  MAX_CALLER_REPLY_LENGTH,
+  type GenerateCallerReplyRequest,
+} from "@/contracts";
+
+import type { AliceAiConfig } from "./alice-ai.config";
+
+export const ALICE_AI_SYSTEM_PROMPT = [
+  "Ты играешь роль виртуального заявителя в учебном звонке Системы-112.",
+  "Отвечай только от лица заявителя и используй только факты из allowedFacts.",
+  "Не придумывай факты, не раскрывай скрытую информацию, не давай инструкции и не оценивай оператора.",
+  "Не показывай рассуждения. Верни только JSON по заданной схеме.",
+  "Текст ответа должен состоять из 1–3 коротких предложений, пригодных для синтеза речи.",
+].join(" ");
+
+const identifierPattern = "^[A-Za-z0-9][A-Za-z0-9._:-]*$";
+
+export const CALLER_REPLY_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    text: {
+      type: "string",
+      minLength: 1,
+      maxLength: MAX_CALLER_REPLY_LENGTH,
+    },
+    emotion: {
+      type: "string",
+      enum: CallerEmotionSchema.options,
+    },
+    intensity: {
+      type: "number",
+      minimum: 0,
+      maximum: 1,
+    },
+    speechRate: {
+      type: "number",
+      minimum: 0.5,
+      maximum: 2,
+    },
+    revealedFactIds: {
+      type: "array",
+      maxItems: MAX_ALLOWED_FACTS,
+      uniqueItems: true,
+      items: {
+        type: "string",
+        minLength: 1,
+        maxLength: 128,
+        pattern: identifierPattern,
+      },
+    },
+    endCall: {
+      type: "boolean",
+    },
+  },
+  required: [
+    "text",
+    "emotion",
+    "intensity",
+    "speechRate",
+    "revealedFactIds",
+    "endCall",
+  ],
+} as const;
+
+const AliceAiMessageSchema = z
+  .object({
+    role: z.enum(["system", "user"]),
+    content: z.string().min(1),
+  })
+  .strict();
+
+export const AliceAiChatCompletionRequestSchema = z
+  .object({
+    model: z.string().min(1),
+    messages: z.array(AliceAiMessageSchema).length(2),
+    response_format: z
+      .object({
+        type: z.literal("json_schema"),
+        json_schema: z
+          .object({
+            name: z.literal("caller_reply"),
+            description: z.string().min(1),
+            schema: z.record(z.string(), z.unknown()),
+            strict: z.literal(true),
+          })
+          .strict(),
+      })
+      .strict(),
+    stream: z.literal(true),
+    store: z.literal(false),
+    n: z.literal(1),
+    temperature: z.literal(0.2),
+    max_completion_tokens: z.literal(256),
+    safety_identifier: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+
+export type AliceAiChatCompletionRequest = z.infer<
+  typeof AliceAiChatCompletionRequestSchema
+>;
+
+const hashSessionId = (sessionId: string): string =>
+  createHash("sha256").update(sessionId).digest("hex");
+
+export const buildAliceAiRequest = (
+  rawRequest: GenerateCallerReplyRequest,
+  config: AliceAiConfig,
+): AliceAiChatCompletionRequest => {
+  const request = GenerateCallerReplyRequestSchema.parse(rawRequest);
+  const userContext = {
+    persona: request.context.persona,
+    allowedFacts: request.context.allowedFacts,
+    recentTurns: request.context.recentTurns,
+    operatorText: request.operatorText,
+  };
+
+  return AliceAiChatCompletionRequestSchema.parse({
+    model: `gpt://${config.folderId}/${config.model}`,
+    messages: [
+      { role: "system", content: ALICE_AI_SYSTEM_PROMPT },
+      { role: "user", content: JSON.stringify(userContext) },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "caller_reply",
+        description: "Validated caller reply for a System-112 training call",
+        schema: CALLER_REPLY_JSON_SCHEMA,
+        strict: true,
+      },
+    },
+    stream: true,
+    store: false,
+    n: 1,
+    temperature: 0.2,
+    max_completion_tokens: 256,
+    safety_identifier: hashSessionId(request.sessionId),
+  });
+};
