@@ -15,6 +15,9 @@ export const AliceAiConfigSchema = z
     folderId: AiIdentifierSchema,
     baseUrl: z
       .url()
+      .refine((value) => /^https?:\/\//.test(value), {
+        message: "Alice AI base URL must use the http:// or https:// scheme",
+      })
       .transform((value) => value.replace(/\/+$/, ""))
       .default(DEFAULT_ALICE_AI_BASE_URL),
     model: AiIdentifierSchema.default(DEFAULT_ALICE_AI_MODEL),

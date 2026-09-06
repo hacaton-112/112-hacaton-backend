@@ -1,15 +1,14 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-import { configService } from "@/common/utils/config-service";
-
 import * as schema from "@/drizzle/schema";
 
+import { env } from "@/core/config/env.config";
 import winstonLogger from "@/core/config/winston.config";
 
 // ── Pool Configuration ───────────────────────────────────────────
 export const pool = new Pool({
-  connectionString: configService.getOrThrow<string>("DATABASE_URL"),
+  connectionString: env.DATABASE_URL,
   max: 10,
   connectionTimeoutMillis: 5_000,
   idleTimeoutMillis: 60_000,

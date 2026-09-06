@@ -51,6 +51,14 @@ describe(parseAliceAiConfig.name, () => {
       },
     ],
     [
+      "unsupported base URL scheme",
+      {
+        YANDEX_AI_API_KEY: "test-api-key",
+        YANDEX_AI_FOLDER_ID: "folder-1",
+        YANDEX_AI_BASE_URL: "ftp://example.com/v1",
+      },
+    ],
+    [
       "short timeout",
       {
         YANDEX_AI_API_KEY: "test-api-key",
