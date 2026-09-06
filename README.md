@@ -17,21 +17,22 @@
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
+- потоковый адаптер Qwen3-TTS через стандартный MLX-Audio API;
 - rate limiting и security headers.
 
-`AiGatewayModule` предоставляет `LLM_PORT` через адаптер Alice AI и импортируется
-модулем `DialogueGenerationModule`. Эти модули ещё не подключены к `CoreModule`:
-публичный transport для генерации отсутствует, а обычный запуск backend не должен
-требовать AI credentials. `TTS_PORT` пока остаётся без реализации. Авторизация и
-бизнес-модули намеренно не зафиксированы. Следующими вертикальными модулями должны
-стать `scenarios`, `training-sessions`, `scenario-engine`, `incident-cards`,
-`evaluation`, Qwen3-TTS adapter и голосовой pipeline.
+`AliceAiAdapterModule` предоставляет `LLM_PORT` только для
+`DialogueGenerationModule`, а `QwenTtsAdapterModule` предоставляет `TTS_PORT`
+только для `SpeechSynthesisModule`. `AiGatewayModule` агрегирует оба адаптера для
+будущих composition roots, не создавая взаимной зависимости их конфигураций.
+Эти модули ещё не подключены к `CoreModule`: публичный transport отсутствует, а
+обычный запуск backend не должен требовать AI runtime или Alice AI credentials.
+Авторизация и бизнес-модули намеренно не зафиксированы. Следующими вертикальными
+модулями должны стать `scenarios`, `training-sessions`, `scenario-engine`,
+`incident-cards`, `evaluation` и голосовой pipeline.
 
 `SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
 сохраняет backpressure и не буферизует аудио. Повтор допускается только до выдачи
-первого чанка, чтобы клиент не воспроизводил один фрагмент дважды. Модуль пока не
-подключён к `CoreModule`: реализация `TTS_PORT` будет зарегистрирована вместе с
-адаптером локального Qwen3-TTS.
+первого чанка, чтобы клиент не воспроизводил один фрагмент дважды.
 
 ## Alice AI
 
@@ -44,6 +45,17 @@ Alice AI без дополнительного SDK. В запрос переда
 `YANDEX_AI_FOLDER_ID`. Опциональные настройки и их значения по умолчанию приведены
 в `.env.example`. Нельзя добавлять ключи или реальные записи звонков в репозиторий
 и логи.
+
+## Qwen3-TTS
+
+Адаптер вызывает стандартный endpoint MLX-Audio `POST /v1/audio/speech` встроенным
+`fetch` и передаёт клиенту поток raw PCM S16LE без Base64 и WAV-заголовков. Формат
+фиксирован как mono 24 kHz. Последний непустой PCM-чанк помечается `isFinal`, а
+разделённые HTTP-границей `int16` samples безопасно объединяются.
+
+Параметры локального сервера, модели, streaming interval и timeout приведены в
+`.env.example`. Python runtime, установка MLX-Audio и загрузка модели остаются
+отдельной задачей; эта ветка не выполняет live-запросы и не добавляет Node.js SDK.
 
 ## Структура
 
