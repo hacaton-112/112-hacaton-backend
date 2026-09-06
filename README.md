@@ -18,6 +18,7 @@
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - потоковый адаптер Qwen3-TTS через стандартный MLX-Audio API;
+- типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
 - rate limiting и security headers.
 
 `AliceAiAdapterModule` предоставляет `LLM_PORT` только для
@@ -33,6 +34,22 @@
 `SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
 сохраняет backpressure и не буферизует аудио. Повтор допускается только до выдачи
 первого чанка, чтобы клиент не воспроизводил один фрагмент дважды.
+
+## Voice pipeline
+
+`VoicePipelineModule` объединяет `DialogueGenerationModule` и
+`SpeechSynthesisModule` в поток `operator text → LLM → validation → TTS → PCM`.
+Сервис сначала полностью собирает структурированный LLM-ответ, проверяет его через
+Zod и разрешённые Scenario Engine факты и только затем запускает TTS. Это не
+позволяет передать в синтез непроверенные JSON-дельты или выдуманные факты.
+
+Pipeline выдаёт типизированные события с validated reply, PCM-чанками и полными
+generation, synthesis и end-to-end latency-метриками. Backpressure и исходные
+`Uint8Array` сохраняются. Внутренние retry выполняются только соответствующими
+generation/TTS-сервисами; pipeline не повторяет LLM после ошибки синтеза.
+
+`VoicePipelineModule` пока не подключён к `CoreModule`: ASR и публичный
+HTTP/WebSocket transport будут добавлены отдельными изменениями.
 
 ## Alice AI
 
