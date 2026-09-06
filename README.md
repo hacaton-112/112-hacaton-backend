@@ -13,11 +13,14 @@
 - единый формат API-ошибок и Zod-валидация;
 - request logging с `requestId`;
 - audit service для значимых действий с привязкой к учебной сессии;
+- строгие Zod-контракты и потоковые порты для LLM и TTS;
 - rate limiting и security headers.
 
-Авторизация и бизнес-модули пока намеренно не зафиксированы. Следующими
-вертикальными модулями должны стать `scenarios`, `training-sessions`,
-`scenario-engine`, `incident-cards`, `evaluation` и `ai-gateway`.
+`AiGatewayModule` пока не подключён к приложению: конкретные адаптеры LLM и TTS
+будут зарегистрированы после их реализации. Авторизация и бизнес-модули пока
+намеренно не зафиксированы. Следующими вертикальными модулями должны стать
+`scenarios`, `training-sessions`, `scenario-engine`, `incident-cards`,
+`evaluation`, `dialogue-generation` и `speech-synthesis`.
 
 ## Структура
 
