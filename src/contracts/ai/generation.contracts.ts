@@ -33,6 +33,16 @@ export const CallerEmotionSchema = z.enum([
   "confusion",
 ]);
 
+export const CallerReplyTextSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_CALLER_REPLY_LENGTH);
+
+export const EmotionIntensitySchema = z.number().min(0).max(1);
+
+export const SpeechRateSchema = z.number().min(0.5).max(2);
+
 export const ScenarioFactSchema = z
   .object({
     id: FactIdSchema,
@@ -80,10 +90,10 @@ export const GenerateCallerReplyRequestSchema = z
 
 export const CallerReplySchema = z
   .object({
-    text: z.string().trim().min(1).max(MAX_CALLER_REPLY_LENGTH),
+    text: CallerReplyTextSchema,
     emotion: CallerEmotionSchema,
-    intensity: z.number().min(0).max(1),
-    speechRate: z.number().min(0.5).max(2),
+    intensity: EmotionIntensitySchema,
+    speechRate: SpeechRateSchema,
     revealedFactIds: z
       .array(FactIdSchema)
       .max(MAX_ALLOWED_FACTS)
@@ -111,6 +121,9 @@ export const LlmStreamEventSchema = z.discriminatedUnion("type", [
 export type AiIdentifier = z.infer<typeof AiIdentifierSchema>;
 export type FactId = z.infer<typeof FactIdSchema>;
 export type CallerEmotion = z.infer<typeof CallerEmotionSchema>;
+export type CallerReplyText = z.infer<typeof CallerReplyTextSchema>;
+export type EmotionIntensity = z.infer<typeof EmotionIntensitySchema>;
+export type SpeechRate = z.infer<typeof SpeechRateSchema>;
 export type ScenarioFact = z.infer<typeof ScenarioFactSchema>;
 export type DialogueTurn = z.infer<typeof DialogueTurnSchema>;
 export type CallerPersona = z.infer<typeof CallerPersonaSchema>;
