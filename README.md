@@ -16,6 +16,7 @@
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
+- потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - rate limiting и security headers.
 
 `AiGatewayModule` предоставляет `LLM_PORT` через адаптер Alice AI и импортируется
@@ -24,7 +25,13 @@
 требовать AI credentials. `TTS_PORT` пока остаётся без реализации. Авторизация и
 бизнес-модули намеренно не зафиксированы. Следующими вертикальными модулями должны
 стать `scenarios`, `training-sessions`, `scenario-engine`, `incident-cards`,
-`evaluation` и `speech-synthesis`.
+`evaluation`, Qwen3-TTS adapter и голосовой pipeline.
+
+`SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
+сохраняет backpressure и не буферизует аудио. Повтор допускается только до выдачи
+первого чанка, чтобы клиент не воспроизводил один фрагмент дважды. Модуль пока не
+подключён к `CoreModule`: реализация `TTS_PORT` будет зарегистрирована вместе с
+адаптером локального Qwen3-TTS.
 
 ## Alice AI
 
