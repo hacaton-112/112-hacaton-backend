@@ -15,14 +15,28 @@
 - audit service для значимых действий с привязкой к учебной сессии;
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
+- потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
 - rate limiting и security headers.
 
-`AiGatewayModule` пока не подключён к приложению: конкретные адаптеры LLM и TTS
-будут зарегистрированы после их реализации. По этой же причине
-`DialogueGenerationModule` ещё не импортирован в `CoreModule`. Авторизация и
-бизнес-модули пока намеренно не зафиксированы. Следующими вертикальными модулями
-должны стать `scenarios`, `training-sessions`, `scenario-engine`,
-`incident-cards`, `evaluation` и `speech-synthesis`.
+`AiGatewayModule` предоставляет `LLM_PORT` через адаптер Alice AI и импортируется
+модулем `DialogueGenerationModule`. Эти модули ещё не подключены к `CoreModule`:
+публичный transport для генерации отсутствует, а обычный запуск backend не должен
+требовать AI credentials. `TTS_PORT` пока остаётся без реализации. Авторизация и
+бизнес-модули намеренно не зафиксированы. Следующими вертикальными модулями должны
+стать `scenarios`, `training-sessions`, `scenario-engine`, `incident-cards`,
+`evaluation` и `speech-synthesis`.
+
+## Alice AI
+
+Адаптер использует встроенный `fetch` и потоковый OpenAI-compatible endpoint
+Alice AI без дополнительного SDK. В запрос передаётся только минимальный контекст:
+персонаж, разрешённые Scenario Engine факты, последние реплики и текущая реплика
+оператора. Ответ ограничен строгой JSON Schema и повторно валидируется backend.
+
+Для включения модуля потребуются `YANDEX_AI_API_KEY` и
+`YANDEX_AI_FOLDER_ID`. Опциональные настройки и их значения по умолчанию приведены
+в `.env.example`. Нельзя добавлять ключи или реальные записи звонков в репозиторий
+и логи.
 
 ## Структура
 
