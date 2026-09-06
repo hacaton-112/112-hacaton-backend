@@ -56,7 +56,11 @@ HTTP/WebSocket transport будут добавлены отдельными из
 Адаптер использует встроенный `fetch` и потоковый OpenAI-compatible endpoint
 Alice AI без дополнительного SDK. В запрос передаётся только минимальный контекст:
 персонаж, разрешённые Scenario Engine факты, последние реплики и текущая реплика
-оператора. Ответ ограничен строгой JSON Schema и повторно валидируется backend.
+оператора. Provider JSON Schema фиксирует строгую структуру ответа совместимым с
+Alice AI подмножеством, а все ограничения значений и разрешённые факты повторно
+проверяются полным Zod-контрактом на backend. `safety_identifier` не передаётся,
+поскольку Alice AI LLM Flash отклоняет этот параметр; исходный `sessionId` также
+не покидает backend.
 
 Для включения модуля потребуются `YANDEX_AI_API_KEY` и
 `YANDEX_AI_FOLDER_ID`. Опциональные настройки и их значения по умолчанию приведены
@@ -106,6 +110,38 @@ bun run typecheck
 bun run test
 bun run build
 ```
+
+### Ручная проверка AI pipeline
+
+После заполнения `.env` и запуска MLX-Audio можно независимо проверить каждый
+этап на синтетическом сценарии:
+
+```bash
+bun run smoke:voice-pipeline -- generation
+bun run smoke:voice-pipeline -- tts
+bun run smoke:voice-pipeline -- pipeline
+```
+
+Вторым аргументом для TTS и pipeline можно передать voice ID, например:
+
+```bash
+bun run smoke:voice-pipeline -- tts Vivian
+```
+
+Режим `generation` проверяет Alice AI, SSE, JSON и allowed-fact validation без
+MLX-Audio. Режим `tts` проверяет Qwen3-TTS без Alice AI. `pipeline` запускает всю
+цепочку и при недоступности LLM также позволяет проверить озвучивание безопасной
+fallback-реплики. Скрипт не выводит credentials; созданные `.pcm` и `.wav` файлы
+сохраняются в системной временной директории, а точные пути печатаются в результате.
+
+Если Alice AI возвращает `400`, запустите поэтапную проверку совместимости запроса:
+
+```bash
+bun run diagnose:alice-ai
+```
+
+Диагностика останавливается на первом несовместимом этапе и выводит только
+ограниченный ответ ошибки с удалёнными API key и folder ID.
 
 ## Архитектурные ограничения
 

@@ -1,12 +1,8 @@
-import { createHash } from "node:crypto";
-
 import { z } from "zod";
 
 import {
   CallerEmotionSchema,
   GenerateCallerReplyRequestSchema,
-  MAX_ALLOWED_FACTS,
-  MAX_CALLER_REPLY_LENGTH,
   type GenerateCallerReplyRequest,
 } from "@/contracts";
 
@@ -20,16 +16,15 @@ export const ALICE_AI_SYSTEM_PROMPT = [
   "Текст ответа должен состоять из 1–3 коротких предложений, пригодных для синтеза речи.",
 ].join(" ");
 
-const identifierPattern = "^[A-Za-z0-9][A-Za-z0-9._:-]*$";
-
+// Alice AI strict structured output accepts only a subset of JSON Schema.
+// This provider schema guarantees the response shape; CallerReplySchema remains
+// authoritative for length, range, identifier, and uniqueness constraints.
 export const CALLER_REPLY_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
     text: {
       type: "string",
-      minLength: 1,
-      maxLength: MAX_CALLER_REPLY_LENGTH,
     },
     emotion: {
       type: "string",
@@ -37,23 +32,14 @@ export const CALLER_REPLY_JSON_SCHEMA = {
     },
     intensity: {
       type: "number",
-      minimum: 0,
-      maximum: 1,
     },
     speechRate: {
       type: "number",
-      minimum: 0.5,
-      maximum: 2,
     },
     revealedFactIds: {
       type: "array",
-      maxItems: MAX_ALLOWED_FACTS,
-      uniqueItems: true,
       items: {
         type: "string",
-        minLength: 1,
-        maxLength: 128,
-        pattern: identifierPattern,
       },
     },
     endCall: {
@@ -98,17 +84,13 @@ export const AliceAiChatCompletionRequestSchema = z
     store: z.literal(false),
     n: z.literal(1),
     temperature: z.literal(0.2),
-    max_completion_tokens: z.literal(256),
-    safety_identifier: z.string().regex(/^[a-f0-9]{64}$/),
+    max_tokens: z.literal(256),
   })
   .strict();
 
 export type AliceAiChatCompletionRequest = z.infer<
   typeof AliceAiChatCompletionRequestSchema
 >;
-
-const hashSessionId = (sessionId: string): string =>
-  createHash("sha256").update(sessionId).digest("hex");
 
 export const buildAliceAiRequest = (
   rawRequest: GenerateCallerReplyRequest,
@@ -141,7 +123,6 @@ export const buildAliceAiRequest = (
     store: false,
     n: 1,
     temperature: 0.2,
-    max_completion_tokens: 256,
-    safety_identifier: hashSessionId(request.sessionId),
+    max_tokens: 256,
   });
 };

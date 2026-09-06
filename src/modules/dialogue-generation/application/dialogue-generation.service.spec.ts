@@ -1,7 +1,4 @@
-import type {
-  GenerateCallerReplyRequest,
-  LlmStreamEvent,
-} from "@/contracts";
+import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 import type { LlmPort } from "@/modules/ai-gateway";
 
 import { CallerReplySafetyService } from "./caller-reply-safety.service";
@@ -71,6 +68,13 @@ const failedStream: StreamFactory = () => {
   throw new Error("Provider unavailable");
 };
 
+const nonRetryableHttpErrorStream: StreamFactory = () => {
+  throw Object.assign(new Error("Provider rejected the request"), {
+    status: 400,
+    retryable: false,
+  });
+};
+
 const createService = (llmPort: LlmPort): DialogueGenerationService =>
   new DialogueGenerationService(
     llmPort,
@@ -95,10 +99,7 @@ describe(DialogueGenerationService.name, () => {
   });
 
   it("retries an invalid response and returns the second valid reply", async () => {
-    const llmPort = new FakeLlmPort([
-      () => replyStream("{"),
-      replyStream,
-    ]);
+    const llmPort = new FakeLlmPort([() => replyStream("{"), replyStream]);
 
     const result = await createService(llmPort).generate(
       validRequest,
@@ -147,6 +148,24 @@ describe(DialogueGenerationService.name, () => {
       "provider-error",
       "provider-error",
     ]);
+  });
+
+  it("does not retry an explicitly non-retryable HTTP error", async () => {
+    const llmPort = new FakeLlmPort([nonRetryableHttpErrorStream, replyStream]);
+
+    const result = await createService(llmPort).generate(
+      validRequest,
+      new AbortController().signal,
+    );
+
+    expect(result).toEqual({
+      reply: DEFAULT_FALLBACK_CALLER_REPLY,
+      source: "fallback",
+      attempts: [
+        expect.objectContaining({ attempt: 1, outcome: "provider-error" }),
+      ],
+    });
+    expect(llmPort.calls).toHaveLength(1);
   });
 
   it("propagates cancellation without retrying or returning a fallback", async () => {
