@@ -64,25 +64,26 @@ export const env = createEnv({
       .max(30_000)
       .default(5_000),
 
-    // ── Qwen TTS / MLX-Audio ────────────────────────────────────
+    // ── Qwen TTS ────────────────────────────────────────────────
+    QWEN_TTS_PROVIDER: z.enum(["mlx-audio", "vllm-omni"]).default("mlx-audio"),
     QWEN_TTS_BASE_URL: z
       .url()
       .refine((url) => /^https?:\/\//.test(url), {
         message: "QWEN_TTS_BASE_URL must use the http:// or https:// scheme",
       })
-      .default("http://127.0.0.1:8000"),
+      .optional(),
     QWEN_TTS_MODEL: z
       .string()
       .trim()
       .min(1)
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
-      .default("mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"),
+      .optional(),
     QWEN_TTS_STREAMING_INTERVAL_SECONDS: z.coerce
       .number()
       .min(0.08)
       .max(2)
-      .default(0.32),
+      .optional(),
     QWEN_TTS_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()

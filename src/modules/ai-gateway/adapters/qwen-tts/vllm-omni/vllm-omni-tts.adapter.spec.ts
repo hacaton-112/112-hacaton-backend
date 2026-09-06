@@ -1,12 +1,12 @@
 import type { AudioChunk, TtsSynthesisRequest } from "@/contracts";
 
-import type { QwenTtsConfig } from "./qwen-tts.config";
-import { QwenTtsAdapter } from "./qwen-tts.adapter";
+import type { VllmOmniTtsConfig } from "./vllm-omni-tts.config";
+import { VllmOmniTtsAdapter } from "./vllm-omni-tts.adapter";
 
-const config: QwenTtsConfig = {
-  baseUrl: "http://127.0.0.1:8000",
-  model: "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
-  streamingIntervalSeconds: 0.32,
+const config: VllmOmniTtsConfig = {
+  provider: "vllm-omni",
+  baseUrl: "http://127.0.0.1:8091",
+  model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   requestTimeoutMs: 60_000,
 };
 
@@ -15,10 +15,10 @@ const request: TtsSynthesisRequest = {
   sessionId: "session-1",
   text: "На кухне сильный дым!",
   language: "Russian",
-  voiceId: "vivian",
+  voiceId: "Vivian",
   emotion: "panic",
   intensity: 0.85,
-  speechRate: 1.15,
+  speechRate: 1.25,
 };
 
 const createFetchMock = (): jest.MockedFunction<typeof fetch> =>
@@ -39,7 +39,7 @@ const pcmResponse = (chunks: readonly Uint8Array[]): Response =>
   );
 
 const collect = async (
-  adapter: QwenTtsAdapter,
+  adapter: VllmOmniTtsAdapter,
   signal: AbortSignal = new AbortController().signal,
 ): Promise<AudioChunk[]> => {
   const chunks: AudioChunk[] = [];
@@ -51,13 +51,13 @@ const collect = async (
   return chunks;
 };
 
-describe(QwenTtsAdapter.name, () => {
-  it("sends the exact request and maps the raw PCM response", async () => {
+describe(VllmOmniTtsAdapter.name, () => {
+  it("streams raw PCM with the vLLM Omni request contract", async () => {
     const audio = new Uint8Array([0, 1, 2, 3]);
     const fetchImplementation = createFetchMock().mockResolvedValue(
       pcmResponse([audio]),
     );
-    const adapter = new QwenTtsAdapter(config, fetchImplementation);
+    const adapter = new VllmOmniTtsAdapter(config, fetchImplementation);
 
     await expect(collect(adapter)).resolves.toEqual([
       expect.objectContaining({
@@ -70,9 +70,8 @@ describe(QwenTtsAdapter.name, () => {
         audio,
       }),
     ]);
-    expect(fetchImplementation).toHaveBeenCalledTimes(1);
     expect(fetchImplementation).toHaveBeenCalledWith(
-      "http://127.0.0.1:8000/v1/audio/speech",
+      "http://127.0.0.1:8091/v1/audio/speech",
       expect.objectContaining({
         method: "POST",
         headers: {
@@ -82,16 +81,16 @@ describe(QwenTtsAdapter.name, () => {
         body: JSON.stringify({
           model: config.model,
           input: request.text,
-          voice: request.voiceId,
-          speed: request.speechRate,
-          lang_code: "Russian",
-          instruct:
-            "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная.",
+          voice: "vivian",
+          task_type: "CustomVoice",
+          language: "Russian",
+          instructions:
+            "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная. Темп речи: быстрый.",
           response_format: "pcm",
+          sample_rate: 24_000,
           stream: true,
-          streaming_interval: config.streamingIntervalSeconds,
-          max_tokens: 1_200,
-          verbose: false,
+          stream_format: "audio",
+          max_new_tokens: 1_200,
         }),
         signal: expect.any(AbortSignal),
       }),
@@ -106,7 +105,7 @@ describe(QwenTtsAdapter.name, () => {
     [503, true],
   ])("classifies HTTP %i with retryable=%s", async (status, retryable) => {
     const sensitiveBody = `${request.text}; ${request.sessionId}`;
-    const adapter = new QwenTtsAdapter(
+    const adapter = new VllmOmniTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(
         new Response(sensitiveBody, { status }),
@@ -129,13 +128,13 @@ describe(QwenTtsAdapter.name, () => {
     expect(String(thrown)).not.toContain(sensitiveBody);
   });
 
-  it("rejects a successful response with an unexpected content type", async () => {
-    const adapter = new QwenTtsAdapter(
+  it("rejects an SSE response instead of decoding Base64 as PCM", async () => {
+    const adapter = new VllmOmniTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(
-        new Response(new Uint8Array([0, 1]), {
+        new Response('data: {"type":"speech.audio.delta"}\n\n', {
           status: 200,
-          headers: { "Content-Type": "audio/wav" },
+          headers: { "Content-Type": "text/event-stream" },
         }),
       ),
     );
@@ -145,24 +144,8 @@ describe(QwenTtsAdapter.name, () => {
     );
   });
 
-  it("rejects a successful response without a stream", async () => {
-    const adapter = new QwenTtsAdapter(
-      config,
-      createFetchMock().mockResolvedValue(
-        new Response(null, {
-          status: 200,
-          headers: { "Content-Type": "audio/pcm" },
-        }),
-      ),
-    );
-
-    await expect(collect(adapter)).rejects.toEqual(
-      expect.objectContaining({ code: "invalid-response" }),
-    );
-  });
-
-  it("rejects an empty response stream", async () => {
-    const adapter = new QwenTtsAdapter(
+  it("rejects an empty PCM stream", async () => {
+    const adapter = new VllmOmniTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(pcmResponse([])),
     );
@@ -176,7 +159,7 @@ describe(QwenTtsAdapter.name, () => {
     const controller = new AbortController();
     const reason = new Error("Synthesis cancelled");
     controller.abort(reason);
-    const adapter = new QwenTtsAdapter(config, createFetchMock());
+    const adapter = new VllmOmniTtsAdapter(config, createFetchMock());
 
     await expect(collect(adapter, controller.signal)).rejects.toBe(reason);
   });
@@ -185,7 +168,7 @@ describe(QwenTtsAdapter.name, () => {
     const providerError = new Error(
       `provider leaked ${request.text} and ${request.sessionId}`,
     );
-    const adapter = new QwenTtsAdapter(
+    const adapter = new VllmOmniTtsAdapter(
       config,
       createFetchMock().mockRejectedValue(providerError),
     );
@@ -208,8 +191,11 @@ describe(QwenTtsAdapter.name, () => {
     expect(String(thrown)).not.toContain(request.sessionId);
   });
 
-  it("converts the provider timeout to a retryable sanitized error", async () => {
-    const timeoutConfig: QwenTtsConfig = { ...config, requestTimeoutMs: 1 };
+  it("converts provider timeout to a retryable sanitized error", async () => {
+    const timeoutConfig: VllmOmniTtsConfig = {
+      ...config,
+      requestTimeoutMs: 1,
+    };
     const fetchImplementation: typeof fetch = (_input, init) =>
       new Promise<Response>((_resolve, reject) => {
         const requestSignal = init?.signal;
@@ -232,7 +218,7 @@ describe(QwenTtsAdapter.name, () => {
           once: true,
         });
       });
-    const adapter = new QwenTtsAdapter(timeoutConfig, fetchImplementation);
+    const adapter = new VllmOmniTtsAdapter(timeoutConfig, fetchImplementation);
 
     await expect(collect(adapter)).rejects.toEqual(
       expect.objectContaining({

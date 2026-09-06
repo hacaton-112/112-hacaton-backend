@@ -22,11 +22,11 @@ import {
   type AliceAiEnvironment,
   parseAliceAiConfig,
 } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai.config";
-import { QwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.adapter";
 import {
   type QwenTtsEnvironment,
   parseQwenTtsConfig,
 } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
+import { createQwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.factory";
 import type { LlmPort, TtsPort } from "@/modules/ai-gateway";
 import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
 import { DialogueGenerationService } from "@/modules/dialogue-generation/application/dialogue-generation.service";
@@ -64,6 +64,7 @@ const ALICE_ENVIRONMENT_KEYS = [
 ] as const satisfies readonly (keyof AliceAiEnvironment)[];
 
 const QWEN_ENVIRONMENT_KEYS = [
+  "QWEN_TTS_PROVIDER",
   "QWEN_TTS_BASE_URL",
   "QWEN_TTS_MODEL",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
@@ -247,7 +248,7 @@ const createDialogueRuntime = () => {
 const createSpeechRuntime = () => {
   const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
   const port = new ObservedTtsPort(
-    new QwenTtsAdapter(config, globalThis.fetch.bind(globalThis)),
+    createQwenTtsAdapter(config, globalThis.fetch.bind(globalThis)),
   );
   const service = new SpeechSynthesisService(port, new TtsStreamValidator());
 
@@ -310,12 +311,7 @@ const runTts = async (voiceId: string) => {
     return {
       status: "ok",
       mode: "tts",
-      provider: {
-        baseUrl: runtime.config.baseUrl,
-        model: runtime.config.model,
-        requestTimeoutMs: runtime.config.requestTimeoutMs,
-        streamingIntervalSeconds: runtime.config.streamingIntervalSeconds,
-      },
+      provider: runtime.config,
       voiceId,
       metrics,
       artifacts: await writer.complete(),
