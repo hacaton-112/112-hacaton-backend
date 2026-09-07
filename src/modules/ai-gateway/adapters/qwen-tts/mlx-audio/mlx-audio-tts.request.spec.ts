@@ -1,12 +1,14 @@
 import { CallerEmotionSchema, type TtsSynthesisRequest } from "@/contracts";
 
-import type { QwenTtsConfig } from "./qwen-tts.config";
+import type { QwenTtsConfig } from "../qwen-tts.config";
 import {
-  QWEN_TTS_MAX_TOKENS,
   buildQwenTtsInstruction,
-  buildQwenTtsRequest,
   mapQwenTtsIntensity,
-} from "./qwen-tts.request";
+} from "../qwen-tts.instruction";
+import {
+  MLX_AUDIO_TTS_MAX_TOKENS,
+  buildMlxAudioTtsRequest,
+} from "./mlx-audio-tts.request";
 
 const config: QwenTtsConfig = {
   baseUrl: "http://127.0.0.1:8000",
@@ -26,9 +28,9 @@ const request: TtsSynthesisRequest = {
   speechRate: 1.15,
 };
 
-describe(buildQwenTtsRequest.name, () => {
+describe(buildMlxAudioTtsRequest.name, () => {
   it("builds the exact streaming MLX-Audio request", () => {
-    expect(buildQwenTtsRequest(request, config)).toEqual({
+    expect(buildMlxAudioTtsRequest(request, config)).toEqual({
       model: config.model,
       input: request.text,
       voice: request.voiceId,
@@ -39,13 +41,15 @@ describe(buildQwenTtsRequest.name, () => {
       response_format: "pcm",
       stream: true,
       streaming_interval: config.streamingIntervalSeconds,
-      max_tokens: QWEN_TTS_MAX_TOKENS,
+      max_tokens: MLX_AUDIO_TTS_MAX_TOKENS,
       verbose: false,
     });
   });
 
   it("does not expose internal identifiers", () => {
-    const serialized = JSON.stringify(buildQwenTtsRequest(request, config));
+    const serialized = JSON.stringify(
+      buildMlxAudioTtsRequest(request, config),
+    );
 
     expect(serialized).not.toContain(request.requestId);
     expect(serialized).not.toContain(request.sessionId);
@@ -75,7 +79,7 @@ describe(buildQwenTtsRequest.name, () => {
 
   it("validates the domain request before mapping", () => {
     expect(() =>
-      buildQwenTtsRequest({ ...request, speechRate: 3 }, config),
+      buildMlxAudioTtsRequest({ ...request, speechRate: 3 }, config),
     ).toThrow();
   });
 });

@@ -1,7 +1,7 @@
 import type { AudioChunk, TtsSynthesisRequest } from "@/contracts";
 
-import type { QwenTtsConfig } from "./qwen-tts.config";
-import { QwenTtsAdapter } from "./qwen-tts.adapter";
+import type { QwenTtsConfig } from "../qwen-tts.config";
+import { MlxAudioTtsAdapter } from "./mlx-audio-tts.adapter";
 
 const config: QwenTtsConfig = {
   baseUrl: "http://127.0.0.1:8000",
@@ -39,7 +39,7 @@ const pcmResponse = (chunks: readonly Uint8Array[]): Response =>
   );
 
 const collect = async (
-  adapter: QwenTtsAdapter,
+  adapter: MlxAudioTtsAdapter,
   signal: AbortSignal = new AbortController().signal,
 ): Promise<AudioChunk[]> => {
   const chunks: AudioChunk[] = [];
@@ -51,13 +51,13 @@ const collect = async (
   return chunks;
 };
 
-describe(QwenTtsAdapter.name, () => {
+describe(MlxAudioTtsAdapter.name, () => {
   it("sends the exact request and maps the raw PCM response", async () => {
     const audio = new Uint8Array([0, 1, 2, 3]);
     const fetchImplementation = createFetchMock().mockResolvedValue(
       pcmResponse([audio]),
     );
-    const adapter = new QwenTtsAdapter(config, fetchImplementation);
+    const adapter = new MlxAudioTtsAdapter(config, fetchImplementation);
 
     await expect(collect(adapter)).resolves.toEqual([
       expect.objectContaining({
@@ -106,7 +106,7 @@ describe(QwenTtsAdapter.name, () => {
     [503, true],
   ])("classifies HTTP %i with retryable=%s", async (status, retryable) => {
     const sensitiveBody = `${request.text}; ${request.sessionId}`;
-    const adapter = new QwenTtsAdapter(
+    const adapter = new MlxAudioTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(
         new Response(sensitiveBody, { status }),
@@ -130,7 +130,7 @@ describe(QwenTtsAdapter.name, () => {
   });
 
   it("rejects a successful response with an unexpected content type", async () => {
-    const adapter = new QwenTtsAdapter(
+    const adapter = new MlxAudioTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(
         new Response(new Uint8Array([0, 1]), {
@@ -146,7 +146,7 @@ describe(QwenTtsAdapter.name, () => {
   });
 
   it("rejects a successful response without a stream", async () => {
-    const adapter = new QwenTtsAdapter(
+    const adapter = new MlxAudioTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(
         new Response(null, {
@@ -162,7 +162,7 @@ describe(QwenTtsAdapter.name, () => {
   });
 
   it("rejects an empty response stream", async () => {
-    const adapter = new QwenTtsAdapter(
+    const adapter = new MlxAudioTtsAdapter(
       config,
       createFetchMock().mockResolvedValue(pcmResponse([])),
     );
@@ -176,7 +176,7 @@ describe(QwenTtsAdapter.name, () => {
     const controller = new AbortController();
     const reason = new Error("Synthesis cancelled");
     controller.abort(reason);
-    const adapter = new QwenTtsAdapter(config, createFetchMock());
+    const adapter = new MlxAudioTtsAdapter(config, createFetchMock());
 
     await expect(collect(adapter, controller.signal)).rejects.toBe(reason);
   });
@@ -185,7 +185,7 @@ describe(QwenTtsAdapter.name, () => {
     const providerError = new Error(
       `provider leaked ${request.text} and ${request.sessionId}`,
     );
-    const adapter = new QwenTtsAdapter(
+    const adapter = new MlxAudioTtsAdapter(
       config,
       createFetchMock().mockRejectedValue(providerError),
     );
@@ -232,7 +232,10 @@ describe(QwenTtsAdapter.name, () => {
           once: true,
         });
       });
-    const adapter = new QwenTtsAdapter(timeoutConfig, fetchImplementation);
+    const adapter = new MlxAudioTtsAdapter(
+      timeoutConfig,
+      fetchImplementation,
+    );
 
     await expect(collect(adapter)).rejects.toEqual(
       expect.objectContaining({

@@ -7,17 +7,17 @@ import {
 } from "@/contracts";
 import type { TtsPort } from "@/modules/ai-gateway/ports/tts.port";
 
-import type { QwenTtsConfig } from "./qwen-tts.config";
-import { QwenTtsError } from "./qwen-tts.error";
-import { parseQwenTtsPcm } from "./qwen-tts.pcm";
-import { buildQwenTtsRequest } from "./qwen-tts.request";
+import type { QwenTtsConfig } from "../qwen-tts.config";
+import { QwenTtsError } from "../qwen-tts.error";
+import { parseQwenTtsPcm } from "../qwen-tts.pcm";
 import {
   QWEN_TTS_CONFIG,
   QWEN_TTS_FETCH,
   type QwenTtsFetch,
-} from "./qwen-tts.tokens";
+} from "../qwen-tts.tokens";
+import { buildMlxAudioTtsRequest } from "./mlx-audio-tts.request";
 
-const QWEN_TTS_CONTENT_TYPE = "audio/pcm";
+const MLX_AUDIO_TTS_CONTENT_TYPE = "audio/pcm";
 
 const isRetryableStatus = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
@@ -27,10 +27,10 @@ const isPcmResponse = (response: Response): boolean =>
     .get("content-type")
     ?.split(";", 1)[0]
     ?.trim()
-    .toLowerCase() === QWEN_TTS_CONTENT_TYPE;
+    .toLowerCase() === MLX_AUDIO_TTS_CONTENT_TYPE;
 
 @Injectable()
-export class QwenTtsAdapter implements TtsPort {
+export class MlxAudioTtsAdapter implements TtsPort {
   constructor(
     @Inject(QWEN_TTS_CONFIG)
     private readonly config: QwenTtsConfig,
@@ -45,7 +45,7 @@ export class QwenTtsAdapter implements TtsPort {
     signal.throwIfAborted();
 
     const request = TtsSynthesisRequestSchema.parse(rawRequest);
-    const providerRequest = buildQwenTtsRequest(request, this.config);
+    const providerRequest = buildMlxAudioTtsRequest(request, this.config);
     const timeoutSignal = AbortSignal.timeout(this.config.requestTimeoutMs);
     const requestSignal = AbortSignal.any([signal, timeoutSignal]);
 
@@ -55,7 +55,7 @@ export class QwenTtsAdapter implements TtsPort {
         {
           method: "POST",
           headers: {
-            Accept: QWEN_TTS_CONTENT_TYPE,
+            Accept: MLX_AUDIO_TTS_CONTENT_TYPE,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(providerRequest),
@@ -66,7 +66,7 @@ export class QwenTtsAdapter implements TtsPort {
       if (!response.ok) {
         throw new QwenTtsError(
           "http-error",
-          `Qwen TTS request failed with status ${response.status}`,
+          `MLX Audio TTS request failed with status ${response.status}`,
           {
             status: response.status,
             retryable: isRetryableStatus(response.status),
@@ -77,14 +77,14 @@ export class QwenTtsAdapter implements TtsPort {
       if (!isPcmResponse(response)) {
         throw new QwenTtsError(
           "invalid-response",
-          "Qwen TTS returned an unexpected content type",
+          "MLX Audio TTS returned an unexpected content type",
         );
       }
 
       if (response.body === null) {
         throw new QwenTtsError(
           "invalid-response",
-          "Qwen TTS returned an empty response stream",
+          "MLX Audio TTS returned an empty response stream",
         );
       }
 
@@ -95,7 +95,7 @@ export class QwenTtsAdapter implements TtsPort {
       }
 
       if (timeoutSignal.aborted) {
-        throw new QwenTtsError("timeout", "Qwen TTS request timed out", {
+        throw new QwenTtsError("timeout", "MLX Audio TTS request timed out", {
           retryable: true,
         });
       }
@@ -106,7 +106,7 @@ export class QwenTtsAdapter implements TtsPort {
 
       throw new QwenTtsError(
         "transport-error",
-        "Qwen TTS request failed before synthesis completed",
+        "MLX Audio TTS request failed before synthesis completed",
         { retryable: true },
       );
     }

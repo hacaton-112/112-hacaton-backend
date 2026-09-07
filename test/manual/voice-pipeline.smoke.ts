@@ -22,7 +22,7 @@ import {
   type AliceAiEnvironment,
   parseAliceAiConfig,
 } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai.config";
-import { QwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.adapter";
+import { MlxAudioTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/mlx-audio/mlx-audio-tts.adapter";
 import {
   type QwenTtsEnvironment,
   parseQwenTtsConfig,
@@ -247,7 +247,7 @@ const createDialogueRuntime = () => {
 const createSpeechRuntime = () => {
   const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
   const port = new ObservedTtsPort(
-    new QwenTtsAdapter(config, globalThis.fetch.bind(globalThis)),
+    new MlxAudioTtsAdapter(config, globalThis.fetch.bind(globalThis)),
   );
   const service = new SpeechSynthesisService(port, new TtsStreamValidator());
 

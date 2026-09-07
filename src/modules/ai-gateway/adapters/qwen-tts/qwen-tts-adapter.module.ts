@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { TTS_PORT } from "../../ai-gateway.tokens";
-import { QwenTtsAdapter } from "./qwen-tts.adapter";
+import { MlxAudioTtsAdapter } from "./mlx-audio/mlx-audio-tts.adapter";
 import { type QwenTtsEnvironment, parseQwenTtsConfig } from "./qwen-tts.config";
 import {
   QWEN_TTS_CONFIG,
@@ -36,10 +36,10 @@ const createQwenTtsConfig = (configService: ConfigService) =>
       provide: QWEN_TTS_FETCH,
       useFactory: (): QwenTtsFetch => globalThis.fetch.bind(globalThis),
     },
-    QwenTtsAdapter,
+    MlxAudioTtsAdapter,
     {
       provide: TTS_PORT,
-      useExisting: QwenTtsAdapter,
+      useExisting: MlxAudioTtsAdapter,
     },
   ],
   exports: [TTS_PORT],
