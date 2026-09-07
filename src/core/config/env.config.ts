@@ -4,6 +4,11 @@ import { z } from "zod";
 
 dotenv.config();
 
+const BooleanEnvironmentSchema = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((value) => value === "true");
+
 export const env = createEnv({
   server: {
     // ── Application ──────────────────────────────────────────────
@@ -14,6 +19,7 @@ export const env = createEnv({
     // ── Server ───────────────────────────────────────────────────
     HOST: z.string().default("0.0.0.0"),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
 
     // ── CORS ─────────────────────────────────────────────────────
     CORS_ORIGINS: z
@@ -23,11 +29,9 @@ export const env = createEnv({
       ),
 
     // ── Database ─────────────────────────────────────────────────
-    DATABASE_URL: z
-      .url()
-      .refine((url) => /^postgres(ql)?:\/\//.test(url), {
-        message: "DATABASE_URL must use the postgresql:// or postgres:// scheme",
-      }),
+    DATABASE_URL: z.url().refine((url) => /^postgres(ql)?:\/\//.test(url), {
+      message: "DATABASE_URL must use the postgresql:// or postgres:// scheme",
+    }),
     ASR_SERVICE_URL: z
       .url()
       .refine((url) => /^https?:\/\//.test(url), {
