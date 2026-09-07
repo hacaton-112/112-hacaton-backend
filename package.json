@@ -33,8 +33,10 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-ws": "^11.0.1",
     "@nestjs/terminus": "^11.1.1",
     "@nestjs/throttler": "^6.5.0",
+    "@nestjs/websockets": "^11.0.1",
     "@t3-oss/env-core": "^0.13.11",
     "chalk": "^5.6.2",
     "dotenv": "^16.4.5",
@@ -48,6 +50,7 @@
     "serialize-error": "^13.0.1",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -58,6 +61,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.20.0",
+    "@types/ws": "^8",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",
     "globals": "^17.0.0",
