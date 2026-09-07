@@ -107,6 +107,29 @@ bun run test
 bun run build
 ```
 
+### Ручная проверка AI pipeline
+
+После заполнения `.env` и запуска MLX-Audio можно независимо проверить каждый
+этап на синтетическом сценарии:
+
+```bash
+bun run smoke:voice-pipeline -- generation
+bun run smoke:voice-pipeline -- tts
+bun run smoke:voice-pipeline -- pipeline
+```
+
+Вторым аргументом для TTS и pipeline можно передать voice ID, например:
+
+```bash
+bun run smoke:voice-pipeline -- tts Vivian
+```
+
+Режим `generation` проверяет Alice AI, SSE, JSON и allowed-fact validation без
+MLX-Audio. Режим `tts` проверяет Qwen3-TTS без Alice AI. `pipeline` запускает всю
+цепочку и при недоступности LLM также позволяет проверить озвучивание безопасной
+fallback-реплики. Скрипт не выводит credentials; созданные `.pcm` и `.wav` файлы
+сохраняются в системной временной директории, а точные пути печатаются в результате.
+
 ## Архитектурные ограничения
 
 - `Scenario Engine` остаётся единственным источником истины по происшествию.
