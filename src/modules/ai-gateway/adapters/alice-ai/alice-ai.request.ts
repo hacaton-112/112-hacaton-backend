@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { z } from "zod";
 
 import {
@@ -87,16 +85,12 @@ export const AliceAiChatCompletionRequestSchema = z
     n: z.literal(1),
     temperature: z.literal(0.2),
     max_tokens: z.literal(256),
-    safety_identifier: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
 
 export type AliceAiChatCompletionRequest = z.infer<
   typeof AliceAiChatCompletionRequestSchema
 >;
-
-const hashSessionId = (sessionId: string): string =>
-  createHash("sha256").update(sessionId).digest("hex");
 
 export const buildAliceAiRequest = (
   rawRequest: GenerateCallerReplyRequest,
@@ -130,6 +124,5 @@ export const buildAliceAiRequest = (
     n: 1,
     temperature: 0.2,
     max_tokens: 256,
-    safety_identifier: hashSessionId(request.sessionId),
   });
 };

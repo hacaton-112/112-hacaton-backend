@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import type { GenerateCallerReplyRequest } from "@/contracts";
 
 import type { AliceAiConfig } from "./alice-ai.config";
@@ -69,9 +67,6 @@ describe(buildAliceAiRequest.name, () => {
       n: 1,
       temperature: 0.2,
       max_tokens: 256,
-      safety_identifier: createHash("sha256")
-        .update(request.sessionId)
-        .digest("hex"),
     });
   });
 
@@ -85,6 +80,7 @@ describe(buildAliceAiRequest.name, () => {
     expect(serialized).not.toContain(config.apiKey);
     expect(serialized).not.toContain("reasoning_effort");
     expect(serialized).not.toContain("max_completion_tokens");
+    expect(serialized).not.toContain("safety_identifier");
   });
 
   it("keeps provider schema structural and delegates value constraints to Zod", () => {

@@ -70,7 +70,6 @@ const createStages = (
     stream: true,
     store: request.store,
     n: request.n,
-    safety_identifier: request.safety_identifier,
   };
   const nonStrictResponseFormat = {
     ...request.response_format,
