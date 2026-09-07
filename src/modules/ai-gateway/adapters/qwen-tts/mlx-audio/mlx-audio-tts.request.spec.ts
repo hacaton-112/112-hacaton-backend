@@ -1,6 +1,6 @@
 import { CallerEmotionSchema, type TtsSynthesisRequest } from "@/contracts";
 
-import type { QwenTtsConfig } from "../qwen-tts.config";
+import type { MlxAudioTtsConfig } from "../qwen-tts.config";
 import {
   buildQwenTtsInstruction,
   mapQwenTtsIntensity,
@@ -10,7 +10,8 @@ import {
   buildMlxAudioTtsRequest,
 } from "./mlx-audio-tts.request";
 
-const config: QwenTtsConfig = {
+const config: MlxAudioTtsConfig = {
+  provider: "mlx-audio",
   baseUrl: "http://127.0.0.1:8000",
   model: "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
   streamingIntervalSeconds: 0.32,
@@ -47,9 +48,7 @@ describe(buildMlxAudioTtsRequest.name, () => {
   });
 
   it("does not expose internal identifiers", () => {
-    const serialized = JSON.stringify(
-      buildMlxAudioTtsRequest(request, config),
-    );
+    const serialized = JSON.stringify(buildMlxAudioTtsRequest(request, config));
 
     expect(serialized).not.toContain(request.requestId);
     expect(serialized).not.toContain(request.sessionId);

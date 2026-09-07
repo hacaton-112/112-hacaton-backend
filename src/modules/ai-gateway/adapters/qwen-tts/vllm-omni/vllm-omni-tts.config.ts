@@ -7,6 +7,7 @@ export const DEFAULT_VLLM_OMNI_TTS_REQUEST_TIMEOUT_MS = 60_000;
 
 export const VllmOmniTtsConfigSchema = z
   .object({
+    provider: z.literal("vllm-omni"),
     baseUrl: z
       .url()
       .refine((value) => /^https?:\/\//.test(value), {
@@ -21,7 +22,7 @@ export const VllmOmniTtsConfigSchema = z
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
       .default(DEFAULT_VLLM_OMNI_TTS_MODEL),
-    requestTimeoutMs: z
+    requestTimeoutMs: z.coerce
       .number()
       .int()
       .min(1_000)

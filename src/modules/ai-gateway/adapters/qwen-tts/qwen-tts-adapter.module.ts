@@ -2,8 +2,8 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { TTS_PORT } from "../../ai-gateway.tokens";
-import { MlxAudioTtsAdapter } from "./mlx-audio/mlx-audio-tts.adapter";
 import { type QwenTtsEnvironment, parseQwenTtsConfig } from "./qwen-tts.config";
+import { createQwenTtsAdapter } from "./qwen-tts.factory";
 import {
   QWEN_TTS_CONFIG,
   QWEN_TTS_FETCH,
@@ -11,6 +11,7 @@ import {
 } from "./qwen-tts.tokens";
 
 const QWEN_TTS_ENVIRONMENT_KEYS = [
+  "QWEN_TTS_PROVIDER",
   "QWEN_TTS_BASE_URL",
   "QWEN_TTS_MODEL",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
@@ -36,10 +37,10 @@ const createQwenTtsConfig = (configService: ConfigService) =>
       provide: QWEN_TTS_FETCH,
       useFactory: (): QwenTtsFetch => globalThis.fetch.bind(globalThis),
     },
-    MlxAudioTtsAdapter,
     {
       provide: TTS_PORT,
-      useExisting: MlxAudioTtsAdapter,
+      inject: [QWEN_TTS_CONFIG, QWEN_TTS_FETCH],
+      useFactory: createQwenTtsAdapter,
     },
   ],
   exports: [TTS_PORT],

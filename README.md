@@ -17,7 +17,7 @@
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
-- потоковый адаптер Qwen3-TTS через стандартный MLX-Audio API;
+- заменяемые потоковые адаптеры Qwen3-TTS для MLX-Audio и vLLM-Omni;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
 - rate limiting и security headers.
 
@@ -69,14 +69,19 @@ Alice AI подмножеством, а все ограничения значе
 
 ## Qwen3-TTS
 
-Адаптер вызывает стандартный endpoint MLX-Audio `POST /v1/audio/speech` встроенным
-`fetch` и передаёт клиенту поток raw PCM S16LE без Base64 и WAV-заголовков. Формат
+`QwenTtsAdapterModule` выбирает runtime через `QWEN_TTS_PROVIDER`. Значение
+`mlx-audio` использует нативный MLX-Audio на Apple Silicon, а `vllm-omni` —
+vLLM-Omni, например в Linux-контейнере с CUDA. Оба адаптера реализуют один
+`TTS_PORT` и передают клиенту raw PCM S16LE без Base64 и WAV-заголовков. Формат
 фиксирован как mono 24 kHz. Последний непустой PCM-чанк помечается `isFinal`, а
 разделённые HTTP-границей `int16` samples безопасно объединяются.
 
-Параметры локального сервера, модели, streaming interval и timeout приведены в
-`.env.example`. Python runtime, установка MLX-Audio и загрузка модели остаются
-отдельной задачей; эта ветка не выполняет live-запросы и не добавляет Node.js SDK.
+Provider-specific запросы разделены: MLX-Audio получает `lang_code`, `instruct`
+и `streaming_interval`, а vLLM-Omni — `language`, `instructions`,
+`max_new_tokens` и обязательный `stream_format: "audio"`. Поскольку vLLM-Omni не
+поддерживает изменение `speed` при потоковой выдаче, `speechRate` преобразуется в
+контролируемую текстовую инструкцию. Параметры обоих runtime приведены в
+`.env.example`.
 
 ## Структура
 
@@ -113,8 +118,8 @@ bun run build
 
 ### Ручная проверка AI pipeline
 
-После заполнения `.env` и запуска MLX-Audio можно независимо проверить каждый
-этап на синтетическом сценарии:
+После заполнения `.env` и запуска выбранного Qwen3-TTS runtime можно независимо
+проверить каждый этап на синтетическом сценарии:
 
 ```bash
 bun run smoke:voice-pipeline -- generation
@@ -128,11 +133,12 @@ bun run smoke:voice-pipeline -- pipeline
 bun run smoke:voice-pipeline -- tts Vivian
 ```
 
-Режим `generation` проверяет Alice AI, SSE, JSON и allowed-fact validation без
-MLX-Audio. Режим `tts` проверяет Qwen3-TTS без Alice AI. `pipeline` запускает всю
-цепочку и при недоступности LLM также позволяет проверить озвучивание безопасной
-fallback-реплики. Скрипт не выводит credentials; созданные `.pcm` и `.wav` файлы
-сохраняются в системной временной директории, а точные пути печатаются в результате.
+Режим `generation` проверяет Alice AI, SSE, JSON и allowed-fact validation без TTS.
+Режим `tts` проверяет выбранный Qwen3-TTS runtime без Alice AI. `pipeline`
+запускает всю цепочку и при недоступности LLM также позволяет проверить озвучивание
+безопасной fallback-реплики. Скрипт не выводит credentials; созданные `.pcm` и
+`.wav` файлы сохраняются в системной временной директории, а точные пути печатаются
+в результате.
 
 Если Alice AI возвращает `400`, запустите поэтапную проверку совместимости запроса:
 

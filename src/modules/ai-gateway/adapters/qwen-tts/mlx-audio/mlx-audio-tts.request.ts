@@ -11,7 +11,7 @@ import {
 import {
   MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
   MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
-  type QwenTtsConfig,
+  type MlxAudioTtsConfig,
 } from "../qwen-tts.config";
 import { buildQwenTtsInstruction } from "../qwen-tts.instruction";
 
@@ -42,7 +42,7 @@ export type MlxAudioTtsSpeechRequest = z.infer<
 
 export const buildMlxAudioTtsRequest = (
   rawRequest: TtsSynthesisRequest,
-  config: QwenTtsConfig,
+  config: MlxAudioTtsConfig,
 ): MlxAudioTtsSpeechRequest => {
   const request = TtsSynthesisRequestSchema.parse(rawRequest);
 

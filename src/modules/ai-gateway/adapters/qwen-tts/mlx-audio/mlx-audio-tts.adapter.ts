@@ -7,7 +7,7 @@ import {
 } from "@/contracts";
 import type { TtsPort } from "@/modules/ai-gateway/ports/tts.port";
 
-import type { QwenTtsConfig } from "../qwen-tts.config";
+import type { MlxAudioTtsConfig } from "../qwen-tts.config";
 import { QwenTtsError } from "../qwen-tts.error";
 import { parseQwenTtsPcm } from "../qwen-tts.pcm";
 import {
@@ -33,7 +33,7 @@ const isPcmResponse = (response: Response): boolean =>
 export class MlxAudioTtsAdapter implements TtsPort {
   constructor(
     @Inject(QWEN_TTS_CONFIG)
-    private readonly config: QwenTtsConfig,
+    private readonly config: MlxAudioTtsConfig,
     @Inject(QWEN_TTS_FETCH)
     private readonly fetchImplementation: QwenTtsFetch,
   ) {}

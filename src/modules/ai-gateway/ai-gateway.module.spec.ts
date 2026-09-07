@@ -7,8 +7,12 @@ import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthes
 
 import { AliceAiAdapterModule } from "./adapters/alice-ai/alice-ai-adapter.module";
 import { AliceAiLlmAdapter } from "./adapters/alice-ai/alice-ai.adapter";
-import { MlxAudioTtsAdapter } from "./adapters/qwen-tts/mlx-audio/mlx-audio-tts.adapter";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
+import { createQwenTtsAdapter } from "./adapters/qwen-tts/qwen-tts.factory";
+import {
+  QWEN_TTS_CONFIG,
+  QWEN_TTS_FETCH,
+} from "./adapters/qwen-tts/qwen-tts.tokens";
 import { AiGatewayModule } from "./ai-gateway.module";
 import { LLM_PORT, TTS_PORT } from "./ai-gateway.tokens";
 
@@ -39,7 +43,8 @@ describe("AI provider module registration", () => {
     );
     expect(qwenProviders).toContainEqual({
       provide: TTS_PORT,
-      useExisting: MlxAudioTtsAdapter,
+      inject: [QWEN_TTS_CONFIG, QWEN_TTS_FETCH],
+      useFactory: createQwenTtsAdapter,
     });
     expect(qwenProviders).not.toContainEqual(
       expect.objectContaining({ provide: LLM_PORT }),

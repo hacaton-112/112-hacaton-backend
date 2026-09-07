@@ -1,9 +1,10 @@
 import type { AudioChunk, TtsSynthesisRequest } from "@/contracts";
 
-import type { QwenTtsConfig } from "../qwen-tts.config";
+import type { MlxAudioTtsConfig } from "../qwen-tts.config";
 import { MlxAudioTtsAdapter } from "./mlx-audio-tts.adapter";
 
-const config: QwenTtsConfig = {
+const config: MlxAudioTtsConfig = {
+  provider: "mlx-audio",
   baseUrl: "http://127.0.0.1:8000",
   model: "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
   streamingIntervalSeconds: 0.32,
@@ -209,7 +210,10 @@ describe(MlxAudioTtsAdapter.name, () => {
   });
 
   it("converts the provider timeout to a retryable sanitized error", async () => {
-    const timeoutConfig: QwenTtsConfig = { ...config, requestTimeoutMs: 1 };
+    const timeoutConfig: MlxAudioTtsConfig = {
+      ...config,
+      requestTimeoutMs: 1,
+    };
     const fetchImplementation: typeof fetch = (_input, init) =>
       new Promise<Response>((_resolve, reject) => {
         const requestSignal = init?.signal;
@@ -232,10 +236,7 @@ describe(MlxAudioTtsAdapter.name, () => {
           once: true,
         });
       });
-    const adapter = new MlxAudioTtsAdapter(
-      timeoutConfig,
-      fetchImplementation,
-    );
+    const adapter = new MlxAudioTtsAdapter(timeoutConfig, fetchImplementation);
 
     await expect(collect(adapter)).rejects.toEqual(
       expect.objectContaining({

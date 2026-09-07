@@ -4,6 +4,7 @@ import type { VllmOmniTtsConfig } from "./vllm-omni-tts.config";
 import { VllmOmniTtsAdapter } from "./vllm-omni-tts.adapter";
 
 const config: VllmOmniTtsConfig = {
+  provider: "vllm-omni",
   baseUrl: "http://127.0.0.1:8091",
   model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   requestTimeoutMs: 60_000,
