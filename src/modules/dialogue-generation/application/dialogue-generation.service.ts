@@ -16,6 +16,16 @@ import { LlmReplyStreamCollector } from "./llm-reply-stream.collector";
 
 export const MAX_GENERATION_ATTEMPTS = 2;
 
+const isExplicitlyNonRetryableHttpError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "status" in error &&
+  typeof error.status === "number" &&
+  error.status >= 400 &&
+  error.status < 500 &&
+  "retryable" in error &&
+  error.retryable === false;
+
 export const DEFAULT_FALLBACK_CALLER_REPLY: CallerReply =
   CallerReplySchema.parse({
     text: "Повторите, пожалуйста, вас плохо слышно.",
@@ -77,6 +87,10 @@ export class DialogueGenerationService {
           durationMs: performance.now() - startedAt,
           outcome: this.classifyFailure(error),
         });
+
+        if (isExplicitlyNonRetryableHttpError(error)) {
+          break;
+        }
       }
     }
 
@@ -87,9 +101,7 @@ export class DialogueGenerationService {
     });
   }
 
-  private classifyFailure(
-    error: unknown,
-  ): GenerationAttemptMetrics["outcome"] {
+  private classifyFailure(error: unknown): GenerationAttemptMetrics["outcome"] {
     if (
       error instanceof CallerReplyValidationError ||
       error instanceof LlmReplyCollectionError
