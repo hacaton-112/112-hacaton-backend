@@ -5,12 +5,11 @@ import {
   getAsrHealth,
   type AsrHealth,
   type TranscriptEvent,
-} from "./services/asr-stream.service";
+} from "../services/asr-stream.service";
 import {
   VoicePipelineStream,
   type ReplySource,
-} from "./services/voice-pipeline.service";
-import "./App.css";
+} from "../services/voice-pipeline.service";
 
 type RecognitionState = "idle" | "connecting" | "listening" | "processing";
 type CallerReplyState = "idle" | "generating" | "speaking" | "done";
@@ -55,7 +54,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function App() {
+export function VoiceTrainer() {
   const streamRef = useRef<AsrStream | undefined>(undefined);
   const voicePipelineRef = useRef<VoicePipelineStream | undefined>(undefined);
   const recordingStartedAtRef = useRef(0);
@@ -67,8 +66,10 @@ function App() {
   const [health, setHealth] = useState<AsrHealth>();
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(0);
-  const [performanceReport, setPerformanceReport] = useState<PerformanceReport>();
-  const [callerReplyState, setCallerReplyState] = useState<CallerReplyState>("idle");
+  const [performanceReport, setPerformanceReport] =
+    useState<PerformanceReport>();
+  const [callerReplyState, setCallerReplyState] =
+    useState<CallerReplyState>("idle");
   const [callerReplyText, setCallerReplyText] = useState("");
   const [callerReplySource, setCallerReplySource] = useState<ReplySource>();
 
@@ -88,7 +89,9 @@ function App() {
       setSeconds(
         Math.max(
           0,
-          Math.floor((performance.now() - recordingStartedAtRef.current) / 1_000),
+          Math.floor(
+            (performance.now() - recordingStartedAtRef.current) / 1_000,
+          ),
         ),
       );
     }, 250);
@@ -103,8 +106,10 @@ function App() {
     setPerformanceReport({
       recordingMs: event.audioMs,
       processingMs: event.processingMs,
-      realtimeFactor: event.audioMs > 0 ? event.processingMs / event.audioMs : 0,
-      audioSpeed: event.processingMs > 0 ? event.audioMs / event.processingMs : 0,
+      realtimeFactor:
+        event.audioMs > 0 ? event.processingMs / event.audioMs : 0,
+      audioSpeed:
+        event.processingMs > 0 ? event.audioMs / event.processingMs : 0,
       words,
       characters: text.length,
     });
@@ -192,7 +197,8 @@ function App() {
   };
 
   const shownTranscript = partialTranscript || transcript;
-  const isBusy = recognitionState === "connecting" || recognitionState === "processing";
+  const isBusy =
+    recognitionState === "connecting" || recognitionState === "processing";
 
   return (
     <main className="app-shell">
@@ -211,8 +217,10 @@ function App() {
           <strong>{statusLabels[recognitionState]}</strong>
           {recognitionState === "listening" && (
             <span className="timer">
-              {Math.floor(seconds / 60).toString().padStart(2, "0")}:
-              {(seconds % 60).toString().padStart(2, "0")}
+              {Math.floor(seconds / 60)
+                .toString()
+                .padStart(2, "0")}
+              :{(seconds % 60).toString().padStart(2, "0")}
             </span>
           )}
           {health && (
@@ -252,7 +260,9 @@ function App() {
 
         <section className="transcript" aria-live="polite">
           <div className="transcript-heading">
-            <span>{partialTranscript ? "Промежуточный текст" : "Результат"}</span>
+            <span>
+              {partialTranscript ? "Промежуточный текст" : "Результат"}
+            </span>
             {partialTranscript && <small>обновляется потоком</small>}
           </div>
           {shownTranscript ? (
@@ -266,7 +276,9 @@ function App() {
           <section className="transcript caller-reply" aria-live="polite">
             <div className="transcript-heading">
               <span>{callerReplyLabels[callerReplyState]}</span>
-              {callerReplySource === "fallback" && <small>резервный ответ</small>}
+              {callerReplySource === "fallback" && (
+                <small>резервный ответ</small>
+              )}
             </div>
             {callerReplyText ? (
               <div className="spoken-text">{callerReplyText}</div>
@@ -283,8 +295,12 @@ function App() {
                 <div className="report-kicker">ASR PERFORMANCE</div>
                 <h2>Отчёт распознавания</h2>
               </div>
-              <span className={`speed-badge ${performanceReport.audioSpeed >= 1 ? "fast" : "slow"}`}>
-                {performanceReport.audioSpeed >= 1 ? "Быстрее realtime" : "Медленнее realtime"}
+              <span
+                className={`speed-badge ${performanceReport.audioSpeed >= 1 ? "fast" : "slow"}`}
+              >
+                {performanceReport.audioSpeed >= 1
+                  ? "Быстрее realtime"
+                  : "Медленнее realtime"}
               </span>
             </div>
             <div className="metrics-grid">
@@ -295,7 +311,9 @@ function App() {
               </div>
               <div className="metric">
                 <span>Обработка</span>
-                <strong>{formatDuration(performanceReport.processingMs)}</strong>
+                <strong>
+                  {formatDuration(performanceReport.processingMs)}
+                </strong>
                 <small>финальный проход</small>
               </div>
               <div className="metric">
@@ -324,7 +342,10 @@ function App() {
 
         <div className="controls">
           {recognitionState === "listening" ? (
-            <button className="record-button stop" onClick={() => void handleStop()}>
+            <button
+              className="record-button stop"
+              onClick={() => void handleStop()}
+            >
               <span className="stop-icon" />
               Остановить и получить итог
             </button>
@@ -335,7 +356,9 @@ function App() {
               disabled={isBusy}
             >
               <span className="mic-icon" />
-              {recognitionState === "connecting" ? "Подключение…" : "Начать запись"}
+              {recognitionState === "connecting"
+                ? "Подключение…"
+                : "Начать запись"}
             </button>
           )}
         </div>
@@ -345,5 +368,3 @@ function App() {
     </main>
   );
 }
-
-export default App;

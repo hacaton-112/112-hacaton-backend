@@ -1,4 +1,5 @@
-const DEFAULT_API_URL = "http://127.0.0.1:3000";
+import { API_BASE_URL, ApiRoutes } from "../config/api";
+
 const TARGET_SAMPLE_RATE = 16_000;
 
 export interface AsrSession {
@@ -35,12 +36,8 @@ type ServerEvent =
   | { type: "pong" }
   | { type: "error"; message: string };
 
-function apiUrl(): string {
-  return (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl()}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     signal: AbortSignal.timeout(5_000),
   });
@@ -52,11 +49,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getAsrHealth(): Promise<AsrHealth> {
-  return request<AsrHealth>("/api/v1/asr/health");
+  return request<AsrHealth>(ApiRoutes.asr.health);
 }
 
 async function createAsrSession(language: string): Promise<AsrSession> {
-  return request<AsrSession>("/api/v1/asr/sessions", {
+  return request<AsrSession>(ApiRoutes.asr.sessions, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ language }),
@@ -71,8 +68,11 @@ export class AsrStream {
   private processor?: ScriptProcessorNode;
   private silentGain?: GainNode;
   private stopping = false;
+  private readonly callbacks: AsrStreamCallbacks;
 
-  constructor(private readonly callbacks: AsrStreamCallbacks) {}
+  constructor(callbacks: AsrStreamCallbacks) {
+    this.callbacks = callbacks;
+  }
 
   async start(language: string): Promise<void> {
     if (this.socket) throw new Error("ASR stream is already active");
@@ -105,7 +105,11 @@ export class AsrStream {
       processor.onaudioprocess = (event) => {
         if (socket.readyState !== WebSocket.OPEN || this.stopping) return;
         const input = event.inputBuffer.getChannelData(0);
-        const downsampled = downsample(input, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+        const downsampled = downsample(
+          input,
+          audioContext.sampleRate,
+          TARGET_SAMPLE_RATE,
+        );
         if (downsampled.length > 0) socket.send(floatToPcm16(downsampled));
       };
 
@@ -180,7 +184,9 @@ export class AsrStream {
           this.fail(new Error(event.message));
         }
       } catch {
-        this.callbacks.onError?.(new Error("Invalid response from Whisper service"));
+        this.callbacks.onError?.(
+          new Error("Invalid response from Whisper service"),
+        );
       }
     });
     socket.addEventListener("close", () => {

@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = "http://127.0.0.1:3000";
+import { ApiRoutes } from "../config/api";
 
 export type ReplySource = "model" | "fallback";
 
@@ -15,11 +15,6 @@ type ServerEvent =
   | { type: "audio.done" }
   | { type: "error"; message: string };
 
-function wsUrl(): string {
-  const base = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
-  return `${base.replace(/^http/, "ws")}/api/v1/voice-pipeline/stream`;
-}
-
 /**
  * Один WS на весь диалог: после каждой финальной ASR-расшифровки шлём
  * operatorText через speak() и проигрываем PCM-чанки по мере поступления
@@ -31,12 +26,15 @@ export class VoicePipelineStream {
   private audioContext?: AudioContext;
   private nextStartTime = 0;
   private sampleRate = 24_000;
+  private readonly callbacks: VoicePipelineCallbacks;
 
-  constructor(private readonly callbacks: VoicePipelineCallbacks) {}
+  constructor(callbacks: VoicePipelineCallbacks) {
+    this.callbacks = callbacks;
+  }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(wsUrl());
+      const socket = new WebSocket(ApiRoutes.voicePipeline.stream);
       socket.binaryType = "arraybuffer";
 
       const timer = window.setTimeout(() => {
@@ -95,18 +93,22 @@ export class VoicePipelineStream {
       try {
         parsed = JSON.parse(event.data) as ServerEvent;
       } catch {
-        this.callbacks.onError?.(new Error("Invalid message from voice pipeline"));
+        this.callbacks.onError?.(
+          new Error("Invalid message from voice pipeline"),
+        );
         return;
       }
 
-      if (parsed.type === "reply.text") this.callbacks.onReplyText?.(parsed.text, parsed.source);
+      if (parsed.type === "reply.text")
+        this.callbacks.onReplyText?.(parsed.text, parsed.source);
       if (parsed.type === "audio.start") {
         this.sampleRate = parsed.sampleRate;
         this.nextStartTime = this.ensureAudioContext().currentTime;
         this.callbacks.onAudioStart?.();
       }
       if (parsed.type === "audio.done") this.callbacks.onAudioDone?.();
-      if (parsed.type === "error") this.callbacks.onError?.(new Error(parsed.message));
+      if (parsed.type === "error")
+        this.callbacks.onError?.(new Error(parsed.message));
       return;
     }
 

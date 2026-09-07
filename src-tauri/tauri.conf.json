@@ -12,11 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "STT — проверка распознавания речи",
-        "width": 900,
-        "height": 760,
-        "minWidth": 640,
-        "minHeight": 620
+        "title": "Учебный симулятор службы 112",
+        "width": 1280,
+        "height": 720,
+        "minWidth": 1280,
+        "minHeight": 720
       }
     ],
     "security": {
