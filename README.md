@@ -10,6 +10,7 @@
 - централизованная конфигурация с проверкой переменных окружения;
 - PostgreSQL, Drizzle ORM и команды управления миграциями;
 - health check базы данных;
+- JWT-авторизация (Passport) и учётные записи операторов;
 - единый формат API-ошибок и Zod-валидация;
 - request logging с `requestId`;
 - audit service для значимых действий с привязкой к учебной сессии;
@@ -28,13 +29,32 @@
 будущих composition roots, не создавая взаимной зависимости их конфигураций.
 `VoicePipelineModule` подключён к `CoreModule`; Alice AI credentials проверяются
 при запуске, а для обработки голосовой команды должен быть доступен выбранный TTS
-runtime. Авторизация и бизнес-модули намеренно не зафиксированы. Следующими
-вертикальными модулями должны стать `scenarios`, `training-sessions`,
-`scenario-engine`, `incident-cards` и `evaluation`.
+runtime. Следующими вертикальными модулями должны стать `scenarios`,
+`training-sessions`, `scenario-engine`, `incident-cards` и `evaluation`.
 
 `SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
 сохраняет backpressure и не буферизует аудио. Повтор допускается только до выдачи
 первого чанка, чтобы клиент не воспроизводил один фрагмент дважды.
+
+## Авторизация
+
+`AuthModule` выдаёт JWT доступа по паролю: `POST /api/v1/auth/login` возвращает
+`accessToken`, его срок жизни и профиль, а `GET /api/v1/auth/me` отдаёт текущего
+пользователя по заголовку `Authorization: Bearer <token>`. Проверку токена
+выполняет Passport-стратегия `jwt`; закрытые маршруты помечаются `JwtAuthGuard`.
+Пароли хранятся как bcrypt-хеши, логин ограничен 5 попытками в минуту, а неверный
+пароль и несуществующий email отвечают одинаково — по коду
+`AUTH_LOGIN_INVALID_CREDENTIALS`.
+
+Публичной регистрации нет: учётные записи заводит администратор.
+
+```bash
+bun run user:create -- operator@system112.ru "operator-1" "Анна Смирнова" [role]
+```
+
+Роли — `operator` (по умолчанию), `instructor`, `admin`. Обязательная переменная
+окружения `JWT_SECRET` (минимум 32 символа), срок жизни токена настраивается
+через `JWT_ACCESS_TTL_SECONDS`.
 
 ## Voice pipeline
 

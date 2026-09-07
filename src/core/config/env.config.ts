@@ -39,6 +39,15 @@ export const env = createEnv({
       })
       .default("http://127.0.0.1:8787"),
 
+    // ── Auth ─────────────────────────────────────────────────────
+    JWT_SECRET: z.string().min(32).max(512),
+    JWT_ACCESS_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(86_400)
+      .default(3_600),
+
     // ── Alice AI ─────────────────────────────────────────────────
     YANDEX_AI_API_KEY: z.string().trim().min(1).max(1_024).optional(),
     YANDEX_AI_FOLDER_ID: z

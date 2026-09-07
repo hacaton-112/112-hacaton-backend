@@ -8,6 +8,13 @@
       "when": 1788601796270,
       "tag": "0000_massive_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788789242288,
+      "tag": "0001_mighty_flatman",
+      "breakpoints": true
     }
   ]
 }

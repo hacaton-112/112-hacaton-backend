@@ -1,0 +1,29 @@
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+
+import { FullNameSchema, UserIdSchema, UserRoleSchema } from "./auth-fields";
+
+export const AuthUserSchema = z
+  .object({
+    id: UserIdSchema,
+    email: z.email(),
+    fullName: FullNameSchema,
+    role: UserRoleSchema,
+    createdAt: z.iso.datetime(),
+  })
+  .strict();
+
+export const AuthSessionSchema = z
+  .object({
+    accessToken: z.string().min(1),
+    tokenType: z.literal("Bearer"),
+    expiresIn: z.number().int().positive(),
+    user: AuthUserSchema,
+  })
+  .strict();
+
+export class AuthUserDto extends createZodDto(AuthUserSchema) {}
+export class AuthSessionDto extends createZodDto(AuthSessionSchema) {}
+
+export type AuthUser = z.infer<typeof AuthUserSchema>;
+export type AuthSession = z.infer<typeof AuthSessionSchema>;
