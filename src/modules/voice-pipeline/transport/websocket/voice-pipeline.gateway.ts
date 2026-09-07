@@ -38,7 +38,7 @@ type WithoutEventMetadata<T> = T extends unknown
 type VoicePipelineServerEventInput =
   WithoutEventMetadata<VoicePipelineServerEvent>;
 
-@WebSocketGateway({ path: GATEWAY_PATH })
+@WebSocketGateway({ path: GATEWAY_PATH, maxPayload: MAX_COMMAND_BYTES })
 export class VoicePipelineGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
@@ -147,6 +147,10 @@ export class VoicePipelineGateway
         );
       }
       this.clearIfCurrent(state, activeRequest);
+      return;
+    }
+
+    if (!this.isCurrent(state, activeRequest)) {
       return;
     }
 

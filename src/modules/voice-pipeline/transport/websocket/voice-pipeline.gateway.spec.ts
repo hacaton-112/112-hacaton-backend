@@ -286,12 +286,17 @@ describe(VoicePipelineGateway.name, () => {
 
   it("aborts an active request on cancel without emitting a failure", async () => {
     let observedSignal: AbortSignal | undefined;
+    let markStreamStarted!: () => void;
+    const streamStarted = new Promise<void>((resolve) => {
+      markStreamStarted = resolve;
+    });
     const waitingStream = (
       _request: VoicePipelineRequest,
       signal: AbortSignal,
     ): AsyncIterable<VoicePipelineStreamEvent> =>
       failingIterable(async () => {
         observedSignal = signal;
+        markStreamStarted();
         signal.throwIfAborted();
         await new Promise<void>((resolve) =>
           signal.addEventListener("abort", () => resolve(), { once: true }),
@@ -306,7 +311,7 @@ describe(VoicePipelineGateway.name, () => {
       message({ type: "speak", operatorText: "Что произошло?" }),
       false,
     );
-    await Promise.resolve();
+    await streamStarted;
     await runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
       message({ type: "cancel" }),
@@ -320,14 +325,49 @@ describe(VoicePipelineGateway.name, () => {
     ]);
   });
 
+  it("does not start the pipeline when cancellation wins context creation", async () => {
+    let releaseContext!: (value: VoicePipelineRequest) => void;
+    const runtime = createRuntime();
+    runtime.create.mockImplementationOnce(
+      () =>
+        new Promise<VoicePipelineRequest>((resolve) => {
+          releaseContext = resolve;
+        }),
+    );
+
+    const active = runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+    await Promise.resolve();
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "cancel" }),
+      false,
+    );
+    releaseContext(request);
+    await active;
+
+    expect(runtime.streamReply).not.toHaveBeenCalled();
+    expect(textEvents(runtime.socket).map(({ type }) => type)).toEqual([
+      "request.cancelled",
+    ]);
+  });
+
   it("aborts work when the client disconnects", async () => {
     let observedSignal: AbortSignal | undefined;
+    let markStreamStarted!: () => void;
+    const streamStarted = new Promise<void>((resolve) => {
+      markStreamStarted = resolve;
+    });
     const waitingStream = (
       _request: VoicePipelineRequest,
       signal: AbortSignal,
     ): AsyncIterable<VoicePipelineStreamEvent> =>
       failingIterable(async () => {
         observedSignal = signal;
+        markStreamStarted();
         signal.throwIfAborted();
         await new Promise<void>((resolve) =>
           signal.addEventListener("abort", () => resolve(), { once: true }),
@@ -341,7 +381,7 @@ describe(VoicePipelineGateway.name, () => {
       message({ type: "speak", operatorText: "Что произошло?" }),
       false,
     );
-    await Promise.resolve();
+    await streamStarted;
 
     runtime.gateway.handleDisconnect(asSocket(runtime.socket));
     await active;

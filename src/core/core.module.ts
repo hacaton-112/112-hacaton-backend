@@ -6,9 +6,10 @@ import { ZodSerializerInterceptor, ZodValidationPipe } from "nestjs-zod";
 
 import { GlobalExceptionFilter } from "@/common/filters/global-exception.filter";
 import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
+import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { HealthModule } from "@/modules/health/health.module";
-import { AsrModule } from "@/modules/asr/asr.module";
+import { VoicePipelineModule } from "@/modules/voice-pipeline";
 
 import { IS_DEV_ENV } from "./config/app.config";
 import "./config/env.config";
@@ -26,6 +27,7 @@ import { DatabaseModule } from "./database/database.module";
     AuditLogModule,
     HealthModule,
     AsrModule,
+    VoicePipelineModule,
   ],
   providers: [
     {

@@ -19,17 +19,18 @@
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - заменяемые потоковые адаптеры Qwen3-TTS для MLX-Audio и vLLM-Omni;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
+- WebSocket transport для потоковой передачи validated reply и raw PCM клиенту;
 - rate limiting и security headers.
 
 `AliceAiAdapterModule` предоставляет `LLM_PORT` только для
 `DialogueGenerationModule`, а `QwenTtsAdapterModule` предоставляет `TTS_PORT`
 только для `SpeechSynthesisModule`. `AiGatewayModule` агрегирует оба адаптера для
 будущих composition roots, не создавая взаимной зависимости их конфигураций.
-Эти модули ещё не подключены к `CoreModule`: публичный transport отсутствует, а
-обычный запуск backend не должен требовать AI runtime или Alice AI credentials.
-Авторизация и бизнес-модули намеренно не зафиксированы. Следующими вертикальными
-модулями должны стать `scenarios`, `training-sessions`, `scenario-engine`,
-`incident-cards`, `evaluation` и голосовой pipeline.
+`VoicePipelineModule` подключён к `CoreModule`; Alice AI credentials проверяются
+при запуске, а для обработки голосовой команды должен быть доступен выбранный TTS
+runtime. Авторизация и бизнес-модули намеренно не зафиксированы. Следующими
+вертикальными модулями должны стать `scenarios`, `training-sessions`,
+`scenario-engine`, `incident-cards` и `evaluation`.
 
 `SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
 сохраняет backpressure и не буферизует аудио. Повтор допускается только до выдачи
@@ -48,8 +49,25 @@ generation, synthesis и end-to-end latency-метриками. Backpressure и 
 `Uint8Array` сохраняются. Внутренние retry выполняются только соответствующими
 generation/TTS-сервисами; pipeline не повторяет LLM после ошибки синтеза.
 
-`VoicePipelineModule` пока не подключён к `CoreModule`: ASR и публичный
-HTTP/WebSocket transport будут добавлены отдельными изменениями.
+### WebSocket transport
+
+Клиент подключается к `ws://<host>:<port>/api/v1/voice-pipeline/stream` и отправляет
+текстовую команду `{"type":"speak","operatorText":"...","voiceId":"..."}`.
+Backend последовательно отправляет JSON-события `reply.text`, `audio.start`, затем
+binary WebSocket frames с raw PCM S16LE и завершает ответ событием `audio.done`.
+Все JSON-события содержат `eventId`, `sessionId`, `timestamp` и `requestId`.
+
+На одном соединении выполняется только один запрос. Новая команда `speak` отменяет
+предыдущий поток; явная команда `{"type":"cancel"}` возвращает
+`request.cancelled`. PCM передаётся без Base64 и промежуточного накопления, а
+отправка следующего чанка ждёт завершения предыдущей WebSocket-операции.
+
+Пока Scenario Engine не реализован, gateway не принимает факты сценария от
+клиента. Для локальной сквозной проверки можно явно включить server-owned
+синтетический сценарий через `VOICE_PIPELINE_DEMO_ENABLED=true`. По умолчанию он
+выключен, и команда `speak` завершается безопасной ошибкой `context-unavailable`.
+После появления Scenario Engine его реализация заменит
+`VoicePipelineRequestFactory`, не меняя публичный WebSocket-протокол.
 
 ## Alice AI
 

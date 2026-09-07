@@ -1,5 +1,6 @@
 import { Logger, VersioningType } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { WsAdapter } from "@nestjs/platform-ws";
 import helmet from "helmet";
 import { WinstonModule } from "nest-winston";
 
@@ -19,6 +20,8 @@ async function bootstrap(): Promise<void> {
 
   const host = env.HOST;
   const port = env.PORT;
+
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   // ── Security Headers ─────────────────────────────────────────
   app.use(helmet());
