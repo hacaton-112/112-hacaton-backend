@@ -68,7 +68,7 @@ describe(buildAliceAiRequest.name, () => {
       store: false,
       n: 1,
       temperature: 0.2,
-      max_completion_tokens: 256,
+      max_tokens: 256,
       safety_identifier: createHash("sha256")
         .update(request.sessionId)
         .digest("hex"),
@@ -84,5 +84,43 @@ describe(buildAliceAiRequest.name, () => {
     expect(serialized).not.toContain(request.scenarioVersionId);
     expect(serialized).not.toContain(config.apiKey);
     expect(serialized).not.toContain("reasoning_effort");
+    expect(serialized).not.toContain("max_completion_tokens");
+  });
+
+  it("keeps provider schema structural and delegates value constraints to Zod", () => {
+    expect(CALLER_REPLY_JSON_SCHEMA).toEqual({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        text: { type: "string" },
+        emotion: {
+          type: "string",
+          enum: [
+            "neutral",
+            "calm",
+            "anxious",
+            "panic",
+            "pain",
+            "anger",
+            "confusion",
+          ],
+        },
+        intensity: { type: "number" },
+        speechRate: { type: "number" },
+        revealedFactIds: {
+          type: "array",
+          items: { type: "string" },
+        },
+        endCall: { type: "boolean" },
+      },
+      required: [
+        "text",
+        "emotion",
+        "intensity",
+        "speechRate",
+        "revealedFactIds",
+        "endCall",
+      ],
+    });
   });
 });
