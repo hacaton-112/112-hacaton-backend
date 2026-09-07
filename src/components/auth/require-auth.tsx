@@ -14,7 +14,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   // A persisted token is not trusted until /auth/me confirms it.
   if (!isHydrated || (accessToken && !user)) {
     return (
-      <Flex align="center" justify="center" className="min-h-screen-safe">
+      <Flex align="center" justify="center" className="h-full">
         <Spinner size="3" />
       </Flex>
     );

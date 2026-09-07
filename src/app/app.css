@@ -364,7 +364,9 @@ body,
 }
 
 .app-shell {
-  min-height: 100vh;
+  /* Экран живёт внутри AppLayout под кастомной шапкой — тянемся по родителю,
+     иначе 100vh добавляет высоту шапки и появляется лишний скролл. */
+  min-height: 100%;
   color: #17191f;
   display: grid;
   place-items: center;
@@ -779,7 +781,7 @@ body,
   }
 
   .app-shell .stt-card {
-    min-height: 100vh;
+    min-height: 100%;
     padding: 28px 20px;
     border-radius: 0;
   }
