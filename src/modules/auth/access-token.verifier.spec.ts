@@ -1,4 +1,7 @@
-import { AccessTokenVerifier, extractBearerToken } from "./access-token.verifier";
+import {
+  AccessTokenVerifier,
+  extractBearerToken,
+} from "./access-token.verifier";
 import { JWT_ALGORITHMS } from "./jwt.constants";
 import type { TokenVerifier } from "./ports/token-verifier.port";
 
@@ -38,7 +41,9 @@ describe(AccessTokenVerifier.name, () => {
       jest.fn().mockResolvedValue(validPayload),
     );
 
-    await expect(verifier.verify("Bearer token")).resolves.toEqual(validPayload);
+    await expect(verifier.verify("Bearer token")).resolves.toEqual(
+      validPayload,
+    );
 
     expect(verifyAsync).toHaveBeenCalledWith("token", {
       algorithms: JWT_ALGORITHMS,
