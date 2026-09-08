@@ -1,0 +1,649 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+
+import { generateId } from "@/common/utils/id";
+import type { CallerReply, GenerationContext } from "@/contracts";
+import type { CallStage, EscalationTrigger } from "@/drizzle/schema";
+
+import {
+  matchesKeywords,
+  selectAllowedFacts,
+  type ScenarioFact,
+} from "../domain/disclosure";
+import {
+  panicProfile,
+  resolveEscalation,
+  resolveVoice,
+  type PanicLevel,
+} from "../domain/panic-scale";
+import { ScenarioEngineError } from "../domain/scenario-engine.error";
+import type {
+  CallStatePatch,
+  CallStateSnapshot,
+  LocatorHint,
+  NewCallEvent,
+  ScenarioStore,
+  ScenarioVersionSnapshot,
+} from "../ports/scenario-store.port";
+import { SCENARIO_STORE } from "../scenario-engine.tokens";
+
+const MILLISECONDS_PER_SECOND = 1_000;
+
+export interface CallSnapshot {
+  readonly trainingSessionId: string;
+  readonly scenarioVersionId: string;
+  readonly scenarioCode: string;
+  readonly title: string;
+  readonly stage: CallStage;
+  readonly panicLevel: PanicLevel;
+  readonly revealedFactKeys: readonly string[];
+  readonly checklistTotal: number;
+  readonly checklistSatisfied: number;
+  readonly locator: LocatorHint | null;
+  readonly offeredAt: Date;
+  readonly answeredAt: Date | null;
+  readonly endedAt: Date | null;
+  readonly answerNormSeconds: number;
+}
+
+/** Контекст для генерации реплики вместе с параметрами её озвучивания. */
+export interface EngineGenerationContext {
+  readonly scenarioVersionId: string;
+  readonly context: GenerationContext;
+  readonly voiceId: string;
+  readonly fallbackLine: string;
+}
+
+export type CallDirective =
+  | { readonly type: "caller.initiative"; readonly reason: "operator-silence" }
+  | { readonly type: "caller.interrupt" };
+
+const secondsBetween = (from: Date, to: Date): number =>
+  (to.getTime() - from.getTime()) / MILLISECONDS_PER_SECOND;
+
+/**
+ * Единственный источник истины о происшествии и о ходе учебного звонка.
+ *
+ * Решает, какие факты заявитель вправе сообщить сейчас, ведёт его состояние и
+ * пишет журнал. Реплику формулирует модель, но набор фактов и состояние задаёт
+ * только этот сервис.
+ */
+@Injectable()
+export class ScenarioEngineService {
+  private readonly logger = new Logger(ScenarioEngineService.name);
+
+  constructor(@Inject(SCENARIO_STORE) private readonly store: ScenarioStore) {}
+
+  async startCall(input: {
+    trainingSessionId: string;
+    scenarioVersionId: string;
+    eventId: string;
+    now?: Date;
+  }): Promise<CallSnapshot> {
+    const now = input.now ?? new Date();
+    const version = await this.loadVersion(input.scenarioVersionId);
+
+    if (!version.isPublished) {
+      throw new ScenarioEngineError(
+        "scenario-version-not-published",
+        "Only a published scenario version can be started",
+      );
+    }
+
+    const state: CallStateSnapshot = {
+      trainingSessionId: input.trainingSessionId,
+      scenarioVersionId: version.id,
+      stage: "offered",
+      panicLevel: this.clampToScenario(
+        version.persona.baselinePanicLevel,
+        version,
+      ),
+      panicChangedAt: null,
+      rngSeed: generateId(),
+      interruptionsUsed: 0,
+      lastInitiativeAt: null,
+      operatorSilenceSince: null,
+      revealedFactKeys: [],
+      callerTurns: 0,
+      offeredAt: now,
+      answeredAt: null,
+      endedAt: null,
+      lastSequence: 1,
+    };
+
+    const outcome = await this.store.startCall(state, input.eventId, {
+      type: "call.offered",
+      actor: "system",
+      occurredAt: now,
+      payload: {
+        scenarioCode: version.scenarioCode,
+        locator: version.locator ?? null,
+      },
+    });
+
+    if (outcome === "duplicate") {
+      return this.getSnapshot(input.trainingSessionId);
+    }
+
+    return this.toSnapshot(state, version);
+  }
+
+  /** Оператор снял трубку: разговор начинается с заданной первой реплики. */
+  async acceptCall(input: {
+    trainingSessionId: string;
+    eventId: string;
+    now?: Date;
+  }): Promise<CallSnapshot & { openingLine: string }> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["offered"]);
+
+    const patch: CallStatePatch = {
+      stage: "conversation",
+      answeredAt: now,
+      operatorSilenceSince: now,
+    };
+
+    await this.store.appendTurn(
+      state.trainingSessionId,
+      input.eventId,
+      [
+        { type: "call.accepted", actor: "operator", occurredAt: now },
+        {
+          type: "stage.changed",
+          actor: "system",
+          occurredAt: now,
+          payload: { from: state.stage, to: "conversation" },
+        },
+      ],
+      patch,
+    );
+
+    return {
+      ...this.toSnapshot({ ...state, ...patch }, version),
+      openingLine: version.openingLine,
+    };
+  }
+
+  async declineCall(input: {
+    trainingSessionId: string;
+    eventId: string;
+    now?: Date;
+  }): Promise<CallSnapshot> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["offered"]);
+
+    const patch: CallStatePatch = { stage: "declined", endedAt: now };
+
+    await this.store.appendTurn(
+      state.trainingSessionId,
+      input.eventId,
+      [
+        { type: "call.declined", actor: "operator", occurredAt: now },
+        {
+          type: "stage.changed",
+          actor: "system",
+          occurredAt: now,
+          payload: { from: state.stage, to: "declined" },
+        },
+      ],
+      patch,
+    );
+
+    return this.toSnapshot({ ...state, ...patch }, version);
+  }
+
+  /**
+   * Собирает контекст для модели: персона, состояние словами и только те факты,
+   * которые заявитель вправе назвать на этом ходу.
+   */
+  async buildGenerationContext(input: {
+    trainingSessionId: string;
+    operatorText: string;
+  }): Promise<EngineGenerationContext> {
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["conversation"]);
+
+    const allowed = this.allowedFacts(state, version, input.operatorText);
+    const profile = panicProfile(state.panicLevel);
+    const background =
+      version.persona.backgroundSounds === null
+        ? ""
+        : ` Фон: ${version.persona.backgroundSounds}.`;
+
+    return {
+      scenarioVersionId: version.id,
+      voiceId: version.persona.voiceId,
+      fallbackLine: version.fallbackLine,
+      context: {
+        persona: {
+          id: version.scenarioCode,
+          language: "Russian",
+          description:
+            `${version.persona.displayName}. ${version.persona.condition}. ` +
+            `${version.persona.speechStyle} Сейчас ${profile.description}.` +
+            background,
+        },
+        allowedFacts: allowed.facts.map((fact) => ({
+          id: fact.key,
+          value: fact.promptValue,
+        })),
+        recentTurns: [],
+      },
+    };
+  }
+
+  /**
+   * Применяет реплику заявителя.
+   *
+   * Раскрытие факта вне разрешённого набора — нарушение инварианта: реплика
+   * отбрасывается целиком и не доходит до синтеза, а попытка попадает в журнал
+   * как сигнал качества промпта.
+   */
+  async applyCallerReply(input: {
+    trainingSessionId: string;
+    eventId: string;
+    operatorText: string;
+    reply: CallerReply;
+    now?: Date;
+  }): Promise<CallSnapshot> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["conversation"]);
+
+    const allowed = this.allowedFacts(state, version, input.operatorText);
+    const allowedKeys = new Set(allowed.facts.map((fact) => fact.key));
+    const forbidden = input.reply.revealedFactIds.filter(
+      (key) => !allowedKeys.has(key),
+    );
+
+    if (forbidden.length > 0) {
+      await this.store.appendTurn(
+        state.trainingSessionId,
+        input.eventId,
+        [
+          {
+            type: "fact.rejected",
+            actor: "system",
+            occurredAt: now,
+            payload: { factKeys: forbidden },
+          },
+        ],
+        {},
+      );
+
+      throw new ScenarioEngineError(
+        "fact-not-allowed",
+        `The reply reveals facts the scenario did not allow: ${forbidden.join(", ")}`,
+      );
+    }
+
+    const revealedNow = input.reply.revealedFactIds.filter(
+      (key) => !state.revealedFactKeys.includes(key),
+    );
+    const revealedFactKeys = [...state.revealedFactKeys, ...revealedNow];
+    const events: NewCallEvent[] = [
+      {
+        type: "operator.utterance",
+        actor: "operator",
+        occurredAt: now,
+        payload: { text: input.operatorText },
+      },
+      {
+        type: "caller.reply",
+        actor: "caller",
+        occurredAt: now,
+        payload: {
+          text: input.reply.text,
+          emotion: input.reply.emotion,
+          intensity: input.reply.intensity,
+        },
+      },
+      ...revealedNow.map((key): NewCallEvent => ({
+        type: "fact.revealed",
+        actor: "caller",
+        occurredAt: now,
+        payload: { key },
+      })),
+    ];
+
+    const patch: CallStatePatch = {
+      revealedFactKeys,
+      callerTurns: state.callerTurns + 1,
+      operatorSilenceSince: now,
+    };
+
+    const transition = resolveEscalation({
+      rules: version.escalationRules,
+      currentLevel: state.panicLevel,
+      floor: version.panicFloor,
+      ceiling: version.panicCeiling,
+      firedTriggers: this.triggersFromTurn(
+        version,
+        input.operatorText,
+        revealedNow,
+      ),
+      changedAt: state.panicChangedAt,
+      now,
+    });
+
+    if (transition !== null) {
+      patch.panicLevel = transition.level;
+      patch.panicChangedAt = now;
+      events.push({
+        type: "panic.changed",
+        actor: "system",
+        occurredAt: now,
+        payload: {
+          from: state.panicLevel,
+          to: transition.level,
+          trigger: transition.trigger,
+        },
+      });
+    }
+
+    await this.store.appendTurn(
+      state.trainingSessionId,
+      input.eventId,
+      events,
+      patch,
+    );
+
+    return this.toSnapshot({ ...state, ...patch }, version);
+  }
+
+  /**
+   * Ход времени: единственный способ, которым в звонке что-то происходит без
+   * действия оператора. Изменения состояния записываются здесь же, а вот
+   * инициативная реплика только предлагается — записывать её должен транспорт,
+   * когда действительно её проиграет.
+   */
+  async tick(input: {
+    trainingSessionId: string;
+    now?: Date;
+  }): Promise<readonly CallDirective[]> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    if (state.stage !== "conversation" || state.operatorSilenceSince === null) {
+      return [];
+    }
+
+    const silenceSeconds = secondsBetween(state.operatorSilenceSince, now);
+    const transition = resolveEscalation({
+      rules: version.escalationRules,
+      currentLevel: state.panicLevel,
+      floor: version.panicFloor,
+      ceiling: version.panicCeiling,
+      firedTriggers: this.triggersFromTime(version, state, silenceSeconds, now),
+      changedAt: state.panicChangedAt,
+      now,
+    });
+
+    if (transition !== null) {
+      await this.store.appendTurn(
+        state.trainingSessionId,
+        generateId(),
+        [
+          {
+            type: "panic.changed",
+            actor: "system",
+            occurredAt: now,
+            payload: {
+              from: state.panicLevel,
+              to: transition.level,
+              trigger: transition.trigger,
+            },
+          },
+        ],
+        { panicLevel: transition.level, panicChangedAt: now },
+      );
+    }
+
+    const level = transition?.level ?? state.panicLevel;
+    const profile = panicProfile(level);
+    const threshold = profile.initiativeSilenceSeconds;
+
+    if (threshold === null || silenceSeconds < threshold) {
+      return [];
+    }
+
+    const sinceInitiative =
+      state.lastInitiativeAt === null
+        ? Number.POSITIVE_INFINITY
+        : secondsBetween(state.lastInitiativeAt, now);
+
+    if (sinceInitiative < version.initiativeCooldownSeconds) {
+      return [];
+    }
+
+    return [{ type: "caller.initiative", reason: "operator-silence" }];
+  }
+
+  async endCall(input: {
+    trainingSessionId: string;
+    eventId: string;
+    reason: string;
+    now?: Date;
+  }): Promise<CallSnapshot> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["conversation", "wrap_up"]);
+
+    const patch: CallStatePatch = { stage: "ended", endedAt: now };
+
+    await this.store.appendTurn(
+      state.trainingSessionId,
+      input.eventId,
+      [
+        {
+          type: "call.ended",
+          actor: "system",
+          occurredAt: now,
+          payload: { reason: input.reason },
+        },
+        {
+          type: "stage.changed",
+          actor: "system",
+          occurredAt: now,
+          payload: { from: state.stage, to: "ended" },
+        },
+      ],
+      patch,
+    );
+
+    return this.toSnapshot({ ...state, ...patch }, version);
+  }
+
+  async getSnapshot(trainingSessionId: string): Promise<CallSnapshot> {
+    const { state, version } = await this.loadCall(trainingSessionId);
+
+    return this.toSnapshot(state, version);
+  }
+
+  /** Параметры синтеза для текущей ступени состояния. */
+  voiceFor(
+    snapshot: CallSnapshot,
+    baseSpeechRate: number,
+  ): ReturnType<typeof resolveVoice> {
+    return resolveVoice(snapshot.panicLevel, baseSpeechRate);
+  }
+
+  private allowedFacts(
+    state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
+    operatorText: string,
+  ): { facts: readonly ScenarioFact[]; fresh: readonly string[] } {
+    return selectAllowedFacts(
+      version.facts,
+      {
+        revealedKeys: state.revealedFactKeys,
+        operatorText,
+        callerTurns: state.callerTurns,
+        panicLevel: state.panicLevel,
+        stage: state.stage,
+      },
+      panicProfile(state.panicLevel).factBudget,
+    );
+  }
+
+  private triggersFromTurn(
+    version: ScenarioVersionSnapshot,
+    operatorText: string,
+    revealedNow: readonly string[],
+  ): EscalationTrigger[] {
+    const triggers: EscalationTrigger[] = [];
+    const heavyRevealed = revealedNow.some((key) =>
+      version.facts.some(
+        (fact) => fact.key === key && fact.severity === "heavy",
+      ),
+    );
+
+    // Тяжёлый факт идёт первым: произнести вслух, что внутри дети, — самый
+    // сильный сдвиг состояния, и он не должен теряться за фразой оператора.
+    if (heavyRevealed) {
+      triggers.push("heavy_fact_revealed");
+    }
+
+    for (const rule of version.escalationRules) {
+      const isPhraseRule =
+        rule.trigger === "forbidden_phrase" ||
+        rule.trigger === "calming_phrase";
+
+      if (
+        isPhraseRule &&
+        rule.keywords !== undefined &&
+        matchesKeywords(operatorText, rule.keywords)
+      ) {
+        triggers.push(rule.trigger);
+      }
+    }
+
+    return triggers;
+  }
+
+  private triggersFromTime(
+    version: ScenarioVersionSnapshot,
+    state: CallStateSnapshot,
+    silenceSeconds: number,
+    now: Date,
+  ): EscalationTrigger[] {
+    const triggers: EscalationTrigger[] = [];
+
+    for (const rule of version.escalationRules) {
+      if (
+        rule.trigger === "operator_silence" &&
+        rule.seconds !== undefined &&
+        silenceSeconds >= rule.seconds
+      ) {
+        triggers.push("operator_silence");
+      }
+
+      if (
+        rule.trigger === "norm_time_elapsed" &&
+        rule.fraction !== undefined &&
+        state.answeredAt !== null &&
+        secondsBetween(state.answeredAt, now) >=
+          version.answerNormSeconds * rule.fraction
+      ) {
+        triggers.push("norm_time_elapsed");
+      }
+    }
+
+    return triggers;
+  }
+
+  private clampToScenario(
+    level: PanicLevel,
+    version: ScenarioVersionSnapshot,
+  ): PanicLevel {
+    return Math.min(
+      Math.max(level, version.panicFloor),
+      version.panicCeiling,
+    ) as PanicLevel;
+  }
+
+  private requireStage(
+    state: CallStateSnapshot,
+    allowed: readonly CallStage[],
+  ): void {
+    if (state.stage === "ended" || state.stage === "declined") {
+      throw new ScenarioEngineError(
+        "call-not-active",
+        `The call is already ${state.stage}`,
+      );
+    }
+
+    if (!allowed.includes(state.stage)) {
+      throw new ScenarioEngineError(
+        "call-stage-forbidden",
+        `This command is not allowed while the call is ${state.stage}`,
+      );
+    }
+  }
+
+  private async loadVersion(
+    scenarioVersionId: string,
+  ): Promise<ScenarioVersionSnapshot> {
+    const version = await this.store.loadVersion(scenarioVersionId);
+
+    if (version === null) {
+      throw new ScenarioEngineError(
+        "scenario-version-not-found",
+        "Scenario version does not exist",
+      );
+    }
+
+    return version;
+  }
+
+  private async loadCall(trainingSessionId: string): Promise<{
+    state: CallStateSnapshot;
+    version: ScenarioVersionSnapshot;
+  }> {
+    const state = await this.store.loadCall(trainingSessionId);
+
+    if (state === null) {
+      throw new ScenarioEngineError(
+        "call-not-active",
+        "There is no call for this training session",
+      );
+    }
+
+    return { state, version: await this.loadVersion(state.scenarioVersionId) };
+  }
+
+  private toSnapshot(
+    state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
+  ): CallSnapshot {
+    const satisfied = version.mandatoryQuestions.filter((question) =>
+      question.satisfiedByFactKeys.every((key) =>
+        state.revealedFactKeys.includes(key),
+      ),
+    ).length;
+
+    return {
+      trainingSessionId: state.trainingSessionId,
+      scenarioVersionId: version.id,
+      scenarioCode: version.scenarioCode,
+      title: version.title,
+      stage: state.stage,
+      panicLevel: state.panicLevel,
+      revealedFactKeys: state.revealedFactKeys,
+      checklistTotal: version.mandatoryQuestions.length,
+      checklistSatisfied: satisfied,
+      // Локатор показывает область, а не точку: точный адрес остаётся фактом.
+      locator: version.locator,
+      offeredAt: state.offeredAt,
+      answeredAt: state.answeredAt,
+      endedAt: state.endedAt,
+      answerNormSeconds: version.answerNormSeconds,
+    };
+  }
+}

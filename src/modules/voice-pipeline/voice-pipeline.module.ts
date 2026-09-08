@@ -3,12 +3,15 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
+import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
 import { VoicePipelineService } from "./application/voice-pipeline.service";
 import { DemoVoicePipelineRequestFactory } from "./infrastructure/demo-voice-pipeline-request.factory";
+import { ScenarioVoicePipelineRequestFactory } from "./infrastructure/scenario-voice-pipeline-request.factory";
 import {
   parseVoicePipelineTransportConfig,
+  type VoicePipelineTransportConfig,
   type VoicePipelineTransportEnvironment,
 } from "./infrastructure/voice-pipeline-transport.config";
 import { VoicePipelineGateway } from "./transport/websocket/voice-pipeline.gateway";
@@ -35,6 +38,7 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
   imports: [
     ConfigModule,
     AuthModule,
+    ScenarioEngineModule,
     DialogueGenerationModule,
     SpeechSynthesisModule,
   ],
@@ -45,9 +49,21 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
       useFactory: createVoicePipelineTransportConfig,
     },
     DemoVoicePipelineRequestFactory,
+    ScenarioVoicePipelineRequestFactory,
     {
+      // Демо-фабрика остаётся для смоук-прогонов без базы; в обычном режиме
+      // контекст выдаёт движок сценария.
       provide: VOICE_PIPELINE_REQUEST_FACTORY,
-      useExisting: DemoVoicePipelineRequestFactory,
+      inject: [
+        VOICE_PIPELINE_TRANSPORT_CONFIG,
+        DemoVoicePipelineRequestFactory,
+        ScenarioVoicePipelineRequestFactory,
+      ],
+      useFactory: (
+        config: VoicePipelineTransportConfig,
+        demo: DemoVoicePipelineRequestFactory,
+        scenario: ScenarioVoicePipelineRequestFactory,
+      ) => (config.demoEnabled ? demo : scenario),
     },
     VoicePipelineService,
     VoicePipelineGateway,

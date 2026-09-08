@@ -29,6 +29,13 @@
       "when": 1788864688297,
       "tag": "0003_small_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788936014263,
+      "tag": "0004_flippant_namorita",
+      "breakpoints": true
     }
   ]
 }

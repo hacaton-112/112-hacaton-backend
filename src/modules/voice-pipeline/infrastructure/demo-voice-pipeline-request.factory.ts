@@ -71,4 +71,9 @@ export class DemoVoicePipelineRequestFactory implements VoicePipelineRequestFact
       this.config.demoEnabled,
     );
   }
+
+  /** Демо-режим не ведёт состояние сценария, поэтому возвращать факты некуда. */
+  async recordReply(): Promise<void> {
+    return Promise.resolve();
+  }
 }

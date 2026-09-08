@@ -1,0 +1,355 @@
+{
+  "code": "S-015",
+  "title": "Пожар в жилом доме",
+  "category": "fire",
+  "difficulty": 3,
+  "summary": "Возгорание в многоквартирном доме на 5 этаже. Сильное задымление в подъезде, жильцы просят о помощи из окон.",
+  "persona": {
+    "code": "panicked-adult",
+    "displayName": "Мужчина, 34 года",
+    "condition": "Волнение, быстрая речь",
+    "ageYears": 34,
+    "speechStyle": "Говорит рублеными фразами, часто перескакивает с одного на другое, повторяет то, что уже сказал. Не использует канцелярит.",
+    "backgroundSounds": "Двор, крики, сирена",
+    "voiceId": "Vivian",
+    "baselinePanicLevel": 3,
+    "baseSpeechRate": 1.05
+  },
+  "version": {
+    "panicFloor": 2,
+    "panicCeiling": 4,
+    "maxInterruptions": 3,
+    "initiativeCooldownSeconds": 12,
+    "answerNormSeconds": 240,
+    "expectedDurationSeconds": 372,
+    "passThreshold": 75,
+    "expectedServices": [
+      "fire",
+      "ambulance"
+    ],
+    "referenceNotes": "Двое детей заблокированы в квартире, подъезд задымлён, код домофона 1К45.",
+    "openingLine": "Горит квартира! Пятый этаж, дым по всему подъезду!",
+    "fallbackLine": "Повторите, пожалуйста, вас плохо слышно."
+  },
+  "location": {
+    "terrain": "city_dense",
+    "exactAddress": {
+      "street": "Учебная",
+      "house": "12",
+      "entrance": "2",
+      "floor": "5",
+      "apartment": "34"
+    },
+    "exactPoint": [
+      55.751244,
+      37.618423
+    ],
+    "locatorCenter": [
+      55.75201,
+      37.6159
+    ],
+    "locatorRadiusMeters": 300,
+    "locatorLabel": "Мобильный · базовая станция СЗАО, Хорошёво-Мнёвники",
+    "locatorAccuracy": "identified",
+    "callerNumber": "+7 916 204-71-33",
+    "previouslyCalled": false
+  },
+  "escalation": [
+    {
+      "trigger": "operator_silence",
+      "direction": "up",
+      "cooldownSeconds": 12,
+      "params": {
+        "seconds": 8
+      }
+    },
+    {
+      "trigger": "heavy_fact_revealed",
+      "direction": "up",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "norm_time_elapsed",
+      "direction": "up",
+      "cooldownSeconds": 60,
+      "params": {
+        "fraction": 0.75
+      }
+    },
+    {
+      "trigger": "forbidden_phrase",
+      "direction": "up",
+      "cooldownSeconds": 20,
+      "params": {
+        "keywords": [
+          "успокойтесь",
+          "не кричите",
+          "прекратите"
+        ]
+      }
+    },
+    {
+      "trigger": "calming_phrase",
+      "direction": "down",
+      "cooldownSeconds": 15,
+      "params": {
+        "keywords": [
+          "помощь уже",
+          "я вас слышу",
+          "мы выезжаем",
+          "бригада выехала"
+        ]
+      }
+    }
+  ],
+  "facts": [
+    {
+      "key": "incident_type",
+      "promptValue": "Горит квартира на пятом этаже, дым идёт по всему подъезду.",
+      "displayLabel": "Что горит",
+      "severity": "normal",
+      "cardField": "category",
+      "cardValue": "fire",
+      "disclosure": {
+        "type": "immediate"
+      },
+      "priority": 9
+    },
+    {
+      "key": "address_street",
+      "promptValue": "Улица Учебная.",
+      "displayLabel": "Улица",
+      "severity": "normal",
+      "cardField": "street",
+      "cardValue": "Учебная",
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "адрес",
+          "улиц",
+          "где ",
+          "куда ехать"
+        ]
+      },
+      "priority": 8
+    },
+    {
+      "key": "address_house",
+      "promptValue": "Дом двенадцать, второй подъезд.",
+      "displayLabel": "Дом и подъезд",
+      "severity": "normal",
+      "cardField": "house",
+      "cardValue": "12",
+      "disclosure": {
+        "type": "after_fact",
+        "factKeys": [
+          "address_street"
+        ]
+      },
+      "priority": 7
+    },
+    {
+      "key": "address_floor",
+      "promptValue": "Пятый этаж, квартира тридцать четыре.",
+      "displayLabel": "Этаж и квартира",
+      "severity": "normal",
+      "cardField": "floor",
+      "cardValue": "5",
+      "disclosure": {
+        "type": "after_fact",
+        "factKeys": [
+          "address_house"
+        ]
+      },
+      "priority": 6
+    },
+    {
+      "key": "trapped_children",
+      "promptValue": "В квартире остались двое детей, они кричат из окна и выйти не могут.",
+      "displayLabel": "Пострадавшие",
+      "severity": "heavy",
+      "cardField": "children_count",
+      "cardValue": "2",
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "люди",
+          "внутри",
+          "кто",
+          "дет"
+        ]
+      },
+      "priority": 9
+    },
+    {
+      "key": "victims_condition",
+      "promptValue": "Дети в дальней комнате, дышат, но дверь в коридор уже горит.",
+      "displayLabel": "Состояние",
+      "severity": "heavy",
+      "cardField": "victims_condition",
+      "cardValue": "В сознании, дым, выход отрезан",
+      "disclosure": {
+        "type": "after_fact",
+        "factKeys": [
+          "trapped_children"
+        ]
+      },
+      "priority": 5
+    },
+    {
+      "key": "door_code",
+      "promptValue": "Код домофона один-К-сорок пять.",
+      "displayLabel": "Код двери",
+      "severity": "normal",
+      "cardField": "landmarks",
+      "cardValue": "Домофон 1К45",
+      "disclosure": {
+        "type": "below_panic",
+        "level": 2
+      },
+      "priority": 4
+    },
+    {
+      "key": "caller_position",
+      "promptValue": "Заявитель стоит во дворе у детской площадки, видит окна квартиры.",
+      "displayLabel": "Где заявитель",
+      "severity": "normal",
+      "cardField": "caller_type",
+      "cardValue": "Свидетель",
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "вы где",
+          "сами",
+          "снаружи",
+          "рядом"
+        ]
+      },
+      "priority": 3
+    },
+    {
+      "key": "fire_cause",
+      "promptValue": "Причина возгорания заявителю неизвестна.",
+      "displayLabel": "Причина",
+      "severity": "normal",
+      "cardField": null,
+      "cardValue": null,
+      "disclosure": {
+        "type": "never"
+      },
+      "priority": 0
+    }
+  ],
+  "mandatoryQuestions": [
+    {
+      "text": "Точный адрес: улица, дом, подъезд, этаж, квартира",
+      "satisfiedByFactKeys": [
+        "address_street",
+        "address_house",
+        "address_floor"
+      ],
+      "isCritical": true
+    },
+    {
+      "text": "Что именно горит и на каком этаже",
+      "satisfiedByFactKeys": [
+        "incident_type"
+      ],
+      "isCritical": true
+    },
+    {
+      "text": "Есть ли люди в помещении и сколько",
+      "satisfiedByFactKeys": [
+        "trapped_children"
+      ],
+      "isCritical": true
+    },
+    {
+      "text": "Состояние пострадавших и возможность выйти",
+      "satisfiedByFactKeys": [
+        "victims_condition"
+      ],
+      "isCritical": true
+    },
+    {
+      "text": "Подъезд для техники и код двери",
+      "satisfiedByFactKeys": [
+        "door_code"
+      ],
+      "isCritical": false
+    },
+    {
+      "text": "Где находится сам заявитель",
+      "satisfiedByFactKeys": [
+        "caller_position"
+      ],
+      "isCritical": false
+    }
+  ],
+  "referenceCard": {
+    "fields": [
+      {
+        "field": "street",
+        "expectedValue": "Учебная",
+        "acceptableValues": [
+          "ул. Учебная",
+          "улица Учебная"
+        ],
+        "comparison": "normalized",
+        "isRequired": true,
+        "sourceFactKey": "address_street"
+      },
+      {
+        "field": "house",
+        "expectedValue": "12",
+        "acceptableValues": [
+          "двенадцать",
+          "д. 12"
+        ],
+        "comparison": "normalized",
+        "isRequired": true,
+        "sourceFactKey": "address_house"
+      },
+      {
+        "field": "floor",
+        "expectedValue": "5",
+        "acceptableValues": [
+          "пятый"
+        ],
+        "comparison": "normalized",
+        "isRequired": true,
+        "sourceFactKey": "address_floor"
+      },
+      {
+        "field": "category",
+        "expectedValue": "fire",
+        "acceptableValues": [
+          "пожар"
+        ],
+        "comparison": "exact",
+        "isRequired": true,
+        "sourceFactKey": "incident_type"
+      },
+      {
+        "field": "children_count",
+        "expectedValue": "2",
+        "acceptableValues": [
+          "двое",
+          "два"
+        ],
+        "comparison": "numeric_range",
+        "isRequired": true,
+        "sourceFactKey": "trapped_children"
+      },
+      {
+        "field": "victims_condition",
+        "expectedValue": "В сознании, отрезаны огнём",
+        "acceptableValues": [],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "victims_condition"
+      }
+    ],
+    "notes": "Двое детей заблокированы в квартире, подъезд задымлён, код домофона 1К45."
+  }
+}

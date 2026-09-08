@@ -195,6 +195,36 @@ export class VoicePipelineGateway
         }
 
         if (event.type === "voice.reply.ready") {
+          // Факты возвращаются в источник истины до отправки: реплика, которая
+          // раскрыла лишнее, не должна ни дойти до оператора, ни быть
+          // озвученной.
+          try {
+            await this.requestFactory.recordReply({
+              requestId: activeRequest.requestId,
+              sessionId: state.sessionId,
+              operatorText: command.operatorText,
+              reply: event.result.reply,
+            });
+          } catch (error) {
+            this.logger.warn(
+              `Rejected a caller reply for session ${state.sessionId}: ${
+                error instanceof Error ? error.message : "unknown error"
+              }`,
+            );
+            activeRequest.controller.abort(
+              new DOMException("Caller reply rejected", "AbortError"),
+            );
+            await this.sendError(
+              client,
+              state,
+              activeRequest.requestId,
+              "pipeline-failed",
+            );
+            this.clearIfCurrent(state, activeRequest);
+
+            return;
+          }
+
           await this.sendEvent(client, state, {
             type: "reply.text",
             requestId: activeRequest.requestId,
