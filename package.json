@@ -23,6 +23,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "diagnose:alice-ai": "bun --env-file=.env test/manual/alice-ai-request.diagnostic.ts",
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
+    "smoke:auth-refresh": "bun --env-file=.env test/manual/refresh-rotation.smoke.ts",
     "user:create": "bun --env-file=.env test/manual/create-user.ts",
     "db:generate": "drizzle-kit generate --config=drizzle/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle/drizzle.config.ts",
