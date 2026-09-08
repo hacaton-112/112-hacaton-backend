@@ -1,3 +1,5 @@
+import type { IncomingMessage } from "node:http";
+
 import { Inject, Logger } from "@nestjs/common";
 import {
   OnGatewayConnection,
@@ -13,12 +15,16 @@ import {
   type VoicePipelineSocketErrorCode,
 } from "@/contracts";
 import { generateId } from "@/common/utils/id";
+import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import { VOICE_PIPELINE_REQUEST_FACTORY } from "../../voice-pipeline.tokens";
 
 const MAX_COMMAND_BYTES = 16_384;
+/** Application-level close code mirroring HTTP 401. */
+const UNAUTHORIZED_CLOSE_CODE = 4401;
 const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
 
 interface ActiveRequest {
@@ -29,6 +35,7 @@ interface ActiveRequest {
 interface ConnectionState {
   activeRequest: ActiveRequest | null;
   sessionId: string;
+  user: VerifiedJwtPayload;
 }
 
 type WithoutEventMetadata<T> = T extends unknown
@@ -49,12 +56,34 @@ export class VoicePipelineGateway
     private readonly voicePipeline: VoicePipelineService,
     @Inject(VOICE_PIPELINE_REQUEST_FACTORY)
     private readonly requestFactory: VoicePipelineRequestFactory,
+    private readonly accessTokenVerifier: AccessTokenVerifier,
   ) {}
 
-  handleConnection(client: WebSocket): void {
+  /**
+   * The handshake carries the same Bearer token as the REST surface: without
+   * it anyone able to reach the port could drive the pipeline, spending Alice
+   * AI quota and GPU time and, once sessions hold training data, reading
+   * another operator's call.
+   */
+  async handleConnection(
+    client: WebSocket,
+    request?: IncomingMessage,
+  ): Promise<void> {
+    const user = await this.accessTokenVerifier.verify(
+      request?.headers.authorization,
+    );
+
+    if (user === null) {
+      this.logger.warn("Rejected an unauthenticated voice pipeline connection");
+      client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
+
+      return;
+    }
+
     this.connections.set(client, {
       activeRequest: null,
       sessionId: generateId(),
+      user,
     });
 
     client.on("message", (data, isBinary) => {

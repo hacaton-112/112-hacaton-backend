@@ -74,6 +74,9 @@ generation/TTS-сервисами; pipeline не повторяет LLM посл
 
 Клиент подключается к `ws://<host>:<port>/api/v1/voice-pipeline/stream` и отправляет
 текстовую команду `{"type":"speak","operatorText":"...","voiceId":"..."}`.
+Рукопожатие требует тот же заголовок `Authorization: Bearer <token>`, что и REST:
+без валидного токена соединение закрывается кодом `4401`. Браузерный `WebSocket`
+заголовки задавать не умеет, поэтому транспорт рассчитан на нативный клиент.
 Backend последовательно отправляет JSON-события `reply.text`, `audio.start`, затем
 binary WebSocket frames с raw PCM S16LE и завершает ответ событием `audio.done`.
 Все JSON-события содержат `eventId`, `sessionId`, `timestamp` и `requestId`.

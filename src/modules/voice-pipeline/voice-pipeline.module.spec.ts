@@ -1,8 +1,26 @@
 import "reflect-metadata";
 
+// The module tree now reaches AuthModule, and @nestjs/jwt is ESM-only, so the
+// CommonJS test runner cannot require it. This spec only reads metadata, so a
+// stub is enough to keep the import chain loadable.
+jest.mock("@nestjs/jwt", () => ({
+  JwtModule: { register: () => ({ module: class JwtModuleStub {} }) },
+  JwtService: class JwtServiceStub {},
+}));
+
+// AuthModule reads the validated environment at import time, and @t3-oss/env-core
+// is ESM-only as well; the metadata assertions do not depend on real values.
+jest.mock("@/core/config/env.config", () => ({
+  env: {
+    JWT_SECRET: "test-secret-value-with-at-least-32-chars",
+    JWT_ACCESS_TTL_SECONDS: 3_600,
+  },
+}));
+
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { ConfigModule } from "@nestjs/config";
 
+import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
@@ -20,9 +38,10 @@ const getModuleMetadata = (metadataKey: string): readonly unknown[] =>
     readonly unknown[] | undefined) ?? [];
 
 describe(VoicePipelineModule.name, () => {
-  it("composes dialogue generation and speech synthesis", () => {
+  it("composes authentication, dialogue generation and speech synthesis", () => {
     expect(getModuleMetadata(MODULE_METADATA.IMPORTS)).toEqual([
       ConfigModule,
+      AuthModule,
       DialogueGenerationModule,
       SpeechSynthesisModule,
     ]);

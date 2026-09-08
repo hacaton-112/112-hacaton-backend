@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { IncomingMessage } from "node:http";
 
 import WebSocket, { type RawData } from "ws";
 
@@ -7,6 +8,8 @@ import {
   type VoicePipelineRequest,
   type VoicePipelineStreamEvent,
 } from "@/contracts";
+
+import type { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "../../application/voice-pipeline.service";
@@ -113,8 +116,14 @@ async function* successfulStream(
 }
 
 class SocketMock extends EventEmitter {
-  public readyState = WebSocket.OPEN;
+  public readyState: number = WebSocket.OPEN;
   public readonly sent: Array<{ binary: boolean; data: Buffer | string }> = [];
+  public readonly closed: Array<{ code: number; reason: string }> = [];
+
+  close(code: number, reason: string): void {
+    this.closed.push({ code, reason });
+    this.readyState = WebSocket.CLOSED;
+  }
 
   send(
     data: Buffer | string,
@@ -139,7 +148,21 @@ const textEvents = (socket: SocketMock) =>
       : [],
   );
 
-const createRuntime = (stream: StreamFactory = successfulStream) => {
+const authenticatedUser = {
+  sub: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+  email: "operator@example.test",
+  role: "operator" as const,
+  iat: 1_700_000_000,
+  exp: 1_700_003_600,
+};
+
+const handshake = (authorization?: string) =>
+  ({ headers: { authorization } }) as unknown as IncomingMessage;
+
+const createRuntime = async (
+  stream: StreamFactory = successfulStream,
+  verify: jest.Mock = jest.fn().mockResolvedValue(authenticatedUser),
+) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
   );
@@ -147,16 +170,42 @@ const createRuntime = (stream: StreamFactory = successfulStream) => {
   const gateway = new VoicePipelineGateway(
     { streamReply } as unknown as VoicePipelineService,
     { create } as VoicePipelineRequestFactory,
+    { verify } as unknown as AccessTokenVerifier,
   );
   const socket = new SocketMock();
-  gateway.handleConnection(asSocket(socket));
+  await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
 
-  return { create, gateway, socket, streamReply };
+  return { create, gateway, socket, streamReply, verify };
 };
 
 describe(VoicePipelineGateway.name, () => {
+  it("closes a handshake that carries no valid access token", async () => {
+    const verify = jest.fn().mockResolvedValue(null);
+    const streamReply = jest.fn();
+    const gateway = new VoicePipelineGateway(
+      { streamReply } as unknown as VoicePipelineService,
+      { create: jest.fn() } as unknown as VoicePipelineRequestFactory,
+      { verify } as unknown as AccessTokenVerifier,
+    );
+    const socket = new SocketMock();
+
+    await gateway.handleConnection(asSocket(socket), handshake());
+
+    expect(socket.closed).toEqual([{ code: 4401, reason: "Unauthorized" }]);
+
+    // A command sent by a rejected client must not reach the pipeline.
+    await gateway.handleClientMessage(
+      asSocket(socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    expect(streamReply).not.toHaveBeenCalled();
+    expect(socket.sent).toEqual([]);
+  });
+
   it("streams reply metadata, zero-copy ordered PCM, and completion", async () => {
-    const runtime = createRuntime();
+    const runtime = await createRuntime();
 
     await runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
@@ -216,7 +265,7 @@ describe(VoicePipelineGateway.name, () => {
   ])(
     "rejects an invalid command without invoking the pipeline",
     async (input) => {
-      const runtime = createRuntime();
+      const runtime = await createRuntime();
 
       await runtime.gateway.handleClientMessage(
         asSocket(runtime.socket),
@@ -237,7 +286,7 @@ describe(VoicePipelineGateway.name, () => {
   );
 
   it("sanitizes context creation failures", async () => {
-    const runtime = createRuntime();
+    const runtime = await createRuntime();
     runtime.create.mockRejectedValueOnce(
       new Error("scenario database password and hidden facts"),
     );
@@ -266,7 +315,7 @@ describe(VoicePipelineGateway.name, () => {
       failingIterable(async () => {
         throw new Error("provider response with sensitive transcript");
       });
-    const runtime = createRuntime(failingStream);
+    const runtime = await createRuntime(failingStream);
 
     await runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
@@ -304,7 +353,7 @@ describe(VoicePipelineGateway.name, () => {
         signal.throwIfAborted();
         throw new Error("unreachable");
       });
-    const runtime = createRuntime(waitingStream);
+    const runtime = await createRuntime(waitingStream);
 
     const active = runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
@@ -327,7 +376,7 @@ describe(VoicePipelineGateway.name, () => {
 
   it("does not start the pipeline when cancellation wins context creation", async () => {
     let releaseContext!: (value: VoicePipelineRequest) => void;
-    const runtime = createRuntime();
+    const runtime = await createRuntime();
     runtime.create.mockImplementationOnce(
       () =>
         new Promise<VoicePipelineRequest>((resolve) => {
@@ -375,7 +424,7 @@ describe(VoicePipelineGateway.name, () => {
         signal.throwIfAborted();
         throw new Error("unreachable");
       });
-    const runtime = createRuntime(waitingStream);
+    const runtime = await createRuntime(waitingStream);
     const active = runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
       message({ type: "speak", operatorText: "Что произошло?" }),
