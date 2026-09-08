@@ -9,11 +9,13 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
+import type { Request } from "express";
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
 
 import { AuthService } from "./auth.service";
+import { readClientMetadata } from "./client-metadata";
 import {
   type AuthSession,
   AuthSessionDto,
@@ -32,8 +34,8 @@ export class AuthController {
   // Credential stuffing protection on top of the global limits.
   @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ZodSerializerDto(AuthSessionDto)
-  login(@Body() body: LoginDto): Promise<AuthSession> {
-    return this.auth.login(body);
+  login(@Body() body: LoginDto, @Req() request: Request): Promise<AuthSession> {
+    return this.auth.login(body, readClientMetadata(request));
   }
 
   @Get("me")

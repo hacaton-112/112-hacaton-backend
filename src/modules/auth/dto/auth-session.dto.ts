@@ -18,6 +18,9 @@ export const AuthSessionSchema = z
     accessToken: z.string().min(1),
     tokenType: z.literal("Bearer"),
     expiresIn: z.number().int().positive(),
+    /** Opaque secret, exchanged at /auth/refresh and rotated on every use. */
+    refreshToken: z.string().min(1),
+    refreshExpiresIn: z.number().int().positive(),
     user: AuthUserSchema,
   })
   .strict();

@@ -13,6 +13,13 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import { generateId } from "@/common/utils/id";
 import { type UserRecord, users } from "@/drizzle/schema";
 
+// Imported as a value, not a type: `import type` is erased before decorator
+// metadata is emitted, and Nest would receive Object instead of the class.
+import {
+  AuthSessionService,
+  type ClientMetadata,
+  type IssuedRefreshToken,
+} from "./auth-session.service";
 import { TOKEN_SIGNER } from "./auth.tokens";
 import type { AuthSession, AuthUser } from "./dto/auth-session.dto";
 import type { CreateUser } from "./dto/create-user.dto";
@@ -35,9 +42,13 @@ export class AuthService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
     @Inject(TOKEN_SIGNER) private readonly tokenSigner: TokenSigner,
+    private readonly sessions: AuthSessionService,
   ) {}
 
-  async login({ email, password }: Login): Promise<AuthSession> {
+  async login(
+    { email, password }: Login,
+    metadata: ClientMetadata,
+  ): Promise<AuthSession> {
     const user = await this.findByEmail(email);
     const passwordMatches = await bcrypt.compare(
       password,
@@ -57,18 +68,33 @@ export class AuthService {
       );
     }
 
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
+    // Issued only after the credentials check, so a failed attempt leaves no
+    // extra work behind that could be measured.
+    const issued = await this.sessions.issue(user.id, metadata);
 
-    return {
-      accessToken: await this.tokenSigner.signAsync(payload),
-      tokenType: "Bearer",
-      expiresIn: env.JWT_ACCESS_TTL_SECONDS,
-      user: this.toAuthUser(user),
-    };
+    return this.createSession(user, issued);
+  }
+
+  /** Exchanges a refresh token for a fresh pair, rotating the old one away. */
+  async refresh(refreshToken: string): Promise<AuthSession> {
+    const rotated = await this.sessions.rotate(refreshToken);
+    const user = await this.findById(rotated.userId);
+
+    if (!user) {
+      // Deliberately the refresh error rather than AUTH_USER_NOT_FOUND: a
+      // deleted account must not be observable through this endpoint.
+      throw new AppUnauthorizedException(
+        ErrorCodes.AUTH_REFRESH_TOKEN_INVALID,
+        "Refresh token is invalid or expired",
+      );
+    }
+
+    return this.createSession(user, rotated);
+  }
+
+  /** Ends the session the token belongs to; unknown tokens are ignored. */
+  async logout(refreshToken: string): Promise<void> {
+    await this.sessions.revokeByToken(refreshToken);
   }
 
   async getProfile(userId: string): Promise<AuthUser> {
@@ -109,6 +135,36 @@ export class AuthService {
       .returning();
 
     return this.toAuthUser(user);
+  }
+
+  private async createSession(
+    user: UserRecord,
+    issued: IssuedRefreshToken,
+  ): Promise<AuthSession> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    return {
+      accessToken: await this.tokenSigner.signAsync(payload),
+      tokenType: "Bearer",
+      expiresIn: env.JWT_ACCESS_TTL_SECONDS,
+      refreshToken: issued.refreshToken,
+      refreshExpiresIn: issued.refreshExpiresIn,
+      user: this.toAuthUser(user),
+    };
+  }
+
+  private async findById(userId: string): Promise<UserRecord | undefined> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return user;
   }
 
   private async findByEmail(email: string): Promise<UserRecord | undefined> {

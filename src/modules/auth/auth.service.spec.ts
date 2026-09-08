@@ -14,6 +14,7 @@ import { ErrorCodes } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import type { UserRecord } from "@/drizzle/schema";
 
+import type { AuthSessionService } from "./auth-session.service";
 import { AuthService } from "./auth.service";
 import type { TokenSigner } from "./ports/token-signer.port";
 
@@ -49,13 +50,45 @@ const createDb = (
     }),
   }) as unknown as DrizzleService["db"];
 
+const METADATA = { userAgent: "trainer-client/0.1.0", ipAddress: "10.0.0.5" };
+
+interface SessionMocks {
+  issue: jest.Mock;
+  rotate: jest.Mock;
+  revokeByToken: jest.Mock;
+}
+
 const createService = (
   db: DrizzleService["db"],
   signAsync: jest.Mock = jest.fn().mockResolvedValue("signed-token"),
-): { service: AuthService; signAsync: jest.Mock } => {
+  sessionOverrides: Partial<SessionMocks> = {},
+): {
+  service: AuthService;
+  signAsync: jest.Mock;
+  sessions: SessionMocks;
+} => {
   const tokenSigner: TokenSigner = { signAsync };
+  const sessions: SessionMocks = {
+    issue: jest.fn().mockResolvedValue({
+      sessionId: "session-1",
+      userId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+      refreshToken: "refresh-token",
+      refreshExpiresIn: 2_592_000,
+    }),
+    rotate: jest.fn(),
+    revokeByToken: jest.fn().mockResolvedValue(undefined),
+    ...sessionOverrides,
+  };
 
-  return { service: new AuthService(db, tokenSigner), signAsync };
+  return {
+    service: new AuthService(
+      db,
+      tokenSigner,
+      sessions as unknown as AuthSessionService,
+    ),
+    signAsync,
+    sessions,
+  };
 };
 
 describe(AuthService.name, () => {
@@ -67,10 +100,10 @@ describe(AuthService.name, () => {
     const user = await createUserRecord();
     const { service, signAsync } = createService(createDb([user]));
 
-    const session = await service.login({
-      email: user.email,
-      password: PASSWORD,
-    });
+    const session = await service.login(
+      { email: user.email, password: PASSWORD },
+      METADATA,
+    );
 
     expect(signAsync).toHaveBeenCalledWith({
       sub: user.id,
@@ -81,6 +114,8 @@ describe(AuthService.name, () => {
       accessToken: "signed-token",
       tokenType: "Bearer",
       expiresIn: 3_600,
+      refreshToken: "refresh-token",
+      refreshExpiresIn: 2_592_000,
       user: {
         id: user.id,
         email: user.email,
@@ -99,7 +134,10 @@ describe(AuthService.name, () => {
     const { service, signAsync } = createService(createDb([]));
 
     await expect(
-      service.login({ email: "unknown@example.test", password: PASSWORD }),
+      service.login(
+        { email: "unknown@example.test", password: PASSWORD },
+        METADATA,
+      ),
     ).rejects.toMatchObject({
       code: ErrorCodes.AUTH_LOGIN_INVALID_CREDENTIALS,
     });
@@ -113,12 +151,88 @@ describe(AuthService.name, () => {
     const { service, signAsync } = createService(createDb([user]));
 
     await expect(
-      service.login({ email: user.email, password: "WrongPassword1" }),
+      service.login(
+        { email: user.email, password: "WrongPassword1" },
+        METADATA,
+      ),
     ).rejects.toMatchObject({
       code: ErrorCodes.AUTH_LOGIN_INVALID_CREDENTIALS,
     });
 
     expect(signAsync).not.toHaveBeenCalled();
+  });
+
+  it("opens a session with the client metadata", async () => {
+    const user = await createUserRecord();
+    const { service, sessions } = createService(createDb([user]));
+
+    await service.login({ email: user.email, password: PASSWORD }, METADATA);
+
+    expect(sessions.issue).toHaveBeenCalledWith(user.id, METADATA);
+  });
+
+  it("opens no session when the credentials are wrong", async () => {
+    // A session row, or any extra write on the failure path, would reintroduce
+    // the timing difference the dummy-hash comparison exists to remove.
+    const user = await createUserRecord();
+    const { service, sessions } = createService(createDb([user]));
+
+    await expect(
+      service.login(
+        { email: user.email, password: "WrongPassword1" },
+        METADATA,
+      ),
+    ).rejects.toBeInstanceOf(AppUnauthorizedException);
+
+    expect(sessions.issue).not.toHaveBeenCalled();
+  });
+
+  it("returns a fresh pair when a refresh token is rotated", async () => {
+    const user = await createUserRecord();
+    const { service, sessions } = createService(
+      createDb([user]),
+      jest.fn().mockResolvedValue("new-access-token"),
+      {
+        rotate: jest.fn().mockResolvedValue({
+          sessionId: "session-1",
+          userId: user.id,
+          refreshToken: "next-refresh-token",
+          refreshExpiresIn: 2_592_000,
+        }),
+      },
+    );
+
+    const session = await service.refresh("refresh-token");
+
+    expect(sessions.rotate).toHaveBeenCalledWith("refresh-token");
+    expect(session).toMatchObject({
+      accessToken: "new-access-token",
+      refreshToken: "next-refresh-token",
+      user: { id: user.id },
+    });
+  });
+
+  it("hides a deleted account behind the refresh error", async () => {
+    const { service } = createService(createDb([]), undefined, {
+      rotate: jest.fn().mockResolvedValue({
+        sessionId: "session-1",
+        userId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+        refreshToken: "next-refresh-token",
+        refreshExpiresIn: 2_592_000,
+      }),
+    });
+
+    await expect(service.refresh("refresh-token")).rejects.toMatchObject({
+      code: ErrorCodes.AUTH_REFRESH_TOKEN_INVALID,
+    });
+  });
+
+  it("revokes the session on logout, including for an unknown token", async () => {
+    const { service, sessions } = createService(createDb([]));
+
+    await expect(service.logout("refresh-token")).resolves.toBeUndefined();
+
+    expect(sessions.revokeByToken).toHaveBeenCalledWith("refresh-token");
   });
 
   it("rejects a profile lookup for a deleted account", async () => {
