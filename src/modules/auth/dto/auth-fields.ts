@@ -1,12 +1,18 @@
 import { z } from "zod";
 
+import { USER_ROLES } from "@/drizzle/schema";
+
 export const MAX_EMAIL_LENGTH = 254;
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 128;
 export const MIN_FULL_NAME_LENGTH = 2;
 export const MAX_FULL_NAME_LENGTH = 120;
 
-export const UserRoleSchema = z.enum(["operator", "instructor", "admin"]);
+/**
+ * Derived from the database enum rather than repeated here: two lists of roles
+ * would eventually disagree, and the one Postgres enforces has to win.
+ */
+export const UserRoleSchema = z.enum(USER_ROLES);
 
 export const UserIdSchema = z.uuid();
 
