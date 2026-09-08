@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
@@ -14,10 +13,12 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import { generateId } from "@/common/utils/id";
 import { type UserRecord, users } from "@/drizzle/schema";
 
+import { TOKEN_SIGNER } from "./auth.tokens";
 import type { AuthSession, AuthUser } from "./dto/auth-session.dto";
 import type { CreateUser } from "./dto/create-user.dto";
 import type { Login } from "./dto/login.dto";
 import type { JwtPayload } from "./dto/jwt-payload.dto";
+import type { TokenSigner } from "./ports/token-signer.port";
 
 const SALT_ROUNDS = 12;
 // Verified against a throwaway digest so a missing account and a wrong password
@@ -31,7 +32,7 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
 export class AuthService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
-    private readonly jwtService: JwtService,
+    @Inject(TOKEN_SIGNER) private readonly tokenSigner: TokenSigner,
   ) {}
 
   async login({ email, password }: Login): Promise<AuthSession> {
@@ -55,7 +56,7 @@ export class AuthService {
     };
 
     return {
-      accessToken: await this.jwtService.signAsync(payload),
+      accessToken: await this.tokenSigner.signAsync(payload),
       tokenType: "Bearer",
       expiresIn: env.JWT_ACCESS_TTL_SECONDS,
       user: this.toAuthUser(user),
