@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-export const queryProvider = (component: React.ReactNode) => {
-  const queryClient = new QueryClient();
+const queryClient = new QueryClient();
 
+export const queryProvider = (component: React.ReactNode) => {
   return (
     <QueryClientProvider client={queryClient}>{component}</QueryClientProvider>
   );

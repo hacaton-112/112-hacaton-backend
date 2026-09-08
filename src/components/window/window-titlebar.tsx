@@ -13,7 +13,13 @@ function runWindowAction(window: Window | null, action: WindowAction) {
   void action(window).catch(() => undefined);
 }
 
-export function WindowTitlebar() {
+export function WindowTitlebar({
+  closeBehavior = "close",
+  title = APP_NAME,
+}: {
+  closeBehavior?: "close" | "hide";
+  title?: string;
+}) {
   // Вне Tauri (обычный `bun run dev` в браузере) окна нет — шапка остаётся
   // декоративной, а кнопки просто ничего не делают.
   const window = useMemo(() => (isTauri() ? getCurrentWindow() : null), []);
@@ -88,7 +94,7 @@ export function WindowTitlebar() {
           size="1"
           weight="medium"
         >
-          {APP_NAME}
+          {title}
         </Text>
       </Flex>
       <Box className="h-full min-w-0 flex-1" data-tauri-drag-region />
@@ -114,7 +120,11 @@ export function WindowTitlebar() {
         <TitlebarButton
           close
           label="Закрыть"
-          onClick={() => runWindowAction(window, (current) => current.close())}
+          onClick={() =>
+            runWindowAction(window, (current) =>
+              closeBehavior === "hide" ? current.hide() : current.close(),
+            )
+          }
         >
           <X aria-hidden="true" size={14} strokeWidth={1.5} />
         </TitlebarButton>

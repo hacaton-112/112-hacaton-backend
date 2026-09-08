@@ -1,6 +1,6 @@
 import {
+  type GeoJSONSource,
   Map as MapLibreMap,
-  Marker,
   NavigationControl,
   ScaleControl,
 } from "maplibre-gl";
@@ -10,6 +10,11 @@ import { useEffect, useRef, useState } from "react";
 import { env } from "../../config/env";
 import { INCIDENT_ZOOM, type CityPreset } from "../../config/map";
 
+const ZONE_RADIUS_METERS = 400;
+const ZONE_SOURCE_ID = "incident-zone";
+const ZONE_FILL_LAYER_ID = "incident-zone-fill";
+const ZONE_OUTLINE_LAYER_ID = "incident-zone-outline";
+
 export interface IncidentLocation {
   longitude: number;
   latitude: number;
@@ -18,7 +23,7 @@ export interface IncidentLocation {
 
 interface IncidentMapProps {
   city: CityPreset;
-  /** Появляется, когда адрес вызова определён: карта долетает до точки. */
+  /** Появляется, когда адрес вызова определён: карта показывает примерную зону. */
   incident?: IncidentLocation;
   className?: string;
 }
@@ -26,7 +31,6 @@ interface IncidentMapProps {
 export function IncidentMap({ city, incident, className }: IncidentMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap>(null);
-  const markerRef = useRef<Marker>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -37,7 +41,7 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
       style: env.mapStyleUrl,
       center: city.center,
       zoom: city.zoom,
-      attributionControl: { compact: true },
+      attributionControl: false,
     });
     mapRef.current = map;
 
@@ -61,8 +65,6 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
 
     return () => {
       observer.disconnect();
-      markerRef.current?.remove();
-      markerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -72,29 +74,55 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
     const map = mapRef.current;
     if (!map) return;
 
-    if (!incident) {
-      markerRef.current?.remove();
-      markerRef.current = null;
-      map.easeTo({ center: city.center, zoom: city.zoom });
-      return;
-    }
+    const renderZone = () => {
+      const source = map.getSource(ZONE_SOURCE_ID) as GeoJSONSource | undefined;
 
-    const position: [number, number] = [incident.longitude, incident.latitude];
+      if (!incident) {
+        source?.setData({ type: "FeatureCollection", features: [] });
+        map.easeTo({ center: city.center, zoom: city.zoom });
+        return;
+      }
 
-    if (markerRef.current) {
-      markerRef.current.setLngLat(position);
-    } else {
-      // Свой элемент вместо стандартной «капли»: цвет тянется из темы, а
-      // в атрибут fill у встроенного маркера CSS-переменную подставить нельзя.
-      const element = document.createElement("div");
-      element.className =
-        "size-3.5 rounded-full bg-accent-9 ring-3 ring-accent-a5 shadow-3";
-      markerRef.current = new Marker({ element })
-        .setLngLat(position)
-        .addTo(map);
-    }
+      const zone = createCircleZone(incident, ZONE_RADIUS_METERS);
 
-    map.flyTo({ center: position, zoom: INCIDENT_ZOOM, speed: 0.8 });
+      if (source) {
+        source.setData(zone);
+      } else {
+        map.addSource(ZONE_SOURCE_ID, { type: "geojson", data: zone });
+        map.addLayer({
+          id: ZONE_FILL_LAYER_ID,
+          type: "fill",
+          source: ZONE_SOURCE_ID,
+          paint: {
+            "fill-color": "#1684e8",
+            "fill-opacity": 0.2,
+          },
+        });
+        map.addLayer({
+          id: ZONE_OUTLINE_LAYER_ID,
+          type: "line",
+          source: ZONE_SOURCE_ID,
+          paint: {
+            "line-color": "#0b75d1",
+            "line-opacity": 0.9,
+            "line-width": 2,
+          },
+        });
+      }
+
+      map.flyTo({
+        center: [incident.longitude, incident.latitude],
+        zoom: INCIDENT_ZOOM - 1.5,
+        speed: 0.8,
+      });
+    };
+
+    if (map.isStyleLoaded()) renderZone();
+    else map.once("load", renderZone);
+
+    return () => {
+      map.off("load", renderZone);
+    };
   }, [incident, city]);
 
   return (
@@ -107,4 +135,42 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
       )}
     </div>
   );
+}
+
+/** Build a real geographic circle so its size remains ~400 m at every zoom. */
+function createCircleZone(incident: IncidentLocation, radiusMeters: number) {
+  const earthRadiusMeters = 6_371_000;
+  const angularDistance = radiusMeters / earthRadiusMeters;
+  const latitude = (incident.latitude * Math.PI) / 180;
+  const longitude = (incident.longitude * Math.PI) / 180;
+  const coordinates: [number, number][] = [];
+
+  for (let step = 0; step <= 64; step += 1) {
+    const bearing = (step / 64) * Math.PI * 2;
+    const pointLatitude = Math.asin(
+      Math.sin(latitude) * Math.cos(angularDistance) +
+        Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearing),
+    );
+    const pointLongitude =
+      longitude +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude),
+        Math.cos(angularDistance) -
+          Math.sin(latitude) * Math.sin(pointLatitude),
+      );
+
+    coordinates.push([
+      (pointLongitude * 180) / Math.PI,
+      (pointLatitude * 180) / Math.PI,
+    ]);
+  }
+
+  return {
+    type: "Feature" as const,
+    properties: { radiusMeters },
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [coordinates],
+    },
+  };
 }

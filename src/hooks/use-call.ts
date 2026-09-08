@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { IncidentLocation } from "../components/map/incident-map";
+import { useMapWindowStore } from "../stores/map-window.store";
 
 export type CallState = "idle" | "ringing" | "active" | "ended";
 
@@ -91,6 +92,14 @@ export function useCall(): CallSnapshot & CallControls {
     const timer = window.setInterval(tick, 1_000);
     return () => window.clearInterval(timer);
   }, [state, acceptedAt]);
+
+  useEffect(() => {
+    useMapWindowStore.getState().setSnapshot({
+      callState: state,
+      incident: incident ?? null,
+      isResolvingAddress,
+    });
+  }, [state, incident, isResolvingAddress]);
 
   const reset = useCallback(() => {
     clearAddressTimer();

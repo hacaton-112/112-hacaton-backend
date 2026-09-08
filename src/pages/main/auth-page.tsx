@@ -1,8 +1,8 @@
 import { Flex, Heading, Text } from "@bolid-ui/themes";
 import { Navigate } from "react-router";
 
-import { AuthForm } from "../components/auth/auth-form";
-import { useAuthStore } from "../stores/auth.store";
+import { AuthForm } from "../../components/auth/auth-form";
+import { useAuthStore } from "../../stores/auth.store";
 
 export default function AuthPage() {
   const user = useAuthStore((state) => state.user);

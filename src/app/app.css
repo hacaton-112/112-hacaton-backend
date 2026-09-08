@@ -328,6 +328,46 @@ body,
 }
 
 /*
+ * На узком экране скроллится вся операторская страница. На desktop общий
+ * viewport фиксируется, а каждая рабочая колонка получает собственный
+ * ScrollArea. Так рядом не появляются общий и вложенный scrollbar.
+ */
+.operator-page-scroll,
+.operator-page-scroll > .rt-ScrollAreaViewport {
+  height: 100%;
+}
+
+@media (max-width: 1023px) {
+  .operator-column-scroll {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .operator-column-scroll > .rt-ScrollAreaViewport {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .operator-column-scroll > .rt-ScrollAreaScrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .operator-page-scroll > .rt-ScrollAreaViewport {
+    overflow: hidden !important;
+  }
+
+  .operator-page-scroll > .rt-ScrollAreaScrollbar {
+    display: none;
+  }
+
+  .operator-column-scroll {
+    height: 100%;
+  }
+}
+
+/*
  * Легаси-стили экрана тренажёра (src/components/voice-trainer.tsx).
  * Они написаны глобальными селекторами (h1, button, select, label), а bolid-ui
  * задаёт свои размеры через :where() с нулевой специфичностью — поэтому вне

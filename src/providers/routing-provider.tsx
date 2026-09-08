@@ -1,5 +1,5 @@
-import { BrowserRouter } from "react-router";
+import { HashRouter } from "react-router";
 
 export const routingProvider = (component: React.ReactNode) => {
-  return <BrowserRouter>{component}</BrowserRouter>;
+  return <HashRouter>{component}</HashRouter>;
 };

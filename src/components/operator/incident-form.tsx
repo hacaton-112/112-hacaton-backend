@@ -1,9 +1,10 @@
 import {
   Button,
-  Card,
   CheckboxGroup,
   Flex,
   Heading,
+  NumberField,
+  PhoneField,
   SegmentedControl,
   Select,
   Switch,
@@ -25,6 +26,8 @@ import {
   IncidentCardSchema,
 } from "../../contracts/incident";
 import { FormField } from "../auth/form-field";
+import { MapWindowButton } from "../window/map-window-button";
+import { DuplicateSuspicion } from "./duplicate-suspicion";
 
 const EMPTY_CARD: IncidentCardInput = {
   category: "other",
@@ -77,17 +80,25 @@ export function IncidentForm({
   }, [callerPhone, setValue]);
 
   return (
-    <Card size="2" className="h-full">
+    <div className="bg-background min-h-full p-3">
       <form onSubmit={handleSubmit((card) => onSubmit?.(card))} noValidate>
-        <Flex direction="column" gap="3">
+        <Flex direction="column" gap="2">
           <Flex align="center" justify="between">
-            <Heading size="3">Карточка происшествия</Heading>
-            {isSubmitSuccessful && (
-              <Text size="1" color="green">
-                Сохранено
-              </Text>
-            )}
+            <Heading size="3">Место происшествия</Heading>
+            <Flex align="center" gap="2">
+              {isSubmitSuccessful && (
+                <Text size="1" color="green">
+                  Сохранено
+                </Text>
+              )}
+              <MapWindowButton />
+            </Flex>
           </Flex>
+
+          <Text size="1" color="gray">
+            Заполните адрес, обстоятельства и службы реагирования во время
+            разговора
+          </Text>
 
           <FormField
             label="Тип происшествия"
@@ -99,6 +110,7 @@ export function IncidentForm({
               name="category"
               render={({ field }) => (
                 <Select.Root
+                  size="1"
                   value={field.value}
                   onValueChange={field.onChange}
                   disabled={disabled}
@@ -124,6 +136,7 @@ export function IncidentForm({
             error={errors.address?.message}
           >
             <TextField.Root
+              size="1"
               id="address"
               placeholder="Улица, дом, строение"
               disabled={disabled}
@@ -138,6 +151,7 @@ export function IncidentForm({
               error={errors.apartment?.message}
             >
               <TextField.Root
+                size="1"
                 id="apartment"
                 disabled={disabled}
                 {...register("apartment")}
@@ -148,12 +162,21 @@ export function IncidentForm({
               htmlFor="victimsCount"
               error={errors.victimsCount?.message}
             >
-              <TextField.Root
-                id="victimsCount"
-                type="number"
-                min={0}
-                disabled={disabled}
-                {...register("victimsCount")}
+              <Controller
+                control={control}
+                name="victimsCount"
+                render={({ field }) => (
+                  <NumberField.Root
+                    size="1"
+                    id="victimsCount"
+                    value={Number(field.value)}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    minValue={0}
+                    maxValue={999}
+                    disabled={disabled}
+                  />
+                )}
               />
             </FormField>
           </Flex>
@@ -164,6 +187,7 @@ export function IncidentForm({
             error={errors.landmark?.message}
           >
             <TextField.Root
+              size="1"
               id="landmark"
               placeholder="Как найти: вход со двора, рядом школа…"
               disabled={disabled}
@@ -178,6 +202,7 @@ export function IncidentForm({
               error={errors.callerName?.message}
             >
               <TextField.Root
+                size="1"
                 id="callerName"
                 disabled={disabled}
                 {...register("callerName")}
@@ -188,10 +213,21 @@ export function IncidentForm({
               htmlFor="callerPhone"
               error={errors.callerPhone?.message}
             >
-              <TextField.Root
-                id="callerPhone"
-                disabled={disabled}
-                {...register("callerPhone")}
+              <Controller
+                control={control}
+                name="callerPhone"
+                render={({ field }) => (
+                  <PhoneField.Root
+                    size="1"
+                    id="callerPhone"
+                    country="ru"
+                    value={field.value?.replace(/\D/g, "") ?? ""}
+                    onChange={(value) => field.onChange(value)}
+                    onBlur={field.onBlur}
+                    preferredCountries={["ru", "az"]}
+                    disabled={disabled}
+                  />
+                )}
               />
             </FormField>
           </Flex>
@@ -303,6 +339,7 @@ export function IncidentForm({
             error={errors.description?.message}
           >
             <TextArea
+              size="1"
               id="description"
               rows={4}
               placeholder="Что произошло со слов заявителя"
@@ -310,6 +347,8 @@ export function IncidentForm({
               {...register("description")}
             />
           </FormField>
+
+          <DuplicateSuspicion />
 
           <Flex gap="2" justify="end">
             <Button
@@ -328,6 +367,6 @@ export function IncidentForm({
           </Flex>
         </Flex>
       </form>
-    </Card>
+    </div>
   );
 }

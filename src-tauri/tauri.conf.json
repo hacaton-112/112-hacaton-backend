@@ -12,11 +12,23 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Учебный симулятор службы 112",
         "width": 1280,
         "height": 720,
-        "minWidth": 1280,
-        "minHeight": 720,
+        "minWidth": 720,
+        "minHeight": 400,
+        "decorations": false
+      },
+      {
+        "label": "incident-map",
+        "title": "Карта происшествия",
+        "url": "index.html#/map",
+        "width": 1000,
+        "height": 700,
+        "minWidth": 640,
+        "minHeight": 480,
+        "visible": false,
         "decorations": false
       }
     ],
