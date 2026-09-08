@@ -1,6 +1,7 @@
+import { Channel, invoke } from "@tauri-apps/api/core";
+
 import { API_BASE_URL, ApiRoutes } from "../config/api";
 
-const TARGET_SAMPLE_RATE = 16_000;
 
 export interface AsrSession {
   sessionId: string;
@@ -30,11 +31,20 @@ interface AsrStreamCallbacks {
   onError?: (error: Error) => void;
 }
 
-type ServerEvent =
+/**
+ * События приходят из Rust в том же виде, в каком их отдаёт ASR-сервис.
+ * `closed` добавлено нативной стороной: webview больше не владеет сокетом и
+ * иначе не узнал бы о его закрытии.
+ */
+type AsrStreamEvent =
   | ({ type: "ready" } & Pick<AsrSession, "sessionId" | "sampleRate" | "model">)
   | ({ type: "partial" | "final" } & TranscriptEvent)
   | { type: "pong" }
   | { type: "error"; message: string };
+
+function apiUrl(): string {
+  return (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -60,13 +70,21 @@ async function createAsrSession(language: string): Promise<AsrSession> {
   });
 }
 
+function toError(reason: unknown): Error {
+  if (reason instanceof Error) return reason;
+  return new Error(typeof reason === "string" ? reason : String(reason));
+}
+
+/**
+ * Учебная сессия распознавания речи.
+ *
+ * Захват микрофона и WebSocket живут в Rust: `navigator.mediaDevices`
+ * недоступен в WKWebView вне secure context, а App Transport Security
+ * блокирует `ws://` на внешний хост. Здесь остаётся только создание сессии
+ * через backend на localhost и обработка событий.
+ */
 export class AsrStream {
-  private socket?: WebSocket;
-  private mediaStream?: MediaStream;
-  private audioContext?: AudioContext;
-  private source?: MediaStreamAudioSourceNode;
-  private processor?: ScriptProcessorNode;
-  private silentGain?: GainNode;
+  private active = false;
   private stopping = false;
   private readonly callbacks: AsrStreamCallbacks;
 
@@ -75,184 +93,72 @@ export class AsrStream {
   }
 
   async start(language: string): Promise<void> {
-    if (this.socket) throw new Error("ASR stream is already active");
+    if (this.active) throw new Error("ASR stream is already active");
 
     const session = await createAsrSession(language);
-    const socket = await this.openSocket(session.wsUrl);
-    this.socket = socket;
-    this.bindSocket(socket, session);
+    const channel = new Channel<AsrStreamEvent>();
+    channel.onmessage = (event) => this.handleEvent(event);
 
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      this.mediaStream = mediaStream;
-
-      const audioContext = new AudioContext({ latencyHint: "interactive" });
-      this.audioContext = audioContext;
-      await audioContext.resume();
-
-      const source = audioContext.createMediaStreamSource(mediaStream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      const silentGain = audioContext.createGain();
-      silentGain.gain.value = 0;
-
-      processor.onaudioprocess = (event) => {
-        if (socket.readyState !== WebSocket.OPEN || this.stopping) return;
-        const input = event.inputBuffer.getChannelData(0);
-        const downsampled = downsample(
-          input,
-          audioContext.sampleRate,
-          TARGET_SAMPLE_RATE,
-        );
-        if (downsampled.length > 0) socket.send(floatToPcm16(downsampled));
-      };
-
-      source.connect(processor);
-      processor.connect(silentGain);
-      silentGain.connect(audioContext.destination);
-      this.source = source;
-      this.processor = processor;
-      this.silentGain = silentGain;
-      this.callbacks.onReady?.(session);
-    } catch (error) {
-      this.stopping = true;
-      socket.close();
-      this.socket = undefined;
-      throw error;
+      // Микрофон и сокет открывает нативная сторона; ошибка приходит сюда же,
+      // поэтому недоступное устройство видно сразу при старте.
+      await invoke("asr_start", { wsUrl: session.wsUrl, onEvent: channel });
+    } catch (reason) {
+      throw toError(reason);
     }
+
+    this.active = true;
+    this.stopping = false;
+    this.callbacks.onReady?.(session);
   }
 
   async stop(): Promise<void> {
-    if (!this.socket || this.stopping) return;
+    if (!this.active || this.stopping) return;
     this.stopping = true;
-    await this.stopCapture();
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ type: "stop" }));
-    }
+    await invoke("asr_stop");
   }
 
   async dispose(): Promise<void> {
-    await this.stopCapture();
-    this.socket?.close();
-    this.socket = undefined;
+    if (!this.active) return;
+    this.stopping = true;
+    this.active = false;
+    try {
+      await invoke("asr_stop");
+    } catch {
+      // Освобождение ресурсов не должно ломать размонтирование компонента.
+    }
   }
 
-  private async openSocket(url: string): Promise<WebSocket> {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url);
-      socket.binaryType = "arraybuffer";
-      const timer = window.setTimeout(() => {
-        socket.close();
-        reject(new Error("Timed out connecting to Whisper service"));
-      }, 10_000);
-      socket.addEventListener(
-        "open",
-        () => {
-          window.clearTimeout(timer);
-          resolve(socket);
-        },
-        { once: true },
-      );
-      socket.addEventListener(
-        "error",
-        () => {
-          window.clearTimeout(timer);
-          reject(new Error("Could not connect to Whisper WebSocket"));
-        },
-        { once: true },
-      );
-    });
-  }
-
-  private bindSocket(socket: WebSocket, session: AsrSession): void {
-    socket.addEventListener("message", (message) => {
-      if (typeof message.data !== "string") return;
-      try {
-        const event = JSON.parse(message.data) as ServerEvent;
-        if (event.type === "partial") this.callbacks.onPartial?.(event);
-        if (event.type === "final") {
-          this.callbacks.onFinal?.(event);
-          socket.close();
+  private handleEvent(event: AsrStreamEvent): void {
+    switch (event.type) {
+      case "partial":
+        this.callbacks.onPartial?.(event);
+        break;
+      case "final":
+        // После финала нативная сторона закрывает сокет сама, и следующее
+        // `closed` уже не является ошибкой.
+        this.stopping = true;
+        this.callbacks.onFinal?.(event);
+        break;
+      case "error":
+        this.fail(new Error(event.message));
+        break;
+      case "closed":
+        if (!this.stopping) {
+          this.callbacks.onError?.(new Error("Whisper WebSocket disconnected"));
         }
-        if (event.type === "error") {
-          this.fail(new Error(event.message));
-        }
-      } catch {
-        this.callbacks.onError?.(
-          new Error("Invalid response from Whisper service"),
-        );
-      }
-    });
-    socket.addEventListener("close", () => {
-      if (!this.stopping) {
-        this.callbacks.onError?.(new Error("Whisper WebSocket disconnected"));
-      }
-      if (this.socket === socket) this.socket = undefined;
-    });
-    socket.addEventListener("error", () => {
-      this.fail(new Error(`Whisper session ${session.sessionId} failed`));
-    });
+        this.active = false;
+        this.stopping = false;
+        break;
+      default:
+        break;
+    }
   }
 
   private fail(error: Error): void {
     if (this.stopping) return;
     this.stopping = true;
     this.callbacks.onError?.(error);
-    void this.stopCapture();
-    this.socket?.close();
+    void invoke("asr_stop").catch(() => undefined);
   }
-
-  private async stopCapture(): Promise<void> {
-    this.processor?.disconnect();
-    this.source?.disconnect();
-    this.silentGain?.disconnect();
-    this.processor = undefined;
-    this.source = undefined;
-    this.silentGain = undefined;
-    this.mediaStream?.getTracks().forEach((track) => track.stop());
-    this.mediaStream = undefined;
-    if (this.audioContext && this.audioContext.state !== "closed") {
-      await this.audioContext.close();
-    }
-    this.audioContext = undefined;
-  }
-}
-
-function downsample(
-  input: Float32Array,
-  inputRate: number,
-  outputRate: number,
-): Float32Array {
-  if (inputRate === outputRate) return input.slice();
-  if (inputRate < outputRate) {
-    throw new Error(`Unsupported microphone sample rate: ${inputRate}`);
-  }
-
-  const ratio = inputRate / outputRate;
-  const length = Math.floor(input.length / ratio);
-  const output = new Float32Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const start = Math.floor(index * ratio);
-    const end = Math.min(Math.floor((index + 1) * ratio), input.length);
-    let sum = 0;
-    for (let cursor = start; cursor < end; cursor += 1) sum += input[cursor];
-    output[index] = sum / Math.max(end - start, 1);
-  }
-  return output;
-}
-
-function floatToPcm16(input: Float32Array): ArrayBuffer {
-  const output = new ArrayBuffer(input.length * 2);
-  const view = new DataView(output);
-  for (let index = 0; index < input.length; index += 1) {
-    const value = Math.max(-1, Math.min(1, input[index]));
-    view.setInt16(index * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true);
-  }
-  return output;
 }

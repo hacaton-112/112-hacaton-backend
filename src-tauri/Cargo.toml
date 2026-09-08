@@ -21,6 +21,17 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-zustand = "1.2.1"
+anyhow = "1"
+# Нативный захват микрофона: navigator.mediaDevices недоступен в WKWebView вне
+# secure context и нестабилен в WebKitGTK.
+cpal = "0.18"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+# WS-клиент в Rust не подпадает под App Transport Security, который блокирует
+# ws:// на внешний хост внутри webview. rustls — под будущий wss:// за прокси.
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
