@@ -4,9 +4,19 @@ import { JwtModule, JwtService } from "@nestjs/jwt";
 import { env } from "@/core/config/env.config";
 
 import { AccessTokenVerifier } from "./access-token.verifier";
+import {
+  type AuthSessionConfig,
+  AuthSessionService,
+} from "./auth-session.service";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { TOKEN_SIGNER, TOKEN_VERIFIER } from "./auth.tokens";
+import {
+  AUTH_SESSION_CONFIG,
+  AUTH_SESSION_STORE,
+  TOKEN_SIGNER,
+  TOKEN_VERIFIER,
+} from "./auth.tokens";
+import { DrizzleAuthSessionStore } from "./drizzle-auth-session.store";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { JWT_ALGORITHM } from "./jwt.constants";
 import type { TokenSigner } from "./ports/token-signer.port";
@@ -28,7 +38,20 @@ import type { TokenVerifier } from "./ports/token-verifier.port";
   providers: [
     AuthService,
     AccessTokenVerifier,
+    AuthSessionService,
     JwtAuthGuard,
+    DrizzleAuthSessionStore,
+    { provide: AUTH_SESSION_STORE, useExisting: DrizzleAuthSessionStore },
+    // Lifetimes arrive as a value rather than being read from env inside the
+    // service: @t3-oss/env-core is ESM-only and cannot be loaded by the test
+    // runner, and a spec needs to vary the TTLs to cover the expiry rules.
+    {
+      provide: AUTH_SESSION_CONFIG,
+      useValue: {
+        refreshTokenTtlSeconds: env.AUTH_REFRESH_TOKEN_TTL_SECONDS,
+        sessionTtlSeconds: env.AUTH_SESSION_TTL_SECONDS,
+      } satisfies AuthSessionConfig,
+    },
     // Factories rather than `useExisting`, so TypeScript checks that
     // `JwtService` still satisfies the ports.
     {
