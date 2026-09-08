@@ -1,35 +1,39 @@
-import { Injectable } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
+import {
+  type CanActivate,
+  type ExecutionContext,
+  Injectable,
+} from "@nestjs/common";
 import type { Request } from "express";
 
 import { AppUnauthorizedException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
 
+import { AccessTokenVerifier } from "./access-token.verifier";
 import type { VerifiedJwtPayload } from "./dto/jwt-payload.dto";
-import { JWT_STRATEGY } from "./jwt.strategy";
 
 export interface AuthenticatedRequest extends Request {
   user: VerifiedJwtPayload;
 }
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard(JWT_STRATEGY) {
-  /** Replaces Passport's bare 401 with the coded error the frontend expects. */
-  handleRequest<TUser = VerifiedJwtPayload>(
-    error: unknown,
-    user: TUser | false,
-  ): TUser {
-    if (error) {
-      throw error;
-    }
+export class JwtAuthGuard implements CanActivate {
+  constructor(private readonly accessTokenVerifier: AccessTokenVerifier) {}
 
-    if (!user) {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = await this.accessTokenVerifier.verify(
+      request.headers.authorization,
+    );
+
+    if (user === null) {
       throw new AppUnauthorizedException(
         ErrorCodes.AUTH_TOKEN_INVALID,
         "Access token is missing, invalid or expired",
       );
     }
 
-    return user;
+    request.user = user;
+
+    return true;
   }
 }
