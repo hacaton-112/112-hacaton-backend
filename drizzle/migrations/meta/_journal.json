@@ -15,6 +15,13 @@
       "when": 1788789242288,
       "tag": "0001_mighty_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788864067369,
+      "tag": "0002_demonic_madame_masque",
+      "breakpoints": true
     }
   ]
 }
