@@ -8,6 +8,27 @@
       "when": 1788601796270,
       "tag": "0000_massive_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788789242288,
+      "tag": "0001_mighty_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788864067369,
+      "tag": "0002_demonic_madame_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788864688297,
+      "tag": "0003_small_toxin",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { GlobalExceptionFilter } from "@/common/filters/global-exception.filter"
 import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
+import { AuthModule } from "@/modules/auth/auth.module";
 import { HealthModule } from "@/modules/health/health.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
 
@@ -26,6 +27,7 @@ import { DatabaseModule } from "./database/database.module";
     DatabaseModule,
     AuditLogModule,
     HealthModule,
+    AuthModule,
     AsrModule,
     VoicePipelineModule,
   ],

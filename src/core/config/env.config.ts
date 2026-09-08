@@ -39,6 +39,31 @@ export const env = createEnv({
       })
       .default("http://127.0.0.1:8787"),
 
+    // ── Auth ─────────────────────────────────────────────────────
+    JWT_SECRET: z.string().min(32).max(512),
+    JWT_ACCESS_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(86_400)
+      .default(3_600),
+
+    // AUTH_, not JWT_: refresh tokens are opaque secrets, not signed tokens.
+    // Idle window of a single refresh token.
+    AUTH_REFRESH_TOKEN_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(7_776_000)
+      .default(2_592_000),
+    // Absolute cap on a rotation chain; a refresh never extends it.
+    AUTH_SESSION_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(3_600)
+      .max(31_536_000)
+      .default(7_776_000),
+
     // ── Alice AI ─────────────────────────────────────────────────
     YANDEX_AI_API_KEY: z.string().trim().min(1).max(1_024).optional(),
     YANDEX_AI_FOLDER_ID: z

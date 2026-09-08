@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
+import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
@@ -31,7 +32,12 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
   );
 
 @Module({
-  imports: [ConfigModule, DialogueGenerationModule, SpeechSynthesisModule],
+  imports: [
+    ConfigModule,
+    AuthModule,
+    DialogueGenerationModule,
+    SpeechSynthesisModule,
+  ],
   providers: [
     {
       provide: VOICE_PIPELINE_TRANSPORT_CONFIG,

@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-system112}
       POSTGRES_DB: ${POSTGRES_DB:-system112_training}
     ports:
-      - "54322:5432"
+      # Переопределяется через POSTGRES_PORT: на Windows дефолтный 54322 может
+      # попасть в зарезервированный Hyper-V диапазон портов.
+      - "${POSTGRES_PORT:-54322}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
