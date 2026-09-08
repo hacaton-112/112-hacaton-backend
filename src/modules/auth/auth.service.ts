@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
@@ -30,6 +30,8 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
     @Inject(TOKEN_SIGNER) private readonly tokenSigner: TokenSigner,
@@ -43,6 +45,12 @@ export class AuthService {
     );
 
     if (!user || !passwordMatches) {
+      // Logged without the address: the entry exists so a burst of failures is
+      // visible in the server log, not to record who tried to sign in.
+      this.logger.warn(
+        `Rejected a login attempt: ${user ? "wrong password" : "unknown account"}`,
+      );
+
       throw new AppUnauthorizedException(
         ErrorCodes.AUTH_LOGIN_INVALID_CREDENTIALS,
         "Invalid email or password",
