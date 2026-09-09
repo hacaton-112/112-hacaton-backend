@@ -64,6 +64,44 @@ export const env = createEnv({
       .max(31_536_000)
       .default(7_776_000),
 
+    // ── Call recording ───────────────────────────────────────────
+    // Выключено по умолчанию: без объектного хранилища рядом разработчик
+    // должен получать работающий звонок, а не отказ на первой же реплике.
+    CALL_RECORDING_ENABLED: BooleanEnvironmentSchema,
+    // Адрес совместимого с S3 хранилища; для MinIO это его собственный порт.
+    CALL_RECORDING_S3_ENDPOINT: z
+      .url()
+      .refine((url) => /^https?:\/\//.test(url), {
+        message:
+          "CALL_RECORDING_S3_ENDPOINT must use the http:// or https:// scheme",
+      })
+      .default("http://127.0.0.1:9000"),
+    CALL_RECORDING_S3_REGION: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .default("us-east-1"),
+    CALL_RECORDING_S3_BUCKET: z
+      .string()
+      .trim()
+      .min(3)
+      .max(63)
+      .regex(/^[a-z0-9][a-z0-9.-]*$/)
+      .default("call-recordings"),
+    CALL_RECORDING_S3_ACCESS_KEY_ID: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional(),
+    CALL_RECORDING_S3_SECRET_ACCESS_KEY: z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .optional(),
+
     // ── Alice AI ─────────────────────────────────────────────────
     YANDEX_AI_API_KEY: z.string().trim().min(1).max(1_024).optional(),
     YANDEX_AI_FOLDER_ID: z
