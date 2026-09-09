@@ -5,7 +5,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-import { API_BASE_URL } from "../config/api";
+import { API_CONFIG } from "../config/api";
 import { getAccessToken } from "../stores/auth.store";
 
 interface ApiErrorPayload {
@@ -14,6 +14,13 @@ interface ApiErrorPayload {
   code?: string;
   details?: unknown;
 }
+
+const API_ERROR_MESSAGES: Record<string, string> = {
+  AUTH_LOGIN_INVALID_CREDENTIALS: "Неверный email или пароль",
+  AUTH_TOKEN_INVALID: "Сессия истекла, войдите заново",
+  AUTH_USER_NOT_FOUND: "Учётная запись отключена",
+  VALIDATION_FAILED: "Проверьте введённые данные",
+};
 
 export class ApiError extends Error {
   readonly status?: number;
@@ -64,11 +71,18 @@ class Api {
     }
 
     const { status, data } = error.response;
+    const code = this.extractCode(data);
     return Promise.reject(
       new ApiError({
-        message: this.extractMessage(data) ?? error.message,
+        message:
+          (code && API_ERROR_MESSAGES[code]) ??
+          (status === 429
+            ? "Слишком много запросов. Попробуйте через минуту"
+            : undefined) ??
+          this.extractMessage(data) ??
+          "Сервер не смог выполнить запрос",
         status,
-        code: this.extractCode(data),
+        code,
         details: data,
       }),
     );
@@ -117,4 +131,4 @@ class Api {
   }
 }
 
-export const api = new Api(API_BASE_URL);
+export const api = new Api(API_CONFIG.getBaseUrl());

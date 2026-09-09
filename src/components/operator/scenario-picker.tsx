@@ -1,9 +1,8 @@
 import { Button, Flex, Select, Text } from "@bolid-ui/themes";
-import { useQuery } from "@tanstack/react-query";
 import { PhoneIncoming } from "lucide-react";
 import { useState } from "react";
 
-import { listScenarios } from "../../services/scenario.service";
+import { useScenarios } from "../../hooks/use-scenarios";
 
 interface ScenarioPickerProps {
   disabled: boolean;
@@ -22,10 +21,7 @@ const DIFFICULTY_LABELS = [
 /** Выбор учебного вызова: список приходит из backend, а не из клиента. */
 export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   const [selected, setSelected] = useState<string>();
-  const { data, isPending, error } = useQuery({
-    queryKey: ["scenarios"],
-    queryFn: listScenarios,
-  });
+  const { data, isPending, error } = useScenarios();
 
   if (error) {
     return (
