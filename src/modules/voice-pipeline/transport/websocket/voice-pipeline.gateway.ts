@@ -22,6 +22,11 @@ import {
   type AsrStreamHandle,
 } from "@/modules/asr/asr-stream.port";
 import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+import {
+  CALL_RECORDER,
+  type CallRecorder,
+  type RecordingSegment,
+} from "@/modules/call-recording";
 import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
 import {
   INITIATIVE_OPERATOR_TEXT,
@@ -64,6 +69,8 @@ interface ActiveRequest {
 interface ListeningStream {
   streamId: string;
   stream: AsrStreamHandle;
+  /** Тот же звук уходит в запись: распознавание её не заменяет. */
+  recording: RecordingSegment;
 }
 
 interface ConnectionState {
@@ -102,6 +109,8 @@ export class VoicePipelineGateway
     private readonly engine: ScenarioEngineService,
     @Inject(ASR_STREAMER)
     private readonly asr: AsrStreamer,
+    @Inject(CALL_RECORDER)
+    private readonly recorder: CallRecorder,
   ) {}
 
   /**
@@ -149,6 +158,7 @@ export class VoicePipelineGateway
     if (state !== undefined) {
       this.stopTicking(state);
       this.abortListening(state);
+      this.recorder.finishCall(state.sessionId);
     }
 
     state?.activeRequest?.controller.abort(
@@ -327,6 +337,9 @@ export class VoicePipelineGateway
           eventId: generateId(),
         });
 
+        // Запись начинается с принятого вызова: смещения в манифесте считаются
+        // от той же секунды, с которой начинается разговор.
+        this.recorder.startCall(state.sessionId);
         this.startTicking(client, state);
 
         await this.sendEvent(client, state, {
@@ -352,6 +365,7 @@ export class VoicePipelineGateway
 
       this.stopTicking(state);
       this.abortListening(state);
+      this.recorder.finishCall(state.sessionId);
       await this.cancelActiveRequest(client, state);
       await this.sendEvent(client, state, {
         type: "call.ended",
@@ -411,7 +425,15 @@ export class VoicePipelineGateway
       return;
     }
 
-    const listening: ListeningStream = { streamId: generateId(), stream };
+    const listening: ListeningStream = {
+      streamId: generateId(),
+      stream,
+      recording: this.recorder.openSegment({
+        sessionId: state.sessionId,
+        track: "operator",
+        sampleRate: OPERATOR_SAMPLE_RATE,
+      }),
+    };
     state.listening = listening;
 
     try {
@@ -454,6 +476,7 @@ export class VoicePipelineGateway
     }
 
     state.listening = null;
+    listening.recording.close();
 
     let transcript;
     try {
@@ -518,6 +541,7 @@ export class VoicePipelineGateway
     }
 
     listening.stream.send(frame);
+    listening.recording.write(frame);
   }
 
   private abortListening(state: ConnectionState): void {
@@ -529,6 +553,7 @@ export class VoicePipelineGateway
 
     state.listening = null;
     listening.stream.abort();
+    listening.recording.close();
   }
 
   /** Слово отдано обратно заявителю; сорваться на этом звонок не должен. */
@@ -639,6 +664,7 @@ export class VoicePipelineGateway
     }
 
     let audioStarted = false;
+    let recording: RecordingSegment | null = null;
 
     try {
       for await (const event of this.voicePipeline.streamReply(
@@ -695,6 +721,11 @@ export class VoicePipelineGateway
         if (event.type === "voice.audio.chunk") {
           if (!audioStarted) {
             audioStarted = true;
+            recording = this.recorder.openSegment({
+              sessionId: state.sessionId,
+              track: "caller",
+              sampleRate: event.chunk.sampleRate,
+            });
             await this.sendEvent(client, state, {
               type: "audio.start",
               requestId: activeRequest.requestId,
@@ -705,6 +736,7 @@ export class VoicePipelineGateway
             });
           }
 
+          recording?.write(event.chunk.audio);
           await this.sendAudio(client, event.chunk.audio);
           continue;
         }
@@ -728,6 +760,8 @@ export class VoicePipelineGateway
         );
       }
     } finally {
+      // Прерванная реплика тоже слышна оператору, поэтому остаётся в записи.
+      recording?.close();
       this.clearIfCurrent(state, activeRequest);
     }
   }

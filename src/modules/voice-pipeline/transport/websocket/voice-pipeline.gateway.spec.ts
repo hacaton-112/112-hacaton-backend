@@ -15,6 +15,7 @@ import type {
   AsrTranscript,
 } from "@/modules/asr/asr-stream.port";
 import type { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+import type { CallRecorder, RecordingSegment } from "@/modules/call-recording";
 import {
   ScenarioEngineError,
   type CallSnapshot,
@@ -221,6 +222,39 @@ const createAsr = (
   return { asr: { open: mocks.open }, mocks };
 };
 
+interface RecorderMocks {
+  startCall: jest.Mock;
+  openSegment: jest.Mock;
+  finishCall: jest.Mock;
+  write: jest.Mock;
+  close: jest.Mock;
+}
+
+const createRecorder = (): {
+  recorder: CallRecorder;
+  mocks: RecorderMocks;
+} => {
+  const write = jest.fn();
+  const close = jest.fn();
+  const segment: RecordingSegment = { write, close };
+  const mocks: RecorderMocks = {
+    startCall: jest.fn(),
+    openSegment: jest.fn().mockReturnValue(segment),
+    finishCall: jest.fn(),
+    write,
+    close,
+  };
+
+  return {
+    recorder: {
+      startCall: mocks.startCall,
+      openSegment: mocks.openSegment,
+      finishCall: mocks.finishCall,
+    } as unknown as CallRecorder,
+    mocks,
+  };
+};
+
 const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
   ({
     startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
@@ -252,6 +286,10 @@ const createRuntime = async (
   recordReply: jest.Mock = jest.fn().mockResolvedValue(undefined),
   engine: ScenarioEngineService = createEngine(),
   asr: { asr: AsrStreamer; mocks: AsrMocks } = createAsr(),
+  recording: {
+    recorder: CallRecorder;
+    mocks: RecorderMocks;
+  } = createRecorder(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -263,6 +301,7 @@ const createRuntime = async (
     { verify } as unknown as AccessTokenVerifier,
     engine,
     asr.asr,
+    recording.recorder,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
@@ -272,6 +311,7 @@ const createRuntime = async (
 
   return {
     asr: asr.mocks,
+    recorder: recording.mocks,
     create,
     engine,
     gateway,
@@ -295,6 +335,7 @@ describe(VoicePipelineGateway.name, () => {
       { verify } as unknown as AccessTokenVerifier,
       createEngine(),
       createAsr().asr,
+      createRecorder().recorder,
     );
     const socket = new SocketMock();
 
@@ -326,6 +367,7 @@ describe(VoicePipelineGateway.name, () => {
       } as unknown as AccessTokenVerifier,
       engine,
       createAsr().asr,
+      createRecorder().recorder,
     );
     const socket = new SocketMock();
 
@@ -351,6 +393,7 @@ describe(VoicePipelineGateway.name, () => {
       } as unknown as AccessTokenVerifier,
       createEngine(),
       createAsr().asr,
+      createRecorder().recorder,
     );
     const socket = new SocketMock();
 
@@ -991,6 +1034,7 @@ describe(VoicePipelineGateway.name, () => {
       } as unknown as AccessTokenVerifier,
       createEngine(),
       asr,
+      createRecorder().recorder,
     );
     const socket = new SocketMock();
 
@@ -1018,5 +1062,78 @@ describe(VoicePipelineGateway.name, () => {
     runtime.gateway.handleDisconnect(asSocket(runtime.socket));
 
     expect(runtime.asr.abort).toHaveBeenCalledTimes(1);
+  });
+  it("records the operator's voice as well as recognising it", async () => {
+    const runtime = await createRuntime();
+    const frame = Buffer.from([1, 2, 3, 4]);
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      frame,
+      true,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    expect(runtime.recorder.openSegment).toHaveBeenCalledWith(
+      expect.objectContaining({ track: "operator", sampleRate: 16_000 }),
+    );
+    expect(Buffer.from(runtime.recorder.write.mock.calls[0]?.[0])).toEqual(
+      frame,
+    );
+    expect(runtime.recorder.close).toHaveBeenCalled();
+  });
+
+  it("records the caller's reply as the operator hears it", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    expect(runtime.recorder.openSegment).toHaveBeenCalledWith(
+      expect.objectContaining({ track: "caller", sampleRate: 24_000 }),
+    );
+    // Обе порции синтеза, ровно те же байты, что ушли клиенту.
+    expect(runtime.recorder.write).toHaveBeenCalledTimes(2);
+    expect(runtime.recorder.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("records from the answered call to the end of it", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "accept" }),
+      false,
+    );
+
+    expect(runtime.recorder.startCall).toHaveBeenCalledTimes(1);
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "end" }),
+      false,
+    );
+
+    expect(runtime.recorder.finishCall).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the recording when the client disappears mid-call", async () => {
+    const runtime = await createRuntime();
+
+    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+    expect(runtime.recorder.finishCall).toHaveBeenCalledTimes(1);
   });
 });
