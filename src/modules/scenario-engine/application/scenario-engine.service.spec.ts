@@ -486,6 +486,61 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
   });
 });
 
+describe(`${ScenarioEngineService.name} setOperatorSpeaking`, () => {
+  it("holds the silence timer while the operator has the floor", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: true,
+      now: secondsAfter(2),
+    });
+
+    expect(patchOf(store)).toEqual({ operatorSilenceSince: null });
+    expect(eventTypes(store)).toEqual([]);
+  });
+
+  it("starts the silence over when the operator stops speaking", async () => {
+    const { engine, store } = createEngine();
+    const now = secondsAfter(7);
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: false,
+      now,
+    });
+
+    expect(patchOf(store)).toEqual({ operatorSilenceSince: now });
+  });
+
+  it("leaves a call that is not in conversation alone", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: true,
+    });
+
+    expect(store.appendTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps the caller quiet for as long as the operator speaks", async () => {
+    const { engine } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(
+          callState({ panicLevel: 3, operatorSilenceSince: null }),
+        ),
+    });
+
+    await expect(
+      engine.tick({ trainingSessionId: "session-1", now: secondsAfter(600) }),
+    ).resolves.toEqual([]);
+  });
+});
+
 describe(`${ScenarioEngineService.name} tick`, () => {
   it("does nothing while the operator keeps talking", async () => {
     const { engine, store } = createEngine();

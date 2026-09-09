@@ -382,6 +382,31 @@ export class ScenarioEngineService {
   }
 
   /**
+   * Оператор взял слово или отпустил его.
+   *
+   * Пока он говорит, отсчёт молчания стоит: сервер узнаёт его вопрос только
+   * после распознавания, и без этой паузы заявитель начал бы говорить поверх
+   * фразы, которую оператор уже произносит. Отпуская слово, оператор начинает
+   * молчать заново — ждать ответа он не обязан бесконечно.
+   */
+  async setOperatorSpeaking(input: {
+    trainingSessionId: string;
+    speaking: boolean;
+    now?: Date;
+  }): Promise<void> {
+    const now = input.now ?? new Date();
+    const { state } = await this.loadCall(input.trainingSessionId);
+
+    if (state.stage !== "conversation") {
+      return;
+    }
+
+    await this.store.appendTurn(state.trainingSessionId, generateId(), [], {
+      operatorSilenceSince: input.speaking ? null : now,
+    });
+  }
+
+  /**
    * Ход времени: единственный способ, которым в звонке что-то происходит без
    * действия оператора. Изменения состояния записываются здесь же, а вот
    * инициативная реплика только предлагается — записывать её должен транспорт,
