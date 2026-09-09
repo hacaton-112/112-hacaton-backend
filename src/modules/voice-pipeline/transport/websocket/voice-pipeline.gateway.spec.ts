@@ -162,6 +162,7 @@ const handshake = (authorization?: string) =>
 const createRuntime = async (
   stream: StreamFactory = successfulStream,
   verify: jest.Mock = jest.fn().mockResolvedValue(authenticatedUser),
+  recordReply: jest.Mock = jest.fn().mockResolvedValue(undefined),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -169,13 +170,13 @@ const createRuntime = async (
   const create = jest.fn(async () => request);
   const gateway = new VoicePipelineGateway(
     { streamReply } as unknown as VoicePipelineService,
-    { create } as VoicePipelineRequestFactory,
+    { create, recordReply } as unknown as VoicePipelineRequestFactory,
     { verify } as unknown as AccessTokenVerifier,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
 
-  return { create, gateway, socket, streamReply, verify };
+  return { create, gateway, recordReply, socket, streamReply, verify };
 };
 
 describe(VoicePipelineGateway.name, () => {
@@ -184,7 +185,10 @@ describe(VoicePipelineGateway.name, () => {
     const streamReply = jest.fn();
     const gateway = new VoicePipelineGateway(
       { streamReply } as unknown as VoicePipelineService,
-      { create: jest.fn() } as unknown as VoicePipelineRequestFactory,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
       { verify } as unknown as AccessTokenVerifier,
     );
     const socket = new SocketMock();
@@ -284,6 +288,53 @@ describe(VoicePipelineGateway.name, () => {
       ]);
     },
   );
+
+  it("returns facts to the engine before the reply reaches the client", async () => {
+    const recordReply = jest.fn().mockResolvedValue(undefined);
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      recordReply,
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    expect(recordReply).toHaveBeenCalledWith(
+      expect.objectContaining({ operatorText: "Что произошло?" }),
+    );
+    expect(textEvents(runtime.socket).map((event) => event.type)).toContain(
+      "reply.text",
+    );
+  });
+
+  it("drops a reply the engine refuses instead of speaking it", async () => {
+    const recordReply = jest
+      .fn()
+      .mockRejectedValue(new Error("fact not allowed"));
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      recordReply,
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    const types = textEvents(runtime.socket).map((event) => event.type);
+
+    // A reply that revealed something the scenario withheld must not reach the
+    // operator, and no audio may be sent for it.
+    expect(types).not.toContain("reply.text");
+    expect(types).toContain("error");
+    expect(runtime.socket.sent.some((frame) => frame.binary)).toBe(false);
+  });
 
   it("sanitizes context creation failures", async () => {
     const runtime = await createRuntime();

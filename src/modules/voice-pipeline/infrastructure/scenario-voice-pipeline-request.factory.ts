@@ -1,0 +1,67 @@
+import { Injectable } from "@nestjs/common";
+
+import {
+  VoicePipelineRequestSchema,
+  type VoicePipelineRequest,
+} from "@/contracts";
+import { ScenarioEngineService } from "@/modules/scenario-engine";
+
+import type {
+  CreateVoicePipelineRequestOptions,
+  RecordCallerReplyOptions,
+  VoicePipelineRequestFactory,
+} from "../application/voice-pipeline-request.factory";
+
+/**
+ * Настоящий источник контекста: движок сценария.
+ *
+ * Здесь замыкается круг — движок выдаёт разрешённые факты, а раскрытые моделью
+ * возвращаются ему обратно до того, как реплика уйдёт клиенту.
+ */
+@Injectable()
+export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequestFactory {
+  constructor(private readonly engine: ScenarioEngineService) {}
+
+  async create({
+    command,
+    requestId,
+    sessionId,
+    signal,
+  }: CreateVoicePipelineRequestOptions): Promise<VoicePipelineRequest> {
+    signal.throwIfAborted();
+
+    const built = await this.engine.buildGenerationContext({
+      trainingSessionId: sessionId,
+      operatorText: command.operatorText,
+    });
+
+    return VoicePipelineRequestSchema.parse({
+      generation: {
+        requestId,
+        sessionId,
+        scenarioVersionId: built.scenarioVersionId,
+        operatorText: command.operatorText,
+        context: built.context,
+      },
+      // Голос задаёт персона сценария; клиент может переопределить его только
+      // осознанно, для отладки.
+      voiceId: command.voiceId ?? built.voiceId,
+    });
+  }
+
+  async recordReply({
+    requestId,
+    sessionId,
+    operatorText,
+    reply,
+  }: RecordCallerReplyOptions): Promise<void> {
+    await this.engine.applyCallerReply({
+      trainingSessionId: sessionId,
+      // Идентификатор запроса служит идентификатором команды: повторная
+      // доставка того же ответа не должна применяться дважды.
+      eventId: requestId,
+      operatorText,
+      reply,
+    });
+  }
+}

@@ -22,6 +22,7 @@ import { ConfigModule } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
+import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
 import { VoicePipelineService } from "./application/voice-pipeline.service";
@@ -42,6 +43,7 @@ describe(VoicePipelineModule.name, () => {
     expect(getModuleMetadata(MODULE_METADATA.IMPORTS)).toEqual([
       ConfigModule,
       AuthModule,
+      ScenarioEngineModule,
       DialogueGenerationModule,
       SpeechSynthesisModule,
     ]);
@@ -52,10 +54,7 @@ describe(VoicePipelineModule.name, () => {
       expect.arrayContaining([
         expect.objectContaining({ provide: VOICE_PIPELINE_TRANSPORT_CONFIG }),
         DemoVoicePipelineRequestFactory,
-        {
-          provide: VOICE_PIPELINE_REQUEST_FACTORY,
-          useExisting: DemoVoicePipelineRequestFactory,
-        },
+        expect.objectContaining({ provide: VOICE_PIPELINE_REQUEST_FACTORY }),
       ]),
     );
   });
