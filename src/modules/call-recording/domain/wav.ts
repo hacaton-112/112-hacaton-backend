@@ -11,7 +11,10 @@ const MILLISECONDS_PER_SECOND = 1_000;
  * а не пользователь на мобильном интернете, и кодек здесь стоил бы зависимости
  * и потерь на разборе речи ради экономии, которая никому не нужна.
  */
-export const encodeWav = (pcm: Uint8Array, sampleRate: number): Uint8Array => {
+export const encodeWav = (
+  pcm: Uint8Array,
+  sampleRate: number,
+): Uint8Array<ArrayBuffer> => {
   const wav = new Uint8Array(WAV_HEADER_BYTES + pcm.byteLength);
   const view = new DataView(wav.buffer);
   const byteRate = sampleRate * MONO * BYTES_PER_SAMPLE;
