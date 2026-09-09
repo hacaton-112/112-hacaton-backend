@@ -13,7 +13,6 @@ import {
   MicOff,
   Pause,
   Phone,
-  PhoneIncoming,
   PhoneOff,
   Play,
   RotateCcw,
@@ -24,6 +23,7 @@ import type {
   CallSnapshot,
   CallState,
 } from "../../hooks/use-call";
+import { ScenarioPicker } from "./scenario-picker";
 
 type DispatchCallPanelProps = CallSnapshot & CallControls;
 
@@ -33,6 +33,16 @@ const STATE_LABELS: Record<CallState, string> = {
   active: "Разговор",
   ended: "Вызов завершён",
 };
+
+const PANIC_LABELS = ["спокоен", "встревожен", "испуган", "паника", "истерика"];
+
+const PANIC_COLORS: ("green" | "amber" | "orange" | "red")[] = [
+  "green",
+  "green",
+  "amber",
+  "orange",
+  "red",
+];
 
 const formatDuration = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -115,21 +125,75 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
                 2 участника
               </Text>
               <Badge
-                color={props.state === "active" ? "green" : "gray"}
+                color={
+                  props.state === "active"
+                    ? "green"
+                    : props.isConnected
+                      ? "gray"
+                      : "red"
+                }
                 variant="soft"
               >
-                {STATE_LABELS[props.state]}
+                {props.isConnected
+                  ? STATE_LABELS[props.state]
+                  : "Нет связи с сервером"}
               </Badge>
             </Flex>
 
             <div className="mt-5 grid gap-3">
-              <Participant color="green" name="operator2537" caption="Это вы" />
+              <Participant
+                color="green"
+                name="Оператор"
+                caption={props.isListening ? "Говорит" : "Это вы"}
+              />
               <Participant
                 color="blue"
-                name="Иванов И.И."
-                caption={props.state === "active" ? "Говорит" : "Заявитель"}
+                name={props.scenarioTitle ?? "Заявитель"}
+                caption={props.isCallerSpeaking ? "Говорит" : "Заявитель"}
               />
             </div>
+
+            {props.state !== "idle" && (
+              <Flex align="center" gap="2" mt="4">
+                <Badge
+                  color={PANIC_COLORS[props.panicLevel] ?? "gray"}
+                  variant="soft"
+                >
+                  Паника: {PANIC_LABELS[props.panicLevel] ?? props.panicLevel}
+                </Badge>
+                <Badge color="gray" variant="soft">
+                  Чек-лист: {props.checklistSatisfied}/{props.checklistTotal}
+                </Badge>
+              </Flex>
+            )}
+
+            {props.error && (
+              <Text size="1" color="red" mt="3" as="p">
+                {props.error}
+              </Text>
+            )}
+
+            {props.dialogue.length > 0 && (
+              <div className="mt-4 grid gap-2">
+                {props.dialogue.map((turn) => (
+                  <div
+                    key={turn.id}
+                    className={
+                      turn.role === "operator"
+                        ? "bg-grayA-3 rounded-2 px-3 py-2"
+                        : "bg-blueA-3 rounded-2 px-3 py-2"
+                    }
+                  >
+                    <Text size="1" color="gray">
+                      {turn.role === "operator" ? "Оператор" : "Заявитель"}
+                    </Text>
+                    <Text size="2" as="p">
+                      {turn.text}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {props.state === "ringing" && (
               <Flex gap="2" mt="5">
@@ -148,13 +212,31 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             )}
 
             {props.state === "idle" && (
+              <ScenarioPicker
+                disabled={!props.isConnected}
+                onStart={props.startScenario}
+              />
+            )}
+
+            {props.state === "active" && (
               <Button
                 mt="5"
-                variant="soft"
-                onClick={props.simulateIncoming}
+                size="3"
+                variant={props.isListening ? "solid" : "soft"}
+                color={props.isListening ? "red" : undefined}
+                disabled={props.isMuted}
+                // Рация: слово держится, пока нажата кнопка. Отпускание ловим и
+                // за пределами кнопки — иначе микрофон остался бы открытым.
+                onPointerDown={props.holdFloor}
+                onPointerUp={props.releaseFloor}
+                onPointerLeave={props.releaseFloor}
+                onPointerCancel={props.releaseFloor}
                 className="w-full"
               >
-                <PhoneIncoming size={15} /> Смоделировать входящий вызов
+                <Mic size={15} />
+                {props.isListening
+                  ? "Отпустите, чтобы ответил заявитель"
+                  : "Нажмите и говорите"}
               </Button>
             )}
 

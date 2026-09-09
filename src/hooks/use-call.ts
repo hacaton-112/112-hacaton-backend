@@ -1,84 +1,199 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { IncidentLocation } from "../components/map/incident-map";
+import type { CallLocator, CallServerEvent } from "../contracts/call";
+import { CallStream } from "../services/call.service";
+import { useAuthStore } from "../stores/auth.store";
 import { useMapWindowStore } from "../stores/map-window.store";
 
 export type CallState = "idle" | "ringing" | "active" | "ended";
 
-/** Пока Scenario Engine не подключён — вызовы моделируются на клиенте. */
-const DEMO_CALLS: readonly (IncidentLocation & { callerNumber: string })[] = [
-  {
-    address: "ул. Тверская, д. 12, стр. 1",
-    longitude: 37.6076,
-    latitude: 55.7625,
-    callerNumber: "+7 916 204-31-77",
-  },
-  {
-    address: "Ленинградский пр-т, д. 39, стр. 6",
-    longitude: 37.5539,
-    latitude: 55.7897,
-    callerNumber: "+7 903 118-92-40",
-  },
-  {
-    address: "ул. Профсоюзная, д. 104",
-    longitude: 37.5312,
-    latitude: 55.6395,
-    callerNumber: "+7 925 771-05-63",
-  },
-];
-
-const MIN_ADDRESS_DELAY_MS = 2_500;
-const MAX_ADDRESS_DELAY_MS = 5_000;
+/** Реплика разговора: то, что расслышал сервер, и то, что ответил заявитель. */
+export interface DialogueTurn {
+  id: string;
+  role: "operator" | "caller";
+  text: string;
+}
 
 export interface CallSnapshot {
   state: CallState;
+  /** Готовность соединения: до неё звонок начать нельзя. */
+  isConnected: boolean;
   callerNumber?: string;
-  /** Появляется не сразу: адрес «определяется» через несколько секунд после приёма. */
   incident?: IncidentLocation;
   isResolvingAddress: boolean;
   isOnHold: boolean;
   isMuted: boolean;
+  /** Микрофон открыт, и речь уходит на распознавание. */
+  isListening: boolean;
+  /** Заявитель отвечает: реплика уже сгенерирована или звучит. */
+  isCallerSpeaking: boolean;
+  scenarioTitle?: string;
+  panicLevel: number;
+  checklistSatisfied: number;
+  checklistTotal: number;
+  answerNormSeconds: number;
+  dialogue: DialogueTurn[];
+  error?: string;
   startedAt?: Date;
   acceptedAt?: Date;
-  /** Длительность разговора в секундах, тикает раз в секунду. */
   elapsedSeconds: number;
 }
 
 export interface CallControls {
-  simulateIncoming: () => void;
+  startScenario: (scenarioVersionId: string) => void;
   accept: () => void;
   reject: () => void;
   end: () => void;
+  holdFloor: () => void;
+  releaseFloor: () => void;
   toggleHold: () => void;
   toggleMute: () => void;
   reset: () => void;
 }
 
+const ERROR_MESSAGES: Record<string, string> = {
+  "listen-failed": "Реплику не удалось распознать, повторите",
+  "pipeline-failed": "Заявитель не ответил: сбой генерации или синтеза",
+  "context-unavailable": "Сценарий недоступен",
+  "call-state-invalid": "Команда пришла не вовремя",
+  "invalid-message": "Сервер не понял команду",
+};
+
+const toIncident = (
+  locator: CallLocator | null,
+): IncidentLocation | undefined =>
+  locator
+    ? {
+        address: locator.label,
+        longitude: locator.centerLon,
+        latitude: locator.centerLat,
+      }
+    : undefined;
+
+const turnId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 /**
- * Состояние вызова целиком: idle → ringing → active → ended.
- * Когда появится серверный call-канал, наружу останется тот же интерфейс,
- * а внутренности заменит подписка на события.
+ * Состояние вызова целиком со стороны сервера.
+ *
+ * Ход звонка ведёт Scenario Engine: клиент только показывает его события и
+ * отправляет команды. Ничего похожего на прежнюю симуляцию здесь нет — время,
+ * паника и реплики приходят из backend.
  */
 export function useCall(): CallSnapshot & CallControls {
+  const token = useAuthStore((state) => state.accessToken);
+  const streamRef = useRef<CallStream>(null);
+  const [isConnected, setConnected] = useState(false);
   const [state, setState] = useState<CallState>("idle");
-  const [pending, setPending] = useState<(typeof DEMO_CALLS)[number]>();
-  const [incident, setIncident] = useState<IncidentLocation>();
-  const [isResolvingAddress, setResolvingAddress] = useState(false);
+  const [locator, setLocator] = useState<CallLocator | null>(null);
+  const [scenarioTitle, setScenarioTitle] = useState<string>();
+  const [panicLevel, setPanicLevel] = useState(0);
+  const [checklistSatisfied, setChecklistSatisfied] = useState(0);
+  const [checklistTotal, setChecklistTotal] = useState(0);
+  const [answerNormSeconds, setAnswerNormSeconds] = useState(240);
+  const [dialogue, setDialogue] = useState<DialogueTurn[]>([]);
+  const [isListening, setListening] = useState(false);
+  const [isCallerSpeaking, setCallerSpeaking] = useState(false);
   const [isOnHold, setOnHold] = useState(false);
   const [isMuted, setMuted] = useState(false);
+  const [error, setError] = useState<string>();
   const [startedAt, setStartedAt] = useState<Date>();
   const [acceptedAt, setAcceptedAt] = useState<Date>();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const addressTimerRef = useRef<number>(null);
 
-  const clearAddressTimer = useCallback(() => {
-    if (addressTimerRef.current !== null) {
-      window.clearTimeout(addressTimerRef.current);
-      addressTimerRef.current = null;
+  const handleEvent = useCallback((event: CallServerEvent) => {
+    switch (event.type) {
+      case "call.offered":
+        setState("ringing");
+        setLocator(event.locator);
+        setScenarioTitle(event.title);
+        setPanicLevel(event.panicLevel);
+        setChecklistTotal(event.checklistTotal);
+        setChecklistSatisfied(event.checklistSatisfied);
+        setAnswerNormSeconds(event.answerNormSeconds);
+        setStartedAt(new Date());
+        break;
+      case "call.accepted":
+        setState("active");
+        setAcceptedAt(new Date());
+        setPanicLevel(event.panicLevel);
+        // Первая реплика задана сценарием, а не сгенерирована.
+        setDialogue([
+          { id: turnId(), role: "caller", text: event.openingLine },
+        ]);
+        break;
+      case "call.state":
+        setPanicLevel(event.panicLevel);
+        setChecklistSatisfied(event.checklistSatisfied);
+        setChecklistTotal(event.checklistTotal);
+        break;
+      case "call.ended":
+        setState("ended");
+        setListening(false);
+        setCallerSpeaking(false);
+        break;
+      case "listen.started":
+        setListening(true);
+        setError(undefined);
+        break;
+      case "listen.stopped":
+        setListening(false);
+        if (event.transcript.trim().length > 0) {
+          setDialogue((turns) => [
+            ...turns,
+            { id: turnId(), role: "operator", text: event.transcript },
+          ]);
+          setCallerSpeaking(true);
+        }
+        break;
+      case "reply.text":
+        setDialogue((turns) => [
+          ...turns,
+          { id: turnId(), role: "caller", text: event.text },
+        ]);
+        break;
+      case "audio.done":
+      case "request.cancelled":
+        setCallerSpeaking(false);
+        break;
+      case "error":
+        setCallerSpeaking(false);
+        setListening(false);
+        setError(ERROR_MESSAGES[event.code] ?? event.message);
+        break;
+      case "socket.error":
+        setError(event.message);
+        break;
+      case "socket.closed":
+        setConnected(false);
+        break;
+      default:
+        break;
     }
   }, []);
 
-  useEffect(() => clearAddressTimer, [clearAddressTimer]);
+  // Соединение живёт столько же, сколько рабочее место оператора: звонки
+  // сменяют друг друга внутри него.
+  useEffect(() => {
+    if (!token) return;
+
+    const stream = new CallStream({ onEvent: handleEvent });
+    streamRef.current = stream;
+
+    stream
+      .connect(token)
+      .then(() => setConnected(true))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : String(reason)),
+      );
+
+    return () => {
+      streamRef.current = null;
+      setConnected(false);
+      void stream.dispose();
+    };
+  }, [token, handleEvent]);
 
   useEffect(() => {
     if (state !== "active" || !acceptedAt) return;
@@ -93,79 +208,80 @@ export function useCall(): CallSnapshot & CallControls {
     return () => window.clearInterval(timer);
   }, [state, acceptedAt]);
 
+  const incident = useMemo(() => toIncident(locator), [locator]);
+
   useEffect(() => {
     useMapWindowStore.getState().setSnapshot({
       callState: state,
       incident: incident ?? null,
-      isResolvingAddress,
+      isResolvingAddress: state !== "idle" && !incident,
     });
-  }, [state, incident, isResolvingAddress]);
+  }, [state, incident]);
+
+  const command = useCallback(
+    (run: (stream: CallStream) => Promise<void>) => () => {
+      const stream = streamRef.current;
+      if (!stream) return;
+
+      run(stream).catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : String(reason)),
+      );
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
-    clearAddressTimer();
     setState("idle");
-    setPending(undefined);
-    setIncident(undefined);
-    setResolvingAddress(false);
+    setLocator(null);
+    setScenarioTitle(undefined);
+    setPanicLevel(0);
+    setChecklistSatisfied(0);
+    setChecklistTotal(0);
+    setDialogue([]);
+    setListening(false);
+    setCallerSpeaking(false);
     setOnHold(false);
     setMuted(false);
+    setError(undefined);
     setStartedAt(undefined);
     setAcceptedAt(undefined);
     setElapsedSeconds(0);
-  }, [clearAddressTimer]);
+  }, []);
 
-  const simulateIncoming = useCallback(() => {
-    reset();
-    setPending(DEMO_CALLS[Math.floor(Math.random() * DEMO_CALLS.length)]);
-    setStartedAt(new Date());
-    setState("ringing");
-  }, [reset]);
-
-  const accept = useCallback(() => {
-    if (!pending) return;
-
-    setState("active");
-    setAcceptedAt(new Date());
-    setResolvingAddress(true);
-
-    const delay =
-      MIN_ADDRESS_DELAY_MS +
-      Math.random() * (MAX_ADDRESS_DELAY_MS - MIN_ADDRESS_DELAY_MS);
-
-    addressTimerRef.current = window.setTimeout(() => {
-      setIncident(pending);
-      setResolvingAddress(false);
-      addressTimerRef.current = null;
-    }, delay);
-  }, [pending]);
-
-  const reject = useCallback(() => {
-    clearAddressTimer();
-    setState("ended");
-    setResolvingAddress(false);
-  }, [clearAddressTimer]);
-
-  const end = useCallback(() => {
-    clearAddressTimer();
-    setState("ended");
-    setResolvingAddress(false);
-    setOnHold(false);
-  }, [clearAddressTimer]);
+  const startScenario = useCallback(
+    (scenarioVersionId: string) => {
+      reset();
+      command((stream) => stream.start(scenarioVersionId))();
+    },
+    [command, reset],
+  );
 
   return {
     state,
-    callerNumber: pending?.callerNumber,
+    isConnected,
+    callerNumber: locator?.callerNumber,
     incident,
-    isResolvingAddress,
+    isResolvingAddress: state !== "idle" && !incident,
     isOnHold,
     isMuted,
+    isListening,
+    isCallerSpeaking,
+    scenarioTitle,
+    panicLevel,
+    checklistSatisfied,
+    checklistTotal,
+    answerNormSeconds,
+    dialogue,
+    error,
     startedAt,
     acceptedAt,
     elapsedSeconds,
-    simulateIncoming,
-    accept,
-    reject,
-    end,
+    startScenario,
+    accept: command((stream) => stream.accept()),
+    reject: command((stream) => stream.decline()),
+    end: command((stream) => stream.end()),
+    holdFloor: command((stream) => stream.holdFloor()),
+    releaseFloor: command((stream) => stream.releaseFloor()),
     toggleHold: () => setOnHold((value) => !value),
     toggleMute: () => setMuted((value) => !value),
     reset,

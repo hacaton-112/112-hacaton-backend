@@ -12,9 +12,8 @@ export const ApiRoutes = {
     login: "/auth/login",
     me: "/auth/me",
   },
-  asr: {
-    health: "/asr/health",
-    sessions: "/asr/sessions",
+  scenarios: {
+    list: "/scenarios",
   },
   voicePipeline: {
     stream: `${API_WS_BASE_URL}/voice-pipeline/stream`,
