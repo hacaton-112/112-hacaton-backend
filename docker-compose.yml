@@ -20,5 +20,45 @@ services:
       retries: 5
       start_period: 10s
 
+  # Объектное хранилище для записей разговоров. Нужен только при
+  # CALL_RECORDING_ENABLED=true; без него звонок идёт как обычно.
+  minio:
+    image: minio/minio:latest
+    container_name: system-112-training-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # MinIO не создаёт корзину сам, а запись не должна падать на первом же
+  # звонке: контейнер отрабатывает один раз и выходит.
+  minio-bucket:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
+      CALL_RECORDING_S3_BUCKET: ${CALL_RECORDING_S3_BUCKET:-call-recordings}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${CALL_RECORDING_S3_BUCKET}
+      "
+
 volumes:
   postgres_data:
+  minio_data:

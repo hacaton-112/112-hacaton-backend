@@ -433,6 +433,114 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
   });
 });
 
+describe(`${ScenarioEngineService.name} initiative`, () => {
+  it("journals the caller speaking up instead of an operator utterance", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-5",
+      operatorText: "(оператор молчит)",
+      reply: reply(),
+      initiative: true,
+      now: NOW,
+    });
+
+    // Реплики оператора не было — записать её значило бы соврать в расшифровке.
+    expect(eventTypes(store)).toEqual(["caller.initiative", "caller.reply"]);
+  });
+
+  it("keeps the silence running and remembers when the caller spoke", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-5",
+      operatorText: "(оператор молчит)",
+      reply: reply(),
+      initiative: true,
+      now: NOW,
+    });
+
+    const patch = patchOf(store);
+
+    // Оператор всё ещё молчит, поэтому отсчёт не сбрасывается; от повторов
+    // защищает пауза между инициативами.
+    expect(patch.operatorSilenceSince).toBeUndefined();
+    expect(patch.lastInitiativeAt).toEqual(NOW);
+  });
+
+  it("opens no question facts, because no question was asked", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+      initiative: true,
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).not.toContain(
+      "address_street",
+    );
+    expect(built.context.persona.description).toContain("Оператор молчит");
+  });
+});
+
+describe(`${ScenarioEngineService.name} setOperatorSpeaking`, () => {
+  it("holds the silence timer while the operator has the floor", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: true,
+      now: secondsAfter(2),
+    });
+
+    expect(patchOf(store)).toEqual({ operatorSilenceSince: null });
+    expect(eventTypes(store)).toEqual([]);
+  });
+
+  it("starts the silence over when the operator stops speaking", async () => {
+    const { engine, store } = createEngine();
+    const now = secondsAfter(7);
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: false,
+      now,
+    });
+
+    expect(patchOf(store)).toEqual({ operatorSilenceSince: now });
+  });
+
+  it("leaves a call that is not in conversation alone", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    await engine.setOperatorSpeaking({
+      trainingSessionId: "session-1",
+      speaking: true,
+    });
+
+    expect(store.appendTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps the caller quiet for as long as the operator speaks", async () => {
+    const { engine } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(
+          callState({ panicLevel: 3, operatorSilenceSince: null }),
+        ),
+    });
+
+    await expect(
+      engine.tick({ trainingSessionId: "session-1", now: secondsAfter(600) }),
+    ).resolves.toEqual([]);
+  });
+});
+
 describe(`${ScenarioEngineService.name} tick`, () => {
   it("does nothing while the operator keeps talking", async () => {
     const { engine, store } = createEngine();
@@ -497,13 +605,11 @@ describe(`${ScenarioEngineService.name} tick`, () => {
 describe(`${ScenarioEngineService.name} endCall`, () => {
   it("closes the call and keeps what was collected", async () => {
     const { engine, store } = createEngine({
-      loadCall: jest
-        .fn()
-        .mockResolvedValue(
-          callState({
-            revealedFactKeys: ["address_street", "trapped_children"],
-          }),
-        ),
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          revealedFactKeys: ["address_street", "trapped_children"],
+        }),
+      ),
     });
 
     const snapshot = await engine.endCall({

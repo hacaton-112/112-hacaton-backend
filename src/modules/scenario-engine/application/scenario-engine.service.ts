@@ -57,6 +57,13 @@ export type CallDirective =
   | { readonly type: "caller.initiative"; readonly reason: "operator-silence" }
   | { readonly type: "caller.interrupt" };
 
+/**
+ * Текст-заглушка вместо реплики оператора, когда заявитель заговаривает сам.
+ * Контракт генерации требует непустой ввод, но в журнал он не попадает и в
+ * поиске ключевых слов не участвует.
+ */
+export const INITIATIVE_OPERATOR_TEXT = "(оператор молчит)";
+
 const secondsBetween = (from: Date, to: Date): number =>
   (to.getTime() - from.getTime()) / MILLISECONDS_PER_SECOND;
 
@@ -202,12 +209,15 @@ export class ScenarioEngineService {
   async buildGenerationContext(input: {
     trainingSessionId: string;
     operatorText: string;
+    /** Заявитель заговаривает сам: вопроса не было, значит и фактов по нему. */
+    initiative?: boolean;
   }): Promise<EngineGenerationContext> {
     const { state, version } = await this.loadCall(input.trainingSessionId);
 
     this.requireStage(state, ["conversation"]);
 
-    const allowed = this.allowedFacts(state, version, input.operatorText);
+    const matchedText = input.initiative === true ? "" : input.operatorText;
+    const allowed = this.allowedFacts(state, version, matchedText);
     const profile = panicProfile(state.panicLevel);
     const background =
       version.persona.backgroundSounds === null
@@ -225,7 +235,10 @@ export class ScenarioEngineService {
           description:
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
-            background,
+            background +
+            (input.initiative === true
+              ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
+              : ""),
         },
         allowedFacts: allowed.facts.map((fact) => ({
           id: fact.key,
@@ -248,6 +261,7 @@ export class ScenarioEngineService {
     eventId: string;
     operatorText: string;
     reply: CallerReply;
+    initiative?: boolean;
     now?: Date;
   }): Promise<CallSnapshot> {
     const now = input.now ?? new Date();
@@ -255,7 +269,9 @@ export class ScenarioEngineService {
 
     this.requireStage(state, ["conversation"]);
 
-    const allowed = this.allowedFacts(state, version, input.operatorText);
+    const initiative = input.initiative === true;
+    const matchedText = initiative ? "" : input.operatorText;
+    const allowed = this.allowedFacts(state, version, matchedText);
     const allowedKeys = new Set(allowed.facts.map((fact) => fact.key));
     const forbidden = input.reply.revealedFactIds.filter(
       (key) => !allowedKeys.has(key),
@@ -287,12 +303,21 @@ export class ScenarioEngineService {
     );
     const revealedFactKeys = [...state.revealedFactKeys, ...revealedNow];
     const events: NewCallEvent[] = [
-      {
-        type: "operator.utterance",
-        actor: "operator",
-        occurredAt: now,
-        payload: { text: input.operatorText },
-      },
+      initiative
+        ? {
+            // Реплики оператора не было, и записывать её нельзя: расшифровка
+            // разговора должна остаться правдой.
+            type: "caller.initiative",
+            actor: "caller",
+            occurredAt: now,
+            payload: { reason: "operator-silence" },
+          }
+        : {
+            type: "operator.utterance",
+            actor: "operator",
+            occurredAt: now,
+            payload: { text: input.operatorText },
+          },
       {
         type: "caller.reply",
         actor: "caller",
@@ -314,7 +339,11 @@ export class ScenarioEngineService {
     const patch: CallStatePatch = {
       revealedFactKeys,
       callerTurns: state.callerTurns + 1,
-      operatorSilenceSince: now,
+      // После собственной реплики отсчёт молчания оператора не сбрасывается —
+      // он по-прежнему молчит. От повторов защищает пауза между инициативами.
+      ...(initiative
+        ? { lastInitiativeAt: now }
+        : { operatorSilenceSince: now }),
     };
 
     const transition = resolveEscalation({
@@ -322,11 +351,7 @@ export class ScenarioEngineService {
       currentLevel: state.panicLevel,
       floor: version.panicFloor,
       ceiling: version.panicCeiling,
-      firedTriggers: this.triggersFromTurn(
-        version,
-        input.operatorText,
-        revealedNow,
-      ),
+      firedTriggers: this.triggersFromTurn(version, matchedText, revealedNow),
       changedAt: state.panicChangedAt,
       now,
     });
@@ -354,6 +379,31 @@ export class ScenarioEngineService {
     );
 
     return this.toSnapshot({ ...state, ...patch }, version);
+  }
+
+  /**
+   * Оператор взял слово или отпустил его.
+   *
+   * Пока он говорит, отсчёт молчания стоит: сервер узнаёт его вопрос только
+   * после распознавания, и без этой паузы заявитель начал бы говорить поверх
+   * фразы, которую оператор уже произносит. Отпуская слово, оператор начинает
+   * молчать заново — ждать ответа он не обязан бесконечно.
+   */
+  async setOperatorSpeaking(input: {
+    trainingSessionId: string;
+    speaking: boolean;
+    now?: Date;
+  }): Promise<void> {
+    const now = input.now ?? new Date();
+    const { state } = await this.loadCall(input.trainingSessionId);
+
+    if (state.stage !== "conversation") {
+      return;
+    }
+
+    await this.store.appendTurn(state.trainingSessionId, generateId(), [], {
+      operatorSilenceSince: input.speaking ? null : now,
+    });
   }
 
   /**

@@ -9,6 +9,8 @@ export interface CreateVoicePipelineRequestOptions {
   requestId: string;
   sessionId: string;
   signal: AbortSignal;
+  /** Ход начал заявитель, а не оператор: вопроса не было. */
+  initiative?: boolean;
 }
 
 export interface RecordCallerReplyOptions {
@@ -16,6 +18,7 @@ export interface RecordCallerReplyOptions {
   sessionId: string;
   operatorText: string;
   reply: CallerReply;
+  initiative?: boolean;
 }
 
 export interface VoicePipelineRequestFactory {
