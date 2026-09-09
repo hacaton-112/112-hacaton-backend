@@ -10,6 +10,11 @@ import {
 } from "@/contracts";
 
 import type { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+import {
+  ScenarioEngineError,
+  type CallSnapshot,
+  type ScenarioEngineService,
+} from "@/modules/scenario-engine";
 
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "../../application/voice-pipeline.service";
@@ -159,10 +164,53 @@ const authenticatedUser = {
 const handshake = (authorization?: string) =>
   ({ headers: { authorization } }) as unknown as IncomingMessage;
 
+const snapshot: CallSnapshot & { openingLine: string } = {
+  trainingSessionId: "session-1",
+  scenarioVersionId: "version-1",
+  scenarioCode: "S-015",
+  title: "Пожар в жилом доме",
+  stage: "conversation",
+  panicLevel: 3,
+  revealedFactKeys: [],
+  checklistTotal: 6,
+  checklistSatisfied: 0,
+  locator: null,
+  offeredAt: new Date("2026-09-08T10:00:00.000Z"),
+  answeredAt: null,
+  endedAt: null,
+  answerNormSeconds: 240,
+  openingLine: "Горит квартира!",
+};
+
+const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
+  ({
+    startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
+    acceptCall: jest.fn().mockResolvedValue(snapshot),
+    declineCall: jest
+      .fn()
+      .mockResolvedValue({ ...snapshot, stage: "declined" }),
+    endCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "ended" }),
+    tick: jest.fn().mockResolvedValue([]),
+    getSnapshot: jest.fn().mockResolvedValue(snapshot),
+    ...overrides,
+  }) as unknown as ScenarioEngineService;
+
+const startedCall = async (
+  gateway: VoicePipelineGateway,
+  socket: SocketMock,
+): Promise<void> => {
+  await gateway.handleClientMessage(
+    asSocket(socket),
+    message({ type: "start", scenarioVersionId: "version-1" }),
+    false,
+  );
+};
+
 const createRuntime = async (
   stream: StreamFactory = successfulStream,
   verify: jest.Mock = jest.fn().mockResolvedValue(authenticatedUser),
   recordReply: jest.Mock = jest.fn().mockResolvedValue(undefined),
+  engine: ScenarioEngineService = createEngine(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -172,11 +220,15 @@ const createRuntime = async (
     { streamReply } as unknown as VoicePipelineService,
     { create, recordReply } as unknown as VoicePipelineRequestFactory,
     { verify } as unknown as AccessTokenVerifier,
+    engine,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
+  // Все сценарии разговора идут после старта: speak до него отвергается.
+  await startedCall(gateway, socket);
+  socket.sent.length = 0;
 
-  return { create, gateway, recordReply, socket, streamReply, verify };
+  return { create, engine, gateway, recordReply, socket, streamReply, verify };
 };
 
 describe(VoicePipelineGateway.name, () => {
@@ -190,6 +242,7 @@ describe(VoicePipelineGateway.name, () => {
         recordReply: jest.fn(),
       } as unknown as VoicePipelineRequestFactory,
       { verify } as unknown as AccessTokenVerifier,
+      createEngine(),
     );
     const socket = new SocketMock();
 
@@ -206,6 +259,99 @@ describe(VoicePipelineGateway.name, () => {
 
     expect(streamReply).not.toHaveBeenCalled();
     expect(socket.sent).toEqual([]);
+  });
+
+  it("offers the call with the locator area and no exact address", async () => {
+    const engine = createEngine();
+    const gateway = new VoicePipelineGateway(
+      { streamReply: jest.fn() } as unknown as VoicePipelineService,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
+      {
+        verify: jest.fn().mockResolvedValue(authenticatedUser),
+      } as unknown as AccessTokenVerifier,
+      engine,
+    );
+    const socket = new SocketMock();
+
+    await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
+    await startedCall(gateway, socket);
+
+    const offered = textEvents(socket)[0];
+
+    expect(offered.type).toBe("call.offered");
+    // Идентификатор сессии выдаёт сервер, а не клиент.
+    expect(offered.sessionId).toEqual(expect.any(String));
+  });
+
+  it("refuses to speak before the call has been started", async () => {
+    const gateway = new VoicePipelineGateway(
+      { streamReply: jest.fn() } as unknown as VoicePipelineService,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
+      {
+        verify: jest.fn().mockResolvedValue(authenticatedUser),
+      } as unknown as AccessTokenVerifier,
+      createEngine(),
+    );
+    const socket = new SocketMock();
+
+    await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
+    await gateway.handleClientMessage(
+      asSocket(socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    expect(textEvents(socket).map((event) => event.type)).toEqual(["error"]);
+  });
+
+  it("answers the call with the line the scenario scripted", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "accept" }),
+      false,
+    );
+
+    const accepted = textEvents(runtime.socket)[0];
+
+    expect(accepted).toMatchObject({
+      type: "call.accepted",
+      openingLine: "Горит квартира!",
+      stage: "conversation",
+    });
+  });
+
+  it("reports a refused lifecycle command instead of failing silently", async () => {
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      undefined,
+      createEngine({
+        acceptCall: jest
+          .fn()
+          .mockRejectedValue(
+            new ScenarioEngineError("call-stage-forbidden", "not now"),
+          ),
+      }),
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "accept" }),
+      false,
+    );
+
+    expect(textEvents(runtime.socket)[0]).toMatchObject({
+      type: "error",
+      code: "call-state-invalid",
+    });
   });
 
   it("streams reply metadata, zero-copy ordered PCM, and completion", async () => {

@@ -29,10 +29,108 @@ export const VoicePipelineCancelCommandSchema = z
   })
   .strict();
 
+/**
+ * Идентификатор учебной сессии выдаёт сервер: клиент выбирает только сценарий.
+ * Иначе, зная чужой идентификатор, можно было бы подключиться к чужому звонку.
+ */
+export const VoicePipelineStartCommandSchema = z
+  .object({
+    type: z.literal("start"),
+    scenarioVersionId: AiIdentifierSchema,
+  })
+  .strict();
+
+export const VoicePipelineAcceptCommandSchema = z
+  .object({ type: z.literal("accept") })
+  .strict();
+
+export const VoicePipelineDeclineCommandSchema = z
+  .object({ type: z.literal("decline") })
+  .strict();
+
+export const VoicePipelineEndCommandSchema = z
+  .object({ type: z.literal("end") })
+  .strict();
+
 export const VoicePipelineClientCommandSchema = z.discriminatedUnion("type", [
+  VoicePipelineStartCommandSchema,
+  VoicePipelineAcceptCommandSchema,
+  VoicePipelineDeclineCommandSchema,
+  VoicePipelineEndCommandSchema,
   VoicePipelineSpeakCommandSchema,
   VoicePipelineCancelCommandSchema,
 ]);
+
+export const CallStageSchema = z.enum([
+  "offered",
+  "conversation",
+  "wrap_up",
+  "ended",
+  "declined",
+]);
+
+/**
+ * Что оператор знает о местоположении до разговора: область, а не точка.
+ * Точный адрес приходит фактами по ходу звонка.
+ */
+export const CallLocatorSchema = z
+  .object({
+    centerLat: z.number().min(-90).max(90),
+    centerLon: z.number().min(-180).max(180),
+    radiusMeters: z.number().int().positive(),
+    label: z.string().trim().min(1).max(200),
+    accuracy: z.enum(["identified", "approximate", "unavailable"]),
+    callerNumber: z.string().trim().min(1).max(32),
+    previouslyCalled: z.boolean(),
+  })
+  .strict();
+
+export const CallSnapshotShape = {
+  stage: CallStageSchema,
+  panicLevel: z.number().int().min(0).max(4),
+  checklistTotal: z.number().int().nonnegative(),
+  checklistSatisfied: z.number().int().nonnegative(),
+  answerNormSeconds: z.number().int().positive(),
+};
+
+export const VoicePipelineCallOfferedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("call.offered"),
+    scenarioCode: z.string().trim().min(1).max(32),
+    title: z.string().trim().min(1).max(120),
+    locator: CallLocatorSchema.nullable(),
+    ...CallSnapshotShape,
+  })
+  .strict();
+
+export const VoicePipelineCallAcceptedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("call.accepted"),
+    /** Первая реплика задана сценарием, а не сгенерирована. */
+    openingLine: z.string().trim().min(1).max(500),
+    ...CallSnapshotShape,
+  })
+  .strict();
+
+export const VoicePipelineCallStateEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("call.state"),
+    revealedFactKeys: z.array(AiIdentifierSchema).max(64),
+    ...CallSnapshotShape,
+  })
+  .strict();
+
+export const VoicePipelineCallEndedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("call.ended"),
+    reason: z.enum(["operator", "declined", "scenario", "timeout"]),
+    ...CallSnapshotShape,
+  })
+  .strict();
 
 export const VoicePipelineReplyTextEventSchema = z
   .object({
@@ -79,6 +177,8 @@ export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "invalid-message",
   "context-unavailable",
   "pipeline-failed",
+  // Команда пришла не вовремя: например, speak до приёма вызова.
+  "call-state-invalid",
 ]);
 
 export const VoicePipelineSocketErrorEventSchema = z
@@ -92,6 +192,10 @@ export const VoicePipelineSocketErrorEventSchema = z
   .strict();
 
 export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
+  VoicePipelineCallOfferedEventSchema,
+  VoicePipelineCallAcceptedEventSchema,
+  VoicePipelineCallStateEventSchema,
+  VoicePipelineCallEndedEventSchema,
   VoicePipelineReplyTextEventSchema,
   VoicePipelineAudioStartEventSchema,
   VoicePipelineAudioDoneEventSchema,
@@ -99,9 +203,14 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
   VoicePipelineSocketErrorEventSchema,
 ]);
 
+export type VoicePipelineStartCommand = z.infer<
+  typeof VoicePipelineStartCommandSchema
+>;
 export type VoicePipelineSpeakCommand = z.infer<
   typeof VoicePipelineSpeakCommandSchema
 >;
+export type CallStage = z.infer<typeof CallStageSchema>;
+export type CallLocator = z.infer<typeof CallLocatorSchema>;
 export type VoicePipelineCancelCommand = z.infer<
   typeof VoicePipelineCancelCommandSchema
 >;

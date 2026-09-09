@@ -11,12 +11,18 @@ import WebSocket, { type RawData } from "ws";
 import {
   VoicePipelineClientCommandSchema,
   VoicePipelineServerEventSchema,
+  type VoicePipelineClientCommand,
   type VoicePipelineServerEvent,
   type VoicePipelineSocketErrorCode,
 } from "@/contracts";
 import { generateId } from "@/common/utils/id";
 import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
+import {
+  ScenarioEngineError,
+  ScenarioEngineService,
+  type CallSnapshot,
+} from "@/modules/scenario-engine";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
@@ -34,7 +40,9 @@ interface ActiveRequest {
 
 interface ConnectionState {
   activeRequest: ActiveRequest | null;
+  /** Идентификатор учебной сессии; появляется только после команды start. */
   sessionId: string;
+  callStarted: boolean;
   user: VerifiedJwtPayload;
 }
 
@@ -57,6 +65,7 @@ export class VoicePipelineGateway
     @Inject(VOICE_PIPELINE_REQUEST_FACTORY)
     private readonly requestFactory: VoicePipelineRequestFactory,
     private readonly accessTokenVerifier: AccessTokenVerifier,
+    private readonly engine: ScenarioEngineService,
   ) {}
 
   /**
@@ -82,7 +91,10 @@ export class VoicePipelineGateway
 
     this.connections.set(client, {
       activeRequest: null,
+      // Идентификатор выдаёт сервер, а не клиент: иначе, зная чужой, можно было
+      // бы подключиться к чужому звонку.
       sessionId: generateId(),
+      callStarted: false,
       user,
     });
 
@@ -139,7 +151,115 @@ export class VoicePipelineGateway
       return;
     }
 
+    if (parsed.data.type !== "speak") {
+      await this.handleCallCommand(client, state, parsed.data);
+      return;
+    }
+
+    if (!state.callStarted) {
+      await this.sendError(client, state, null, "call-state-invalid");
+      return;
+    }
+
     await this.startRequest(client, state, parsed.data);
+  }
+
+  /** Команды жизненного цикла звонка идут прямо в движок сценария. */
+  private async handleCallCommand(
+    client: WebSocket,
+    state: ConnectionState,
+    command: Exclude<
+      VoicePipelineClientCommand,
+      { type: "speak" } | { type: "cancel" }
+    >,
+  ): Promise<void> {
+    try {
+      if (command.type === "start") {
+        const snapshot = await this.engine.startCall({
+          trainingSessionId: state.sessionId,
+          scenarioVersionId: command.scenarioVersionId,
+          eventId: generateId(),
+        });
+        state.callStarted = true;
+
+        await this.sendEvent(client, state, {
+          type: "call.offered",
+          scenarioCode: snapshot.scenarioCode,
+          title: snapshot.title,
+          locator: snapshot.locator,
+          ...this.snapshotFields(snapshot),
+        });
+
+        return;
+      }
+
+      if (command.type === "accept") {
+        const snapshot = await this.engine.acceptCall({
+          trainingSessionId: state.sessionId,
+          eventId: generateId(),
+        });
+
+        await this.sendEvent(client, state, {
+          type: "call.accepted",
+          openingLine: snapshot.openingLine,
+          ...this.snapshotFields(snapshot),
+        });
+
+        return;
+      }
+
+      const snapshot =
+        command.type === "decline"
+          ? await this.engine.declineCall({
+              trainingSessionId: state.sessionId,
+              eventId: generateId(),
+            })
+          : await this.engine.endCall({
+              trainingSessionId: state.sessionId,
+              eventId: generateId(),
+              reason: "operator",
+            });
+
+      await this.cancelActiveRequest(client, state);
+      await this.sendEvent(client, state, {
+        type: "call.ended",
+        reason: command.type === "decline" ? "declined" : "operator",
+        ...this.snapshotFields(snapshot),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Rejected ${command.type} for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      await this.sendError(
+        client,
+        state,
+        null,
+        error instanceof ScenarioEngineError
+          ? "call-state-invalid"
+          : "context-unavailable",
+      );
+    }
+  }
+
+  private snapshotFields(
+    snapshot: CallSnapshot,
+  ): Pick<
+    CallSnapshot,
+    | "stage"
+    | "panicLevel"
+    | "checklistTotal"
+    | "checklistSatisfied"
+    | "answerNormSeconds"
+  > {
+    return {
+      stage: snapshot.stage,
+      panicLevel: snapshot.panicLevel,
+      checklistTotal: snapshot.checklistTotal,
+      checklistSatisfied: snapshot.checklistSatisfied,
+      answerNormSeconds: snapshot.answerNormSeconds,
+    };
   }
 
   private async startRequest(
@@ -305,6 +425,7 @@ export class VoicePipelineGateway
       "invalid-message": "Invalid voice pipeline command",
       "context-unavailable": "Voice pipeline context is unavailable",
       "pipeline-failed": "Voice pipeline request failed",
+      "call-state-invalid": "The call is not in a state that allows this",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
     await this.sendEvent(client, state, {
