@@ -9,6 +9,11 @@ import {
   type VoicePipelineStreamEvent,
 } from "@/contracts";
 
+import type {
+  AsrStreamer,
+  AsrStreamHandle,
+  AsrTranscript,
+} from "@/modules/asr/asr-stream.port";
 import type { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 import {
   ScenarioEngineError,
@@ -182,6 +187,40 @@ const snapshot: CallSnapshot & { openingLine: string } = {
   openingLine: "Горит квартира!",
 };
 
+const heard: AsrTranscript = {
+  transcript: "Что произошло?",
+  audioMs: 1_500,
+  processingMs: 120,
+};
+
+interface AsrMocks {
+  open: jest.Mock;
+  send: jest.Mock;
+  finish: jest.Mock;
+  abort: jest.Mock;
+}
+
+const createAsr = (
+  finish: jest.Mock = jest.fn().mockResolvedValue(heard),
+): { asr: AsrStreamer; mocks: AsrMocks } => {
+  const mocks: AsrMocks = {
+    open: jest.fn(),
+    send: jest.fn(),
+    finish,
+    abort: jest.fn(),
+  };
+  const stream: AsrStreamHandle = {
+    sessionId: "asr-session-1",
+    send: mocks.send,
+    finish: mocks.finish as unknown as AsrStreamHandle["finish"],
+    abort: mocks.abort,
+  };
+
+  mocks.open.mockResolvedValue(stream);
+
+  return { asr: { open: mocks.open }, mocks };
+};
+
 const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
   ({
     startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
@@ -192,6 +231,7 @@ const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
     endCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "ended" }),
     tick: jest.fn().mockResolvedValue([]),
     getSnapshot: jest.fn().mockResolvedValue(snapshot),
+    setOperatorSpeaking: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   }) as unknown as ScenarioEngineService;
 
@@ -211,6 +251,7 @@ const createRuntime = async (
   verify: jest.Mock = jest.fn().mockResolvedValue(authenticatedUser),
   recordReply: jest.Mock = jest.fn().mockResolvedValue(undefined),
   engine: ScenarioEngineService = createEngine(),
+  asr: { asr: AsrStreamer; mocks: AsrMocks } = createAsr(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -221,6 +262,7 @@ const createRuntime = async (
     { create, recordReply } as unknown as VoicePipelineRequestFactory,
     { verify } as unknown as AccessTokenVerifier,
     engine,
+    asr.asr,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
@@ -228,7 +270,16 @@ const createRuntime = async (
   await startedCall(gateway, socket);
   socket.sent.length = 0;
 
-  return { create, engine, gateway, recordReply, socket, streamReply, verify };
+  return {
+    asr: asr.mocks,
+    create,
+    engine,
+    gateway,
+    recordReply,
+    socket,
+    streamReply,
+    verify,
+  };
 };
 
 describe(VoicePipelineGateway.name, () => {
@@ -243,6 +294,7 @@ describe(VoicePipelineGateway.name, () => {
       } as unknown as VoicePipelineRequestFactory,
       { verify } as unknown as AccessTokenVerifier,
       createEngine(),
+      createAsr().asr,
     );
     const socket = new SocketMock();
 
@@ -273,6 +325,7 @@ describe(VoicePipelineGateway.name, () => {
         verify: jest.fn().mockResolvedValue(authenticatedUser),
       } as unknown as AccessTokenVerifier,
       engine,
+      createAsr().asr,
     );
     const socket = new SocketMock();
 
@@ -297,6 +350,7 @@ describe(VoicePipelineGateway.name, () => {
         verify: jest.fn().mockResolvedValue(authenticatedUser),
       } as unknown as AccessTokenVerifier,
       createEngine(),
+      createAsr().asr,
     );
     const socket = new SocketMock();
 
@@ -533,7 +587,6 @@ describe(VoicePipelineGateway.name, () => {
   it.each([
     { data: Buffer.from("not-json"), binary: false },
     { data: message({ type: "speak", operatorText: "" }), binary: false },
-    { data: Buffer.from([0, 1]), binary: true },
     {
       data: Buffer.alloc(16_385, "a"),
       binary: false,
@@ -760,5 +813,210 @@ describe(VoicePipelineGateway.name, () => {
 
     expect(observedSignal?.aborted).toBe(true);
     expect(runtime.socket.sent).toEqual([]);
+  });
+  it("answers the operator's voice without a separate speak command", async () => {
+    const runtime = await createRuntime();
+    const frame = Buffer.from([1, 2, 3, 4]);
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      frame,
+      true,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    expect(runtime.asr.send).toHaveBeenCalledWith(expect.objectContaining({}));
+    expect(Buffer.from(runtime.asr.send.mock.calls[0]?.[0])).toEqual(frame);
+
+    const types = textEvents(runtime.socket).map((event) => event.type);
+    expect(types).toEqual([
+      "listen.started",
+      "listen.stopped",
+      "reply.text",
+      "audio.start",
+      "audio.done",
+    ]);
+
+    // Ход делает сервер: клиент не присылал ни строчки текста.
+    expect(runtime.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: { type: "speak", operatorText: heard.transcript },
+      }),
+    );
+  });
+
+  it("holds the silence timer for as long as the operator has the floor", async () => {
+    const engine = createEngine();
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      engine,
+    );
+    const speaking = engine.setOperatorSpeaking as unknown as jest.Mock;
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+
+    expect(speaking).toHaveBeenLastCalledWith(
+      expect.objectContaining({ speaking: true }),
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    expect(speaking).toHaveBeenLastCalledWith(
+      expect.objectContaining({ speaking: false }),
+    );
+  });
+
+  it("drops audio that arrives outside a listen window", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      Buffer.from([1, 2]),
+      true,
+    );
+
+    expect(runtime.asr.send).not.toHaveBeenCalled();
+    // Ошибка на каждый кадр превратилась бы в поток ошибок.
+    expect(runtime.socket.sent).toEqual([]);
+  });
+
+  it("makes no turn out of an utterance nobody could hear", async () => {
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      createEngine(),
+      createAsr(
+        jest.fn().mockResolvedValue({
+          transcript: "  ",
+          audioMs: 300,
+          processingMs: 40,
+        }),
+      ),
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    expect(textEvents(runtime.socket).map((event) => event.type)).toEqual([
+      "listen.started",
+      "listen.stopped",
+    ]);
+    expect(runtime.streamReply).not.toHaveBeenCalled();
+  });
+
+  it("reports a lost utterance instead of answering a half of it", async () => {
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      createEngine(),
+      createAsr(jest.fn().mockRejectedValue(new Error("decoder is busy"))),
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    const events = textEvents(runtime.socket);
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      code: "listen-failed",
+    });
+    expect(runtime.streamReply).not.toHaveBeenCalled();
+  });
+
+  it("abandons the previous utterance when the operator starts over", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+
+    expect(runtime.asr.abort).toHaveBeenCalledTimes(1);
+    expect(runtime.asr.open).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses to listen before the call has been started", async () => {
+    const { asr, mocks } = createAsr();
+    const gateway = new VoicePipelineGateway(
+      { streamReply: jest.fn() } as unknown as VoicePipelineService,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
+      {
+        verify: jest.fn().mockResolvedValue(authenticatedUser),
+      } as unknown as AccessTokenVerifier,
+      createEngine(),
+      asr,
+    );
+    const socket = new SocketMock();
+
+    await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
+    await gateway.handleClientMessage(
+      asSocket(socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(textEvents(socket)).toMatchObject([
+      { type: "error", code: "call-state-invalid" },
+    ]);
+  });
+
+  it("closes an open utterance when the client disconnects", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+    expect(runtime.asr.abort).toHaveBeenCalledTimes(1);
   });
 });

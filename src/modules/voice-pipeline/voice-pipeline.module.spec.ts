@@ -20,6 +20,7 @@ jest.mock("@/core/config/env.config", () => ({
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { ConfigModule } from "@nestjs/config";
 
+import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
@@ -42,6 +43,7 @@ describe(VoicePipelineModule.name, () => {
   it("composes authentication, dialogue generation and speech synthesis", () => {
     expect(getModuleMetadata(MODULE_METADATA.IMPORTS)).toEqual([
       ConfigModule,
+      AsrModule,
       AuthModule,
       ScenarioEngineModule,
       DialogueGenerationModule,

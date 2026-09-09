@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
+import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
@@ -37,6 +38,7 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
 @Module({
   imports: [
     ConfigModule,
+    AsrModule,
     AuthModule,
     ScenarioEngineModule,
     DialogueGenerationModule,

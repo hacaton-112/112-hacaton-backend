@@ -16,6 +16,11 @@ import {
   type VoicePipelineSocketErrorCode,
 } from "@/contracts";
 import { generateId } from "@/common/utils/id";
+import {
+  ASR_STREAMER,
+  type AsrStreamer,
+  type AsrStreamHandle,
+} from "@/modules/asr/asr-stream.port";
 import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
 import {
@@ -36,6 +41,16 @@ const MAX_COMMAND_BYTES = 16_384;
  * пользы для слуха оператора.
  */
 const TICK_INTERVAL_MS = 1_000;
+/** Учебные звонки идут по-русски: распознавание не гадает язык по звуку. */
+const OPERATOR_LANGUAGE = "ru";
+/** Формат, в котором клиент шлёт кадры: тот же, что принимает распознавание. */
+const OPERATOR_SAMPLE_RATE = 16_000;
+/**
+ * Длиннее реплика оператора в генерацию не пройдёт — столько разрешает
+ * `operatorText` в контракте. Реплика, упёршаяся в потолок распознавания,
+ * обрезается по началу: вопрос стоит там, а не в конце.
+ */
+const MAX_UTTERANCE_CHARACTERS = 1_000;
 /** Application-level close code mirroring HTTP 401. */
 const UNAUTHORIZED_CLOSE_CODE = 4401;
 const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
@@ -43,6 +58,12 @@ const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
 interface ActiveRequest {
   controller: AbortController;
   requestId: string;
+}
+
+/** Открытое окно, пока оператор говорит: одна реплика — один поток. */
+interface ListeningStream {
+  streamId: string;
+  stream: AsrStreamHandle;
 }
 
 interface ConnectionState {
@@ -53,6 +74,9 @@ interface ConnectionState {
   timer: NodeJS.Timeout | null;
   /** Последний отправленный снимок: событие идёт только при изменении. */
   lastSnapshotKey: string | null;
+  listening: ListeningStream | null;
+  /** Про звук вне окна предупреждаем один раз, а не на каждом кадре. */
+  strayAudioWarned: boolean;
   user: VerifiedJwtPayload;
 }
 
@@ -76,6 +100,8 @@ export class VoicePipelineGateway
     private readonly requestFactory: VoicePipelineRequestFactory,
     private readonly accessTokenVerifier: AccessTokenVerifier,
     private readonly engine: ScenarioEngineService,
+    @Inject(ASR_STREAMER)
+    private readonly asr: AsrStreamer,
   ) {}
 
   /**
@@ -107,6 +133,8 @@ export class VoicePipelineGateway
       callStarted: false,
       timer: null,
       lastSnapshotKey: null,
+      listening: null,
+      strayAudioWarned: false,
       user,
     });
 
@@ -120,6 +148,7 @@ export class VoicePipelineGateway
 
     if (state !== undefined) {
       this.stopTicking(state);
+      this.abortListening(state);
     }
 
     state?.activeRequest?.controller.abort(
@@ -211,7 +240,7 @@ export class VoicePipelineGateway
     }
 
     if (isBinary) {
-      await this.sendError(client, state, null, "invalid-message");
+      this.handleAudioFrame(state, data);
       return;
     }
 
@@ -240,6 +269,16 @@ export class VoicePipelineGateway
       return;
     }
 
+    if (parsed.data.type === "listen.start") {
+      await this.startListening(client, state);
+      return;
+    }
+
+    if (parsed.data.type === "listen.stop") {
+      await this.stopListening(client, state);
+      return;
+    }
+
     if (parsed.data.type !== "speak") {
       await this.handleCallCommand(client, state, parsed.data);
       return;
@@ -259,7 +298,7 @@ export class VoicePipelineGateway
     state: ConnectionState,
     command: Exclude<
       VoicePipelineClientCommand,
-      { type: "speak" } | { type: "cancel" }
+      { type: "speak" } | { type: "cancel" } | { type: `listen.${string}` }
     >,
   ): Promise<void> {
     try {
@@ -312,6 +351,7 @@ export class VoicePipelineGateway
             });
 
       this.stopTicking(state);
+      this.abortListening(state);
       await this.cancelActiveRequest(client, state);
       await this.sendEvent(client, state, {
         type: "call.ended",
@@ -331,6 +371,178 @@ export class VoicePipelineGateway
         error instanceof ScenarioEngineError
           ? "call-state-invalid"
           : "context-unavailable",
+      );
+    }
+  }
+
+  /**
+   * Оператор взял слово.
+   *
+   * Речь идёт через backend, а не напрямую в распознавание: только здесь она
+   * попадает и в ход звонка, и в запись разговора. Пока окно открыто, отсчёт
+   * молчания стоит — иначе заявитель заговорил бы поверх вопроса, которого
+   * сервер ещё не расслышал.
+   */
+  private async startListening(
+    client: WebSocket,
+    state: ConnectionState,
+  ): Promise<void> {
+    if (!state.callStarted) {
+      await this.sendError(client, state, null, "call-state-invalid");
+
+      return;
+    }
+
+    // Второй listen.start без stop — оператор передумал: начатую реплику
+    // бросаем, дослушивать её уже некому.
+    this.abortListening(state);
+
+    let stream: AsrStreamHandle;
+    try {
+      stream = await this.asr.open(OPERATOR_LANGUAGE);
+    } catch (error) {
+      this.logger.warn(
+        `Could not open recognition for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      await this.sendError(client, state, null, "listen-failed");
+
+      return;
+    }
+
+    const listening: ListeningStream = { streamId: generateId(), stream };
+    state.listening = listening;
+
+    try {
+      await this.engine.setOperatorSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: true,
+      });
+    } catch {
+      this.abortListening(state);
+      await this.sendError(client, state, null, "context-unavailable");
+
+      return;
+    }
+
+    await this.sendEvent(client, state, {
+      type: "listen.started",
+      streamId: listening.streamId,
+      sampleRate: OPERATOR_SAMPLE_RATE,
+      channels: 1,
+      format: "pcm_s16le",
+    });
+  }
+
+  /**
+   * Оператор договорил: дожидаемся расшифровки и делаем ход за неё.
+   *
+   * Ход делает сервер, а не клиент отдельной командой speak: тогда между
+   * распознанной речью и ходом звонка помещался бы чужой текст.
+   */
+  private async stopListening(
+    client: WebSocket,
+    state: ConnectionState,
+  ): Promise<void> {
+    const listening = state.listening;
+
+    if (listening === null) {
+      await this.sendError(client, state, null, "call-state-invalid");
+
+      return;
+    }
+
+    state.listening = null;
+
+    let transcript;
+    try {
+      transcript = await listening.stream.finish();
+    } catch (error) {
+      this.logger.warn(
+        `Lost an operator utterance in session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      await this.releaseFloor(state);
+      await this.sendError(client, state, null, "listen-failed");
+
+      return;
+    }
+
+    await this.releaseFloor(state);
+    await this.sendEvent(client, state, {
+      type: "listen.stopped",
+      streamId: listening.streamId,
+      transcript: transcript.transcript,
+      audioMs: transcript.audioMs,
+      processingMs: transcript.processingMs,
+    });
+
+    const operatorText = transcript.transcript
+      .trim()
+      .slice(0, MAX_UTTERANCE_CHARACTERS);
+
+    // Оператор нажал и передумал, или в кадры попал один шум: хода нет, иначе
+    // заявитель отвечал бы на пустоту.
+    if (operatorText.length === 0) {
+      return;
+    }
+
+    await this.startRequest(client, state, {
+      type: "speak",
+      operatorText,
+    });
+  }
+
+  private handleAudioFrame(state: ConnectionState, data: RawData): void {
+    const listening = state.listening;
+
+    if (listening === null) {
+      // Ошибку на каждый кадр слать нельзя: клиент шлёт их десятками в секунду,
+      // и ответ на каждый превратился бы в поток ошибок.
+      if (!state.strayAudioWarned) {
+        state.strayAudioWarned = true;
+        this.logger.warn(
+          `Dropped audio sent outside a listen window in session ${state.sessionId}`,
+        );
+      }
+
+      return;
+    }
+
+    const frame = this.toBytes(data);
+
+    if (frame === null || frame.byteLength === 0) {
+      return;
+    }
+
+    listening.stream.send(frame);
+  }
+
+  private abortListening(state: ConnectionState): void {
+    const listening = state.listening;
+
+    if (listening === null) {
+      return;
+    }
+
+    state.listening = null;
+    listening.stream.abort();
+  }
+
+  /** Слово отдано обратно заявителю; сорваться на этом звонок не должен. */
+  private async releaseFloor(state: ConnectionState): Promise<void> {
+    try {
+      await this.engine.setOperatorSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: false,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not resume the silence timer for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
       );
     }
   }
@@ -602,6 +814,22 @@ export class VoicePipelineGateway
         resolve();
       });
     });
+  }
+
+  private toBytes(data: RawData): Uint8Array | null {
+    if (Array.isArray(data)) {
+      return Buffer.concat(data);
+    }
+
+    if (data instanceof ArrayBuffer) {
+      return new Uint8Array(data);
+    }
+
+    if (ArrayBuffer.isView(data)) {
+      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    }
+
+    return null;
   }
 
   private decodeText(data: RawData): string | null {
