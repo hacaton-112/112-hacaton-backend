@@ -26,9 +26,15 @@ interface IncidentMapProps {
   /** Появляется, когда адрес вызова определён: карта показывает примерную зону. */
   incident?: IncidentLocation;
   className?: string;
+  controls?: boolean;
 }
 
-export function IncidentMap({ city, incident, className }: IncidentMapProps) {
+export function IncidentMap({
+  city,
+  incident,
+  className,
+  controls = true,
+}: IncidentMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap>(null);
   const [failed, setFailed] = useState(false);
@@ -51,11 +57,16 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
         map;
     }
 
-    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
-    map.addControl(
-      new ScaleControl({ maxWidth: 120, unit: "metric" }),
-      "bottom-left",
-    );
+    if (controls) {
+      map.addControl(
+        new NavigationControl({ showCompass: false }),
+        "top-right",
+      );
+      map.addControl(
+        new ScaleControl({ maxWidth: 120, unit: "metric" }),
+        "bottom-left",
+      );
+    }
     // Подложка живёт по сети; без неё карта остаётся серой, поэтому говорим об этом прямо.
     map.on("error", () => setFailed(true));
 
@@ -68,7 +79,7 @@ export function IncidentMap({ city, incident, className }: IncidentMapProps) {
       map.remove();
       mapRef.current = null;
     };
-  }, [city]);
+  }, [city, controls]);
 
   useEffect(() => {
     const map = mapRef.current;

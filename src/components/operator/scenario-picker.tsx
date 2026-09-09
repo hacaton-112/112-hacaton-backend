@@ -21,15 +21,7 @@ const DIFFICULTY_LABELS = [
 /** Выбор учебного вызова: список приходит из backend, а не из клиента. */
 export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   const [selected, setSelected] = useState<string>();
-  const { data, isPending, error } = useScenarios();
-
-  if (error) {
-    return (
-      <Text size="1" color="red" mt="5">
-        Не удалось получить сценарии: {error.message}
-      </Text>
-    );
-  }
+  const { data, isPending } = useScenarios();
 
   const scenarios = data ?? [];
   const current = selected ?? scenarios[0]?.scenarioVersionId;

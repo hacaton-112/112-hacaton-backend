@@ -1,17 +1,16 @@
 import { Flex, Spinner } from "@bolid-ui/themes";
-import type { ReactNode } from "react";
-import { Navigate } from "react-router";
+import { Navigate, Outlet } from "react-router";
 
-import { useAuthSession } from "../../hooks/use-auth";
-import { useAuthStore } from "../../stores/auth.store";
+import { useAuthSession } from "../hooks/use-auth";
+import { useAuthStore } from "../stores/auth.store";
 
-export function RequireAuth({ children }: { children: ReactNode }) {
+/** Восстанавливает сессию и пропускает к вложенным маршрутам только авторизованного пользователя. */
+export function AuthLayout() {
   useAuthSession();
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const user = useAuthStore((state) => state.user);
 
-  // A persisted refresh token is rotated before protected UI is shown.
   if (!isHydrated || (refreshToken && !user)) {
     return (
       <Flex align="center" justify="center" className="h-full">
@@ -24,5 +23,5 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  return children;
+  return <Outlet />;
 }

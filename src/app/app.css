@@ -337,7 +337,89 @@ body,
   height: 100%;
 }
 
-@media (max-width: 1023px) {
+.operator-incident-column {
+  container: incident-column / inline-size;
+}
+
+.operator-caller-column {
+  container: caller-column / inline-size;
+}
+
+.person-name-grid,
+.person-contact-grid,
+.victim-meta-grid,
+.incident-pair-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container caller-column (min-width: 400px) {
+  .person-name-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .person-contact-grid,
+  .victim-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.location-details-grid,
+.incident-counts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.location-details-grid > *,
+.incident-meta-grid > *,
+.incident-counts-grid > * {
+  min-width: 0;
+}
+
+@container incident-column (min-width: 420px) {
+  .incident-pair-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container incident-column (min-width: 520px) {
+  .incident-meta-grid {
+    grid-template-columns:
+      minmax(260px, 1.5fr) minmax(110px, 0.65fr)
+      minmax(120px, 0.7fr);
+  }
+
+  .incident-counts-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .location-details-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container incident-column (min-width: 780px) {
+  .location-details-grid {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr)
+      minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+.operator-map .maplibregl-canvas {
+  filter: grayscale(1) contrast(0.82);
+  opacity: 0.72;
+}
+
+.dispatch-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.dispatch-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 1479px), (max-height: 953px) {
   .operator-column-scroll {
     height: auto !important;
     overflow: visible !important;
@@ -353,7 +435,14 @@ body,
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1480px) and (max-height: 953px) {
+  .operator-workspace {
+    height: auto !important;
+    min-height: 954px !important;
+  }
+}
+
+@media (min-width: 1480px) and (min-height: 954px) {
   .operator-page-scroll > .rt-ScrollAreaViewport {
     overflow: hidden !important;
   }

@@ -1,4 +1,5 @@
-import { ScrollArea, Separator } from "@bolid-ui/themes";
+import { ScrollArea, toast } from "@bolid-ui/themes";
+import { useEffect } from "react";
 
 import { CallerPanel } from "../../components/operator/caller-panel";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
@@ -9,19 +10,29 @@ import { useCall } from "../../hooks/use-call";
 export default function OperatorPage() {
   const call = useCall();
 
+  useEffect(() => {
+    if (!call.error) return;
+
+    toast.error(call.isConnected ? "Ошибка звонка" : "Сервер недоступен", {
+      id: "call-server-error",
+      description: call.error,
+      duration: 6_000,
+    });
+  }, [call.error, call.isConnected]);
+
   const submitCard = (card: IncidentCard) => {
     // Появится, когда будет модуль incident-card на бэкенде.
     console.info("Карточка происшествия", card);
   };
 
   return (
-    <div className="bg-gray-1 h-full min-h-0 overflow-hidden">
+    <div className="bg-gray-2 h-full min-h-0 overflow-hidden">
       <ScrollArea
         className="operator-page-scroll h-full min-h-0"
         scrollbars="vertical"
         type="auto"
       >
-        <div className="border-grayA-5 grid min-h-full grid-cols-1 border-t md:grid-cols-[minmax(250px,0.75fr)_minmax(440px,1.25fr)] lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.78fr)_minmax(400px,1.35fr)_1px_minmax(300px,1fr)] lg:grid-rows-1">
+        <div className="operator-workspace grid min-h-full grid-cols-1 gap-4 p-4 min-[1480px]:h-full min-[1480px]:min-h-0 min-[1480px]:grid-cols-[minmax(360px,0.92fr)_minmax(650px,1.95fr)_minmax(380px,1fr)] min-[1480px]:grid-rows-1 md:grid-cols-[minmax(340px,0.47fr)_minmax(560px,1fr)]">
           <ScrollArea
             className="operator-column-scroll min-h-0"
             scrollbars="vertical"
@@ -38,11 +49,13 @@ export default function OperatorPage() {
             type="auto"
           >
             <main
-              className="bg-background min-h-full min-w-0"
+              className="operator-incident-column min-h-full min-w-0"
               aria-label="Карточка происшествия"
             >
               <IncidentForm
                 resolvedAddress={call.incident?.address}
+                resolvedLatitude={call.incident?.latitude}
+                resolvedLongitude={call.incident?.longitude}
                 callerPhone={call.callerNumber}
                 // До приёма вызова заполнять нечего; после завершения — можно дописать.
                 disabled={call.state === "idle" || call.state === "ringing"}
@@ -50,12 +63,13 @@ export default function OperatorPage() {
               />
             </main>
           </ScrollArea>
-          <Separator
-            orientation="vertical"
-            size="4"
-            className="hidden h-full lg:block"
-          />
-          <DispatchCallPanel {...call} />
+          <ScrollArea
+            className="operator-column-scroll min-h-0 min-[1480px]:col-span-1 md:col-span-2"
+            scrollbars="vertical"
+            type="auto"
+          >
+            <DispatchCallPanel {...call} />
+          </ScrollArea>
         </div>
       </ScrollArea>
     </div>

@@ -1,4 +1,10 @@
-import { I18nProvider, IconButton, Theme, ThemePanel } from "@bolid-ui/themes";
+import {
+  I18nProvider,
+  IconButton,
+  Theme,
+  ThemePanel,
+  Toaster,
+} from "@bolid-ui/themes";
 import { PaletteIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
@@ -25,6 +31,7 @@ export function ThemeWithPanel({ children }: { children: ReactNode }) {
         {/* ThemePanel вешает на document горячие клавиши T и D, поэтому монтируем
           его только на время показа — иначе они перехватывают ввод всегда. */}
         {isPanelOpen && <ThemePanel />}
+        <Toaster position="top-center" duration={6_000} />
         {children}
       </Theme>
     </I18nProvider>

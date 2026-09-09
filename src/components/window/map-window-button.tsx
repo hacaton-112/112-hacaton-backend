@@ -1,11 +1,11 @@
 import { Button } from "@bolid-ui/themes";
 import { isTauri } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
-import { Map } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 const MAP_WINDOW_LABEL = "incident-map";
 
-export function MapWindowButton() {
+export function MapWindowButton({ label = "Карта" }: { label?: string }) {
   const showMap = async () => {
     if (!isTauri()) {
       window.open("/#/map", MAP_WINDOW_LABEL);
@@ -24,7 +24,7 @@ export function MapWindowButton() {
       variant="soft"
       onClick={() => void showMap()}
     >
-      <Map size={14} /> Карта
+      <ExternalLink size={13} /> {label}
     </Button>
   );
 }

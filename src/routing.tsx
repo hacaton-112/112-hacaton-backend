@@ -1,7 +1,7 @@
 import { Outlet, Route, Routes } from "react-router";
 
-import { RequireAuth } from "./components/auth/require-auth";
 import { AppLayout } from "./layouts/app-layout";
+import { AuthLayout } from "./layouts/auth-layout";
 import AuthPage from "./pages/main/auth-page";
 import OperatorPage from "./pages/main/operator-page";
 import MapPage from "./pages/map/map-page";
@@ -12,14 +12,9 @@ export function Routing() {
     <Routes>
       <Route element={withAppProviders(<Outlet />)}>
         <Route element={<AppLayout />}>
-          <Route
-            path="/"
-            element={
-              <RequireAuth>
-                <OperatorPage />
-              </RequireAuth>
-            }
-          />
+          <Route element={<AuthLayout />}>
+            <Route index element={<OperatorPage />} />
+          </Route>
           <Route path="/auth" element={<AuthPage />} />
         </Route>
       </Route>

@@ -4,6 +4,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { toast } from "@bolid-ui/themes";
 
 import { API_CONFIG } from "../config/api";
 import { AuthSessionSchema, type AuthSession } from "../contracts/auth";
@@ -106,7 +107,17 @@ class Api {
 
   private toApiError(error: AxiosError): ApiError {
     if (!error.response) {
-      return new ApiError({ message: "Нет соединения с сервером" });
+      const networkError = new ApiError({
+        message: "Нет соединения с сервером",
+      });
+
+      toast.error("Сервер недоступен", {
+        id: "api-network-error",
+        description: networkError.message,
+        duration: 6_000,
+      });
+
+      return networkError;
     }
 
     const { status, data } = error.response;

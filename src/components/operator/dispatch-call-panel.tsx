@@ -1,23 +1,30 @@
 import {
   Badge,
   Button,
+  Card,
   Flex,
   IconButton,
   ScrollArea,
+  Tabs,
   Text,
 } from "@bolid-ui/themes";
 import {
   CircleUserRound,
-  MessageSquare,
+  MapPin,
   Mic,
   MicOff,
   Pause,
   Phone,
   PhoneOff,
   Play,
+  Plus,
   RotateCcw,
+  Volume2,
 } from "lucide-react";
 
+import { IncidentMap } from "../map/incident-map";
+import { MapWindowButton } from "../window/map-window-button";
+import { MOSCOW } from "../../config/map";
 import type {
   CallControls,
   CallSnapshot,
@@ -53,108 +60,109 @@ const services = [
   "ДДС-03",
   "ДДС-04",
   "ЖКХ",
-  "Полиция",
-  "Скорая",
+  "Антитеррор",
+  "ЕДДС",
+  "УАДиТ",
+  "Росгвардия",
   "ЦУКС",
+  "АСС",
+  "ЛПЦ",
+  "СС",
 ];
 
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
   return (
-    <aside className="bg-background grid min-h-[560px] grid-rows-[42%_58%] md:col-span-2 lg:col-span-1 lg:h-full lg:min-h-0">
-      <ScrollArea
-        className="operator-column-scroll border-grayA-5 min-h-0 border-b"
-        scrollbars="vertical"
-        type="auto"
+    <aside className="dispatch-panel grid min-h-full grid-rows-[210px_263px_minmax(320px,418px)] content-start gap-4 min-[1480px]:h-full min-[1480px]:grid-cols-1 min-[1480px]:grid-rows-[210px_263px_minmax(418px,1fr)] md:grid-cols-2 md:grid-rows-[263px_minmax(320px,418px)]">
+      <Card
+        size="2"
+        variant="classic"
+        aria-labelledby="services-title"
+        className="dispatch-services-card h-[210px] overflow-y-auto min-[1480px]:h-[210px] md:h-[263px]"
       >
-        <section className="px-3 py-3">
-          <Flex align="center" justify="between">
-            <Flex align="center" gap="2">
-              <Text size="2" weight="bold">
-                Экстренные службы
-              </Text>
-              <Badge color="red" variant="solid" radius="full">
-                2
-              </Badge>
-            </Flex>
-            <Button type="button" size="1" variant="ghost">
-              Изменить
-            </Button>
-          </Flex>
-
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {services.map((service) => (
-              <Button
-                key={service}
-                type="button"
-                size="1"
-                color="gray"
-                variant="soft"
-              >
-                {service}
-              </Button>
-            ))}
-          </div>
-
-          <div className="mt-4 grid gap-2">
-            <Unit name="ДДС-03" time="16:35" />
-            <Unit name="ДДС-01" time="16:35" />
-          </div>
-        </section>
-      </ScrollArea>
-
-      <section className="relative flex min-h-0 flex-col overflow-hidden">
-        <Flex
-          align="center"
-          gap="2"
-          className="border-grayA-5 text-accent-11 h-11 shrink-0 border-b px-4"
-        >
-          <MessageSquare size={14} aria-hidden />
-          <Text size="2" weight="medium">
-            Чат с заявителем
+        <Flex align="center" justify="between">
+          <Text id="services-title" size="2" weight="bold">
+            ДДС / Службы
           </Text>
+          <Button type="button" size="1" variant="ghost">
+            Изменить
+          </Button>
         </Flex>
 
-        <ScrollArea
-          className="operator-column-scroll min-h-0 flex-1"
-          scrollbars="vertical"
-          type="auto"
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {services.map((service) => (
+            <Button
+              key={service}
+              type="button"
+              size="1"
+              color={service === "ДДС-03" ? "blue" : "gray"}
+              variant={service === "ДДС-03" ? "solid" : "soft"}
+            >
+              {service}
+            </Button>
+          ))}
+        </div>
+
+        <div className="bg-grayA-4 my-3 h-px" />
+        <div className="grid gap-2">
+          <Unit name="ДДС-03" time="16:35" />
+          <Unit name="ДДС-01" time="16:35" />
+        </div>
+      </Card>
+
+      <Card
+        size="1"
+        variant="classic"
+        className="dispatch-call-card h-[263px] overflow-hidden p-0!"
+      >
+        <Tabs.Root
+          defaultValue="call"
+          className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]"
         >
-          <div className="px-5 py-4">
-            <Flex align="center" justify="between">
-              <Text size="2" weight="medium">
+          <Tabs.List size="1" justify="center" className="dispatch-tabs px-4">
+            <Tabs.Trigger value="call">Звонок</Tabs.Trigger>
+            <Tabs.Trigger value="record">Запись</Tabs.Trigger>
+            <Tabs.Trigger value="applicant-chat">Чат с заявителем</Tabs.Trigger>
+            <Tabs.Trigger value="service-chat">Служебный чат</Tabs.Trigger>
+          </Tabs.List>
+
+          <Tabs.Content
+            value="call"
+            className="min-h-0 overflow-y-auto px-4 pt-2"
+          >
+            <Flex align="start" justify="between" gap="2">
+              <Text size="1" color="gray">
                 2 участника
               </Text>
-              <Badge
-                color={
-                  props.state === "active"
-                    ? "green"
-                    : props.isConnected
-                      ? "gray"
-                      : "red"
-                }
-                variant="soft"
-              >
-                {props.isConnected
-                  ? STATE_LABELS[props.state]
-                  : "Нет связи с сервером"}
-              </Badge>
+              <div className="text-right">
+                <Text size="1" color="gray" as="div">
+                  {STATE_LABELS[props.state]}
+                </Text>
+                <Text
+                  size="2"
+                  color={props.state === "active" ? "red" : "gray"}
+                  weight="bold"
+                  className="tabular-nums"
+                >
+                  {formatDuration(props.elapsedSeconds)}
+                </Text>
+              </div>
             </Flex>
 
-            <div className="mt-5 grid gap-3">
+            <div className="mt-2 grid gap-2">
               <Participant
                 color="green"
-                name="Оператор"
+                name="operator2537"
                 caption={props.isListening ? "Говорит" : "Это вы"}
               />
               <Participant
                 color="blue"
-                name={props.scenarioTitle ?? "Заявитель"}
+                name={props.scenarioTitle ?? "Иванов И.И."}
                 caption={props.isCallerSpeaking ? "Говорит" : "Заявитель"}
               />
             </div>
 
             {props.state !== "idle" && (
-              <Flex align="center" gap="2" mt="4">
+              <Flex align="center" gap="1" mt="2" wrap="wrap">
                 <Badge
                   color={PANIC_COLORS[props.panicLevel] ?? "gray"}
                   variant="soft"
@@ -167,46 +175,24 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
               </Flex>
             )}
 
-            {props.error && (
-              <Text size="1" color="red" mt="3" as="p">
-                {props.error}
-              </Text>
-            )}
-
-            {props.dialogue.length > 0 && (
-              <div className="mt-4 grid gap-2">
-                {props.dialogue.map((turn) => (
-                  <div
-                    key={turn.id}
-                    className={
-                      turn.role === "operator"
-                        ? "bg-grayA-3 rounded-2 px-3 py-2"
-                        : "bg-blueA-3 rounded-2 px-3 py-2"
-                    }
-                  >
-                    <Text size="1" color="gray">
-                      {turn.role === "operator" ? "Оператор" : "Заявитель"}
-                    </Text>
-                    <Text size="2" as="p">
-                      {turn.text}
-                    </Text>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {props.state === "ringing" && (
-              <Flex gap="2" mt="5">
-                <Button color="green" onClick={props.accept} className="flex-1">
-                  <Phone size={15} /> Принять
+              <Flex gap="2" mt="3">
+                <Button
+                  size="1"
+                  color="green"
+                  onClick={props.accept}
+                  className="flex-1"
+                >
+                  <Phone size={14} /> Принять
                 </Button>
                 <Button
+                  size="1"
                   color="red"
                   variant="soft"
                   onClick={props.reject}
                   className="flex-1"
                 >
-                  <PhoneOff size={15} /> Отклонить
+                  <PhoneOff size={14} /> Отклонить
                 </Button>
               </Flex>
             )}
@@ -220,20 +206,18 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
 
             {props.state === "active" && (
               <Button
-                mt="5"
-                size="3"
+                mt="3"
+                size="1"
                 variant={props.isListening ? "solid" : "soft"}
                 color={props.isListening ? "red" : undefined}
                 disabled={props.isMuted}
-                // Рация: слово держится, пока нажата кнопка. Отпускание ловим и
-                // за пределами кнопки — иначе микрофон остался бы открытым.
                 onPointerDown={props.holdFloor}
                 onPointerUp={props.releaseFloor}
                 onPointerLeave={props.releaseFloor}
                 onPointerCancel={props.releaseFloor}
                 className="w-full"
               >
-                <Mic size={15} />
+                <Mic size={14} />
                 {props.isListening
                   ? "Отпустите, чтобы ответил заявитель"
                   : "Нажмите и говорите"}
@@ -242,82 +226,171 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
 
             {props.state === "ended" && (
               <Button
-                mt="5"
+                mt="3"
+                size="1"
                 variant="soft"
                 color="gray"
                 onClick={props.reset}
                 className="w-full"
               >
-                <RotateCcw size={15} /> К следующему вызову
+                <RotateCcw size={14} /> К следующему вызову
               </Button>
             )}
-          </div>
-        </ScrollArea>
+          </Tabs.Content>
 
-        <Flex
-          align="center"
-          justify="center"
-          gap="2"
-          className="border-grayA-5 h-14 shrink-0 border-t"
-        >
-          <IconButton
-            variant="soft"
-            color="gray"
-            aria-label="Добавить участника"
+          <Tabs.Content
+            value="record"
+            className="min-h-0 overflow-y-auto px-4 py-4"
           >
-            +
-          </IconButton>
-          <IconButton
-            variant={props.isOnHold ? "solid" : "soft"}
-            color="gray"
-            onClick={props.toggleHold}
-            disabled={props.state !== "active"}
-            aria-label="Удержание"
+            <Text size="1" color="gray">
+              Запись разговора появится после начала вызова.
+            </Text>
+          </Tabs.Content>
+
+          <Tabs.Content
+            value="applicant-chat"
+            className="min-h-0 overflow-y-auto px-4 py-3"
           >
-            {props.isOnHold ? <Play size={15} /> : <Pause size={15} />}
-          </IconButton>
-          <IconButton
-            variant={props.isMuted ? "solid" : "soft"}
-            color={props.isMuted ? "red" : "gray"}
-            onClick={props.toggleMute}
-            disabled={props.state !== "active"}
-            aria-label="Микрофон"
+            <DialogueList
+              props={props}
+              empty="Сообщений с заявителем пока нет"
+            />
+          </Tabs.Content>
+
+          <Tabs.Content
+            value="service-chat"
+            className="min-h-0 overflow-y-auto px-4 py-4"
           >
-            {props.isMuted ? <MicOff size={15} /> : <Mic size={15} />}
-          </IconButton>
-          <Text size="2" className="w-14 text-center tabular-nums">
-            {formatDuration(props.elapsedSeconds)}
-          </Text>
-          <IconButton
-            color="red"
-            onClick={props.end}
-            disabled={props.state !== "active"}
-            aria-label="Завершить вызов"
+            <Text size="1" color="gray">
+              Служебных сообщений пока нет.
+            </Text>
+          </Tabs.Content>
+
+          <Flex
+            align="center"
+            justify="between"
+            gap="2"
+            className="border-grayA-4 shrink-0 border-t px-4 py-2"
           >
-            <PhoneOff size={15} />
-          </IconButton>
-        </Flex>
-      </section>
+            <ControlButton label="Добавить участника">
+              <Plus size={15} />
+            </ControlButton>
+            <IconButton
+              size="2"
+              radius="full"
+              variant={props.isMuted ? "solid" : "soft"}
+              color={props.isMuted ? "red" : "gray"}
+              onClick={props.toggleMute}
+              disabled={props.state !== "active"}
+              aria-label="Микрофон"
+            >
+              {props.isMuted ? <MicOff size={15} /> : <Mic size={15} />}
+            </IconButton>
+            <IconButton
+              size="2"
+              radius="full"
+              variant={props.isOnHold ? "solid" : "soft"}
+              color="gray"
+              onClick={props.toggleHold}
+              disabled={props.state !== "active"}
+              aria-label="Удержание"
+            >
+              {props.isOnHold ? <Play size={15} /> : <Pause size={15} />}
+            </IconButton>
+            <ControlButton label="Динамик">
+              <Volume2 size={15} />
+            </ControlButton>
+            <IconButton
+              size="2"
+              radius="full"
+              color="red"
+              onClick={props.end}
+              disabled={props.state !== "active"}
+              aria-label="Завершить вызов"
+            >
+              <PhoneOff size={15} />
+            </IconButton>
+          </Flex>
+        </Tabs.Root>
+      </Card>
+
+      <Card
+        size="1"
+        variant="classic"
+        className="dispatch-map-card relative min-h-[320px] overflow-hidden p-0! min-[1480px]:col-span-1 min-[1480px]:min-h-[418px] md:col-span-2"
+      >
+        <IncidentMap
+          city={MOSCOW}
+          incident={props.incident}
+          controls={false}
+          className="dispatch-map operator-map h-full min-h-[320px]"
+        />
+        <div className="absolute top-2 right-2 z-10">
+          <MapWindowButton label="Открыть в окне" />
+        </div>
+        {props.incident && (
+          <MapPin
+            size={26}
+            className="text-red-9 pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-full fill-white"
+            aria-hidden
+          />
+        )}
+      </Card>
     </aside>
+  );
+}
+
+function DialogueList({
+  props,
+  empty,
+}: {
+  props: DispatchCallPanelProps;
+  empty: string;
+}) {
+  if (props.dialogue.length === 0) {
+    return (
+      <Text size="1" color="gray">
+        {empty}
+      </Text>
+    );
+  }
+
+  return (
+    <ScrollArea type="auto" scrollbars="vertical" className="max-h-44">
+      <div className="grid gap-2 pr-2">
+        {props.dialogue.map((turn) => (
+          <div
+            key={turn.id}
+            className={
+              turn.role === "operator"
+                ? "bg-grayA-3 rounded-3 px-3 py-2"
+                : "bg-blueA-3 rounded-3 px-3 py-2"
+            }
+          >
+            <Text size="1" color="gray">
+              {turn.role === "operator" ? "Оператор" : "Заявитель"}
+            </Text>
+            <Text size="2" as="p">
+              {turn.text}
+            </Text>
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
   );
 }
 
 function Unit({ name, time }: { name: string; time: string }) {
   return (
     <Flex align="center" gap="2">
-      <span className="bg-green-9 size-2.5 shrink-0 rounded-full" />
-      <div className="min-w-0 flex-1">
-        <Text size="2" weight="medium">
-          {name}
-        </Text>
-        <Text size="1" color="red">
-          Создание
-        </Text>
-      </div>
-      <Text size="1" color="gray">
-        {time}
+      <span className="bg-green-9 size-2 shrink-0 rounded-full" />
+      <Text size="2" weight="medium" className="min-w-0 flex-1">
+        {name}
       </Text>
-      <IconButton size="1" variant="soft" aria-label={`Позвонить ${name}`}>
+      <Text size="1" color="gray">
+        Создание {time}
+      </Text>
+      <IconButton size="1" variant="ghost" aria-label={`Позвонить ${name}`}>
         <Phone size={13} />
       </IconButton>
     </Flex>
@@ -334,14 +407,14 @@ function Participant({
   caption: string;
 }) {
   return (
-    <Flex align="center" gap="3">
+    <Flex align="center" gap="2">
       <div
-        className={`grid size-9 place-items-center rounded-full text-white ${color === "green" ? "bg-green-9" : "bg-blue-9"}`}
+        className={`grid size-8 place-items-center rounded-full text-white ${color === "green" ? "bg-green-9" : "bg-blue-9"}`}
       >
-        <CircleUserRound size={20} />
+        <CircleUserRound size={18} />
       </div>
-      <div>
-        <Text size="2" weight="medium">
+      <div className="min-w-0">
+        <Text size="2" weight="medium" className="block truncate">
           {name}
         </Text>
         <Text size="1" color={caption === "Говорит" ? "green" : "gray"}>
@@ -349,5 +422,25 @@ function Participant({
         </Text>
       </div>
     </Flex>
+  );
+}
+
+function ControlButton({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <IconButton
+      size="2"
+      radius="full"
+      variant="soft"
+      color="gray"
+      aria-label={label}
+    >
+      {children}
+    </IconButton>
   );
 }

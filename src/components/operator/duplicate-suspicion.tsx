@@ -1,11 +1,10 @@
-import { Button, Flex, RadioGroup, Table, Text } from "@bolid-ui/themes";
-import { Check, Link2 } from "lucide-react";
+import { Button, Card, Flex, RadioGroup, Table, Text } from "@bolid-ui/themes";
 
 export function DuplicateSuspicion() {
   return (
-    <section className="border-grayA-5 mt-2 border-t pt-3">
+    <Card size="2" variant="classic" aria-labelledby="duplicate-title">
       <Flex align="center" justify="between" gap="2">
-        <Text size="2" weight="bold">
+        <Text id="duplicate-title" size="2" weight="bold">
           Подозрения на дубль/связь
         </Text>
         <Button type="button" size="1" variant="ghost">
@@ -30,50 +29,48 @@ export function DuplicateSuspicion() {
         </Flex>
       </RadioGroup.Root>
 
-      <Table.Root size="1" variant="surface" layout="fixed" mt="2">
-        <Table.Header>
-          <Table.Row>
-            <Table.ColumnHeaderCell width="32px" />
-            <Table.ColumnHeaderCell minWidth="180px">
-              Адрес
-            </Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell minWidth="170px">
-              Описание со слов заявителя
-            </Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell minWidth="100px">
-              Тип происшествия
-            </Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell width="100px">Дата</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell width="48px" />
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          <Table.Row className="bg-green-2" align="center">
-            <Table.Cell justify="center">
-              <Link2 size={14} aria-label="Связанное обращение" />
-            </Table.Cell>
-            <Table.Cell>
-              Московская область, ул. Карандельская, д. 54/1, п. 5, эт. 3, кв.
-              144
-            </Table.Cell>
-            <Table.Cell>Стреляют в воздух</Table.Cell>
-            <Table.Cell>Стрельба</Table.Cell>
-            <Table.Cell className="tabular-nums">22.03.2024 11:48</Table.Cell>
-            <Table.Cell justify="center">
-              <Button
-                type="button"
-                size="1"
-                color="green"
-                variant="solid"
-                radius="full"
-                aria-label="Подтвердить связь"
-              >
-                <Check size={14} aria-hidden />
-              </Button>
-            </Table.Cell>
-          </Table.Row>
-        </Table.Body>
-      </Table.Root>
-    </section>
+      <div className="overflow-x-auto">
+        <Table.Root
+          size="1"
+          variant="surface"
+          layout="fixed"
+          mt="2"
+          className="min-w-[680px]"
+        >
+          <Table.Header>
+            <Table.Row>
+              <Table.ColumnHeaderCell width="210px">
+                Адрес
+              </Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>
+                Описание со слов заявителя
+              </Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell width="130px">
+                Тип происшествия
+              </Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell width="110px">
+                Дата
+              </Table.ColumnHeaderCell>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            <Table.Row className="bg-green-2" align="center">
+              <Table.Cell>
+                Московская область, ул. Караидельская, д. 54/1, п. 5, эт. 3333,
+                кв. 144, домофон 12342
+              </Table.Cell>
+              <Table.Cell>Стреляют в воздух</Table.Cell>
+              <Table.Cell>Стрельба</Table.Cell>
+              <Table.Cell>
+                <Flex align="center" justify="between" gap="2">
+                  <span className="tabular-nums">22-03-2024 11:48</span>
+                  <span className="bg-green-9 size-3 shrink-0 rounded-full" />
+                </Flex>
+              </Table.Cell>
+            </Table.Row>
+          </Table.Body>
+        </Table.Root>
+      </div>
+    </Card>
   );
 }
