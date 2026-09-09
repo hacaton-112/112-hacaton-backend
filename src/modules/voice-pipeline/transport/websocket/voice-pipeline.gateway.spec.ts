@@ -354,6 +354,56 @@ describe(VoicePipelineGateway.name, () => {
     });
   });
 
+  it("reports a changed step while the operator stays silent", async () => {
+    const agitated = { ...snapshot, panicLevel: 4 };
+    const engine = createEngine({
+      getSnapshot: jest.fn().mockResolvedValue(agitated),
+    });
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      undefined,
+      engine,
+    );
+
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+
+    expect(engine.tick).toHaveBeenCalled();
+    expect(textEvents(runtime.socket)[0]).toMatchObject({
+      type: "call.state",
+      panicLevel: 4,
+    });
+  });
+
+  it("stays quiet while nothing about the call changes", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+
+    // Раз в секунду слать один и тот же снимок — шум и в сети, и в отладке.
+    expect(
+      textEvents(runtime.socket).filter((event) => event.type === "call.state"),
+    ).toHaveLength(1);
+  });
+
+  it("stops advancing a call that has ended", async () => {
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      undefined,
+      createEngine({
+        getSnapshot: jest
+          .fn()
+          .mockResolvedValue({ ...snapshot, stage: "ended" }),
+      }),
+    );
+
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+
+    expect(textEvents(runtime.socket)).toEqual([]);
+  });
+
   it("streams reply metadata, zero-copy ordered PCM, and completion", async () => {
     const runtime = await createRuntime();
 

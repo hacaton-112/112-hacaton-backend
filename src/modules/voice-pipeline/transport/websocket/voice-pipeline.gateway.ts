@@ -29,6 +29,12 @@ import type { VoicePipelineRequestFactory } from "../../application/voice-pipeli
 import { VOICE_PIPELINE_REQUEST_FACTORY } from "../../voice-pipeline.tokens";
 
 const MAX_COMMAND_BYTES = 16_384;
+/**
+ * Как часто сервер двигает звонок сам. Секунда — компромисс: пороги молчания в
+ * сценариях задаются секундами, а более частый опрос упирался бы в базу без
+ * пользы для слуха оператора.
+ */
+const TICK_INTERVAL_MS = 1_000;
 /** Application-level close code mirroring HTTP 401. */
 const UNAUTHORIZED_CLOSE_CODE = 4401;
 const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
@@ -43,6 +49,9 @@ interface ConnectionState {
   /** Идентификатор учебной сессии; появляется только после команды start. */
   sessionId: string;
   callStarted: boolean;
+  timer: NodeJS.Timeout | null;
+  /** Последний отправленный снимок: событие идёт только при изменении. */
+  lastSnapshotKey: string | null;
   user: VerifiedJwtPayload;
 }
 
@@ -95,6 +104,8 @@ export class VoicePipelineGateway
       // бы подключиться к чужому звонку.
       sessionId: generateId(),
       callStarted: false,
+      timer: null,
+      lastSnapshotKey: null,
       user,
     });
 
@@ -105,10 +116,83 @@ export class VoicePipelineGateway
 
   handleDisconnect(client: WebSocket): void {
     const state = this.connections.get(client);
+
+    if (state !== undefined) {
+      this.stopTicking(state);
+    }
+
     state?.activeRequest?.controller.abort(
       new DOMException("WebSocket disconnected", "AbortError"),
     );
     this.connections.delete(client);
+  }
+
+  /**
+   * Ход времени на стороне сервера: без него молчание оператора ничего не
+   * меняет, потому что всё остальное происходит в ответ на его команды.
+   */
+  private startTicking(client: WebSocket, state: ConnectionState): void {
+    this.stopTicking(state);
+
+    state.timer = setInterval(() => {
+      void this.advanceCall(client);
+    }, TICK_INTERVAL_MS);
+  }
+
+  private stopTicking(state: ConnectionState): void {
+    if (state.timer !== null) {
+      clearInterval(state.timer);
+      state.timer = null;
+    }
+  }
+
+  async advanceCall(client: WebSocket): Promise<void> {
+    const state = this.connections.get(client);
+
+    if (state === undefined) {
+      return;
+    }
+
+    if (client.readyState !== WebSocket.OPEN) {
+      this.stopTicking(state);
+
+      return;
+    }
+
+    try {
+      await this.engine.tick({ trainingSessionId: state.sessionId });
+
+      const snapshot = await this.engine.getSnapshot(state.sessionId);
+
+      if (snapshot.stage !== "conversation") {
+        this.stopTicking(state);
+
+        return;
+      }
+
+      const key = JSON.stringify(this.snapshotFields(snapshot));
+
+      // Состояние уходит клиенту только когда изменилось: раз в секунду слать
+      // одно и то же — шум и в сети, и в журнале отладки.
+      if (key === state.lastSnapshotKey) {
+        return;
+      }
+
+      state.lastSnapshotKey = key;
+
+      await this.sendEvent(client, state, {
+        type: "call.state",
+        revealedFactKeys: [...snapshot.revealedFactKeys],
+        ...this.snapshotFields(snapshot),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Stopped advancing session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      this.stopTicking(state);
+    }
   }
 
   async handleClientMessage(
@@ -199,6 +283,8 @@ export class VoicePipelineGateway
           eventId: generateId(),
         });
 
+        this.startTicking(client, state);
+
         await this.sendEvent(client, state, {
           type: "call.accepted",
           openingLine: snapshot.openingLine,
@@ -220,6 +306,7 @@ export class VoicePipelineGateway
               reason: "operator",
             });
 
+      this.stopTicking(state);
       await this.cancelActiveRequest(client, state);
       await this.sendEvent(client, state, {
         type: "call.ended",
