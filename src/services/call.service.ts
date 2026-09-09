@@ -10,17 +10,9 @@ import { ipc } from "../lib/ipc";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
-  /** Протокол разошёлся с клиентом; звонок при этом продолжается. */
   onUnknownEvent?: (payload: unknown) => void;
 }
 
-/**
- * Учебный звонок: команды вниз, события вверх.
- *
- * Сам сокет живёт в Rust — заголовок `Authorization` webview поставить не может,
- * а речь оператора не должна ходить через IPC. Здесь остаётся то, ради чего
- * нужен webview: разбор событий и проигрывание голоса заявителя.
- */
 export interface CallStream {
   connect(token: string): Promise<void>;
   start(scenarioVersionId: string): Promise<void>;
@@ -32,12 +24,19 @@ export interface CallStream {
   dispose(): Promise<void>;
 }
 
+/**
+ * WebSocket и PCM остаются в Rust. Webview управляет жизненным циклом звонка
+ * и проигрывает голос заявителя, полученный по бинарному Tauri Channel.
+ */
 class NativeCallStream implements CallStream {
   private readonly callbacks: CallStreamCallbacks;
   private audioContext?: AudioContext;
   private nextStartTime = 0;
   private sampleRate = 24_000;
-  private connected = false;
+  private connection: string | null = null;
+  private disposed = false;
+  /** Не даёт новому нажатию обогнать остановку и отправку хвоста предыдущего. */
+  private floorQueue: Promise<void> = Promise.resolve();
 
   constructor(callbacks: CallStreamCallbacks) {
     this.callbacks = callbacks;
@@ -51,7 +50,7 @@ class NativeCallStream implements CallStream {
     audio.onmessage = (chunk) => this.playPcmChunk(chunk);
 
     try {
-      await ipc.call.connect({
+      this.connection = await ipc.call.connect({
         url: API_CONFIG.getVoicePipelineStreamUrl(),
         token,
         onEvent: events,
@@ -61,7 +60,9 @@ class NativeCallStream implements CallStream {
       throw this.toError(reason);
     }
 
-    this.connected = true;
+    if (this.disposed) {
+      await this.dispose();
+    }
   }
 
   start(scenarioVersionId: string): Promise<void> {
@@ -80,58 +81,86 @@ class NativeCallStream implements CallStream {
     return this.send({ type: "end" });
   }
 
-  /** Оператор взял слово: микрофон открывает нативная сторона. */
-  async holdFloor(): Promise<void> {
-    const microphone = new Channel<unknown>();
+  holdFloor(): Promise<void> {
+    return this.queueFloor(async () => {
+      const connection = this.requireConnection();
+      const microphone = new Channel<unknown>();
+      microphone.onmessage = () => undefined;
 
-    // Плагину нужен Channel, но его PCM перехватывается в Rust до webview.
-    // Пустой обработчик остаётся только запасным путём для позднего события.
-    microphone.onmessage = () => undefined;
-
-    try {
-      await ipc.call.attachMicrophoneChannel(microphone.id);
-      await ipc.call.startListening();
-      await ipc.systemAudio.start(microphone, {
-        loopback: false,
-        processing: false,
-        levelOnly: false,
-      });
-    } catch (reason) {
-      await ipc.systemAudio.stop().catch(() => undefined);
-      await ipc.call.stopListening().catch(() => undefined);
-      throw this.toError(reason);
-    }
+      try {
+        await ipc.call.attachMicrophoneChannel(connection, microphone.id);
+        await ipc.call.startListening(connection);
+        await ipc.systemAudio.start(microphone, {
+          loopback: false,
+          processing: false,
+          levelOnly: false,
+        });
+      } catch (reason) {
+        await ipc.systemAudio.stop().catch(() => undefined);
+        await ipc.call.stopListening(connection).catch(() => undefined);
+        throw this.toError(reason);
+      }
+    });
   }
 
-  async releaseFloor(): Promise<void> {
-    await ipc.systemAudio.stop().catch(() => undefined);
-    await ipc.call.stopListening().catch(() => undefined);
+  releaseFloor(): Promise<void> {
+    return this.queueFloor(async () => {
+      const connection = this.connection;
+      if (connection === null) return;
+
+      await ipc.systemAudio.stop().catch(() => undefined);
+      await ipc.call.stopListening(connection).catch(() => undefined);
+    });
   }
 
   async dispose(): Promise<void> {
-    this.connected = false;
-    await ipc.systemAudio.stop().catch(() => undefined);
-    await ipc.call.disconnect().catch(() => undefined);
+    this.disposed = true;
+
+    await this.queueFloor(async () => {
+      const connection = this.connection;
+      this.connection = null;
+
+      await ipc.systemAudio.stop().catch(() => undefined);
+
+      if (connection !== null) {
+        await ipc.call.stopListening(connection).catch(() => undefined);
+        await ipc.call.disconnect(connection).catch(() => undefined);
+      }
+    }).catch(() => undefined);
+
     await this.audioContext?.close().catch(() => undefined);
     this.audioContext = undefined;
   }
 
   private async send(command: CallClientCommand): Promise<void> {
-    if (!this.connected) {
+    await ipc.call
+      .send(this.requireConnection(), command)
+      .catch((reason: unknown) => {
+        throw this.toError(reason);
+      });
+  }
+
+  private requireConnection(): string {
+    if (this.connection === null) {
       throw new Error("Соединение со звонком не открыто");
     }
 
-    await ipc.call.send(command).catch((reason: unknown) => {
-      throw this.toError(reason);
-    });
+    return this.connection;
+  }
+
+  private queueFloor(operation: () => Promise<void>): Promise<void> {
+    const pending = this.floorQueue.catch(() => undefined).then(operation);
+    this.floorQueue = pending.catch(() => undefined);
+    return pending;
   }
 
   private handleEvent(payload: unknown): void {
+    if (this.disposed) return;
+
     const parsed = CallServerEventSchema.safeParse(payload);
 
     if (!parsed.success) {
       this.callbacks.onUnknownEvent?.(payload);
-
       return;
     }
 
@@ -145,21 +174,16 @@ class NativeCallStream implements CallStream {
 
   private ensureAudioContext(): AudioContext {
     this.audioContext ??= new AudioContext({ sampleRate: this.sampleRate });
-
     return this.audioContext;
   }
 
-  /**
-   * Каждый кусок планируется сразу за концом предыдущего: приходят они
-   * неравномерно, а звучать должны одним потоком без щелчков и наложений.
-   */
   private playPcmChunk(buffer: ArrayBuffer): void {
+    if (this.disposed) return;
+
     const context = this.ensureAudioContext();
     const pcm16 = new Int16Array(buffer);
 
-    if (pcm16.length === 0) {
-      return;
-    }
+    if (pcm16.length === 0) return;
 
     const audioBuffer = context.createBuffer(1, pcm16.length, this.sampleRate);
     const channel = audioBuffer.getChannelData(0);

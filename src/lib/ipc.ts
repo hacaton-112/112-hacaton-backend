@@ -21,30 +21,34 @@ export type MicrophonePermissionStatus = "allowed" | "denied" | "unknown";
 /** Типизированные вызовы нативного Tauri API. */
 export const ipc = {
   call: {
-    connect(options: CallConnectOptions): Promise<void> {
+    connect(options: CallConnectOptions): Promise<string> {
       return invoke(IPC_CONFIG.getCallConnectHandler(), options);
     },
 
-    send(command: CallClientCommand): Promise<void> {
-      return invoke(IPC_CONFIG.getCallSendHandler(), { command });
+    send(connection: string, command: CallClientCommand): Promise<void> {
+      return invoke(IPC_CONFIG.getCallSendHandler(), { connection, command });
     },
 
-    attachMicrophoneChannel(channelId: number): Promise<void> {
+    attachMicrophoneChannel(
+      connection: string,
+      channelId: number,
+    ): Promise<void> {
       return invoke(IPC_CONFIG.getCallAttachMicrophoneChannelHandler(), {
+        connection,
         channelId,
       });
     },
 
-    startListening(): Promise<void> {
-      return invoke(IPC_CONFIG.getCallListenStartHandler());
+    startListening(connection: string): Promise<void> {
+      return invoke(IPC_CONFIG.getCallListenStartHandler(), { connection });
     },
 
-    stopListening(): Promise<void> {
-      return invoke(IPC_CONFIG.getCallListenStopHandler());
+    stopListening(connection: string): Promise<void> {
+      return invoke(IPC_CONFIG.getCallListenStopHandler(), { connection });
     },
 
-    disconnect(): Promise<void> {
-      return invoke(IPC_CONFIG.getCallDisconnectHandler());
+    disconnect(connection: string): Promise<void> {
+      return invoke(IPC_CONFIG.getCallDisconnectHandler(), { connection });
     },
   },
 

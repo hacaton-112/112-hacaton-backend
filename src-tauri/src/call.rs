@@ -1,11 +1,16 @@
 //! Учебный звонок целиком на стороне Rust.
 //!
-//! Сокет к backend держит нативный клиент, а не webview: только отсюда можно
-//! поставить заголовок `Authorization` на рукопожатие, которое backend без него
-//! закрывает кодом 4401. Заодно речь оператора не пересекает границу IPC —
-//! микрофон и сокет оказываются в одном процессе и в одном потоке данных.
+//! WebSocket к backend живёт в нативном процессе, поэтому Authorization можно
+//! передать во время handshake. PCM микрофона перехватывается до webview и
+//! сразу отправляется в тот же сокет.
 
-use std::{collections::VecDeque, sync::Mutex};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
@@ -24,20 +29,11 @@ use tokio_tungstenite::{
     },
 };
 
-/// Очередь исходящего: команды вперемешку с чанками PCM по 100 мс.
 const OUTGOING_CAPACITY: usize = 64;
-
-/// Сколько чанков придерживаем, пока backend не подтвердил `listen.started`.
-/// Кадры, посланные раньше подтверждения, сервер отбрасывает, а начало фразы
-/// терять нельзя: примерно три секунды запаса.
 const PENDING_CHUNKS: usize = 32;
-
-/// Backend ждёт PCM16 mono 16 кГц. Плагин отдаёт более мелкие кадры, которые
-/// собираем в прежние 100-мс WS-сообщения.
 const PCM_SAMPLE_RATE: u64 = 16_000;
 const PCM_CHANNELS: u64 = 1;
 const PCM_CHUNK_BYTES: usize = PCM_SAMPLE_RATE as usize / 10 * 2;
-
 const LISTEN_STOP: &str = r#"{"type":"listen.stop"}"#;
 
 enum Outgoing {
@@ -46,6 +42,8 @@ enum Outgoing {
 }
 
 struct ActiveCall {
+    /// Команды устаревшего webview не должны попасть в новый звонок.
+    id: String,
     outgoing: mpsc::Sender<Outgoing>,
     events: Channel<Value>,
     microphone_channel_id: Option<u32>,
@@ -56,25 +54,25 @@ struct ActiveCall {
 #[derive(Default)]
 pub struct Call {
     active: Mutex<Option<ActiveCall>>,
+    /// Побеждает подключение, начатое последним, даже если handshake старого
+    /// завершился позже.
+    generation: AtomicU64,
 }
 
 impl Call {
-    /// Открывает сокет учебного звонка и начинает слушать события сервера.
     async fn connect(
         &self,
         url: String,
         token: String,
         on_event: Channel<Value>,
         on_audio: Channel<Response>,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         if !url.starts_with("ws://") && !url.starts_with("wss://") {
             return Err(format!("unsupported WebSocket URL: {url}"));
         }
 
-        // Повторное подключение закрывает прежнее, а не отказывает: React в режиме
-        // разработки монтирует эффект дважды, да и переподключение после обрыва
-        // не должно упираться в остаток мёртвого соединения.
-        self.disconnect()?;
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.close_active()?;
 
         let mut request = url
             .as_str()
@@ -90,58 +88,48 @@ impl Call {
             .await
             .map_err(|error| format!("could not connect to the backend: {error}"))?;
 
-        let (outgoing_tx, outgoing_rx) = mpsc::channel::<Outgoing>(OUTGOING_CAPACITY);
+        let (outgoing, outgoing_rx) = mpsc::channel::<Outgoing>(OUTGOING_CAPACITY);
         tauri::async_runtime::spawn(pump(socket, outgoing_rx, on_event.clone(), on_audio));
 
-        *self.active.lock().map_err(lock_error)? = Some(ActiveCall {
-            outgoing: outgoing_tx,
+        let id = generation.to_string();
+        let mut active = self.active.lock().map_err(lock_error)?;
+
+        if self.generation.load(Ordering::SeqCst) != generation {
+            return Err("this call socket has been superseded".to_owned());
+        }
+
+        *active = Some(ActiveCall {
+            id: id.clone(),
+            outgoing,
             events: on_event,
             microphone_channel_id: None,
             listening: false,
             pending_pcm: Vec::with_capacity(PCM_CHUNK_BYTES),
         });
 
-        Ok(())
+        Ok(id)
     }
 
-    /// Передаёт команду жизненного цикла звонка как есть: протокол живёт в
-    /// контрактах backend, дублировать его перечислением здесь незачем.
-    async fn send(&self, command: Value) -> Result<(), String> {
-        let sender = {
-            let guard = self.active.lock().map_err(lock_error)?;
-            let Some(active) = guard.as_ref() else {
-                return Err("the call socket is not open".to_owned());
-            };
+    async fn send(&self, connection: &str, command: Value) -> Result<(), String> {
+        let outgoing = self.sender(connection)?;
 
-            active.outgoing.clone()
-        };
-
-        sender
+        outgoing
             .send(Outgoing::Command(command.to_string()))
             .await
             .map_err(|_| "the call socket is closed".to_owned())
     }
 
-    /// Связывает Channel плагина с текущим звонком. Сами сообщения перехватывает
-    /// `channel_interceptor` до того, как Tauri отправит их в webview.
-    fn attach_microphone_channel(&self, channel_id: u32) -> Result<(), String> {
+    fn attach_microphone_channel(&self, connection: &str, channel_id: u32) -> Result<(), String> {
         let mut guard = self.active.lock().map_err(lock_error)?;
-        let active = guard
-            .as_mut()
-            .ok_or_else(|| "the call socket is not open".to_owned())?;
-
+        let active = active_for(&mut guard, connection)?;
         active.microphone_channel_id = Some(channel_id);
         Ok(())
     }
 
-    /// Оператор взял слово: открываем окно приёма аудио на backend. Микрофон
-    /// запускает frontend-команда плагина сразу после этой команды.
-    async fn listen_start(&self) -> Result<(), String> {
-        let sender = {
+    async fn listen_start(&self, connection: &str) -> Result<(), String> {
+        let outgoing = {
             let mut guard = self.active.lock().map_err(lock_error)?;
-            let Some(active) = guard.as_mut() else {
-                return Err("the call socket is not open".to_owned());
-            };
+            let active = active_for(&mut guard, connection)?;
 
             if active.listening {
                 return Err("the operator already holds the floor".to_owned());
@@ -155,15 +143,17 @@ impl Call {
             active.outgoing.clone()
         };
 
-        if sender
+        if outgoing
             .send(Outgoing::Command(
                 json!({ "type": "listen.start" }).to_string(),
             ))
             .await
             .is_err()
         {
-            if let Some(active) = self.active.lock().map_err(lock_error)?.as_mut() {
-                active.listening = false;
+            if let Ok(mut guard) = self.active.lock() {
+                if let Ok(active) = active_for(&mut guard, connection) {
+                    active.listening = false;
+                }
             }
             return Err("the call socket is closed".to_owned());
         }
@@ -171,50 +161,73 @@ impl Call {
         Ok(())
     }
 
-    /// Оператор договорил. Frontend сначала останавливает плагин, затем здесь
-    /// отправляется неполный хвост PCM и только после него `listen.stop`.
-    async fn listen_stop(&self) -> Result<(), String> {
-        let (sender, tail) = {
+    /// После остановки плагина отправляет накопленный хвост, затем listen.stop.
+    /// Порядок вызовов дополнительно сериализован в CallStream на frontend.
+    async fn listen_stop(&self, connection: &str) -> Result<(), String> {
+        let payload = {
             let mut guard = self.active.lock().map_err(lock_error)?;
             let Some(active) = guard.as_mut() else {
                 return Ok(());
             };
 
-            if !active.listening {
+            if active.id != connection || !active.listening {
                 return Ok(());
             }
 
             active.listening = false;
-            (
+            Some((
                 active.outgoing.clone(),
                 std::mem::take(&mut active.pending_pcm),
-            )
+            ))
+        };
+
+        let Some((outgoing, tail)) = payload else {
+            return Ok(());
         };
 
         if !tail.is_empty() {
-            sender
+            outgoing
                 .send(Outgoing::Pcm(tail))
                 .await
                 .map_err(|_| "the call socket is closed".to_owned())?;
         }
 
-        sender
+        outgoing
             .send(Outgoing::Command(LISTEN_STOP.to_owned()))
             .await
-            .map_err(|_| "the call socket is closed".to_owned())?;
+            .map_err(|_| "the call socket is closed".to_owned())
+    }
 
+    fn disconnect(&self, connection: &str) -> Result<(), String> {
+        let mut active = self.active.lock().map_err(lock_error)?;
+        if active
+            .as_ref()
+            .is_some_and(|current| current.id == connection)
+        {
+            active.take();
+        }
         Ok(())
     }
 
-    /// Закрывает текущее соединение: очередь исходящего уходит вместе с ним, и
-    /// поток обмена завершается сам.
-    fn disconnect(&self) -> Result<(), String> {
+    fn close_active(&self) -> Result<(), String> {
         self.active.lock().map_err(lock_error)?.take();
         Ok(())
     }
 
-    /// Перехватывает только Channel, который frontend передал system-audio plugin.
-    /// `true` говорит Tauri, что сообщение обработано и его не надо доставлять в JS.
+    fn sender(&self, connection: &str) -> Result<mpsc::Sender<Outgoing>, String> {
+        let guard = self.active.lock().map_err(lock_error)?;
+        let active = guard
+            .as_ref()
+            .ok_or_else(|| "the call socket is not open".to_owned())?;
+
+        if active.id != connection {
+            return Err("this call socket has been replaced".to_owned());
+        }
+
+        Ok(active.outgoing.clone())
+    }
+
+    /// Перехватывает только Channel, переданный system-audio plugin.
     pub fn intercept_microphone_channel(
         &self,
         callback_id: u32,
@@ -299,8 +312,6 @@ impl Call {
         active.pending_pcm.extend_from_slice(&bytes);
         while active.pending_pcm.len() >= PCM_CHUNK_BYTES {
             let chunk = active.pending_pcm.drain(..PCM_CHUNK_BYTES).collect();
-            // Channel interceptor синхронный и не должен блокировать аудиопоток.
-            // Отправляем под mutex, чтобы `listen.stop` не обогнал уже собранный чанк.
             if active.outgoing.try_send(Outgoing::Pcm(chunk)).is_err() {
                 break;
             }
@@ -326,7 +337,21 @@ impl Call {
     }
 }
 
-// Tauri commands are deliberately thin: the complete call lifecycle belongs to `Call`.
+fn active_for<'a>(
+    guard: &'a mut Option<ActiveCall>,
+    connection: &str,
+) -> Result<&'a mut ActiveCall, String> {
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "the call socket is not open".to_owned())?;
+
+    if active.id != connection {
+        return Err("this call socket has been replaced".to_owned());
+    }
+
+    Ok(active)
+}
+
 #[tauri::command]
 pub async fn call_connect(
     call: State<'_, Call>,
@@ -334,36 +359,41 @@ pub async fn call_connect(
     token: String,
     on_event: Channel<Value>,
     on_audio: Channel<Response>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     call.connect(url, token, on_event, on_audio).await
 }
 
 #[tauri::command]
-pub async fn call_send(call: State<'_, Call>, command: Value) -> Result<(), String> {
-    call.send(command).await
+pub async fn call_send(
+    call: State<'_, Call>,
+    connection: String,
+    command: Value,
+) -> Result<(), String> {
+    call.send(&connection, command).await
 }
 
 #[tauri::command]
 pub fn call_attach_microphone_channel(
     call: State<'_, Call>,
+    connection: String,
     channel_id: u32,
 ) -> Result<(), String> {
-    call.attach_microphone_channel(channel_id)
+    call.attach_microphone_channel(&connection, channel_id)
 }
 
 #[tauri::command]
-pub async fn call_listen_start(call: State<'_, Call>) -> Result<(), String> {
-    call.listen_start().await
+pub async fn call_listen_start(call: State<'_, Call>, connection: String) -> Result<(), String> {
+    call.listen_start(&connection).await
 }
 
 #[tauri::command]
-pub async fn call_listen_stop(call: State<'_, Call>) -> Result<(), String> {
-    call.listen_stop().await
+pub async fn call_listen_stop(call: State<'_, Call>, connection: String) -> Result<(), String> {
+    call.listen_stop(&connection).await
 }
 
 #[tauri::command]
-pub async fn call_disconnect(call: State<'_, Call>) -> Result<(), String> {
-    call.disconnect()
+pub fn call_disconnect(call: State<'_, Call>, connection: String) -> Result<(), String> {
+    call.disconnect(&connection)
 }
 
 type Socket =
@@ -376,8 +406,6 @@ async fn pump(
     on_audio: Channel<Response>,
 ) {
     let (mut writer, mut reader) = socket.split();
-    // Кадры до подтверждения окна сервер отбрасывает, поэтому придерживаем их
-    // здесь, а не теряем вместе с началом фразы.
     let mut listening = false;
     let mut pending: VecDeque<Vec<u8>> = VecDeque::new();
 
@@ -441,8 +469,6 @@ async fn pump(
                         }
                     }
                     Some(Ok(Message::Ping(payload))) => {
-                        // Сервер проверяет, жив ли клиент; молчание он считает
-                        // брошенным звонком и рвёт соединение.
                         if writer.send(Message::Pong(payload)).await.is_err() {
                             break;
                         }
@@ -481,12 +507,14 @@ mod tests {
         (
             Call {
                 active: Mutex::new(Some(ActiveCall {
+                    id: "1".to_owned(),
                     outgoing,
                     events,
                     microphone_channel_id: Some(channel_id),
                     listening: true,
                     pending_pcm: Vec::with_capacity(PCM_CHUNK_BYTES),
                 })),
+                generation: AtomicU64::new(1),
             },
             receiver,
         )
@@ -531,5 +559,14 @@ mod tests {
             Outgoing::Command(_) => panic!("expected PCM"),
         }
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn stale_connection_cannot_close_the_current_call() {
+        let (state, _) = active_state(7);
+
+        state.disconnect("stale").expect("disconnect succeeds");
+
+        assert!(state.active.lock().expect("state lock").is_some());
     }
 }

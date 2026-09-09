@@ -171,8 +171,12 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "socket.closed":
         setConnected(false);
-        // Звонок жил в этом соединении и вместе с ним закончился, поэтому
-        // сначала честно об этом говорим, а потом пробуем снова.
+        // Звонок жил в этом соединении и вместе с ним закончился: у нового
+        // соединения будет своя учебная сессия. Оставить окно в разговоре
+        // значило бы показывать вызов, который уже никто не примет.
+        setState((current) => (current === "idle" ? current : "ended"));
+        setListening(false);
+        setCallerSpeaking(false);
         setError("Соединение с сервером потеряно, переподключаюсь…");
         window.setTimeout(
           () => setAttempt((value) => value + 1),
@@ -189,16 +193,31 @@ export function useCall(): CallSnapshot & CallControls {
   useEffect(() => {
     if (!token) return;
 
-    const stream = callService.createStream({ onEvent: handleEvent });
+    // React в режиме разработки монтирует эффект дважды, и второе соединение
+    // вытесняет первое. Без этого флага отказ вытесненной попытки выглядел бы
+    // как обрыв связи и запускал переподключение, которое вытесняло бы уже
+    // живое соединение — вместе с идущим по нему звонком.
+    let cancelled = false;
+    const stream = callService.createStream({
+      onEvent: (event) => {
+        if (!cancelled) {
+          handleEvent(event);
+        }
+      },
+    });
     streamRef.current = stream;
 
     stream
       .connect(token)
       .then(() => {
+        if (cancelled) return;
+
         setConnected(true);
         setError(undefined);
       })
       .catch((reason: unknown) => {
+        if (cancelled) return;
+
         setError(reason instanceof Error ? reason.message : String(reason));
         window.setTimeout(
           () => setAttempt((value) => value + 1),
@@ -207,6 +226,7 @@ export function useCall(): CallSnapshot & CallControls {
       });
 
     return () => {
+      cancelled = true;
       streamRef.current = null;
       setConnected(false);
       void stream.dispose();
