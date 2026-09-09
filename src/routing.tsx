@@ -1,7 +1,6 @@
 import { Outlet, Route, Routes } from "react-router";
 
 import { RequireAuth } from "./components/auth/require-auth";
-import { VoiceTrainer } from "./components/voice-trainer";
 import { AppLayout } from "./layouts/app-layout";
 import AuthPage from "./pages/main/auth-page";
 import OperatorPage from "./pages/main/operator-page";
@@ -18,15 +17,6 @@ export function Routing() {
             element={
               <RequireAuth>
                 <OperatorPage />
-              </RequireAuth>
-            }
-          />
-          {/* Отладочный стенд голосового контура, пока он не встроен в АРМ. */}
-          <Route
-            path="/trainer"
-            element={
-              <RequireAuth>
-                <VoiceTrainer />
               </RequireAuth>
             }
           />
