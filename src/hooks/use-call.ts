@@ -52,6 +52,9 @@ export interface CallControls {
   reset: () => void;
 }
 
+/** Через сколько пробовать снова после обрыва: сокет — единственный канал. */
+const RECONNECT_DELAY_MS = 2_000;
+
 const ERROR_MESSAGES: Record<string, string> = {
   "listen-failed": "Реплику не удалось распознать, повторите",
   "pipeline-failed": "Заявитель не ответил: сбой генерации или синтеза",
@@ -85,6 +88,7 @@ export function useCall(): CallSnapshot & CallControls {
   const token = useAuthStore((state) => state.accessToken);
   const streamRef = useRef<CallStream>(null);
   const [isConnected, setConnected] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<CallState>("idle");
   const [locator, setLocator] = useState<CallLocator | null>(null);
   const [scenarioTitle, setScenarioTitle] = useState<string>();
@@ -167,6 +171,13 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "socket.closed":
         setConnected(false);
+        // Звонок жил в этом соединении и вместе с ним закончился, поэтому
+        // сначала честно об этом говорим, а потом пробуем снова.
+        setError("Соединение с сервером потеряно, переподключаюсь…");
+        window.setTimeout(
+          () => setAttempt((value) => value + 1),
+          RECONNECT_DELAY_MS,
+        );
         break;
       default:
         break;
@@ -183,17 +194,24 @@ export function useCall(): CallSnapshot & CallControls {
 
     stream
       .connect(token)
-      .then(() => setConnected(true))
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      );
+      .then(() => {
+        setConnected(true);
+        setError(undefined);
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        window.setTimeout(
+          () => setAttempt((value) => value + 1),
+          RECONNECT_DELAY_MS,
+        );
+      });
 
     return () => {
       streamRef.current = null;
       setConnected(false);
       void stream.dispose();
     };
-  }, [token, handleEvent]);
+  }, [token, attempt, handleEvent]);
 
   useEffect(() => {
     if (state !== "active" || !acceptedAt) return;
