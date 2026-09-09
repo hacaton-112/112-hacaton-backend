@@ -27,6 +27,7 @@
     "user:create": "bun --env-file=.env test/manual/create-user.ts",
     "db:generate": "drizzle-kit generate --config=drizzle/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle/drizzle.config.ts",
+    "db:seed": "bun --env-file=.env drizzle/seed/seed-scenarios.ts",
     "db:studio": "drizzle-kit studio --config=drizzle/drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts"
   },
