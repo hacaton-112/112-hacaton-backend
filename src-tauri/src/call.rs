@@ -63,9 +63,10 @@ pub async fn call_connect(
         return Err(format!("unsupported WebSocket URL: {url}"));
     }
 
-    if state.active.lock().map_err(lock_error)?.is_some() {
-        return Err("the call socket is already open".to_owned());
-    }
+    // Повторное подключение закрывает прежнее, а не отказывает: React в режиме
+    // разработки монтирует эффект дважды, да и переподключение после обрыва
+    // не должно упираться в остаток мёртвого соединения.
+    close_active(&state)?;
 
     let mut request = url
         .as_str()
@@ -170,6 +171,12 @@ pub async fn call_listen_stop(state: State<'_, CallState>) -> Result<(), String>
 
 #[tauri::command]
 pub async fn call_disconnect(state: State<'_, CallState>) -> Result<(), String> {
+    close_active(&state)
+}
+
+/// Закрывает текущее соединение: очередь исходящего уходит вместе с ним, и
+/// поток обмена завершается сам.
+fn close_active(state: &State<'_, CallState>) -> Result<(), String> {
     let active = state.active.lock().map_err(lock_error)?.take();
 
     if let Some(mut active) = active {
