@@ -25,6 +25,7 @@
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
     "smoke:auth-refresh": "bun --env-file=.env test/manual/refresh-rotation.smoke.ts",
+    "load:calls": "bun --env-file=.env test/manual/call-load.runner.ts",
     "user:create": "bun --env-file=.env test/manual/create-user.ts",
     "db:generate": "drizzle-kit generate --config=drizzle/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle/drizzle.config.ts",
