@@ -1,0 +1,2 @@
+export const CALL_RECORDING_CONFIG = Symbol("CALL_RECORDING_CONFIG");
+export const CALL_RECORDER = Symbol("CALL_RECORDER");
