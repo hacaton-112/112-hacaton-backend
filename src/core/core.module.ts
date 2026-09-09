@@ -10,6 +10,7 @@ import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { HealthModule } from "@/modules/health/health.module";
+import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
 
 import { IS_DEV_ENV } from "./config/app.config";
@@ -29,6 +30,7 @@ import { DatabaseModule } from "./database/database.module";
     HealthModule,
     AuthModule,
     AsrModule,
+    ScenarioCatalogModule,
     VoicePipelineModule,
   ],
   providers: [
