@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { IncomingMessage } from "node:http";
 
+import { Logger } from "@nestjs/common";
 import WebSocket, { type RawData } from "ws";
 
 import {
@@ -150,10 +151,11 @@ class SocketMock extends EventEmitter {
   send(
     data: Buffer | string,
     options: { binary?: boolean },
-    callback: (error?: Error) => void,
+    callback: (error?: Error | null) => void,
   ): void {
     this.sent.push({ data, binary: options.binary ?? false });
-    callback();
+    // Так зовёт колбэк сам ws при успешной отправке.
+    callback(null);
   }
 }
 
@@ -1178,6 +1180,23 @@ describe(VoicePipelineGateway.name, () => {
       expect(runtime.socket.pings).toBe(2);
     } finally {
       jest.useRealTimers();
+    }
+  });
+  it("does not call a delivered frame a failure", async () => {
+    const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    try {
+      const runtime = await createRuntime();
+
+      await runtime.gateway.handleClientMessage(
+        asSocket(runtime.socket),
+        message({ type: "speak", operatorText: "Что произошло?" }),
+        false,
+      );
+
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
     }
   });
 });

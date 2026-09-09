@@ -895,8 +895,10 @@ export class VoicePipelineGateway
     }
 
     await new Promise<void>((resolve) => {
-      client.send(data, { binary }, (error) => {
-        if (error !== undefined) {
+      // ws зовёт колбэк с null при успешной отправке, хотя тип обещает
+      // undefined: проверка на undefined считала ошибкой каждый удачный кадр.
+      client.send(data, { binary }, (error?: Error | null) => {
+        if (error) {
           this.logger.warn(
             `Failed to send a voice pipeline WebSocket frame: ${error.message}`,
           );
