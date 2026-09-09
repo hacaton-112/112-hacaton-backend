@@ -33,18 +33,9 @@ export function useAuthSession(): void {
   useEffect(() => {
     if (!isHydrated || !accessToken || user) return;
 
-    let cancelled = false;
-
-    void getCurrentUser()
-      .then((restored) => {
-        if (!cancelled) setUser(restored);
-      })
-      .catch(() => {
-        if (!cancelled) signOut();
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    // Результат кладётся в стор без оглядки на размонтирование: стор живёт
+    // дольше компонента, а отмена оставляла бы приложение на спиннере — эффект
+    // успевал отписаться раньше, чем приходил ответ, и профиль терялся.
+    void getCurrentUser().then(setUser).catch(signOut);
   }, [isHydrated, accessToken, user, setUser, signOut]);
 }
