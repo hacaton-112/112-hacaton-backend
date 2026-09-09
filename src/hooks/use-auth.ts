@@ -15,15 +15,29 @@ export function useAuthLogin() {
   });
 }
 
+export function useAuthLogout() {
+  const refreshToken = useAuthStore((state) => state.refreshToken);
+  const signOut = useAuthStore((state) => state.signOut);
+
+  return useMutation<void, ApiError>({
+    mutationFn: () =>
+      refreshToken ? authService.logout({ refreshToken }) : Promise.resolve(),
+    onSettled: signOut,
+  });
+}
+
 /**
- * Loads the persisted token and revalidates it: a token left from a previous
- * run is not trusted until the backend confirms the account still exists.
+ * Exchanges the persisted refresh token for a fresh rotated session before
+ * protected UI is rendered.
  */
 export function useAuthSession(): void {
   const isHydrated = useAuthStore((state) => state.isHydrated);
-  const accessToken = useAuthStore((state) => state.accessToken);
+  const accessTokenExpiresAt = useAuthStore(
+    (state) => state.accessTokenExpiresAt,
+  );
+  const refreshToken = useAuthStore((state) => state.refreshToken);
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
+  const signIn = useAuthStore((state) => state.signIn);
   const signOut = useAuthStore((state) => state.signOut);
 
   useEffect(() => {
@@ -31,17 +45,30 @@ export function useAuthSession(): void {
   }, [isHydrated]);
 
   const session = useQuery({
-    queryKey: ["auth", "session", accessToken],
-    queryFn: authService.getCurrentUser,
-    enabled: isHydrated && Boolean(accessToken) && !user,
+    queryKey: ["auth", "session", refreshToken],
+    queryFn: () => authService.refresh({ refreshToken: refreshToken! }),
+    enabled: isHydrated && Boolean(refreshToken) && !user,
     retry: false,
   });
 
   useEffect(() => {
-    if (session.data) setUser(session.data);
-  }, [session.data, setUser]);
+    if (session.data) signIn(session.data);
+  }, [session.data, signIn]);
 
   useEffect(() => {
     if (session.isError) signOut();
   }, [session.isError, signOut]);
+
+  useEffect(() => {
+    if (!user || !refreshToken || !accessTokenExpiresAt) return;
+
+    // Rotate one minute before access expiry so a reconnecting Rust WebSocket
+    // never starts with a stale Bearer token.
+    const delay = Math.max(accessTokenExpiresAt - Date.now() - 60_000, 0);
+    const timeout = window.setTimeout(() => {
+      void authService.refresh({ refreshToken }).then(signIn).catch(signOut);
+    }, delay);
+
+    return () => window.clearTimeout(timeout);
+  }, [accessTokenExpiresAt, refreshToken, signIn, signOut, user]);
 }

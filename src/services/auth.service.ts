@@ -4,6 +4,7 @@ import {
   AuthSessionSchema,
   type AuthUser,
   AuthUserSchema,
+  type RefreshTokenPayload,
 } from "../contracts/auth";
 import { API_CONFIG } from "../config/api";
 import { api } from "../lib/api";
@@ -22,5 +23,13 @@ export const authService = {
     const user = await api.get<unknown>(API_CONFIG.getCurrentUserUrl());
 
     return AuthUserSchema.parse(user);
+  },
+
+  async refresh(payload: RefreshTokenPayload): Promise<AuthSession> {
+    return api.refreshSession(payload.refreshToken);
+  },
+
+  async logout(payload: RefreshTokenPayload): Promise<void> {
+    await api.post<void>(API_CONFIG.getLogoutUrl(), payload);
   },
 };

@@ -8,11 +8,11 @@ import { useAuthStore } from "../../stores/auth.store";
 export function RequireAuth({ children }: { children: ReactNode }) {
   useAuthSession();
   const isHydrated = useAuthStore((state) => state.isHydrated);
-  const accessToken = useAuthStore((state) => state.accessToken);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
   const user = useAuthStore((state) => state.user);
 
-  // A persisted token is not trusted until /auth/me confirms it.
-  if (!isHydrated || (accessToken && !user)) {
+  // A persisted refresh token is rotated before protected UI is shown.
+  if (!isHydrated || (refreshToken && !user)) {
     return (
       <Flex align="center" justify="center" className="h-full">
         <Spinner size="3" />

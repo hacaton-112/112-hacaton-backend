@@ -17,7 +17,13 @@ export const AuthSessionSchema = z.object({
   accessToken: z.string().min(1),
   tokenType: z.literal("Bearer"),
   expiresIn: z.number().int().positive(),
+  refreshToken: z.string().min(1),
+  refreshExpiresIn: z.number().int().positive(),
   user: AuthUserSchema,
+});
+
+export const RefreshTokenPayloadSchema = z.object({
+  refreshToken: z.string().min(1),
 });
 
 /** Mirrors the backend login contract; messages are shown in the form. */
@@ -39,3 +45,4 @@ export type UserRole = z.infer<typeof UserRoleSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type AuthSession = z.infer<typeof AuthSessionSchema>;
 export type AuthCredentials = z.infer<typeof AuthCredentialsSchema>;
+export type RefreshTokenPayload = z.infer<typeof RefreshTokenPayloadSchema>;

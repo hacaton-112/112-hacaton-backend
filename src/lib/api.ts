@@ -6,7 +6,12 @@ import axios, {
 } from "axios";
 
 import { API_CONFIG } from "../config/api";
-import { getAccessToken } from "../stores/auth.store";
+import { AuthSessionSchema, type AuthSession } from "../contracts/auth";
+import {
+  getAccessToken,
+  getRefreshToken,
+  useAuthStore,
+} from "../stores/auth.store";
 
 interface ApiErrorPayload {
   message: string;
@@ -18,9 +23,14 @@ interface ApiErrorPayload {
 const API_ERROR_MESSAGES: Record<string, string> = {
   AUTH_LOGIN_INVALID_CREDENTIALS: "Неверный email или пароль",
   AUTH_TOKEN_INVALID: "Сессия истекла, войдите заново",
+  AUTH_REFRESH_TOKEN_INVALID: "Сессия истекла, войдите заново",
   AUTH_USER_NOT_FOUND: "Учётная запись отключена",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
+
+interface RetryableRequestConfig extends InternalAxiosRequestConfig {
+  authRetry?: boolean;
+}
 
 export class ApiError extends Error {
   readonly status?: number;
@@ -38,6 +48,7 @@ export class ApiError extends Error {
 
 class Api {
   private readonly instance: AxiosInstance;
+  private refreshRequest?: Promise<AuthSession>;
 
   constructor(baseURL: string) {
     this.instance = axios.create({
@@ -63,29 +74,68 @@ class Api {
     return config;
   }
 
-  private handleError(error: AxiosError) {
+  private async handleError(error: AxiosError) {
+    const code = this.extractCode(error.response?.data);
+    const config = error.config as RetryableRequestConfig | undefined;
+    const refreshToken = getRefreshToken();
+
+    if (
+      error.response?.status === 401 &&
+      code === "AUTH_TOKEN_INVALID" &&
+      config &&
+      !config.authRetry &&
+      refreshToken
+    ) {
+      config.authRetry = true;
+
+      try {
+        const session = await this.refreshSession(refreshToken);
+        useAuthStore.getState().signIn(session);
+        config.headers.set("Authorization", `Bearer ${session.accessToken}`);
+
+        return this.instance.request(config);
+      } catch (refreshError) {
+        useAuthStore.getState().signOut();
+
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(this.toApiError(error));
+  }
+
+  private toApiError(error: AxiosError): ApiError {
     if (!error.response) {
-      return Promise.reject(
-        new ApiError({ message: "Нет соединения с сервером" }),
-      );
+      return new ApiError({ message: "Нет соединения с сервером" });
     }
 
     const { status, data } = error.response;
     const code = this.extractCode(data);
-    return Promise.reject(
-      new ApiError({
-        message:
-          (code && API_ERROR_MESSAGES[code]) ??
-          (status === 429
-            ? "Слишком много запросов. Попробуйте через минуту"
-            : undefined) ??
-          this.extractMessage(data) ??
-          "Сервер не смог выполнить запрос",
-        status,
-        code,
-        details: data,
-      }),
-    );
+
+    return new ApiError({
+      message:
+        (code && API_ERROR_MESSAGES[code]) ??
+        (status === 429
+          ? "Слишком много запросов. Попробуйте через минуту"
+          : undefined) ??
+        this.extractMessage(data) ??
+        "Сервер не смог выполнить запрос",
+      status,
+      code,
+      details: data,
+    });
+  }
+
+  /** Rotates a refresh token with single-flight protection for concurrent 401s. */
+  refreshSession(refreshToken: string): Promise<AuthSession> {
+    this.refreshRequest ??= this.instance
+      .post<unknown>(API_CONFIG.getRefreshUrl(), { refreshToken })
+      .then((response) => AuthSessionSchema.parse(response.data))
+      .finally(() => {
+        this.refreshRequest = undefined;
+      });
+
+    return this.refreshRequest;
   }
 
   private extractMessage(data: unknown): string | undefined {
