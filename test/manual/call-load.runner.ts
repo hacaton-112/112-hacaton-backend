@@ -31,7 +31,6 @@ const FRAME_MS = 100;
 const SAMPLE_RATE = 16_000;
 const BYTES_PER_SAMPLE = 2;
 const FRAME_BYTES = (SAMPLE_RATE * BYTES_PER_SAMPLE * FRAME_MS) / 1_000;
-const WAV_HEADER_BYTES = 44;
 
 interface Options {
   api: string;
@@ -75,23 +74,63 @@ const parseOptions = (argv: readonly string[]): Options => {
 };
 
 /**
- * Читает WAV и отдаёт голые отсчёты. Формат проверяется строго: молча
- * отправленный стереофайл дал бы вдвое более быструю речь и неверные цифры.
+ * Читает WAV и отдаёт голые отсчёты.
+ *
+ * Заголовок разбирается по чанкам, а не по фиксированным смещениям: записи из
+ * реальных программ несут перед `fmt ` служебные чанки, и разбор «по адресу 22»
+ * читал бы на их месте мусор. Формат проверяется строго — молча отправленный
+ * стереофайл дал бы вдвое более быструю речь и неверные цифры.
  */
 const readPcm = async (path: string): Promise<Uint8Array> => {
   const file = await readFile(path);
   const view = new DataView(file.buffer, file.byteOffset, file.byteLength);
-  const channels = view.getUint16(22, true);
-  const sampleRate = view.getUint32(24, true);
-  const bitsPerSample = view.getUint16(34, true);
+  const ascii = (offset: number): string =>
+    String.fromCharCode(...file.subarray(offset, offset + 4));
 
-  if (channels !== 1 || sampleRate !== SAMPLE_RATE || bitsPerSample !== 16) {
-    throw new Error(
-      `${path}: expected mono PCM16 at ${SAMPLE_RATE} Hz, got ${channels}ch ${sampleRate}Hz ${bitsPerSample}bit`,
-    );
+  if (ascii(0) !== "RIFF" || ascii(8) !== "WAVE") {
+    throw new Error(`${path}: not a WAV file`);
   }
 
-  return new Uint8Array(file.subarray(WAV_HEADER_BYTES));
+  let format: { channels: number; sampleRate: number; bits: number } | null =
+    null;
+  let offset = 12;
+
+  while (offset + 8 <= file.byteLength) {
+    const chunk = ascii(offset);
+    const size = view.getUint32(offset + 4, true);
+    const body = offset + 8;
+
+    if (chunk === "fmt ") {
+      format = {
+        channels: view.getUint16(body + 2, true),
+        sampleRate: view.getUint32(body + 4, true),
+        bits: view.getUint16(body + 14, true),
+      };
+    }
+
+    if (chunk === "data") {
+      if (format === null) {
+        throw new Error(`${path}: the data chunk comes before the format`);
+      }
+
+      if (
+        format.channels !== 1 ||
+        format.sampleRate !== SAMPLE_RATE ||
+        format.bits !== 16
+      ) {
+        throw new Error(
+          `${path}: expected mono PCM16 at ${SAMPLE_RATE} Hz, got ${format.channels}ch ${format.sampleRate}Hz ${format.bits}bit`,
+        );
+      }
+
+      return new Uint8Array(file.subarray(body, body + size));
+    }
+
+    // Размер чанка выравнивается до чётного, сам он это в себя не включает.
+    offset = body + size + (size % 2);
+  }
+
+  throw new Error(`${path}: the file carries no audio`);
 };
 
 /** Ровная синтетическая речь на случай, когда файла под рукой нет. */
