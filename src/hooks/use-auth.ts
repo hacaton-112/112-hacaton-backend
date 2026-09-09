@@ -1,16 +1,16 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import type { AuthCredentials, AuthSession } from "../contracts/auth";
 import type { ApiError } from "../lib/api";
-import { getCurrentUser, login } from "../services/auth.service";
+import { authService } from "../services/auth.service";
 import { hydrateAuthStore, useAuthStore } from "../stores/auth.store";
 
 export function useAuthLogin() {
   const signIn = useAuthStore((state) => state.signIn);
 
   return useMutation<AuthSession, ApiError, AuthCredentials>({
-    mutationFn: login,
+    mutationFn: authService.login,
     onSuccess: signIn,
   });
 }
@@ -30,12 +30,18 @@ export function useAuthSession(): void {
     if (!isHydrated) void hydrateAuthStore();
   }, [isHydrated]);
 
-  useEffect(() => {
-    if (!isHydrated || !accessToken || user) return;
+  const session = useQuery({
+    queryKey: ["auth", "session", accessToken],
+    queryFn: authService.getCurrentUser,
+    enabled: isHydrated && Boolean(accessToken) && !user,
+    retry: false,
+  });
 
-    // Результат кладётся в стор без оглядки на размонтирование: стор живёт
-    // дольше компонента, а отмена оставляла бы приложение на спиннере — эффект
-    // успевал отписаться раньше, чем приходил ответ, и профиль терялся.
-    void getCurrentUser().then(setUser).catch(signOut);
-  }, [isHydrated, accessToken, user, setUser, signOut]);
+  useEffect(() => {
+    if (session.data) setUser(session.data);
+  }, [session.data, setUser]);
+
+  useEffect(() => {
+    if (session.isError) signOut();
+  }, [session.isError, signOut]);
 }

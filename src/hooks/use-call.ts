@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { IncidentLocation } from "../components/map/incident-map";
 import type { CallLocator, CallServerEvent } from "../contracts/call";
-import { CallStream } from "../services/call.service";
+import { callService, type CallStream } from "../services/call.service";
 import { useAuthStore } from "../stores/auth.store";
 import { useMapWindowStore } from "../stores/map-window.store";
 
@@ -189,7 +189,7 @@ export function useCall(): CallSnapshot & CallControls {
   useEffect(() => {
     if (!token) return;
 
-    const stream = new CallStream({ onEvent: handleEvent });
+    const stream = callService.createStream({ onEvent: handleEvent });
     streamRef.current = stream;
 
     stream

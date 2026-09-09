@@ -1,18 +1,18 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 
-import { ApiRoutes } from "../config/api";
-import { CallServerEventSchema, type CallServerEvent } from "../contracts/call";
+import { API_CONFIG } from "../config/api";
+import {
+  CallServerEventSchema,
+  type CallClientCommand,
+  type CallServerEvent,
+} from "../contracts/call";
+import { ipc } from "../lib/ipc";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
   /** Протокол разошёлся с клиентом; звонок при этом продолжается. */
   onUnknownEvent?: (payload: unknown) => void;
 }
-
-const toError = (reason: unknown): Error =>
-  reason instanceof Error
-    ? reason
-    : new Error(typeof reason === "string" ? reason : String(reason));
 
 /**
  * Учебный звонок: команды вниз, события вверх.
@@ -21,7 +21,18 @@ const toError = (reason: unknown): Error =>
  * а речь оператора не должна ходить через IPC. Здесь остаётся то, ради чего
  * нужен webview: разбор событий и проигрывание голоса заявителя.
  */
-export class CallStream {
+export interface CallStream {
+  connect(token: string): Promise<void>;
+  start(scenarioVersionId: string): Promise<void>;
+  accept(): Promise<void>;
+  decline(): Promise<void>;
+  end(): Promise<void>;
+  holdFloor(): Promise<void>;
+  releaseFloor(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+class NativeCallStream implements CallStream {
   private readonly callbacks: CallStreamCallbacks;
   private audioContext?: AudioContext;
   private nextStartTime = 0;
@@ -40,14 +51,14 @@ export class CallStream {
     audio.onmessage = (chunk) => this.playPcmChunk(chunk);
 
     try {
-      await invoke("call_connect", {
-        url: ApiRoutes.voicePipeline.stream,
+      await ipc.call.connect({
+        url: API_CONFIG.getVoicePipelineStreamUrl(),
         token,
         onEvent: events,
         onAudio: audio,
       });
     } catch (reason) {
-      throw toError(reason);
+      throw this.toError(reason);
     }
 
     this.connected = true;
@@ -71,29 +82,47 @@ export class CallStream {
 
   /** Оператор взял слово: микрофон открывает нативная сторона. */
   async holdFloor(): Promise<void> {
-    await invoke("call_listen_start").catch((reason: unknown) => {
-      throw toError(reason);
-    });
+    const microphone = new Channel<unknown>();
+
+    // Плагину нужен Channel, но его PCM перехватывается в Rust до webview.
+    // Пустой обработчик остаётся только запасным путём для позднего события.
+    microphone.onmessage = () => undefined;
+
+    try {
+      await ipc.call.attachMicrophoneChannel(microphone.id);
+      await ipc.call.startListening();
+      await ipc.systemAudio.start(microphone, {
+        loopback: false,
+        processing: false,
+        levelOnly: false,
+      });
+    } catch (reason) {
+      await ipc.systemAudio.stop().catch(() => undefined);
+      await ipc.call.stopListening().catch(() => undefined);
+      throw this.toError(reason);
+    }
   }
 
   async releaseFloor(): Promise<void> {
-    await invoke("call_listen_stop").catch(() => undefined);
+    await ipc.systemAudio.stop().catch(() => undefined);
+    await ipc.call.stopListening().catch(() => undefined);
   }
 
   async dispose(): Promise<void> {
     this.connected = false;
-    await invoke("call_disconnect").catch(() => undefined);
+    await ipc.systemAudio.stop().catch(() => undefined);
+    await ipc.call.disconnect().catch(() => undefined);
     await this.audioContext?.close().catch(() => undefined);
     this.audioContext = undefined;
   }
 
-  private async send(command: Record<string, unknown>): Promise<void> {
+  private async send(command: CallClientCommand): Promise<void> {
     if (!this.connected) {
       throw new Error("Соединение со звонком не открыто");
     }
 
-    await invoke("call_send", { command }).catch((reason: unknown) => {
-      throw toError(reason);
+    await ipc.call.send(command).catch((reason: unknown) => {
+      throw this.toError(reason);
     });
   }
 
@@ -147,4 +176,15 @@ export class CallStream {
     source.start(startAt);
     this.nextStartTime = startAt + audioBuffer.duration;
   }
+
+  private toError = (reason: unknown): Error =>
+    reason instanceof Error
+      ? reason
+      : new Error(typeof reason === "string" ? reason : String(reason));
 }
+
+export const callService = {
+  createStream(callbacks: CallStreamCallbacks): CallStream {
+    return new NativeCallStream(callbacks);
+  },
+};

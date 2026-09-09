@@ -8,7 +8,6 @@ import {
   AuthCredentialsSchema,
 } from "../../contracts/auth";
 import { useAuthLogin } from "../../hooks/use-auth";
-import { authErrorMessage } from "../../services/auth.service";
 import { FormField } from "./form-field";
 import { PasswordField } from "./password-field";
 
@@ -34,7 +33,7 @@ export function AuthForm() {
             <Callout.Icon>
               <CircleAlert size={16} aria-hidden />
             </Callout.Icon>
-            <Callout.Text>{authErrorMessage(error)}</Callout.Text>
+            <Callout.Text>{error.message}</Callout.Text>
           </Callout.Root>
         )}
 
