@@ -23,6 +23,25 @@ export const VoicePipelineSpeakCommandSchema = z
   })
   .strict();
 
+/**
+ * Оператор взял слово: дальше по этому же сокету идут двоичные кадры PCM.
+ *
+ * Речь идёт через backend, а не напрямую в сервис распознавания, потому что
+ * ход звонка и запись разговора живут здесь: клиент, ходивший в распознавание
+ * сам, оставлял бы сервер без половины разговора.
+ */
+export const VoicePipelineListenStartCommandSchema = z
+  .object({
+    type: z.literal("listen.start"),
+  })
+  .strict();
+
+export const VoicePipelineListenStopCommandSchema = z
+  .object({
+    type: z.literal("listen.stop"),
+  })
+  .strict();
+
 export const VoicePipelineCancelCommandSchema = z
   .object({
     type: z.literal("cancel"),
@@ -58,6 +77,8 @@ export const VoicePipelineClientCommandSchema = z.discriminatedUnion("type", [
   VoicePipelineDeclineCommandSchema,
   VoicePipelineEndCommandSchema,
   VoicePipelineSpeakCommandSchema,
+  VoicePipelineListenStartCommandSchema,
+  VoicePipelineListenStopCommandSchema,
   VoicePipelineCancelCommandSchema,
 ]);
 
@@ -132,6 +153,37 @@ export const VoicePipelineCallEndedEventSchema = z
   })
   .strict();
 
+/**
+ * Подтверждение, что сервер слушает, и формат, в котором он ждёт кадры.
+ * Промежуточных расшифровок оператор не получает: он работает на слух, а
+ * текст, который мигает и переписывает сам себя, только отвлекает.
+ */
+export const VoicePipelineListenStartedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("listen.started"),
+    streamId: AiIdentifierSchema,
+    sampleRate: AudioSampleRateSchema,
+    channels: z.literal(1),
+    format: AudioFormatSchema,
+  })
+  .strict();
+
+/**
+ * Что сервер расслышал. Пустая строка значит, что реплики не получилось —
+ * ход звонка тогда не делается.
+ */
+export const VoicePipelineListenStoppedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("listen.stopped"),
+    streamId: AiIdentifierSchema,
+    transcript: z.string().max(4_000),
+    audioMs: z.number().nonnegative(),
+    processingMs: z.number().nonnegative(),
+  })
+  .strict();
+
 export const VoicePipelineReplyTextEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
@@ -179,6 +231,8 @@ export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "pipeline-failed",
   // Команда пришла не вовремя: например, speak до приёма вызова.
   "call-state-invalid",
+  // Реплика оператора потеряна на распознавании: её нужно повторить.
+  "listen-failed",
 ]);
 
 export const VoicePipelineSocketErrorEventSchema = z
@@ -196,6 +250,8 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
   VoicePipelineCallAcceptedEventSchema,
   VoicePipelineCallStateEventSchema,
   VoicePipelineCallEndedEventSchema,
+  VoicePipelineListenStartedEventSchema,
+  VoicePipelineListenStoppedEventSchema,
   VoicePipelineReplyTextEventSchema,
   VoicePipelineAudioStartEventSchema,
   VoicePipelineAudioDoneEventSchema,
@@ -211,6 +267,12 @@ export type VoicePipelineSpeakCommand = z.infer<
 >;
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;
+export type VoicePipelineListenStartedEvent = z.infer<
+  typeof VoicePipelineListenStartedEventSchema
+>;
+export type VoicePipelineListenStoppedEvent = z.infer<
+  typeof VoicePipelineListenStoppedEventSchema
+>;
 export type VoicePipelineCancelCommand = z.infer<
   typeof VoicePipelineCancelCommandSchema
 >;

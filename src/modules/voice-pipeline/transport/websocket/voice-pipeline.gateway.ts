@@ -550,6 +550,7 @@ export class VoicePipelineGateway
       "context-unavailable": "Voice pipeline context is unavailable",
       "pipeline-failed": "Voice pipeline request failed",
       "call-state-invalid": "The call is not in a state that allows this",
+      "listen-failed": "The operator utterance was not recognised",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
     await this.sendEvent(client, state, {
