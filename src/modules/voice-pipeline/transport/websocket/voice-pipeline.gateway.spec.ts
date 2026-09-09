@@ -130,6 +130,17 @@ class SocketMock extends EventEmitter {
   public readyState: number = WebSocket.OPEN;
   public readonly sent: Array<{ binary: boolean; data: Buffer | string }> = [];
   public readonly closed: Array<{ code: number; reason: string }> = [];
+  public pings = 0;
+  public terminated = false;
+
+  ping(): void {
+    this.pings += 1;
+  }
+
+  terminate(): void {
+    this.terminated = true;
+    this.readyState = WebSocket.CLOSED;
+  }
 
   close(code: number, reason: string): void {
     this.closed.push({ code, reason });
@@ -1135,5 +1146,38 @@ describe(VoicePipelineGateway.name, () => {
     runtime.gateway.handleDisconnect(asSocket(runtime.socket));
 
     expect(runtime.recorder.finishCall).toHaveBeenCalledTimes(1);
+  });
+  it("drops a client that stopped answering", async () => {
+    jest.useFakeTimers();
+
+    try {
+      const runtime = await createRuntime();
+
+      jest.advanceTimersByTime(15_000);
+      expect(runtime.socket.pings).toBe(1);
+
+      // Ответа на ping не было: соединение брошено.
+      jest.advanceTimersByTime(15_000);
+      expect(runtime.socket.terminated).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps a client that answers the heartbeat", async () => {
+    jest.useFakeTimers();
+
+    try {
+      const runtime = await createRuntime();
+
+      jest.advanceTimersByTime(15_000);
+      runtime.socket.emit("pong");
+      jest.advanceTimersByTime(15_000);
+
+      expect(runtime.socket.terminated).toBe(false);
+      expect(runtime.socket.pings).toBe(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -46,6 +46,12 @@ const MAX_COMMAND_BYTES = 16_384;
  * пользы для слуха оператора.
  */
 const TICK_INTERVAL_MS = 1_000;
+/**
+ * Как часто спрашиваем клиента, жив ли он. Оборванный без закрытия сокет
+ * остаётся `OPEN` до тех пор, пока это не заметит TCP, а звонок всё это время
+ * идёт: тикает время, копится паника и тратится квота на генерацию.
+ */
+const HEARTBEAT_INTERVAL_MS = 15_000;
 /** Учебные звонки идут по-русски: распознавание не гадает язык по звуку. */
 const OPERATOR_LANGUAGE = "ru";
 /** Формат, в котором клиент шлёт кадры: тот же, что принимает распознавание. */
@@ -79,6 +85,9 @@ interface ConnectionState {
   sessionId: string;
   callStarted: boolean;
   timer: NodeJS.Timeout | null;
+  heartbeat: NodeJS.Timeout | null;
+  /** Ответил ли клиент на прошлый ping. */
+  alive: boolean;
   /** Последний отправленный снимок: событие идёт только при изменении. */
   lastSnapshotKey: string | null;
   listening: ListeningStream | null;
@@ -141,6 +150,8 @@ export class VoicePipelineGateway
       sessionId: generateId(),
       callStarted: false,
       timer: null,
+      heartbeat: null,
+      alive: true,
       lastSnapshotKey: null,
       listening: null,
       strayAudioWarned: false,
@@ -150,6 +161,43 @@ export class VoicePipelineGateway
     client.on("message", (data, isBinary) => {
       void this.handleClientMessage(client, data, isBinary);
     });
+
+    this.startHeartbeat(client);
+  }
+
+  /**
+   * Клиент, переставший отвечать, отключается сам.
+   *
+   * Иначе брошенный сокет держал бы за собой поток распознавания, открытый
+   * кусок записи и секундный таймер, который продолжал бы вести звонок в
+   * пустоту.
+   */
+  private startHeartbeat(client: WebSocket): void {
+    const state = this.connections.get(client);
+
+    if (state === undefined) {
+      return;
+    }
+
+    client.on("pong", () => {
+      state.alive = true;
+    });
+
+    state.heartbeat = setInterval(() => {
+      if (!state.alive) {
+        this.logger.warn(
+          `Dropped an unresponsive client of session ${state.sessionId}`,
+        );
+        client.terminate();
+
+        return;
+      }
+
+      state.alive = false;
+      client.ping();
+    }, HEARTBEAT_INTERVAL_MS);
+    // Таймер не должен сам по себе держать процесс живым.
+    state.heartbeat.unref();
   }
 
   handleDisconnect(client: WebSocket): void {
@@ -159,6 +207,11 @@ export class VoicePipelineGateway
       this.stopTicking(state);
       this.abortListening(state);
       this.recorder.finishCall(state.sessionId);
+
+      if (state.heartbeat !== null) {
+        clearInterval(state.heartbeat);
+        state.heartbeat = null;
+      }
     }
 
     state?.activeRequest?.controller.abort(
@@ -177,6 +230,7 @@ export class VoicePipelineGateway
     state.timer = setInterval(() => {
       void this.advanceCall(client);
     }, TICK_INTERVAL_MS);
+    state.timer.unref();
   }
 
   private stopTicking(state: ConnectionState): void {
@@ -843,7 +897,9 @@ export class VoicePipelineGateway
     await new Promise<void>((resolve) => {
       client.send(data, { binary }, (error) => {
         if (error !== undefined) {
-          this.logger.warn("Failed to send a voice pipeline WebSocket frame");
+          this.logger.warn(
+            `Failed to send a voice pipeline WebSocket frame: ${error.message}`,
+          );
         }
         resolve();
       });
