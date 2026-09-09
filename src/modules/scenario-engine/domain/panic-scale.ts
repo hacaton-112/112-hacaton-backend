@@ -123,6 +123,14 @@ export interface EscalationRule {
   readonly trigger: EscalationTrigger;
   readonly direction: EscalationDirection;
   readonly cooldownSeconds: number;
+  /** Для фраз оператора: `calming_phrase`, `forbidden_phrase`. */
+  readonly keywords?: readonly string[];
+  /** Для `operator_silence`: сколько секунд молчания считать поводом. */
+  readonly seconds?: number;
+  /** Для `norm_time_elapsed`: доля норматива приёма вызова. */
+  readonly fraction?: number;
+  /** Для `question_repeated`: сколько повторов терпит заявитель. */
+  readonly times?: number;
 }
 
 export interface PanicTransition {

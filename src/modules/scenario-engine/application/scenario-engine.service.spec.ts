@@ -1,0 +1,520 @@
+import type { CallerReply } from "@/contracts";
+
+import { ScenarioEngineError } from "../domain/scenario-engine.error";
+import type {
+  CallStateSnapshot,
+  ScenarioStore,
+  ScenarioVersionSnapshot,
+} from "../ports/scenario-store.port";
+import { ScenarioEngineService } from "./scenario-engine.service";
+
+const NOW = new Date("2026-09-08T10:00:00.000Z");
+const secondsAfter = (seconds: number): Date =>
+  new Date(NOW.getTime() + seconds * 1_000);
+
+const version = (
+  overrides: Partial<ScenarioVersionSnapshot> = {},
+): ScenarioVersionSnapshot => ({
+  id: "version-1",
+  scenarioCode: "S-015",
+  title: "Пожар в жилом доме",
+  category: "fire",
+  difficulty: 3,
+  isPublished: true,
+  panicFloor: 1,
+  panicCeiling: 4,
+  maxInterruptions: 3,
+  initiativeCooldownSeconds: 12,
+  answerNormSeconds: 240,
+  passThreshold: 75,
+  expectedServices: ["fire"],
+  openingLine: "Горит квартира!",
+  fallbackLine: "Повторите, вас плохо слышно.",
+  persona: {
+    displayName: "Мужчина, 34 года",
+    ageYears: 34,
+    condition: "Волнение, быстрая речь",
+    speechStyle: "Говорит рублеными фразами.",
+    backgroundSounds: "Двор, крики",
+    voiceId: "Vivian",
+    baselinePanicLevel: 2,
+    baseSpeechRate: 1,
+  },
+  facts: [
+    {
+      key: "incident_type",
+      promptValue: "Горит квартира на пятом этаже.",
+      severity: "normal",
+      disclosure: { type: "immediate" },
+      priority: 5,
+      orderIndex: 0,
+    },
+    {
+      key: "address_street",
+      promptValue: "Улица Учебная, дом 12.",
+      severity: "normal",
+      disclosure: { type: "on_question", keywords: ["адрес", "улиц"] },
+      priority: 3,
+      orderIndex: 1,
+    },
+    {
+      key: "trapped_children",
+      promptValue: "В квартире двое детей.",
+      severity: "heavy",
+      disclosure: { type: "immediate" },
+      priority: 1,
+      orderIndex: 2,
+    },
+  ],
+  escalationRules: [
+    {
+      trigger: "operator_silence",
+      direction: "up",
+      cooldownSeconds: 10,
+      seconds: 8,
+    },
+    { trigger: "heavy_fact_revealed", direction: "up", cooldownSeconds: 0 },
+    {
+      trigger: "calming_phrase",
+      direction: "down",
+      cooldownSeconds: 0,
+      keywords: ["помощь уже", "я вас слышу"],
+    },
+  ],
+  mandatoryQuestions: [
+    {
+      orderIndex: 0,
+      text: "Точный адрес",
+      satisfiedByFactKeys: ["address_street"],
+      isCritical: true,
+    },
+    {
+      orderIndex: 1,
+      text: "Есть ли люди внутри",
+      satisfiedByFactKeys: ["trapped_children"],
+      isCritical: true,
+    },
+  ],
+  locator: {
+    centerLat: 55.75201,
+    centerLon: 37.6159,
+    radiusMeters: 300,
+    label: "Мобильный · базовая станция СЗАО",
+    accuracy: "identified",
+    callerNumber: "+7 916 000-00-00",
+    previouslyCalled: false,
+  },
+  ...overrides,
+});
+
+const callState = (
+  overrides: Partial<CallStateSnapshot> = {},
+): CallStateSnapshot => ({
+  trainingSessionId: "session-1",
+  scenarioVersionId: "version-1",
+  stage: "conversation",
+  panicLevel: 2,
+  panicChangedAt: null,
+  rngSeed: "seed-1",
+  interruptionsUsed: 0,
+  lastInitiativeAt: null,
+  operatorSilenceSince: NOW,
+  revealedFactKeys: [],
+  callerTurns: 0,
+  offeredAt: NOW,
+  answeredAt: NOW,
+  endedAt: null,
+  lastSequence: 3,
+  ...overrides,
+});
+
+interface StoreMocks {
+  loadVersion: jest.Mock;
+  loadCall: jest.Mock;
+  startCall: jest.Mock;
+  appendTurn: jest.Mock;
+}
+
+const createEngine = (
+  overrides: Partial<StoreMocks> = {},
+): { engine: ScenarioEngineService; store: StoreMocks } => {
+  const store: StoreMocks = {
+    loadVersion: jest.fn().mockResolvedValue(version()),
+    loadCall: jest.fn().mockResolvedValue(callState()),
+    startCall: jest.fn().mockResolvedValue("applied"),
+    appendTurn: jest.fn().mockResolvedValue("applied"),
+    ...overrides,
+  };
+
+  return {
+    engine: new ScenarioEngineService(store as unknown as ScenarioStore),
+    store,
+  };
+};
+
+const reply = (overrides: Partial<CallerReply> = {}): CallerReply => ({
+  text: "Горит квартира!",
+  emotion: "panic",
+  intensity: 0.8,
+  speechRate: 1.2,
+  revealedFactIds: [],
+  endCall: false,
+  ...overrides,
+});
+
+const eventTypes = (store: StoreMocks, call = 0): string[] =>
+  (store.appendTurn.mock.calls[call]?.[2] as { type: string }[]).map(
+    (event) => event.type,
+  );
+
+const patchOf = (store: StoreMocks, call = 0): Record<string, unknown> =>
+  store.appendTurn.mock.calls[call]?.[3] as Record<string, unknown>;
+
+describe(`${ScenarioEngineService.name} startCall`, () => {
+  it("opens the call at the persona baseline, clamped to the scenario floor", async () => {
+    const { engine, store } = createEngine({
+      loadVersion: jest
+        .fn()
+        .mockResolvedValue(version({ panicFloor: 3, panicCeiling: 4 })),
+    });
+
+    const snapshot = await engine.startCall({
+      trainingSessionId: "session-1",
+      scenarioVersionId: "version-1",
+      eventId: "event-1",
+      now: NOW,
+    });
+
+    expect(snapshot.stage).toBe("offered");
+    expect(snapshot.panicLevel).toBe(3);
+    expect(store.startCall).toHaveBeenCalled();
+  });
+
+  it("refuses to start a version that is not published", async () => {
+    const { engine, store } = createEngine({
+      loadVersion: jest.fn().mockResolvedValue(version({ isPublished: false })),
+    });
+
+    await expect(
+      engine.startCall({
+        trainingSessionId: "session-1",
+        scenarioVersionId: "version-1",
+        eventId: "event-1",
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "scenario-version-not-published" });
+
+    expect(store.startCall).not.toHaveBeenCalled();
+  });
+
+  it("hands the operator an area, never the exact address", async () => {
+    const { engine } = createEngine();
+
+    const snapshot = await engine.startCall({
+      trainingSessionId: "session-1",
+      scenarioVersionId: "version-1",
+      eventId: "event-1",
+      now: NOW,
+    });
+
+    expect(snapshot.locator?.radiusMeters).toBe(300);
+    expect(JSON.stringify(snapshot)).not.toContain("Учебная");
+  });
+});
+
+describe(`${ScenarioEngineService.name} stage transitions`, () => {
+  it("answers an offered call and returns the scripted opening line", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    const snapshot = await engine.acceptCall({
+      trainingSessionId: "session-1",
+      eventId: "event-2",
+      now: NOW,
+    });
+
+    expect(snapshot.stage).toBe("conversation");
+    expect(snapshot.openingLine).toBe("Горит квартира!");
+    expect(eventTypes(store)).toEqual(["call.accepted", "stage.changed"]);
+  });
+
+  it("refuses to answer a call that is already in conversation", async () => {
+    const { engine } = createEngine();
+
+    await expect(
+      engine.acceptCall({
+        trainingSessionId: "session-1",
+        eventId: "event-2",
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "call-stage-forbidden" });
+  });
+
+  it("refuses any command once the call has ended", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "ended" })),
+    });
+
+    await expect(
+      engine.applyCallerReply({
+        trainingSessionId: "session-1",
+        eventId: "event-3",
+        operatorText: "Что случилось?",
+        reply: reply(),
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "call-not-active" });
+  });
+});
+
+describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
+  it("passes only the facts the caller may reveal this turn", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что случилось?",
+    });
+
+    // Second step allows two new facts, and the address is still behind a
+    // question the operator has not asked.
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "incident_type",
+      "trapped_children",
+    ]);
+  });
+
+  it("opens a question fact once the operator asks for it", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toContain(
+      "address_street",
+    );
+  });
+
+  it("narrows the turn to a single fact when the caller is panicking", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+
+    expect(built.context.allowedFacts).toHaveLength(1);
+  });
+
+  it("describes the state in words rather than as a number", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что случилось?",
+    });
+
+    expect(built.context.persona.description).toContain("взвинчен");
+    expect(built.context.persona.description).not.toContain("2");
+  });
+});
+
+describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
+  it("records the revealed fact and advances the checklist", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Что случилось?",
+      reply: reply({ revealedFactIds: ["incident_type"] }),
+      now: NOW,
+    });
+
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.revealed",
+    ]);
+    expect(snapshot.revealedFactKeys).toEqual(["incident_type"]);
+    expect(snapshot.checklistTotal).toBe(2);
+    expect(snapshot.checklistSatisfied).toBe(0);
+  });
+
+  it("rejects a reply that reveals a fact the scenario did not allow", async () => {
+    const { engine, store } = createEngine();
+
+    await expect(
+      engine.applyCallerReply({
+        trainingSessionId: "session-1",
+        eventId: "event-3",
+        operatorText: "Что случилось?",
+        reply: reply({ revealedFactIds: ["address_street"] }),
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(ScenarioEngineError);
+
+    // The attempt is journalled as a prompt-quality signal, and nothing about
+    // the call state moves.
+    expect(eventTypes(store)).toEqual(["fact.rejected"]);
+    expect(patchOf(store)).toEqual({});
+  });
+
+  it("raises the step once when a heavy fact is spoken aloud", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Есть ли кто внутри?",
+      reply: reply({ revealedFactIds: ["trapped_children"] }),
+      now: NOW,
+    });
+
+    expect(snapshot.panicLevel).toBe(3);
+    expect(eventTypes(store)).toContain("panic.changed");
+  });
+
+  it("does not raise the step again when the same fact is repeated", async () => {
+    const { engine } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(
+          callState({ revealedFactKeys: ["trapped_children"] }),
+        ),
+    });
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-4",
+      operatorText: "Повторите про детей",
+      reply: reply({ revealedFactIds: ["trapped_children"] }),
+      now: NOW,
+    });
+
+    expect(snapshot.panicLevel).toBe(2);
+  });
+
+  it("lets a calming phrase bring the caller down a step", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 3 })),
+    });
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Помощь уже выехала, я вас слышу",
+      reply: reply(),
+      now: NOW,
+    });
+
+    expect(snapshot.panicLevel).toBe(2);
+  });
+
+  it("never drops below the floor the scenario sets", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 1 })),
+    });
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Помощь уже выехала",
+      reply: reply(),
+      now: NOW,
+    });
+
+    expect(snapshot.panicLevel).toBe(1);
+  });
+});
+
+describe(`${ScenarioEngineService.name} tick`, () => {
+  it("does nothing while the operator keeps talking", async () => {
+    const { engine, store } = createEngine();
+
+    await expect(
+      engine.tick({ trainingSessionId: "session-1", now: secondsAfter(2) }),
+    ).resolves.toEqual([]);
+
+    expect(store.appendTurn).not.toHaveBeenCalled();
+  });
+
+  it("raises the step after the silence the scenario tolerates", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.tick({ trainingSessionId: "session-1", now: secondsAfter(9) });
+
+    expect(eventTypes(store)).toEqual(["panic.changed"]);
+    expect(patchOf(store)).toMatchObject({ panicLevel: 3 });
+  });
+
+  it("offers an initiative line once the caller stops waiting", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 3 })),
+    });
+
+    const directives = await engine.tick({
+      trainingSessionId: "session-1",
+      now: secondsAfter(5),
+    });
+
+    expect(directives).toEqual([
+      { type: "caller.initiative", reason: "operator-silence" },
+    ]);
+  });
+
+  it("holds the initiative back until the cooldown passes", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          panicLevel: 3,
+          lastInitiativeAt: secondsAfter(1),
+        }),
+      ),
+    });
+
+    await expect(
+      engine.tick({ trainingSessionId: "session-1", now: secondsAfter(6) }),
+    ).resolves.toEqual([]);
+  });
+
+  it("stays quiet on a call that is not in conversation", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    await expect(
+      engine.tick({ trainingSessionId: "session-1", now: secondsAfter(60) }),
+    ).resolves.toEqual([]);
+  });
+});
+
+describe(`${ScenarioEngineService.name} endCall`, () => {
+  it("closes the call and keeps what was collected", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(
+          callState({
+            revealedFactKeys: ["address_street", "trapped_children"],
+          }),
+        ),
+    });
+
+    const snapshot = await engine.endCall({
+      trainingSessionId: "session-1",
+      eventId: "event-9",
+      reason: "operator",
+      now: NOW,
+    });
+
+    expect(snapshot.stage).toBe("ended");
+    expect(snapshot.checklistSatisfied).toBe(2);
+    expect(eventTypes(store)).toEqual(["call.ended", "stage.changed"]);
+  });
+});
