@@ -367,6 +367,11 @@ export class VoicePipelineGateway
   ): Promise<void> {
     try {
       if (command.type === "start") {
+        // Каждый вызов — своя учебная сессия. Соединение переживает несколько
+        // звонков подряд, а журнал, запись и разбор принадлежат звонку.
+        state.sessionId = generateId();
+        state.lastSnapshotKey = null;
+
         const snapshot = await this.engine.startCall({
           trainingSessionId: state.sessionId,
           scenarioVersionId: command.scenarioVersionId,

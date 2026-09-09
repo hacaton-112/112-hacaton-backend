@@ -61,16 +61,18 @@ describe(parseAliceAiSse.name, () => {
     const payload =
       'data: {"choices":[{"index":0,"delta":{"content":"partial"}}]}\n\n';
 
-    await expect(collect(streamBytes([encoder.encode(payload)]))).resolves.toEqual(
-      [{ type: "text.delta", delta: "partial" }],
-    );
+    await expect(
+      collect(streamBytes([encoder.encode(payload)])),
+    ).resolves.toEqual([{ type: "text.delta", delta: "partial" }]);
   });
 
   it.each([
     ["malformed JSON", "data: {\n\n"],
     ["invalid provider shape", 'data: {"choices":"invalid"}\n\n'],
   ])("rejects %s", async (_name, payload) => {
-    await expect(collect(streamBytes([encoder.encode(payload)]))).rejects.toEqual(
+    await expect(
+      collect(streamBytes([encoder.encode(payload)])),
+    ).rejects.toEqual(
       expect.objectContaining({
         code: "invalid-response",
         retryable: false,

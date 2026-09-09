@@ -34,9 +34,7 @@ const createChunk = (
   audio,
 });
 
-type StreamFactory = (
-  signal: AbortSignal,
-) => AsyncIterable<unknown>;
+type StreamFactory = (signal: AbortSignal) => AsyncIterable<unknown>;
 
 class FakeTtsPort implements TtsPort {
   public readonly calls: TtsSynthesisRequest[] = [];
@@ -89,10 +87,7 @@ describe(SpeechSynthesisService.name, () => {
     const firstAudio = new Uint8Array([0, 1, 2, 3]);
     const ttsPort = new FakeTtsPort([
       () =>
-        audioStream([
-          createChunk(0, false, firstAudio),
-          createChunk(1, true),
-        ]),
+        audioStream([createChunk(0, false, firstAudio), createChunk(1, true)]),
     ]);
 
     const events = await collect(createService(ttsPort));
@@ -116,7 +111,9 @@ describe(SpeechSynthesisService.name, () => {
   });
 
   it("validates input before calling the TTS provider", () => {
-    const ttsPort = new FakeTtsPort([() => audioStream([createChunk(0, true)])]);
+    const ttsPort = new FakeTtsPort([
+      () => audioStream([createChunk(0, true)]),
+    ]);
     const service = createService(ttsPort);
 
     expect(() =>

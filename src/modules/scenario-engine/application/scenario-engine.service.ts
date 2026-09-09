@@ -128,7 +128,23 @@ export class ScenarioEngineService {
     });
 
     if (outcome === "duplicate") {
-      return this.getSnapshot(input.trainingSessionId);
+      const existing = await this.getSnapshot(input.trainingSessionId);
+
+      // Повтор той же команды идемпотентен: WebSocket переподключается, и
+      // доставка дубля ожидаема. Всё остальное значит, что на этой учебной
+      // сессии звонок уже был — второй раз его не начать, и отдавать чужой
+      // снимок под видом нового вызова нельзя.
+      if (
+        existing.stage !== "offered" ||
+        existing.scenarioVersionId !== version.id
+      ) {
+        throw new ScenarioEngineError(
+          "call-already-started",
+          "This training session already holds a call",
+        );
+      }
+
+      return existing;
     }
 
     return this.toSnapshot(state, version);

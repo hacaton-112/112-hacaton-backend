@@ -1,6 +1,7 @@
 export type ScenarioEngineErrorCode =
   | "scenario-version-not-published"
   | "scenario-version-not-found"
+  | "call-already-started"
   | "call-not-active"
   | "call-stage-forbidden"
   | "fact-not-allowed";

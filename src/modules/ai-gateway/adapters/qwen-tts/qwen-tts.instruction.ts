@@ -22,9 +22,7 @@ const emotionInstructions = {
   confusion: "Говори растерянно и неуверенно.",
 } as const satisfies Record<CallerEmotion, string>;
 
-export type QwenTtsIntensityLevel = z.infer<
-  typeof QwenTtsIntensityLevelSchema
->;
+export type QwenTtsIntensityLevel = z.infer<typeof QwenTtsIntensityLevelSchema>;
 
 export const mapQwenTtsIntensity = (
   intensity: number,

@@ -1199,4 +1199,24 @@ describe(VoicePipelineGateway.name, () => {
       warn.mockRestore();
     }
   });
+  it("gives every call its own training session", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "decline" }),
+      false,
+    );
+
+    const first = textEvents(runtime.socket).at(-1)?.sessionId;
+
+    await startedCall(runtime.gateway, runtime.socket);
+
+    const offered = textEvents(runtime.socket).at(-1);
+
+    expect(offered?.type).toBe("call.offered");
+    // Соединение то же, звонок другой: журнал и запись принадлежат звонку.
+    expect(offered?.sessionId).not.toBe(first);
+    expect(runtime.recorder.finishCall).toHaveBeenCalledWith(first);
+  });
 });

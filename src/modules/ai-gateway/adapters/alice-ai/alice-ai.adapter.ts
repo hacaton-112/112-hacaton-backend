@@ -1,9 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 
-import type {
-  GenerateCallerReplyRequest,
-  LlmStreamEvent,
-} from "@/contracts";
+import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 import type { LlmPort } from "@/modules/ai-gateway/ports/llm.port";
 
 import type { AliceAiConfig } from "./alice-ai.config";

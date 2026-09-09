@@ -222,6 +222,38 @@ describe(`${ScenarioEngineService.name} startCall`, () => {
   });
 });
 
+describe(`${ScenarioEngineService.name} startCall on a used session`, () => {
+  it("answers a repeated command with the call it already opened", async () => {
+    const { engine } = createEngine({
+      startCall: jest.fn().mockResolvedValue("duplicate"),
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    await expect(
+      engine.startCall({
+        trainingSessionId: "session-1",
+        scenarioVersionId: "version-1",
+        eventId: "event-1",
+      }),
+    ).resolves.toMatchObject({ stage: "offered" });
+  });
+
+  it("refuses a second call rather than passing off the old one as new", async () => {
+    const { engine } = createEngine({
+      startCall: jest.fn().mockResolvedValue("duplicate"),
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "declined" })),
+    });
+
+    await expect(
+      engine.startCall({
+        trainingSessionId: "session-1",
+        scenarioVersionId: "version-1",
+        eventId: "event-2",
+      }),
+    ).rejects.toThrow(ScenarioEngineError);
+  });
+});
+
 describe(`${ScenarioEngineService.name} stage transitions`, () => {
   it("answers an offered call and returns the scripted opening line", async () => {
     const { engine, store } = createEngine({

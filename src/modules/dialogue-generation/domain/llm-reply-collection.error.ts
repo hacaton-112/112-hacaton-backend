@@ -1,8 +1,5 @@
 export type LlmReplyCollectionFailure =
-  | "invalid-event"
-  | "invalid-json"
-  | "protocol-error"
-  | "response-too-large";
+  "invalid-event" | "invalid-json" | "protocol-error" | "response-too-large";
 
 export class LlmReplyCollectionError extends Error {
   public readonly failure: LlmReplyCollectionFailure;
