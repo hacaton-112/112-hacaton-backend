@@ -20,9 +20,12 @@ import { PANIC_LEVELS } from "./panic-scale";
 const PanicLevelSchema = z
   .number()
   .int()
-  .refine((value) => PANIC_LEVELS.includes(value as (typeof PANIC_LEVELS)[number]), {
-    message: "Panic level must be between 0 and 4",
-  });
+  .refine(
+    (value) => PANIC_LEVELS.includes(value as (typeof PANIC_LEVELS)[number]),
+    {
+      message: "Panic level must be between 0 and 4",
+    },
+  );
 
 const CoordinatesSchema = z.tuple([
   z.number().min(-90).max(90),

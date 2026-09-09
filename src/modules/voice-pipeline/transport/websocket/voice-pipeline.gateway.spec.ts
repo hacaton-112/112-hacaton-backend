@@ -404,6 +404,81 @@ describe(VoicePipelineGateway.name, () => {
     expect(textEvents(runtime.socket)).toEqual([]);
   });
 
+  it("speaks on the caller's own initiative when the operator goes quiet", async () => {
+    const engine = createEngine({
+      tick: jest
+        .fn()
+        .mockResolvedValue([
+          { type: "caller.initiative", reason: "operator-silence" },
+        ]),
+    });
+    const runtime = await createRuntime(
+      successfulStream,
+      undefined,
+      undefined,
+      engine,
+    );
+
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+
+    // Реплики оператора не было: движок получает флаг, чтобы не записать её.
+    expect(runtime.create).toHaveBeenCalledWith(
+      expect.objectContaining({ initiative: true }),
+    );
+    expect(runtime.recordReply).toHaveBeenCalledWith(
+      expect.objectContaining({ initiative: true }),
+    );
+    expect(textEvents(runtime.socket).map((event) => event.type)).toContain(
+      "reply.text",
+    );
+  });
+
+  it("skips the initiative while a request is already running", async () => {
+    const engine = createEngine({
+      tick: jest
+        .fn()
+        .mockResolvedValue([
+          { type: "caller.initiative", reason: "operator-silence" },
+        ]),
+    });
+    // Поток, который висит до отмены: занимает канал на время проверки.
+    const busyStream = (
+      _request: VoicePipelineRequest,
+      signal: AbortSignal,
+    ): AsyncIterable<VoicePipelineStreamEvent> =>
+      failingIterable(async () => {
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+        signal.throwIfAborted();
+        throw new Error("unreachable");
+      });
+    const runtime = await createRuntime(
+      busyStream,
+      undefined,
+      undefined,
+      engine,
+    );
+
+    const pending = runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    await runtime.gateway.advanceCall(asSocket(runtime.socket));
+
+    // К моменту, когда канал освободится, повод молчать уже исчезнет.
+    expect(runtime.create).toHaveBeenCalledTimes(1);
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "cancel" }),
+      false,
+    );
+    await pending;
+  });
+
   it("streams reply metadata, zero-copy ordered PCM, and completion", async () => {
     const runtime = await createRuntime();
 
@@ -426,6 +501,7 @@ describe(VoicePipelineGateway.name, () => {
       requestId: expect.any(String),
       sessionId: expect.any(String),
       signal: expect.any(AbortSignal),
+      initiative: false,
     });
     expect(runtime.streamReply).toHaveBeenCalledWith(
       request,

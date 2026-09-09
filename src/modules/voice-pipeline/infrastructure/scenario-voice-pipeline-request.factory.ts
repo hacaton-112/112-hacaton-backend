@@ -27,12 +27,14 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     requestId,
     sessionId,
     signal,
+    initiative,
   }: CreateVoicePipelineRequestOptions): Promise<VoicePipelineRequest> {
     signal.throwIfAborted();
 
     const built = await this.engine.buildGenerationContext({
       trainingSessionId: sessionId,
       operatorText: command.operatorText,
+      initiative,
     });
 
     return VoicePipelineRequestSchema.parse({
@@ -54,9 +56,11 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     sessionId,
     operatorText,
     reply,
+    initiative,
   }: RecordCallerReplyOptions): Promise<void> {
     await this.engine.applyCallerReply({
       trainingSessionId: sessionId,
+      initiative,
       // Идентификатор запроса служит идентификатором команды: повторная
       // доставка того же ответа не должна применяться дважды.
       eventId: requestId,

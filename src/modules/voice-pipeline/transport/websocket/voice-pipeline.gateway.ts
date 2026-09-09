@@ -19,6 +19,7 @@ import { generateId } from "@/common/utils/id";
 import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
 import {
+  INITIATIVE_OPERATOR_TEXT,
   ScenarioEngineError,
   ScenarioEngineService,
   type CallSnapshot,
@@ -160,7 +161,9 @@ export class VoicePipelineGateway
     }
 
     try {
-      await this.engine.tick({ trainingSessionId: state.sessionId });
+      const directives = await this.engine.tick({
+        trainingSessionId: state.sessionId,
+      });
 
       const snapshot = await this.engine.getSnapshot(state.sessionId);
 
@@ -185,6 +188,8 @@ export class VoicePipelineGateway
         revealedFactKeys: [...snapshot.revealedFactKeys],
         ...this.snapshotFields(snapshot),
       });
+
+      await this.speakOnInitiative(client, state, directives);
     } catch (error) {
       this.logger.warn(
         `Stopped advancing session ${state.sessionId}: ${
@@ -330,6 +335,35 @@ export class VoicePipelineGateway
     }
   }
 
+  /**
+   * Заявитель заговаривает сам, когда оператор молчит.
+   *
+   * Реплика идёт обычным ходом конвейера — перебивать оператора здесь нечем и
+   * незачем: канал свободен. Если запрос уже выполняется, инициатива
+   * пропускается, а не ставится в очередь: к моменту освобождения канала повод
+   * молчать уже исчезнет.
+   */
+  private async speakOnInitiative(
+    client: WebSocket,
+    state: ConnectionState,
+    directives: readonly { type: string }[],
+  ): Promise<void> {
+    const wanted = directives.some(
+      (directive) => directive.type === "caller.initiative",
+    );
+
+    if (!wanted || state.activeRequest !== null) {
+      return;
+    }
+
+    await this.startRequest(
+      client,
+      state,
+      { type: "speak", operatorText: INITIATIVE_OPERATOR_TEXT },
+      true,
+    );
+  }
+
   private snapshotFields(
     snapshot: CallSnapshot,
   ): Pick<
@@ -356,6 +390,7 @@ export class VoicePipelineGateway
       ReturnType<typeof VoicePipelineClientCommandSchema.parse>,
       { type: "speak" }
     >,
+    initiative = false,
   ): Promise<void> {
     await this.cancelActiveRequest(client, state);
 
@@ -372,6 +407,7 @@ export class VoicePipelineGateway
         requestId: activeRequest.requestId,
         sessionId: state.sessionId,
         signal: activeRequest.controller.signal,
+        initiative,
       });
     } catch {
       if (!activeRequest.controller.signal.aborted) {
@@ -411,6 +447,7 @@ export class VoicePipelineGateway
               sessionId: state.sessionId,
               operatorText: command.operatorText,
               reply: event.result.reply,
+              initiative,
             });
           } catch (error) {
             this.logger.warn(

@@ -433,6 +433,59 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
   });
 });
 
+describe(`${ScenarioEngineService.name} initiative`, () => {
+  it("journals the caller speaking up instead of an operator utterance", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-5",
+      operatorText: "(оператор молчит)",
+      reply: reply(),
+      initiative: true,
+      now: NOW,
+    });
+
+    // Реплики оператора не было — записать её значило бы соврать в расшифровке.
+    expect(eventTypes(store)).toEqual(["caller.initiative", "caller.reply"]);
+  });
+
+  it("keeps the silence running and remembers when the caller spoke", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-5",
+      operatorText: "(оператор молчит)",
+      reply: reply(),
+      initiative: true,
+      now: NOW,
+    });
+
+    const patch = patchOf(store);
+
+    // Оператор всё ещё молчит, поэтому отсчёт не сбрасывается; от повторов
+    // защищает пауза между инициативами.
+    expect(patch.operatorSilenceSince).toBeUndefined();
+    expect(patch.lastInitiativeAt).toEqual(NOW);
+  });
+
+  it("opens no question facts, because no question was asked", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+      initiative: true,
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).not.toContain(
+      "address_street",
+    );
+    expect(built.context.persona.description).toContain("Оператор молчит");
+  });
+});
+
 describe(`${ScenarioEngineService.name} tick`, () => {
   it("does nothing while the operator keeps talking", async () => {
     const { engine, store } = createEngine();
@@ -497,13 +550,11 @@ describe(`${ScenarioEngineService.name} tick`, () => {
 describe(`${ScenarioEngineService.name} endCall`, () => {
   it("closes the call and keeps what was collected", async () => {
     const { engine, store } = createEngine({
-      loadCall: jest
-        .fn()
-        .mockResolvedValue(
-          callState({
-            revealedFactKeys: ["address_street", "trapped_children"],
-          }),
-        ),
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          revealedFactKeys: ["address_street", "trapped_children"],
+        }),
+      ),
     });
 
     const snapshot = await engine.endCall({

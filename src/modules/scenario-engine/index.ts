@@ -1,5 +1,6 @@
 export { ScenarioEngineModule } from "./scenario-engine.module";
 export {
+  INITIATIVE_OPERATOR_TEXT,
   ScenarioEngineService,
   type CallDirective,
   type CallSnapshot,
