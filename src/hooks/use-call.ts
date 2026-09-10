@@ -193,16 +193,31 @@ export function useCall(): CallSnapshot & CallControls {
   useEffect(() => {
     if (!token) return;
 
-    const stream = new CallStream({ onEvent: handleEvent });
+    // React в режиме разработки монтирует эффект дважды, и второе соединение
+    // вытесняет первое. Без этого флага отказ вытесненной попытки выглядел бы
+    // как обрыв связи и запускал переподключение, которое вытесняло бы уже
+    // живое соединение — вместе с идущим по нему звонком.
+    let cancelled = false;
+    const stream = new CallStream({
+      onEvent: (event) => {
+        if (!cancelled) {
+          handleEvent(event);
+        }
+      },
+    });
     streamRef.current = stream;
 
     stream
       .connect(token)
       .then(() => {
+        if (cancelled) return;
+
         setConnected(true);
         setError(undefined);
       })
       .catch((reason: unknown) => {
+        if (cancelled) return;
+
         setError(reason instanceof Error ? reason.message : String(reason));
         window.setTimeout(
           () => setAttempt((value) => value + 1),
@@ -211,6 +226,7 @@ export function useCall(): CallSnapshot & CallControls {
       });
 
     return () => {
+      cancelled = true;
       streamRef.current = null;
       setConnected(false);
       void stream.dispose();
