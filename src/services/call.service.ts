@@ -7,6 +7,10 @@ import {
   type CallServerEvent,
 } from "../contracts/call";
 import { ipc } from "../lib/ipc";
+import {
+  TelephoneAudioProcessor,
+  resolveScenarioAmbience,
+} from "./telephone-audio-processor";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
@@ -15,7 +19,7 @@ interface CallStreamCallbacks {
 
 export interface CallStream {
   connect(token: string): Promise<void>;
-  start(scenarioVersionId: string): Promise<void>;
+  start(scenarioVersionId: string, scenarioCategory: string): Promise<void>;
   accept(): Promise<void>;
   decline(): Promise<void>;
   end(): Promise<void>;
@@ -33,6 +37,9 @@ class NativeCallStream implements CallStream {
   private audioContext?: AudioContext;
   private nextStartTime = 0;
   private sampleRate = 24_000;
+  private scenarioCategory = "other";
+  private scenarioVersionId = "unselected";
+  private audioProcessor?: TelephoneAudioProcessor;
   private connection: string | null = null;
   private disposed = false;
   /** Не даёт новому нажатию обогнать остановку и отправку хвоста предыдущего. */
@@ -65,7 +72,11 @@ class NativeCallStream implements CallStream {
     }
   }
 
-  start(scenarioVersionId: string): Promise<void> {
+  start(scenarioVersionId: string, scenarioCategory: string): Promise<void> {
+    this.resetAudioProcessing();
+    this.scenarioVersionId = scenarioVersionId;
+    this.scenarioCategory = scenarioCategory;
+
     return this.send({ type: "start", scenarioVersionId });
   }
 
@@ -130,6 +141,7 @@ class NativeCallStream implements CallStream {
 
     await this.audioContext?.close().catch(() => undefined);
     this.audioContext = undefined;
+    this.resetAudioProcessing();
   }
 
   private async send(command: CallClientCommand): Promise<void> {
@@ -167,6 +179,19 @@ class NativeCallStream implements CallStream {
     if (parsed.data.type === "audio.start") {
       this.sampleRate = parsed.data.sampleRate;
       this.nextStartTime = this.ensureAudioContext().currentTime;
+      this.audioProcessor?.reset();
+      this.audioProcessor = new TelephoneAudioProcessor({
+        sampleRate: this.sampleRate,
+        ambience: resolveScenarioAmbience(this.scenarioCategory),
+        seed: `${this.scenarioVersionId}:${parsed.data.streamId}`,
+      });
+    } else if (
+      parsed.data.type === "request.cancelled" ||
+      parsed.data.type === "call.ended" ||
+      parsed.data.type === "socket.closed" ||
+      parsed.data.type === "socket.error"
+    ) {
+      this.resetAudioProcessing();
     }
 
     this.callbacks.onEvent(parsed.data);
@@ -187,10 +212,8 @@ class NativeCallStream implements CallStream {
 
     const audioBuffer = context.createBuffer(1, pcm16.length, this.sampleRate);
     const channel = audioBuffer.getChannelData(0);
-
-    for (let index = 0; index < pcm16.length; index += 1) {
-      channel[index] = pcm16[index] / 0x8000;
-    }
+    const processed = this.ensureAudioProcessor().process(pcm16);
+    channel.set(processed);
 
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
@@ -199,6 +222,22 @@ class NativeCallStream implements CallStream {
     const startAt = Math.max(this.nextStartTime, context.currentTime);
     source.start(startAt);
     this.nextStartTime = startAt + audioBuffer.duration;
+  }
+
+  private ensureAudioProcessor(): TelephoneAudioProcessor {
+    this.audioProcessor ??= new TelephoneAudioProcessor({
+      sampleRate: this.sampleRate,
+      ambience: resolveScenarioAmbience(this.scenarioCategory),
+      seed: this.scenarioVersionId,
+    });
+
+    return this.audioProcessor;
+  }
+
+  private resetAudioProcessing(): void {
+    this.audioProcessor?.reset();
+    this.audioProcessor = undefined;
+    this.nextStartTime = 0;
   }
 
   private toError = (reason: unknown): Error =>

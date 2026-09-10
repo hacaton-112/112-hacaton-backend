@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { IncidentLocation } from "../components/map/incident-map";
-import type { CallLocator, CallServerEvent } from "../contracts/call";
+import type {
+  CallLocator,
+  CallServerEvent,
+  ScenarioSummary,
+} from "../contracts/call";
 import { callService, type CallStream } from "../services/call.service";
 import { useAuthStore } from "../stores/auth.store";
 import { useMapWindowStore } from "../stores/map-window.store";
@@ -41,7 +45,9 @@ export interface CallSnapshot {
 }
 
 export interface CallControls {
-  startScenario: (scenarioVersionId: string) => void;
+  startScenario: (
+    scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">,
+  ) => void;
   accept: () => void;
   reject: () => void;
   end: () => void;
@@ -287,9 +293,11 @@ export function useCall(): CallSnapshot & CallControls {
   }, []);
 
   const startScenario = useCallback(
-    (scenarioVersionId: string) => {
+    (scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">) => {
       reset();
-      command((stream) => stream.start(scenarioVersionId))();
+      command((stream) =>
+        stream.start(scenario.scenarioVersionId, scenario.category),
+      )();
     },
     [command, reset],
   );
