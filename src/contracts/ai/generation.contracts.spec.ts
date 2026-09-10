@@ -84,9 +84,9 @@ describe(
     "GenerateCallerReplyRequestSchema",
   () => {
     it("accepts a valid generation context", () => {
-      expect(GenerateCallerReplyRequestSchema.safeParse(validRequest).success).toBe(
-        true,
-      );
+      expect(
+        GenerateCallerReplyRequestSchema.safeParse(validRequest).success,
+      ).toBe(true);
     });
 
     it("rejects duplicate allowed fact IDs", () => {
@@ -115,10 +115,13 @@ describe(
     });
 
     it("rejects contexts exceeding the fact limit", () => {
-      const allowedFacts = Array.from({ length: MAX_ALLOWED_FACTS + 1 }, (_, index) => ({
-        id: `fact-${index}`,
-        value: `Значение ${index}`,
-      }));
+      const allowedFacts = Array.from(
+        { length: MAX_ALLOWED_FACTS + 1 },
+        (_, index) => ({
+          id: `fact-${index}`,
+          value: `Значение ${index}`,
+        }),
+      );
 
       expect(
         GenerateCallerReplyRequestSchema.safeParse({
@@ -154,7 +157,8 @@ describe(
 );
 
 describe(
-  DialogueGenerationResultSchema.description ?? "DialogueGenerationResultSchema",
+  DialogueGenerationResultSchema.description ??
+    "DialogueGenerationResultSchema",
   () => {
     const validResult = {
       reply: validReply,
@@ -170,9 +174,9 @@ describe(
     } as const;
 
     it("accepts a valid generation result", () => {
-      expect(DialogueGenerationResultSchema.safeParse(validResult).success).toBe(
-        true,
-      );
+      expect(
+        DialogueGenerationResultSchema.safeParse(validResult).success,
+      ).toBe(true);
     });
 
     it.each([
@@ -192,7 +196,9 @@ describe(
       ],
       ["unknown field", { ...validResult, provider: "alice-ai" }],
     ])("rejects %s", (_name, value) => {
-      expect(DialogueGenerationResultSchema.safeParse(value).success).toBe(false);
+      expect(DialogueGenerationResultSchema.safeParse(value).success).toBe(
+        false,
+      );
     });
   },
 );

@@ -84,8 +84,13 @@ export const buildVllmOmniTtsInstruction = (
   request: TtsSynthesisRequest,
 ): string => {
   const rate = mapVllmOmniSpeechRate(request.speechRate);
+  // Отдельного поля для пола у этого рантайма нет, поэтому он идёт словами.
+  const voice = request.gender === "male" ? "мужской" : "женский";
 
-  return `${buildQwenTtsInstruction(request.emotion, request.intensity)} Темп речи: ${rate}.`;
+  return (
+    `${buildQwenTtsInstruction(request.emotion, request.intensity)} ` +
+    `Голос: ${voice}. Темп речи: ${rate}.`
+  );
 };
 
 export const buildVllmOmniTtsRequest = (

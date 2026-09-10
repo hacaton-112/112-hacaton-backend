@@ -15,6 +15,7 @@ const validRequest: TtsSynthesisRequest = {
   text: "На кухне пожар!",
   language: "Russian",
   voiceId: "caller-1",
+  gender: "male",
   emotion: "panic",
   intensity: 0.8,
   speechRate: 1.1,

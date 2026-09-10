@@ -45,7 +45,13 @@ const request: VoicePipelineRequest = {
       recentTurns: [],
     },
   },
-  voiceId: "Vivian",
+  voice: {
+    voiceId: "Vivian",
+    gender: "male",
+    emotion: "panic",
+    intensity: 0.75,
+    speechRate: 1.2,
+  },
 };
 
 const attempts = [

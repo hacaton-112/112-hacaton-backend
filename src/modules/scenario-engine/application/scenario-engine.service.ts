@@ -1,8 +1,17 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { generateId } from "@/common/utils/id";
-import type { CallerReply, GenerationContext } from "@/contracts";
-import type { CallStage, EscalationTrigger } from "@/drizzle/schema";
+import {
+  MAX_RECENT_TURNS,
+  type CallerEmotion,
+  type CallerReply,
+  type GenerationContext,
+} from "@/contracts";
+import type {
+  CallerGenderValue,
+  CallStage,
+  EscalationTrigger,
+} from "@/drizzle/schema";
 
 import {
   matchesKeywords,
@@ -49,7 +58,17 @@ export interface CallSnapshot {
 export interface EngineGenerationContext {
   readonly scenarioVersionId: string;
   readonly context: GenerationContext;
-  readonly voiceId: string;
+  /**
+   * Как реплика должна звучать. Решает сценарий: персонаж даёт голос и пол,
+   * ступень паники — силу и темп речи. Модель пишет только слова.
+   */
+  readonly voice: {
+    readonly voiceId: string;
+    readonly gender: CallerGenderValue;
+    readonly emotion: CallerEmotion;
+    readonly intensity: number;
+    readonly speechRate: number;
+  };
   readonly fallbackLine: string;
 }
 
@@ -235,6 +254,10 @@ export class ScenarioEngineService {
     const matchedText = input.initiative === true ? "" : input.operatorText;
     const allowed = this.allowedFacts(state, version, matchedText);
     const profile = panicProfile(state.panicLevel);
+    const recentTurns = await this.store.loadRecentTurns(
+      state.trainingSessionId,
+      MAX_RECENT_TURNS,
+    );
     const background =
       version.persona.backgroundSounds === null
         ? ""
@@ -242,7 +265,11 @@ export class ScenarioEngineService {
 
     return {
       scenarioVersionId: version.id,
-      voiceId: version.persona.voiceId,
+      voice: {
+        voiceId: version.persona.voiceId,
+        gender: version.persona.gender,
+        ...resolveVoice(state.panicLevel, version.persona.baseSpeechRate),
+      },
       fallbackLine: version.fallbackLine,
       context: {
         persona: {
@@ -260,7 +287,9 @@ export class ScenarioEngineService {
           id: fact.key,
           value: fact.promptValue,
         })),
-        recentTurns: [],
+        // Разговор, который уже был: без него заявитель отвечает так, будто
+        // звонок только начался, и повторяет одну и ту же первую фразу.
+        recentTurns: [...recentTurns],
       },
     };
   }

@@ -204,6 +204,13 @@ export class VoicePipelineService {
     });
   }
 
+  /**
+   * Слова берутся у модели, звучание — у сценария.
+   *
+   * Раньше силу и темп речи задавала модель, и ступень паники до голоса не
+   * доходила вовсе: заявитель на четвёртой ступени мог говорить размеренно, а
+   * про горящую квартиру — с интонацией диктора.
+   */
   private createSynthesisRequest(
     request: VoicePipelineRequest,
     generationResult: DialogueGenerationResult,
@@ -213,10 +220,7 @@ export class VoicePipelineService {
       sessionId: request.generation.sessionId,
       text: generationResult.reply.text,
       language: request.generation.context.persona.language,
-      voiceId: request.voiceId,
-      emotion: generationResult.reply.emotion,
-      intensity: generationResult.reply.intensity,
-      speechRate: generationResult.reply.speechRate,
+      ...request.voice,
     });
   }
 

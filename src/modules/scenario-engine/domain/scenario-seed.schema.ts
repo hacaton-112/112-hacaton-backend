@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FactIdSchema } from "@/contracts";
 import {
+  CALLER_GENDERS,
   EMERGENCY_SERVICES,
   ESCALATION_DIRECTIONS,
   ESCALATION_TRIGGERS,
@@ -48,6 +49,7 @@ export const ScenarioSeedSchema = z
     persona: z
       .object({
         code: z.string().trim().min(2).max(64),
+        gender: z.enum(CALLER_GENDERS),
         displayName: z.string().trim().min(2).max(120),
         ageYears: z.number().int().min(1).max(110),
         condition: z.string().trim().min(2).max(200),

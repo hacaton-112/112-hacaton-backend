@@ -49,7 +49,13 @@ export const createDemoVoicePipelineRequest = (
         recentTurns: [],
       },
     },
-    voiceId: command.voiceId ?? DEFAULT_DEMO_VOICE_ID,
+    voice: {
+      voiceId: command.voiceId ?? DEFAULT_DEMO_VOICE_ID,
+      gender: "male",
+      emotion: "panic",
+      intensity: 0.75,
+      speechRate: 1.15,
+    },
   });
 };
 

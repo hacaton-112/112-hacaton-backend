@@ -1,4 +1,6 @@
+import type { DialogueTurn } from "@/contracts";
 import type {
+  CallerGenderValue,
   CallEventActor,
   CallEventType,
   CallStage,
@@ -12,6 +14,7 @@ import type { EscalationRule, PanicLevel } from "../domain/panic-scale";
 
 export interface PersonaSnapshot {
   readonly displayName: string;
+  readonly gender: CallerGenderValue;
   readonly ageYears: number;
   readonly condition: string;
   readonly speechStyle: string;
@@ -136,4 +139,15 @@ export interface ScenarioStore {
     events: readonly NewCallEvent[],
     patch: CallStatePatch,
   ): Promise<AppendOutcome>;
+
+  /**
+   * Последние реплики разговора, старые первыми.
+   *
+   * Без них модель каждый раз отвечает так, будто разговор только начался, и
+   * заявитель повторяет одну и ту же фразу про горящую квартиру.
+   */
+  loadRecentTurns(
+    trainingSessionId: string,
+    limit: number,
+  ): Promise<readonly DialogueTurn[]>;
 }

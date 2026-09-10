@@ -24,6 +24,7 @@ const request: TtsSynthesisRequest = {
   text: "На кухне сильный дым!",
   language: "Russian",
   voiceId: "vivian",
+  gender: "male",
   emotion: "panic",
   intensity: 0.85,
   speechRate: 1.15,
@@ -36,6 +37,7 @@ describe(buildMlxAudioTtsRequest.name, () => {
       input: request.text,
       voice: request.voiceId,
       speed: request.speechRate,
+      gender: "male",
       lang_code: "Russian",
       instruct:
         "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная.",

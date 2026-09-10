@@ -60,11 +60,19 @@ const validMetrics = {
 describe(
   VoicePipelineRequestSchema.description ?? "VoicePipelineRequestSchema",
   () => {
-    it("accepts a prepared generation request and voice ID", () => {
+    const validVoice = {
+      voiceId: "vivian",
+      gender: "male",
+      emotion: "panic",
+      intensity: 0.7,
+      speechRate: 1.2,
+    } as const;
+
+    it("accepts a prepared generation request and the voice it must use", () => {
       expect(
         VoicePipelineRequestSchema.safeParse({
           generation: validGenerationRequest,
-          voiceId: "vivian",
+          voice: validVoice,
         }).success,
       ).toBe(true);
     });
@@ -72,20 +80,37 @@ describe(
     it.each([
       [
         "invalid voice ID",
-        { generation: validGenerationRequest, voiceId: "bad voice" },
+        {
+          generation: validGenerationRequest,
+          voice: { ...validVoice, voiceId: "bad voice" },
+        },
+      ],
+      [
+        "a caller who is neither a man nor a woman to the synthesiser",
+        {
+          generation: validGenerationRequest,
+          voice: { ...validVoice, gender: "unspecified" },
+        },
+      ],
+      [
+        "an intensity outside the scale",
+        {
+          generation: validGenerationRequest,
+          voice: { ...validVoice, intensity: 3 },
+        },
       ],
       [
         "invalid generation request",
         {
           generation: { ...validGenerationRequest, operatorText: "" },
-          voiceId: "vivian",
+          voice: validVoice,
         },
       ],
       [
         "unknown field",
         {
           generation: validGenerationRequest,
-          voiceId: "vivian",
+          voice: validVoice,
           outputFormat: "wav",
         },
       ],
