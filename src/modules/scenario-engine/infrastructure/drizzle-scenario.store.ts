@@ -117,6 +117,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
         // Условие лежит в jsonb, поэтому проверяется схемой на входе: битое
         // правило должно валить загрузку сценария, а не молча открывать факт.
         disclosure: DisclosureRuleSchema.parse(fact.disclosure),
+        contentKeywords: fact.contentKeywords,
         priority: fact.priority,
         orderIndex: fact.orderIndex,
       })),

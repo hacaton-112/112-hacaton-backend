@@ -137,6 +137,7 @@ const seedScenario = async (
         severity: fact.severity,
         cardField: fact.cardField,
         cardValue: fact.cardValue,
+        contentKeywords: fact.contentKeywords,
         disclosure: fact.disclosure,
         priority: fact.priority,
         orderIndex: index,

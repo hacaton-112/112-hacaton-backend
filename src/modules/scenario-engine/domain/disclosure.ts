@@ -61,6 +61,8 @@ export interface ScenarioFact {
   readonly promptValue: string;
   readonly severity: FactSeverity;
   readonly disclosure: DisclosureRule;
+  /** По каким словам слышно, что заявитель этот факт уже назвал. */
+  readonly contentKeywords: readonly string[];
   readonly priority: number;
   readonly orderIndex: number;
 }
@@ -105,6 +107,63 @@ export const matchesKeywords = (
     return needle.length > 0 && normalized.includes(needle);
   });
 };
+
+/**
+ * Совпадение с начала слова: «дет» обязано находиться в «детей», но не в
+ * «видеть». Для вопроса оператора этого различия не требовалось, а для
+ * содержания реплики оно решает, засчитан факт или нет.
+ */
+const includesAtWordStart = (haystack: string, needle: string): boolean => {
+  let at = haystack.indexOf(needle);
+
+  while (at >= 0) {
+    if (at === 0 || haystack[at - 1] === " ") {
+      return true;
+    }
+
+    at = haystack.indexOf(needle, at + 1);
+  }
+
+  return false;
+};
+
+/**
+ * Несёт ли реплика содержание факта.
+ *
+ * Слова пишет автор сценария рядом с самим фактом, и проверяются они по тексту
+ * заявителя — не по вопросу оператора, как в `on_question`. Факт без слов не
+ * засчитывается никогда: молчаливое совпадение хуже пропуска.
+ */
+export const carriesFactContent = (
+  text: string,
+  keywords: readonly string[],
+): boolean => {
+  const normalized = normalizeForMatching(text);
+
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const needle = normalizeForMatching(keyword);
+
+    return needle.length > 0 && includesAtWordStart(normalized, needle);
+  });
+};
+
+/**
+ * Ключи фактов, содержание которых слышно в реплике заявителя.
+ *
+ * Набор фактов сюда передаётся уже суженным: заявитель не вправе открыть
+ * словами то, что сценарий на этом ходу держит закрытым.
+ */
+export const factsCarriedBy = (
+  text: string,
+  facts: readonly ScenarioFact[],
+): readonly string[] =>
+  facts
+    .filter((fact) => carriesFactContent(text, fact.contentKeywords))
+    .map((fact) => fact.key);
 
 const STAGE_ORDER: Record<CallStage, number> = {
   offered: 0,

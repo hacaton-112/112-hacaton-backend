@@ -18,6 +18,8 @@ import type {
 } from "@/drizzle/schema";
 
 import {
+  factsCarriedBy,
+  isFactAvailable,
   matchesKeywords,
   selectAllowedFacts,
   type ScenarioFact,
@@ -211,6 +213,7 @@ export class ScenarioEngineService {
 
     this.requireStage(state, ["offered"]);
 
+    const revealedNow = this.factsInOpeningLine(state, version);
     const patch: CallStatePatch = {
       stage: "conversation",
       answeredAt: now,
@@ -218,6 +221,7 @@ export class ScenarioEngineService {
       // действительно закончила звучать.
       operatorSilenceSince: null,
       callerTurns: state.callerTurns + 1,
+      revealedFactKeys: [...state.revealedFactKeys, ...revealedNow],
     };
     const openingVoice = this.callerVoice(state, version);
 
@@ -245,6 +249,12 @@ export class ScenarioEngineService {
             prescribed: true,
           },
         },
+        ...revealedNow.map((key): NewCallEvent => ({
+          type: "fact.revealed",
+          actor: "caller",
+          occurredAt: now,
+          payload: { key },
+        })),
       ],
       patch,
     );
@@ -438,7 +448,15 @@ export class ScenarioEngineService {
       );
     }
 
-    const revealedNow = input.reply.revealedFactIds.filter(
+    // Модель обязана перечислять раскрытые факты и регулярно этого не делает:
+    // заявитель отвечает «Там дети!», а обязательный вопрос остаётся открытым.
+    // Сказанное вслух считается наравне с объявленным — и только среди фактов,
+    // разрешённых на этом ходу: словами открыть закрытое всё так же нельзя.
+    const revealed = new Set([
+      ...input.reply.revealedFactIds,
+      ...factsCarriedBy(input.reply.text, allowed.facts),
+    ]);
+    const revealedNow = [...revealed].filter(
       (key) => !state.revealedFactKeys.includes(key),
     );
     const revealedFactKeys = [...state.revealedFactKeys, ...revealedNow];
@@ -703,6 +721,33 @@ export class ScenarioEngineService {
     baseSpeechRate: number,
   ): ReturnType<typeof resolveVoice> {
     return resolveVoice(snapshot.panicLevel, baseSpeechRate);
+  }
+
+  /**
+   * Что заявитель успевает сообщить первой же фразой.
+   *
+   * Первая реплика написана автором сценария и звучит целиком, поэтому бюджет
+   * хода к ней не применяется: он ограничивает выдумку модели, а не то, что в
+   * сценарии уже написано. Условия раскрытия проверяются как обычно — факт,
+   * который сценарий держит закрытым, первой фразой не открывается.
+   */
+  private factsInOpeningLine(
+    state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
+  ): readonly string[] {
+    const available = version.facts.filter((fact) =>
+      isFactAvailable(fact.disclosure, {
+        revealedKeys: state.revealedFactKeys,
+        operatorText: "",
+        callerTurns: state.callerTurns + 1,
+        panicLevel: state.panicLevel,
+        stage: "conversation",
+      }),
+    );
+
+    return factsCarriedBy(version.openingLine, available).filter(
+      (key) => !state.revealedFactKeys.includes(key),
+    );
   }
 
   private allowedFacts(

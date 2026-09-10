@@ -125,6 +125,11 @@ export const ScenarioSeedSchema = z
             severity: z.enum(FACT_SEVERITIES).default("normal"),
             cardField: z.enum(INCIDENT_CARD_FIELDS).nullable().default(null),
             cardValue: z.string().trim().max(200).nullable().default(null),
+            /** По этим словам факт засчитывается, когда заявитель его назвал. */
+            contentKeywords: z
+              .array(z.string().trim().min(2))
+              .max(32)
+              .default([]),
             disclosure: DisclosureRuleSchema,
             priority: z.number().int().min(0).max(100).default(0),
           })

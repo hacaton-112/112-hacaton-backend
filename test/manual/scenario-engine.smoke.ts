@@ -87,6 +87,16 @@ async function main(): Promise<void> {
     });
     step(`вызов принят, первая реплика: «${accepted.openingLine}»`);
 
+    if (!accepted.revealedFactKeys.includes("incident_type")) {
+      throw new Error("первая реплика сказала, что горит, но факт не засчитан");
+    }
+    if (accepted.revealedFactKeys.includes("address_floor")) {
+      throw new Error("первая реплика открыла факт, который сценарий держит");
+    }
+    step(
+      `первой репликой засчитано: ${accepted.revealedFactKeys.join(", ")}`,
+    );
+
     const opening = await engine.buildGenerationContext({
       trainingSessionId,
       operatorText: "Служба 112, что случилось?",
@@ -174,6 +184,29 @@ async function main(): Promise<void> {
       throw new Error("повторная доставка команды сдвинула состояние");
     }
     step("повтор команды с тем же eventId состояние не изменил");
+
+    const beforeChildren = await engine.getSnapshot(trainingSessionId);
+    const withChildren = await engine.applyCallerReply({
+      trainingSessionId,
+      eventId: generateId(),
+      operatorText: "В квартире кто-то есть?",
+      reply: {
+        text: "Там дети, двое, они кричат из окна!",
+        emotion: "panic",
+        intensity: 0.9,
+        speechRate: 1.3,
+        // Модель не назвала факт — засчитать его должны сами слова.
+        revealedFactIds: [],
+        endCall: false,
+      },
+    });
+
+    if (!withChildren.revealedFactKeys.includes("trapped_children")) {
+      throw new Error("заявитель сказал про детей, но факт не засчитан");
+    }
+    step(
+      `факт trapped_children засчитан по словам, чек-лист ${beforeChildren.checklistSatisfied} → ${withChildren.checklistSatisfied}`,
+    );
 
     const future = new Date(Date.now() + 30_000);
     await engine.tick({ trainingSessionId, now: future });
