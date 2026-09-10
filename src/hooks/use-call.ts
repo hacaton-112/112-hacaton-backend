@@ -171,8 +171,12 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "socket.closed":
         setConnected(false);
-        // Звонок жил в этом соединении и вместе с ним закончился, поэтому
-        // сначала честно об этом говорим, а потом пробуем снова.
+        // Звонок жил в этом соединении и вместе с ним закончился: у нового
+        // соединения будет своя учебная сессия. Оставить окно в разговоре
+        // значило бы показывать вызов, который уже никто не примет.
+        setState((current) => (current === "idle" ? current : "ended"));
+        setListening(false);
+        setCallerSpeaking(false);
         setError("Соединение с сервером потеряно, переподключаюсь…");
         window.setTimeout(
           () => setAttempt((value) => value + 1),
