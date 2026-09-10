@@ -66,3 +66,61 @@ describe(CallerReplySafetyService.name, () => {
     );
   });
 });
+
+describe(`${CallerReplySafetyService.name} style values`, () => {
+  const reply = (overrides: Record<string, unknown>) => ({
+    text: "Горит квартира на пятом этаже.",
+    emotion: "panic",
+    intensity: 0.8,
+    speechRate: 1.2,
+    revealedFactIds: [],
+    endCall: false,
+    ...overrides,
+  });
+
+  it("keeps the words when the model reads intensity as a scale to ten", () => {
+    const service = new CallerReplySafetyService();
+
+    // Модель регулярно отвечает «3» или «8»; раньше реплика из-за этого
+    // терялась целиком, и заявитель говорил запасную фразу.
+    expect(service.validate(reply({ intensity: 8 }), []).intensity).toBe(1);
+    expect(service.validate(reply({ intensity: -2 }), []).intensity).toBe(0);
+  });
+
+  it("brings an impossible speech rate back into range", () => {
+    const service = new CallerReplySafetyService();
+
+    expect(service.validate(reply({ speechRate: 5 }), []).speechRate).toBe(2);
+    expect(service.validate(reply({ speechRate: 0.1 }), []).speechRate).toBe(
+      0.5,
+    );
+  });
+
+  it("leaves a sane reply exactly as it came", () => {
+    const service = new CallerReplySafetyService();
+
+    expect(service.validate(reply({}), [])).toMatchObject({
+      intensity: 0.8,
+      speechRate: 1.2,
+    });
+  });
+
+  it("still refuses a fact the caller was not allowed to reveal", () => {
+    const service = new CallerReplySafetyService();
+
+    expect(() =>
+      service.validate(
+        reply({ intensity: 8, revealedFactIds: ["address"] }),
+        [],
+      ),
+    ).toThrow(CallerReplyValidationError);
+  });
+
+  it("does not invent numbers the model never sent", () => {
+    const service = new CallerReplySafetyService();
+
+    expect(() => service.validate(reply({ intensity: "громко" }), [])).toThrow(
+      CallerReplyValidationError,
+    );
+  });
+});

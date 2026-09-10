@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import {
   CallerEmotionSchema,
+  EMOTION_INTENSITY_RANGE,
   GenerateCallerReplyRequestSchema,
+  SPEECH_RATE_RANGE,
   type GenerateCallerReplyRequest,
 } from "@/contracts";
 
@@ -30,11 +32,17 @@ export const CALLER_REPLY_JSON_SCHEMA = {
       type: "string",
       enum: CallerEmotionSchema.options,
     },
+    // Границы обязаны быть в схеме: без них модель отдаёт по шкале «до
+    // десяти», реплика не проходит контракт и звонок теряет ход.
     intensity: {
       type: "number",
+      minimum: EMOTION_INTENSITY_RANGE.min,
+      maximum: EMOTION_INTENSITY_RANGE.max,
     },
     speechRate: {
       type: "number",
+      minimum: SPEECH_RATE_RANGE.min,
+      maximum: SPEECH_RATE_RANGE.max,
     },
     revealedFactIds: {
       type: "array",
