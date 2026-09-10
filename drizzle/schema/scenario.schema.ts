@@ -24,6 +24,7 @@ export const SCENARIO_CATEGORIES = [
 ] as const;
 
 export const SCENARIO_STATUSES = ["draft", "published", "archived"] as const;
+export const CALLER_GENDERS = ["male", "female"] as const;
 
 export const AUTHORING_SOURCES = ["manual", "assistant", "imported"] as const;
 
@@ -98,6 +99,7 @@ export const scenarioCategory = pgEnum(
   SCENARIO_CATEGORIES,
 );
 export const scenarioStatus = pgEnum("scenario_status", SCENARIO_STATUSES);
+export const callerGender = pgEnum("caller_gender", CALLER_GENDERS);
 export const authoringSource = pgEnum("authoring_source", AUTHORING_SOURCES);
 export const factSeverity = pgEnum("fact_severity", FACT_SEVERITIES);
 export const incidentCardField = pgEnum(
@@ -122,6 +124,7 @@ export const escalationDirection = pgEnum(
 
 export type ScenarioCategory = (typeof SCENARIO_CATEGORIES)[number];
 export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
+export type CallerGenderValue = (typeof CALLER_GENDERS)[number];
 export type AuthoringSource = (typeof AUTHORING_SOURCES)[number];
 export type FactSeverity = (typeof FACT_SEVERITIES)[number];
 export type IncidentCardField = (typeof INCIDENT_CARD_FIELDS)[number];
@@ -140,6 +143,8 @@ export const callerPersonas = pgTable(
     code: text("code").notNull(),
     displayName: text("display_name").notNull(),
     ageYears: smallint("age_years").notNull(),
+    /** Голос обязан совпадать с тем, кого играет сценарий. */
+    gender: callerGender("gender").notNull(),
     condition: text("condition").notNull(),
     speechStyle: text("speech_style").notNull(),
     backgroundSounds: text("background_sounds"),

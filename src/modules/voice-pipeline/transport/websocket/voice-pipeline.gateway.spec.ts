@@ -45,7 +45,13 @@ const request: VoicePipelineRequest = {
       recentTurns: [],
     },
   },
-  voiceId: "Vivian",
+  voice: {
+    voiceId: "Vivian",
+    gender: "male",
+    emotion: "panic",
+    intensity: 0.75,
+    speechRate: 1.2,
+  },
 };
 
 const attempts = [
@@ -268,6 +274,11 @@ const createRecorder = (): {
   };
 };
 
+const createCards = () =>
+  ({
+    close: jest.fn().mockResolvedValue(undefined),
+  }) as unknown as import("@/modules/incident-card").IncidentCardService;
+
 const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
   ({
     startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
@@ -303,6 +314,7 @@ const createRuntime = async (
     recorder: CallRecorder;
     mocks: RecorderMocks;
   } = createRecorder(),
+  cards = createCards(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -315,6 +327,7 @@ const createRuntime = async (
     engine,
     asr.asr,
     recording.recorder,
+    cards,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
@@ -349,6 +362,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -381,6 +395,7 @@ describe(VoicePipelineGateway.name, () => {
       engine,
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -407,6 +422,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -1048,6 +1064,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -1198,5 +1215,25 @@ describe(VoicePipelineGateway.name, () => {
     } finally {
       warn.mockRestore();
     }
+  });
+  it("gives every call its own training session", async () => {
+    const runtime = await createRuntime();
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "decline" }),
+      false,
+    );
+
+    const first = textEvents(runtime.socket).at(-1)?.sessionId;
+
+    await startedCall(runtime.gateway, runtime.socket);
+
+    const offered = textEvents(runtime.socket).at(-1);
+
+    expect(offered?.type).toBe("call.offered");
+    // Соединение то же, звонок другой: журнал и запись принадлежат звонку.
+    expect(offered?.sessionId).not.toBe(first);
+    expect(runtime.recorder.finishCall).toHaveBeenCalledWith(first);
   });
 });

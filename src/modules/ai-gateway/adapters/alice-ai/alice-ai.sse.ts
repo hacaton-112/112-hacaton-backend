@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  LlmStreamEventSchema,
-  type LlmStreamEvent,
-} from "@/contracts";
+import { LlmStreamEventSchema, type LlmStreamEvent } from "@/contracts";
 
 import { AliceAiError } from "./alice-ai.error";
 

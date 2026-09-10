@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
   CallerReplySchema,
@@ -38,6 +38,8 @@ export const DEFAULT_FALLBACK_CALLER_REPLY: CallerReply =
 
 @Injectable()
 export class DialogueGenerationService {
+  private readonly logger = new Logger(DialogueGenerationService.name);
+
   constructor(
     @Inject(LLM_PORT)
     private readonly llmPort: LlmPort,
@@ -80,6 +82,14 @@ export class DialogueGenerationService {
         if (signal.aborted) {
           signal.throwIfAborted();
         }
+
+        // Без этой строки отбракованный ответ выглядит как молчание модели:
+        // заявитель говорит запасную фразу, а причина не видна нигде.
+        this.logger.warn(
+          `Rejected a generated caller reply (attempt ${attempt}): ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
 
         attempts.push({
           attempt,

@@ -30,7 +30,14 @@ const request: VoicePipelineRequest = {
       recentTurns: [],
     },
   },
-  voiceId: "vivian",
+  voice: {
+    voiceId: "vivian",
+    gender: "male",
+    // Голос задаёт ступень паники, а не ответ модели.
+    emotion: "panic",
+    intensity: 0.75,
+    speechRate: 1.2,
+  },
 };
 
 const modelResult: DialogueGenerationResult = {
@@ -208,10 +215,7 @@ describe(VoicePipelineService.name, () => {
         sessionId: request.generation.sessionId,
         text: modelResult.reply.text,
         language: "Russian",
-        voiceId: request.voiceId,
-        emotion: modelResult.reply.emotion,
-        intensity: modelResult.reply.intensity,
-        speechRate: modelResult.reply.speechRate,
+        ...request.voice,
       } satisfies TtsSynthesisRequest,
       expect.any(AbortSignal),
     );
@@ -233,7 +237,9 @@ describe(VoicePipelineService.name, () => {
     expect(speech.synthesize).toHaveBeenCalledWith(
       expect.objectContaining({
         text: fallbackResult.reply.text,
-        emotion: fallbackResult.reply.emotion,
+        // Даже запасная реплика звучит так, как велит ступень паники, а не
+        // так, как её пометил бы автор запасного текста.
+        emotion: request.voice.emotion,
       }),
       expect.any(AbortSignal),
     );

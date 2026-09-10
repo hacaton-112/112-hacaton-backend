@@ -2,8 +2,7 @@ import { z } from "zod";
 
 import { AiIdentifierSchema } from "@/contracts";
 
-export const DEFAULT_ALICE_AI_BASE_URL =
-  "https://ai.api.cloud.yandex.net/v1";
+export const DEFAULT_ALICE_AI_BASE_URL = "https://ai.api.cloud.yandex.net/v1";
 export const DEFAULT_ALICE_AI_MODEL = "aliceai-llm-flash";
 export const DEFAULT_ALICE_AI_REQUEST_TIMEOUT_MS = 5_000;
 export const MIN_ALICE_AI_REQUEST_TIMEOUT_MS = 500;

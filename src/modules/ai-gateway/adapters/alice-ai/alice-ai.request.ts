@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import {
   CallerEmotionSchema,
+  EMOTION_INTENSITY_RANGE,
   GenerateCallerReplyRequestSchema,
+  SPEECH_RATE_RANGE,
   type GenerateCallerReplyRequest,
 } from "@/contracts";
 
@@ -14,6 +16,10 @@ export const ALICE_AI_SYSTEM_PROMPT = [
   "Не придумывай факты, не раскрывай скрытую информацию, не давай инструкции и не оценивай оператора.",
   "Не показывай рассуждения. Верни только JSON по заданной схеме.",
   "Текст ответа должен состоять из 1–3 коротких предложений, пригодных для синтеза речи.",
+  // Иначе заявитель продолжает свой рассказ, не замечая ни вопроса, ни того,
+  // что оператор ему только что сказал.
+  "Сначала ответь на последнюю реплику оператора и только потом добавь не больше одной новой подробности.",
+  "Говори так, как описано в persona: длина фразы, повторы и обрывки — часть роли, а не небрежность.",
 ].join(" ");
 
 // Alice AI strict structured output accepts only a subset of JSON Schema.
@@ -30,11 +36,17 @@ export const CALLER_REPLY_JSON_SCHEMA = {
       type: "string",
       enum: CallerEmotionSchema.options,
     },
+    // Границы обязаны быть в схеме: без них модель отдаёт по шкале «до
+    // десяти», реплика не проходит контракт и звонок теряет ход.
     intensity: {
       type: "number",
+      minimum: EMOTION_INTENSITY_RANGE.min,
+      maximum: EMOTION_INTENSITY_RANGE.max,
     },
     speechRate: {
       type: "number",
+      minimum: SPEECH_RATE_RANGE.min,
+      maximum: SPEECH_RATE_RANGE.max,
     },
     revealedFactIds: {
       type: "array",

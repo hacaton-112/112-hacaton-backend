@@ -164,3 +164,21 @@ describe("resolveEscalation", () => {
     ).toBeNull();
   });
 });
+
+describe("panic profiles as the prompt sees them", () => {
+  it("says how the caller speaks, not only how he feels", () => {
+    // «В панике» модель отыгрывает ровной фразой с точкой; отличает ступени на
+    // слух именно длина реплики, повторы и право строить связный рассказ.
+    for (const level of PANIC_LEVELS) {
+      const profile = panicProfile(level);
+
+      expect(profile.speechRules.length).toBeGreaterThan(20);
+      expect(profile.examples.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("lets the calm caller build a story and the panicking one only shout", () => {
+    expect(panicProfile(0).speechRules).toContain("полными фразами");
+    expect(panicProfile(4).speechRules).toContain("повторяет");
+  });
+});

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   AiIdentifierSchema,
+  CallerGenderSchema,
   CallerReplyTextSchema,
   SpeechRateSchema,
   TtsSynthesisRequestSchema,
@@ -22,6 +23,8 @@ export const MlxAudioTtsSpeechRequestSchema = z
     model: z.string().trim().min(1).max(256),
     input: CallerReplyTextSchema,
     voice: AiIdentifierSchema,
+    // Провайдер выбирает голос по полу; имя голоса эта сборка может и не знать.
+    gender: CallerGenderSchema,
     speed: SpeechRateSchema,
     lang_code: z.literal("Russian"),
     instruct: z.string().trim().min(1).max(512),
@@ -50,6 +53,7 @@ export const buildMlxAudioTtsRequest = (
     model: config.model,
     input: request.text,
     voice: request.voiceId,
+    gender: request.gender,
     speed: request.speechRate,
     lang_code: request.language,
     instruct: buildQwenTtsInstruction(request.emotion, request.intensity),

@@ -45,9 +45,12 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         operatorText: command.operatorText,
         context: built.context,
       },
-      // Голос задаёт персона сценария; клиент может переопределить его только
-      // осознанно, для отладки.
-      voiceId: command.voiceId ?? built.voiceId,
+      // Звучание задаёт сценарий; клиент может подменить только сам голос и
+      // только осознанно, для отладки.
+      voice: {
+        ...built.voice,
+        voiceId: command.voiceId ?? built.voice.voiceId,
+      },
     });
   }
 

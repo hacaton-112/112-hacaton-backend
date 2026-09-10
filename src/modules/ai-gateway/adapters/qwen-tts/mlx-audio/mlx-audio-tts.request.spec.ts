@@ -20,6 +20,7 @@ const request: TtsSynthesisRequest = {
   text: "На кухне сильный дым!",
   language: "Russian",
   voiceId: "vivian",
+  gender: "male",
   emotion: "panic",
   intensity: 0.85,
   speechRate: 1.15,
@@ -32,6 +33,7 @@ describe(buildMlxAudioTtsRequest.name, () => {
       input: request.text,
       voice: request.voiceId,
       speed: request.speechRate,
+      gender: "male",
       lang_code: "Russian",
       instruct:
         "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым.",

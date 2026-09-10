@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   AiIdentifierSchema,
   CallerReplyTextSchema,
+  findQwenTtsVoice,
   SpeechRateSchema,
   TtsSynthesisRequestSchema,
   type TtsSynthesisRequest,
@@ -43,18 +44,6 @@ export type VllmOmniTtsSpeechRequest = z.infer<
   typeof VllmOmniTtsSpeechRequestSchema
 >;
 
-const builtInVoices = [
-  "aiden",
-  "dylan",
-  "eric",
-  "ono_anna",
-  "ryan",
-  "serena",
-  "sohee",
-  "uncle_fu",
-  "vivian",
-] as const;
-
 const speechRateInstructions = {
   медленный: "Темп речи слегка замедленный, без неестественных пауз.",
   обычный: "Темп речи обычный и ровный.",
@@ -63,11 +52,10 @@ const speechRateInstructions = {
 
 export const normalizeVllmOmniVoice = (voiceId: string): string => {
   const voice = AiIdentifierSchema.parse(voiceId);
-  const normalizedVoice = voice.toLowerCase();
 
-  return (
-    builtInVoices.find((candidate) => candidate === normalizedVoice) ?? voice
-  );
+  // Каталог общий с автором сценария: там же записано, кому какой голос
+  // принадлежит, и там же ловится несовпадение с полом заявителя.
+  return findQwenTtsVoice(voice)?.id ?? voice;
 };
 
 export const mapVllmOmniSpeechRate = (
@@ -90,8 +78,13 @@ export const buildVllmOmniTtsInstruction = (
   request: TtsSynthesisRequest,
 ): string => {
   const rate = mapVllmOmniSpeechRate(request.speechRate);
+  // Отдельного поля для пола у этого рантайма нет, поэтому он идёт словами.
+  const voice = request.gender === "male" ? "мужской" : "женский";
 
-  return `${buildQwenTtsInstruction(request.emotion, request.intensity)} ${speechRateInstructions[rate]}`;
+  return (
+    `${buildQwenTtsInstruction(request.emotion, request.intensity)} ` +
+    `Голос: ${voice}. ${speechRateInstructions[rate]}`
+  );
 };
 
 export const buildVllmOmniTtsRequest = (

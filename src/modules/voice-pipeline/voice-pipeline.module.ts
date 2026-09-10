@@ -5,6 +5,7 @@ import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { CallRecordingModule } from "@/modules/call-recording";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
+import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
@@ -44,6 +45,7 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
     CallRecordingModule,
     ScenarioEngineModule,
     DialogueGenerationModule,
+    IncidentCardModule,
     SpeechSynthesisModule,
   ],
   providers: [

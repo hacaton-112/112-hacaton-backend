@@ -1,8 +1,17 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { generateId } from "@/common/utils/id";
-import type { CallerReply, GenerationContext } from "@/contracts";
-import type { CallStage, EscalationTrigger } from "@/drizzle/schema";
+import {
+  MAX_RECENT_TURNS,
+  type CallerEmotion,
+  type CallerReply,
+  type GenerationContext,
+} from "@/contracts";
+import type {
+  CallerGenderValue,
+  CallStage,
+  EscalationTrigger,
+} from "@/drizzle/schema";
 
 import {
   matchesKeywords,
@@ -28,6 +37,16 @@ import { SCENARIO_STORE } from "../scenario-engine.tokens";
 
 const MILLISECONDS_PER_SECOND = 1_000;
 
+type OperatorTone = "neutral" | "calming" | "forbidden";
+
+const TONE_PROMPTS: Record<OperatorTone, string> = {
+  neutral: "",
+  calming:
+    " Оператор сказал, что помощь уже едет: заявителю от этого чуть легче, и он это показывает.",
+  forbidden:
+    " Оператор велел ему успокоиться. Такое указание заявителя только злит: он отвечает на него, прежде чем продолжать.",
+};
+
 export interface CallSnapshot {
   readonly trainingSessionId: string;
   readonly scenarioVersionId: string;
@@ -49,7 +68,17 @@ export interface CallSnapshot {
 export interface EngineGenerationContext {
   readonly scenarioVersionId: string;
   readonly context: GenerationContext;
-  readonly voiceId: string;
+  /**
+   * Как реплика должна звучать. Решает сценарий: персонаж даёт голос и пол,
+   * ступень паники — силу и темп речи. Модель пишет только слова.
+   */
+  readonly voice: {
+    readonly voiceId: string;
+    readonly gender: CallerGenderValue;
+    readonly emotion: CallerEmotion;
+    readonly intensity: number;
+    readonly speechRate: number;
+  };
   readonly fallbackLine: string;
 }
 
@@ -84,6 +113,8 @@ export class ScenarioEngineService {
     trainingSessionId: string;
     scenarioVersionId: string;
     eventId: string;
+    /** Кто принимает вызов; в смоук-прогонах оператора может не быть. */
+    operatorId?: string;
     now?: Date;
   }): Promise<CallSnapshot> {
     const now = input.now ?? new Date();
@@ -99,6 +130,7 @@ export class ScenarioEngineService {
     const state: CallStateSnapshot = {
       trainingSessionId: input.trainingSessionId,
       scenarioVersionId: version.id,
+      operatorId: input.operatorId ?? null,
       stage: "offered",
       panicLevel: this.clampToScenario(
         version.persona.baselinePanicLevel,
@@ -128,7 +160,23 @@ export class ScenarioEngineService {
     });
 
     if (outcome === "duplicate") {
-      return this.getSnapshot(input.trainingSessionId);
+      const existing = await this.getSnapshot(input.trainingSessionId);
+
+      // Повтор той же команды идемпотентен: WebSocket переподключается, и
+      // доставка дубля ожидаема. Всё остальное значит, что на этой учебной
+      // сессии звонок уже был — второй раз его не начать, и отдавать чужой
+      // снимок под видом нового вызова нельзя.
+      if (
+        existing.stage !== "offered" ||
+        existing.scenarioVersionId !== version.id
+      ) {
+        throw new ScenarioEngineError(
+          "call-already-started",
+          "This training session already holds a call",
+        );
+      }
+
+      return existing;
     }
 
     return this.toSnapshot(state, version);
@@ -219,14 +267,25 @@ export class ScenarioEngineService {
     const matchedText = input.initiative === true ? "" : input.operatorText;
     const allowed = this.allowedFacts(state, version, matchedText);
     const profile = panicProfile(state.panicLevel);
+    const recentTurns = await this.store.loadRecentTurns(
+      state.trainingSessionId,
+      MAX_RECENT_TURNS,
+    );
     const background =
       version.persona.backgroundSounds === null
         ? ""
         : ` Фон: ${version.persona.backgroundSounds}.`;
+    // Что оператор только что сделал не так или, наоборот, правильно: заявитель
+    // обязан это заметить словами, а не только ступенью паники.
+    const tone = this.operatorTone(version, matchedText);
 
     return {
       scenarioVersionId: version.id,
-      voiceId: version.persona.voiceId,
+      voice: {
+        voiceId: version.persona.voiceId,
+        gender: version.persona.gender,
+        ...resolveVoice(state.panicLevel, version.persona.baseSpeechRate),
+      },
       fallbackLine: version.fallbackLine,
       context: {
         persona: {
@@ -235,7 +294,12 @@ export class ScenarioEngineService {
           description:
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
+            ` Как говорит: ${profile.speechRules}` +
+            ` Так звучат его реплики: ${profile.examples
+              .map((example) => `«${example}»`)
+              .join(" ")}` +
             background +
+            TONE_PROMPTS[tone] +
             (input.initiative === true
               ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
               : ""),
@@ -244,7 +308,9 @@ export class ScenarioEngineService {
           id: fact.key,
           value: fact.promptValue,
         })),
-        recentTurns: [],
+        // Разговор, который уже был: без него заявитель отвечает так, будто
+        // звонок только начался, и повторяет одну и ту же первую фразу.
+        recentTurns: [...recentTurns],
       },
     };
   }
@@ -346,15 +412,36 @@ export class ScenarioEngineService {
         : { operatorSilenceSince: now }),
     };
 
+    const firedTriggers = this.triggersFromTurn(
+      version,
+      matchedText,
+      revealedNow,
+    );
     const transition = resolveEscalation({
       rules: version.escalationRules,
       currentLevel: state.panicLevel,
       floor: version.panicFloor,
       ceiling: version.panicCeiling,
-      firedTriggers: this.triggersFromTurn(version, matchedText, revealedNow),
+      firedTriggers,
       changedAt: state.panicChangedAt,
       now,
     });
+
+    // Сработавшее правило записывается, даже если ступень не сдвинулась: на
+    // потолке шкалы запрещённая фраза оператора иначе исчезала бы бесследно,
+    // а разбор занятия строится по журналу.
+    for (const trigger of firedTriggers) {
+      if (transition?.trigger === trigger) {
+        continue;
+      }
+
+      events.push({
+        type: "escalation.fired",
+        actor: "system",
+        occurredAt: now,
+        payload: { trigger, level: state.panicLevel, applied: false },
+      });
+    }
 
     if (transition !== null) {
       patch.panicLevel = transition.level;
@@ -540,6 +627,35 @@ export class ScenarioEngineService {
       },
       panicProfile(state.panicLevel).factBudget,
     );
+  }
+
+  /**
+   * Как прозвучала реплика оператора для заявителя.
+   *
+   * Правила сценария уже знают, какие слова успокаивают, а какие запрещены;
+   * здесь тот же разбор нужен до генерации, чтобы заявитель ответил на них, а
+   * не продолжил диктовать адрес.
+   */
+  private operatorTone(
+    version: ScenarioVersionSnapshot,
+    operatorText: string,
+  ): OperatorTone {
+    if (operatorText.length === 0) {
+      return "neutral";
+    }
+
+    const matched = version.escalationRules.filter(
+      (rule) =>
+        (rule.trigger === "calming_phrase" ||
+          rule.trigger === "forbidden_phrase") &&
+        matchesKeywords(operatorText, rule.keywords ?? []),
+    );
+
+    if (matched.some((rule) => rule.trigger === "forbidden_phrase")) {
+      return "forbidden";
+    }
+
+    return matched.length > 0 ? "calming" : "neutral";
   }
 
   private triggersFromTurn(

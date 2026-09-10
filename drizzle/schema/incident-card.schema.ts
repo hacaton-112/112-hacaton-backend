@@ -1,0 +1,150 @@
+import {
+  boolean,
+  index,
+  numeric,
+  pgEnum,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+import { callStates } from "./call.schema";
+
+/**
+ * Службы так, как они подписаны в АРМ.
+ *
+ * Коды — транскрипция ярлыков заказчика, а не выдуманный перевод: `dds_01`
+ * это пожарная охрана, но называть её в карточке иначе, чем на кнопке, значит
+ * заставлять оператора и разбор говорить на разных языках. Соответствие
+ * `dds_01 → fire` знает оценка, которой сценарий называет ожидаемые службы.
+ */
+export const DISPATCH_SERVICES = [
+  "dds_01",
+  "dds_02",
+  "dds_03",
+  "dds_04",
+  "zhkh",
+  "antiterror",
+  "eddc",
+  "uadit",
+  "rosgvardia",
+  "cuks",
+  "ass",
+  "lpc",
+  "ss",
+] as const;
+
+/** Метки происшествия: в макете это ряд переключаемых чипов. */
+export const INCIDENT_CATEGORIES = [
+  "socially_significant",
+  "threat_to_people",
+  "emergency_threat",
+  "important",
+] as const;
+
+export const dispatchService = pgEnum("dispatch_service", DISPATCH_SERVICES);
+export const incidentCategory = pgEnum(
+  "incident_category",
+  INCIDENT_CATEGORIES,
+);
+
+export type DispatchService = (typeof DISPATCH_SERVICES)[number];
+export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+
+/**
+ * Карточка происшествия — то, что оператор заполняет по ходу разговора.
+ *
+ * Одна карточка на один учебный звонок: разбор занятия сравнивает её с
+ * эталонной анкетой сценария, поэтому карточка живёт ровно столько же, сколько
+ * звонок, и закрывается вместе с ним.
+ */
+export const incidentCards = pgTable(
+  "incident_cards",
+  {
+    trainingSessionId: text("training_session_id")
+      .primaryKey()
+      .references(() => callStates.trainingSessionId, { onDelete: "cascade" }),
+
+    // ── Заявитель ────────────────────────────────────────────────
+    callerAnonymous: boolean("caller_anonymous").notNull().default(false),
+    callerLastName: text("caller_last_name"),
+    callerFirstName: text("caller_first_name"),
+    callerMiddleName: text("caller_middle_name"),
+    callerLanguage: text("caller_language"),
+    callerPhone: text("caller_phone"),
+
+    // ── Место происшествия ───────────────────────────────────────
+    /**
+     * Адрес одной строкой, как его набрал оператор: в АРМ это одно поле —
+     * «улица, дом, корпус, строение, владение, дорога, километр, метр,
+     * адресный участок, объект». Эталон сверяет его части вхождением.
+     */
+    addressText: text("address_text"),
+    district: text("district"),
+    objectType: text("object_type"),
+    entrance: text("entrance"),
+    floor: text("floor"),
+    intercom: text("intercom"),
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
+    /** Отметка «Рядом»: заявитель находится на месте происшествия. */
+    nearby: boolean("nearby").notNull().default(false),
+    placeNotes: text("place_notes"),
+
+    // ── О происшествии ───────────────────────────────────────────
+    incidentType: text("incident_type"),
+    categories: incidentCategory("categories").array().notNull().default([]),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    victimsTotal: smallint("victims_total"),
+    victimsChildren: smallint("victims_children"),
+    deathsTotal: smallint("deaths_total"),
+    deathsChildren: smallint("deaths_children"),
+    description: text("description"),
+
+    // ── Службы ───────────────────────────────────────────────────
+    services: dispatchService("services").array().notNull().default([]),
+
+    /** Пока пусто, карточку можно править; после — только читать. */
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("incident_cards_submitted_at_idx").on(table.submittedAt)],
+);
+
+/**
+ * Пострадавшие: в макете это повторяемый блок с кнопкой «Добавить», поэтому
+ * отдельная таблица, а не поля в карточке.
+ */
+export const incidentCardVictims = pgTable(
+  "incident_card_victims",
+  {
+    id: text("id").primaryKey(),
+    trainingSessionId: text("training_session_id")
+      .notNull()
+      .references(() => incidentCards.trainingSessionId, {
+        onDelete: "cascade",
+      }),
+    /** Порядок в списке: оператор добавляет пострадавших сверху вниз. */
+    orderIndex: smallint("order_index").notNull(),
+    lastName: text("last_name"),
+    firstName: text("first_name"),
+    middleName: text("middle_name"),
+    /** «Повод вызова» из макета. */
+    reason: text("reason"),
+    birthDate: text("birth_date"),
+    notes: text("notes"),
+  },
+  (table) => [
+    uniqueIndex("incident_card_victims_session_order_unique_idx").on(
+      table.trainingSessionId,
+      table.orderIndex,
+    ),
+  ],
+);

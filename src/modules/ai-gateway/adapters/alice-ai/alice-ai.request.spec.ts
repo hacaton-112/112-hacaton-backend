@@ -83,7 +83,7 @@ describe(buildAliceAiRequest.name, () => {
     expect(serialized).not.toContain("safety_identifier");
   });
 
-  it("keeps provider schema structural and delegates value constraints to Zod", () => {
+  it("describes the reply the provider has to produce", () => {
     expect(CALLER_REPLY_JSON_SCHEMA).toEqual({
       type: "object",
       additionalProperties: false,
@@ -101,8 +101,10 @@ describe(buildAliceAiRequest.name, () => {
             "confusion",
           ],
         },
-        intensity: { type: "number" },
-        speechRate: { type: "number" },
+        // Диапазоны названы явно: проверяет их всё равно Zod, но модель,
+        // которой границы не сказали, отвечает по шкале «до десяти».
+        intensity: { type: "number", minimum: 0, maximum: 1 },
+        speechRate: { type: "number", minimum: 0.5, maximum: 2 },
         revealedFactIds: {
           type: "array",
           items: { type: "string" },

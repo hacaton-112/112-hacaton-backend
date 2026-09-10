@@ -1,7 +1,4 @@
-import type {
-  GenerateCallerReplyRequest,
-  LlmStreamEvent,
-} from "@/contracts";
+import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 
 export interface LlmPort {
   streamReply(
