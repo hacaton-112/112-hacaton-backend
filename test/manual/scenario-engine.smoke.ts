@@ -29,21 +29,6 @@ const step = (message: string): void => {
   console.log(`• ${message}`);
 };
 
-const expectFailure = async (
-  description: string,
-  action: () => Promise<unknown>,
-): Promise<void> => {
-  try {
-    await action();
-  } catch (error) {
-    step(`${description}: отклонено (${(error as Error).message})`);
-
-    return;
-  }
-
-  throw new Error(`${description}: ожидался отказ, но команда прошла`);
-};
-
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(CoreModule, {
     logger: ["error", "warn"],
@@ -134,21 +119,26 @@ async function main(): Promise<void> {
     }
     step("после вопроса про адрес факт стал доступен");
 
-    await expectFailure("раскрытие факта вне разрешённого набора", () =>
-      engine.applyCallerReply({
-        trainingSessionId,
-        eventId: generateId(),
-        operatorText: "Назовите точный адрес",
-        reply: {
-          text: "Код домофона 1К45!",
-          emotion: "panic",
-          intensity: 0.8,
-          speechRate: 1.2,
-          revealedFactIds: ["door_code"],
-          endCall: false,
-        },
-      }),
-    );
+    // Лишний идентификатор снимается, а слова доходят до синтеза: модель
+    // скрытых фактов не получает и раскрыть их не может.
+    const withStrayLabel = await engine.applyCallerReply({
+      trainingSessionId,
+      eventId: generateId(),
+      operatorText: "Назовите точный адрес",
+      reply: {
+        text: "Я не знаю, я во дворе стою!",
+        emotion: "panic",
+        intensity: 0.8,
+        speechRate: 1.2,
+        revealedFactIds: ["door_code"],
+        endCall: false,
+      },
+    });
+
+    if (withStrayLabel.revealedFactKeys.includes("door_code")) {
+      throw new Error("факт вне разрешённого набора попал в состояние звонка");
+    }
+    step("лишняя пометка факта снята, реплика сохранена");
 
     const replayEventId = generateId();
     const first = await engine.applyCallerReply({

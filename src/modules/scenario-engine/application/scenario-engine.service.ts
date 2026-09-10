@@ -18,6 +18,7 @@ import type {
 } from "@/drizzle/schema";
 
 import {
+  carriesFactContent,
   factsCarriedBy,
   isFactAvailable,
   matchesKeywords,
@@ -26,6 +27,8 @@ import {
 } from "../domain/disclosure";
 import {
   isExplicitRepeatRequest,
+  isOpenQuestion,
+  isQuestionOrRequest,
   planCallerTurn,
   planOpeningDelayMs,
   type CallerTurnTone,
@@ -333,6 +336,7 @@ export class ScenarioEngineService {
     const tone = this.operatorTone(version, matchedText);
     const focusCandidates = this.focusFacts(
       state,
+      version,
       allowed.facts,
       allowed.fresh,
       matchedText,
@@ -374,9 +378,8 @@ export class ScenarioEngineService {
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
             ` Как говорит: ${profile.speechRules}` +
-            ` Так звучат его реплики: ${profile.examples
-              .map((example) => `«${example}»`)
-              .join(" ")}` +
+            ` Так он звучит — это образец подачи, а не фразы для повторения:` +
+            ` ${profile.examples.map((example) => `«${example}»`).join(" ")}` +
             background +
             TONE_PROMPTS[tone] +
             (input.initiative === true
@@ -393,6 +396,10 @@ export class ScenarioEngineService {
         // Разговор, который уже был: без него заявитель отвечает так, будто
         // звонок только начался, и повторяет одну и ту же первую фразу.
         recentTurns: [...recentTurns],
+        // Окна недавних реплик хватает на восемь ходов, а звонок длиннее:
+        // список уже сказанного не даёт заявителю рассказывать одно и то же
+        // по кругу.
+        alreadyToldFactIds: [...state.revealedFactKeys],
         turnPlan,
       },
     };
@@ -401,9 +408,11 @@ export class ScenarioEngineService {
   /**
    * Применяет реплику заявителя.
    *
-   * Раскрытие факта вне разрешённого набора — нарушение инварианта: реплика
-   * отбрасывается целиком и не доходит до синтеза, а попытка попадает в журнал
-   * как сигнал качества промпта.
+   * Идентификатор факта вне разрешённого набора снимается, а сама реплика
+   * доходит до синтеза: скрытых фактов модель не получает и раскрыть их не
+   * может, поэтому лишняя пометка — ошибка разметки, а не утечка. Снятие
+   * попадает в журнал как `fact.rejected`: это сигнал качества промпта, но не
+   * повод оставить оператора без ответа.
    */
   async applyCallerReply(input: {
     trainingSessionId: string;
@@ -426,34 +435,16 @@ export class ScenarioEngineService {
     const forbidden = input.reply.revealedFactIds.filter(
       (key) => !allowedKeys.has(key),
     );
-
-    if (forbidden.length > 0) {
-      await this.store.appendTurn(
-        state.trainingSessionId,
-        input.eventId,
-        [
-          {
-            type: "fact.rejected",
-            actor: "system",
-            occurredAt: now,
-            payload: { factKeys: forbidden },
-          },
-        ],
-        {},
-      );
-
-      throw new ScenarioEngineError(
-        "fact-not-allowed",
-        `The reply reveals facts the scenario did not allow: ${forbidden.join(", ")}`,
-      );
-    }
+    const declared = input.reply.revealedFactIds.filter((key) =>
+      allowedKeys.has(key),
+    );
 
     // Модель обязана перечислять раскрытые факты и регулярно этого не делает:
     // заявитель отвечает «Там дети!», а обязательный вопрос остаётся открытым.
     // Сказанное вслух считается наравне с объявленным — и только среди фактов,
     // разрешённых на этом ходу: словами открыть закрытое всё так же нельзя.
     const revealed = new Set([
-      ...input.reply.revealedFactIds,
+      ...declared,
       ...factsCarriedBy(input.reply.text, allowed.facts),
     ]);
     const revealedNow = [...revealed].filter(
@@ -495,6 +486,16 @@ export class ScenarioEngineService {
         occurredAt: now,
         payload: { key },
       })),
+      ...(forbidden.length === 0
+        ? []
+        : [
+            {
+              type: "fact.rejected" as const,
+              actor: "system" as const,
+              occurredAt: now,
+              payload: { factKeys: forbidden },
+            },
+          ]),
     ];
 
     const patch: CallStatePatch = {
@@ -771,6 +772,7 @@ export class ScenarioEngineService {
   /** Выбирает содержание одного ответа, а не всю накопленную память звонка. */
   private focusFacts(
     state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
     allowedFacts: readonly ScenarioFact[],
     freshFactIds: readonly string[],
     operatorText: string,
@@ -780,14 +782,47 @@ export class ScenarioEngineService {
       return [];
     }
 
-    const directAnswers = allowedFacts.filter(
+    // О чём вопрос: слова факта описывают его содержание, поэтому по ним
+    // вопрос узнаётся точнее, чем по списку, который автор привязал к
+    // раскрытию. «Они дышат?» находит состояние детей, хотя оно открывается
+    // не вопросом, а другим фактом.
+    const aboutQuestion = version.facts.filter((fact) =>
+      carriesFactContent(operatorText, fact.contentKeywords),
+    );
+    const answersQuestion = aboutQuestion.filter((fact) =>
+      allowedFacts.includes(fact),
+    );
+
+    if (answersQuestion.length > 0) {
+      return answersQuestion;
+    }
+
+    // Спросили ровно о том, что сценарий пока держит закрытым. Подставить
+    // вместо этого другой факт — худший из ответов: на «код домофона какой?»
+    // заявитель сообщал номер дома, потому что «дом» нашлось в «домофона».
+    if (aboutQuestion.length > 0) {
+      return [];
+    }
+
+    const askedFor = allowedFacts.filter(
       (fact) =>
         fact.disclosure.type === "on_question" &&
         matchesKeywords(operatorText, fact.disclosure.keywords),
     );
 
-    if (directAnswers.length > 0) {
-      return directAnswers;
+    if (askedFor.length > 0) {
+      return askedFor;
+    }
+
+    // Прямого ответа у сценария нет. Факт, только что ставший доступным, — это
+    // не ответ, а другая тема: на «вы сейчас в безопасности?» заявитель
+    // рассказывал про состояние детей, потому что тот факт открылся этим
+    // ходом. На точный вопрос свежесть отвечать не вправе — а на открытый
+    // «что случилось?» заявитель, наоборот, выкладывает главное.
+    const openQuestion = isOpenQuestion(operatorText);
+
+    if (isQuestionOrRequest(operatorText) && !openQuestion) {
+      return [];
     }
 
     const freshFacts = allowedFacts.filter((fact) =>
@@ -798,17 +833,37 @@ export class ScenarioEngineService {
       return freshFacts;
     }
 
-    if (!isExplicitRepeatRequest(operatorText)) {
+    // «Что случилось?» после того, как заявитель это уже прокричал в первой
+    // реплике: нового у него нет, но и молчать о главном он не станет —
+    // повторяет самое важное из уже сказанного.
+    if (!openQuestion && !isExplicitRepeatRequest(operatorText)) {
       return [];
+    }
+
+    const revealed = allowedFacts.filter((fact) =>
+      state.revealedFactKeys.includes(fact.key),
+    );
+
+    if (revealed.length === 0) {
+      return [];
+    }
+
+    if (openQuestion) {
+      const mostImportant = [...revealed].sort(
+        (left, right) =>
+          right.priority - left.priority || left.orderIndex - right.orderIndex,
+      )[0];
+
+      return mostImportant === undefined ? [] : [mostImportant];
     }
 
     const lastRevealedKey = [...state.revealedFactKeys]
       .reverse()
-      .find((key) => allowedFacts.some((fact) => fact.key === key));
+      .find((key) => revealed.some((fact) => fact.key === key));
 
     return lastRevealedKey === undefined
       ? []
-      : allowedFacts.filter((fact) => fact.key === lastRevealedKey);
+      : revealed.filter((fact) => fact.key === lastRevealedKey);
   }
 
   /**
@@ -847,13 +902,15 @@ export class ScenarioEngineService {
         case "emotional-reaction":
           text = initiative
             ? "Алло? Ответьте мне, пожалуйста!"
-            : "Не говорите так, пожалуйста! Помогите мне.";
+            : "Я не знаю! Пожалуйста, пусть быстрее едут!";
           break;
         case "panic-refusal":
           text = "Я не успеваю понять. Говорите короче!";
           break;
         case "clarify":
-          text = "Спросите, пожалуйста, конкретнее.";
+          // Заявитель переспрашивает своими словами: канцелярское «спросите
+          // конкретнее» звучало как ответ второго оператора, а не человека.
+          text = "Что? Я вас не понимаю, повторите!";
           break;
         default:
           text = version.fallbackLine;

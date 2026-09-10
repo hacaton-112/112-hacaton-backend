@@ -376,6 +376,130 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("says nothing rather than substituting another fact for the one asked about", async () => {
+    const { engine } = createEngine({
+      loadVersion: jest.fn().mockResolvedValue(
+        version({
+          facts: [
+            {
+              key: "address_house",
+              promptValue: "Дом двенадцать.",
+              severity: "normal",
+              disclosure: { type: "on_question", keywords: ["дом"] },
+              contentKeywords: ["двенадцат"],
+              priority: 5,
+              orderIndex: 0,
+            },
+            {
+              key: "door_code",
+              promptValue: "Код домофона один-К-сорок пять.",
+              severity: "normal",
+              disclosure: { type: "below_panic", level: 1 },
+              contentKeywords: ["домофон", "код"],
+              priority: 1,
+              orderIndex: 1,
+            },
+          ],
+        }),
+      ),
+    });
+
+    // «дом» is found inside «домофона», so the caller used to answer the
+    // intercom question with a house number. The scenario is holding the code
+    // back at this step of panic, and no answer beats the wrong one.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Код домофона какой?",
+    });
+
+    expect(built.context.allowedFacts).toEqual([]);
+  });
+
+  it("returns to the main news when the operator asks openly", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 4,
+          // Everything the scenario opens so far has been told, so nothing is
+          // fresh and the caller has to return to what matters most.
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Служба 112, что случилось?",
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "incident_type",
+    ]);
+  });
+
+  it("tells the model what the caller has already said", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 6,
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    // The window of recent turns is eight; a call is longer, and without this
+    // list the caller retells on the ninth turn what he said on the second.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+
+    expect(built.context.alreadyToldFactIds).toEqual([
+      "incident_type",
+      "trapped_children",
+    ]);
+  });
+
+  it("does not answer a specific question with the fact that just opened", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 3,
+          revealedFactKeys: ["incident_type"],
+        }),
+      ),
+    });
+
+    // Nothing in the scenario says whether the caller himself is safe, and the
+    // children's fact is a different subject: freshness must not hijack a
+    // question that was actually asked.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Вы сейчас в безопасности?",
+    });
+
+    expect(built.context.allowedFacts).toEqual([]);
+  });
+
+  it("answers a question aimed at a fact the scenario opened by another rule", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({ callerTurns: 3, revealedFactKeys: [] }),
+      ),
+    });
+
+    // trapped_children is gated by a question about people, but the operator
+    // asked about children by name; the fact's own words carry the answer.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Дети дома?",
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "trapped_children",
+    ]);
+  });
+
   it("opens a question fact once the operator asks for it", async () => {
     const { engine } = createEngine();
 
@@ -492,8 +616,33 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
       focusFactIds: [],
     });
     expect(built.context.allowedFacts).toEqual([]);
+    expect(built.fallbackReply.text).toBe("Что? Я вас не понимаю, повторите!");
+  });
+
+  it("answers with feeling rather than clerical wording when panic is high", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          panicLevel: 4,
+          callerTurns: 4,
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    // The scenario holds no answer to this, and a man whose flat is burning
+    // does not ask the dispatcher to phrase the question more precisely.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Как зовут пострадавшего?",
+    });
+
+    expect(built.context.turnPlan).toMatchObject({
+      reactionAct: "emotional-reaction",
+      focusFactIds: [],
+    });
     expect(built.fallbackReply.text).toBe(
-      "Спросите, пожалуйста, конкретнее.",
+      "Я не знаю! Пожалуйста, пусть быстрее едут!",
     );
   });
 
@@ -645,23 +794,29 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
     );
   });
 
-  it("rejects a reply that reveals a fact the scenario did not allow", async () => {
+  it("keeps the reply and strips a fact the scenario did not allow", async () => {
     const { engine, store } = createEngine();
 
-    await expect(
-      engine.applyCallerReply({
-        trainingSessionId: "session-1",
-        eventId: "event-3",
-        operatorText: "Что случилось?",
-        reply: reply({ revealedFactIds: ["address_street"] }),
-        now: NOW,
+    // The model never received the street, so the identifier is a wrong label
+    // rather than a leak. Throwing the reply away left the operator with
+    // silence; the label is journalled instead.
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Что случилось?",
+      reply: reply({
+        text: "Приезжайте скорее!",
+        revealedFactIds: ["address_street"],
       }),
-    ).rejects.toBeInstanceOf(ScenarioEngineError);
+      now: NOW,
+    });
 
-    // The attempt is journalled as a prompt-quality signal, and nothing about
-    // the call state moves.
-    expect(eventTypes(store)).toEqual(["fact.rejected"]);
-    expect(patchOf(store)).toEqual({});
+    expect(snapshot.revealedFactKeys).toEqual([]);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.rejected",
+    ]);
   });
 
   it("raises the step once when a heavy fact is spoken aloud", async () => {
@@ -850,8 +1005,10 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
     });
 
     expect(built.context.persona.description).toContain("Как говорит:");
+    // Примеры даются как образец подачи: раньше модель воспроизводила их
+    // дословно ход за ходом.
     expect(built.context.persona.description).toContain(
-      "Так звучат его реплики:",
+      "образец подачи, а не фразы для повторения",
     );
   });
 });

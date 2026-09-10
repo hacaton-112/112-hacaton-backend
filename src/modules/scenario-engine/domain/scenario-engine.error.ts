@@ -3,8 +3,7 @@ export type ScenarioEngineErrorCode =
   | "scenario-version-not-found"
   | "call-already-started"
   | "call-not-active"
-  | "call-stage-forbidden"
-  | "fact-not-allowed";
+  | "call-stage-forbidden";
 
 /**
  * Доменная ошибка движка.

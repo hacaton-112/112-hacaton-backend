@@ -24,20 +24,20 @@ describe(CallerReplySafetyService.name, () => {
     expect(service.validate(validReply, allowedFacts)).toEqual(validReply);
   });
 
-  it("rejects a fact ID that was not allowed by the scenario context", () => {
-    expect(() =>
-      service.validate(
-        {
-          ...validReply,
-          revealedFactIds: ["fire_location", "child_inside"],
-        },
-        allowedFacts,
-      ),
-    ).toThrow(
-      expect.objectContaining<Partial<CallerReplyValidationError>>({
-        reason: "forbidden-fact",
-      }),
+  it("keeps the words and drops a fact ID the scenario did not allow", () => {
+    // The model never sees a hidden fact, so a stray identifier is a wrong
+    // label rather than a leak — and it used to cost the operator the whole
+    // reply.
+    const validated = service.validate(
+      {
+        ...validReply,
+        revealedFactIds: ["fire_location", "child_inside"],
+      },
+      allowedFacts,
     );
+
+    expect(validated.text).toBe(validReply.text);
+    expect(validated.revealedFactIds).toEqual(["fire_location"]);
   });
 
   it.each([
@@ -105,15 +105,15 @@ describe(`${CallerReplySafetyService.name} style values`, () => {
     });
   });
 
-  it("still refuses a fact the caller was not allowed to reveal", () => {
+  it("still strips a fact the caller was not allowed to reveal", () => {
     const service = new CallerReplySafetyService();
 
-    expect(() =>
-      service.validate(
-        reply({ intensity: 8, revealedFactIds: ["address"] }),
-        [],
-      ),
-    ).toThrow(CallerReplyValidationError);
+    const validated = service.validate(
+      reply({ intensity: 8, revealedFactIds: ["address"] }),
+      [],
+    );
+
+    expect(validated.revealedFactIds).toEqual([]);
   });
 
   it("does not invent numbers the model never sent", () => {

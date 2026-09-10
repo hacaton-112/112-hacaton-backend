@@ -54,6 +54,7 @@ describe(buildAliceAiRequest.name, () => {
             persona: request.context.persona,
             allowedFacts: request.context.allowedFacts,
             recentTurns: request.context.recentTurns,
+            alreadyToldFactIds: [],
             operatorText: request.operatorText,
             turnPlan: {
               reactionAct: "hesitate",
