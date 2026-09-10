@@ -5,7 +5,13 @@
 //! закрывает кодом 4401. Заодно речь оператора не пересекает границу IPC —
 //! микрофон и сокет оказываются в одном процессе и в одном потоке данных.
 
-use std::{collections::VecDeque, sync::Mutex};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -41,6 +47,10 @@ enum Outgoing {
 }
 
 struct ActiveCall {
+    /// Кто владеет соединением сейчас. Webview успевает открыть второе, пока
+    /// первое закрывается, и без этой метки команды одного звонка уходили бы
+    /// в сокет другого.
+    id: String,
     outgoing: mpsc::Sender<Outgoing>,
     capture: Option<CaptureHandle>,
 }
@@ -48,6 +58,10 @@ struct ActiveCall {
 #[derive(Default)]
 pub struct CallState {
     active: Mutex<Option<ActiveCall>>,
+    /// Номер попытки подключения. Побеждает та, что началась последней:
+    /// рукопожатие занимает время, и без счётчика более раннее подключение
+    /// могло бы установиться поверх более позднего.
+    generation: AtomicU64,
 }
 
 /// Открывает сокет учебного звонка и начинает слушать события сервера.
@@ -58,7 +72,7 @@ pub async fn call_connect(
     token: String,
     on_event: Channel<Value>,
     on_audio: Channel<Response>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     if !url.starts_with("ws://") && !url.starts_with("wss://") {
         return Err(format!("unsupported WebSocket URL: {url}"));
     }
@@ -66,6 +80,7 @@ pub async fn call_connect(
     // Повторное подключение закрывает прежнее, а не отказывает: React в режиме
     // разработки монтирует эффект дважды, да и переподключение после обрыва
     // не должно упираться в остаток мёртвого соединения.
+    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     close_active(&state)?;
 
     let mut request = url
@@ -85,23 +100,41 @@ pub async fn call_connect(
     let (outgoing_tx, outgoing_rx) = mpsc::channel::<Outgoing>(OUTGOING_CAPACITY);
     tauri::async_runtime::spawn(pump(socket, outgoing_rx, on_event, on_audio));
 
-    *state.active.lock().map_err(lock_error)? = Some(ActiveCall {
+    let id = generation.to_string();
+    let mut guard = state.active.lock().map_err(lock_error)?;
+
+    if state.generation.load(Ordering::SeqCst) != generation {
+        // Пока шло рукопожатие, webview начал подключаться заново. Это
+        // соединение уже никому не нужно: сокет закроется вместе с каналом.
+        return Err("this call socket has been superseded".to_owned());
+    }
+
+    *guard = Some(ActiveCall {
+        id: id.clone(),
         outgoing: outgoing_tx,
         capture: None,
     });
 
-    Ok(())
+    Ok(id)
 }
 
 /// Передаёт команду жизненного цикла звонка как есть: протокол живёт в
 /// контрактах backend, дублировать его перечислением здесь незачем.
 #[tauri::command]
-pub async fn call_send(state: State<'_, CallState>, command: Value) -> Result<(), String> {
+pub async fn call_send(
+    state: State<'_, CallState>,
+    connection: String,
+    command: Value,
+) -> Result<(), String> {
     let sender = {
         let guard = state.active.lock().map_err(lock_error)?;
         let Some(active) = guard.as_ref() else {
             return Err("the call socket is not open".to_owned());
         };
+
+        if active.id != connection {
+            return Err("this call socket has been replaced".to_owned());
+        }
 
         active.outgoing.clone()
     };
@@ -114,12 +147,19 @@ pub async fn call_send(state: State<'_, CallState>, command: Value) -> Result<()
 
 /// Оператор взял слово: открываем окно записи и включаем микрофон.
 #[tauri::command]
-pub async fn call_listen_start(state: State<'_, CallState>) -> Result<(), String> {
+pub async fn call_listen_start(
+    state: State<'_, CallState>,
+    connection: String,
+) -> Result<(), String> {
     let (sender, already_listening) = {
         let guard = state.active.lock().map_err(lock_error)?;
         let Some(active) = guard.as_ref() else {
             return Err("the call socket is not open".to_owned());
         };
+
+        if active.id != connection {
+            return Err("this call socket has been replaced".to_owned());
+        }
 
         (active.outgoing.clone(), active.capture.is_some())
     };
@@ -154,12 +194,16 @@ pub async fn call_listen_start(state: State<'_, CallState>) -> Result<(), String
 /// пересылки — после того как отдаст хвост реплики, иначе последние сотни
 /// миллисекунд обогнала бы команда и не попали в расшифровку.
 #[tauri::command]
-pub async fn call_listen_stop(state: State<'_, CallState>) -> Result<(), String> {
+pub async fn call_listen_stop(
+    state: State<'_, CallState>,
+    connection: String,
+) -> Result<(), String> {
     let capture = state
         .active
         .lock()
         .map_err(lock_error)?
         .as_mut()
+        .filter(|active| active.id == connection)
         .and_then(|active| active.capture.take());
 
     if let Some(mut capture) = capture {

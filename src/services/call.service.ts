@@ -26,7 +26,9 @@ export class CallStream {
   private audioContext?: AudioContext;
   private nextStartTime = 0;
   private sampleRate = 24_000;
-  private connected = false;
+  /** Идентификатор соединения: команды старого сокета отвергает Rust. */
+  private connection: string | null = null;
+  private disposed = false;
 
   constructor(callbacks: CallStreamCallbacks) {
     this.callbacks = callbacks;
@@ -40,7 +42,7 @@ export class CallStream {
     audio.onmessage = (chunk) => this.playPcmChunk(chunk);
 
     try {
-      await invoke("call_connect", {
+      this.connection = await invoke<string>("call_connect", {
         url: ApiRoutes.voicePipeline.stream,
         token,
         onEvent: events,
@@ -50,7 +52,11 @@ export class CallStream {
       throw toError(reason);
     }
 
-    this.connected = true;
+    // Экран мог размонтироваться, пока шло рукопожатие: тогда соединение
+    // закрывается сразу, а не остаётся висеть без хозяина.
+    if (this.disposed) {
+      await this.dispose();
+    }
   }
 
   start(scenarioVersionId: string): Promise<void> {
@@ -71,30 +77,54 @@ export class CallStream {
 
   /** Оператор взял слово: микрофон открывает нативная сторона. */
   async holdFloor(): Promise<void> {
-    await invoke("call_listen_start").catch((reason: unknown) => {
+    await invoke("call_listen_start", {
+      connection: this.requireConnection(),
+    }).catch((reason: unknown) => {
       throw toError(reason);
     });
   }
 
   async releaseFloor(): Promise<void> {
-    await invoke("call_listen_stop").catch(() => undefined);
+    if (this.connection === null) {
+      return;
+    }
+
+    await invoke("call_listen_stop", { connection: this.connection }).catch(
+      () => undefined,
+    );
   }
 
   async dispose(): Promise<void> {
-    this.connected = false;
-    await invoke("call_disconnect").catch(() => undefined);
+    this.disposed = true;
+
+    const connection = this.connection;
+    this.connection = null;
+
+    if (connection !== null) {
+      // Закрывается именно это соединение: следующее могло открыться раньше,
+      // чем сюда дошло размонтирование предыдущего экрана.
+      await invoke("call_disconnect", { connection }).catch(() => undefined);
+    }
+
     await this.audioContext?.close().catch(() => undefined);
     this.audioContext = undefined;
   }
 
   private async send(command: Record<string, unknown>): Promise<void> {
-    if (!this.connected) {
+    await invoke("call_send", {
+      connection: this.requireConnection(),
+      command,
+    }).catch((reason: unknown) => {
+      throw toError(reason);
+    });
+  }
+
+  private requireConnection(): string {
+    if (this.connection === null) {
       throw new Error("Соединение со звонком не открыто");
     }
 
-    await invoke("call_send", { command }).catch((reason: unknown) => {
-      throw toError(reason);
-    });
+    return this.connection;
   }
 
   private handleEvent(payload: unknown): void {
