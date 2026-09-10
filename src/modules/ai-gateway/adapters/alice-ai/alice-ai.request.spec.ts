@@ -34,6 +34,7 @@ const request: GenerateCallerReplyRequest = {
     ],
     turnPlan: {
       reactionAct: "hesitate",
+      focusFactIds: ["fire_location"],
       minimumResponseDelayMs: 620,
     },
   },
@@ -56,6 +57,7 @@ describe(buildAliceAiRequest.name, () => {
             operatorText: request.operatorText,
             turnPlan: {
               reactionAct: "hesitate",
+              focusFactIds: ["fire_location"],
               instruction:
                 "Начни с короткой запинки или сомнения, затем ответь разрешёнными фактами.",
             },

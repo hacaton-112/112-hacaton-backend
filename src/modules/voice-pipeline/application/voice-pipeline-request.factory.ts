@@ -1,5 +1,6 @@
 import type {
   CallerReply,
+  DialogueGenerationResult,
   VoicePipelineRequest,
   VoicePipelineSpeakCommand,
 } from "@/contracts";
@@ -18,6 +19,7 @@ export interface RecordCallerReplyOptions {
   sessionId: string;
   operatorText: string;
   reply: CallerReply;
+  generation: Pick<DialogueGenerationResult, "source" | "attempts">;
   initiative?: boolean;
 }
 

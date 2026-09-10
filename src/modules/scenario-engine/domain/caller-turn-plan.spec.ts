@@ -8,8 +8,7 @@ const baseInput = {
   tone: "neutral" as const,
   initiative: false,
   freshFactIds: ["address"],
-  allowedFactIds: ["incident", "address"],
-  recentTurns: [{ role: "caller" as const, text: "Горит квартира!" }],
+  focusFactIds: ["address"],
 };
 
 describe(planCallerTurn.name, () => {
@@ -37,24 +36,52 @@ describe(planCallerTurn.name, () => {
     expect(plan.reactionAct).toBe("panic-refusal");
   });
 
-  it("repeats known information instead of inventing a new fact", () => {
+  it("repeats a focused known fact only after an explicit request", () => {
     const plan = planCallerTurn({
       ...baseInput,
+      operatorText: "Повторите адрес, пожалуйста.",
       freshFactIds: [],
-      allowedFactIds: ["incident"],
+      focusFactIds: ["address"],
     });
 
     expect(plan.reactionAct).toBe("repeat");
+    expect(plan.focusFactIds).toEqual(["address"]);
   });
 
-  it("asks for clarification when the scenario permits no answer", () => {
+  it("asks for clarification instead of retelling known information", () => {
     const plan = planCallerTurn({
       ...baseInput,
+      operatorText: "Как зовут пострадавшего?",
       freshFactIds: [],
-      allowedFactIds: [],
+      focusFactIds: [],
     });
 
     expect(plan.reactionAct).toBe("clarify");
+    expect(plan.focusFactIds).toEqual([]);
+  });
+
+  it("acknowledges an instruction without repeating the incident", () => {
+    const plan = planCallerTurn({
+      ...baseInput,
+      operatorText: "Оставайтесь на линии.",
+      freshFactIds: [],
+      focusFactIds: [],
+    });
+
+    expect(plan.reactionAct).toBe("acknowledge");
+  });
+
+  it("does not repeat the opening line on caller initiative", () => {
+    const plan = planCallerTurn({
+      ...baseInput,
+      initiative: true,
+      operatorText: "",
+      freshFactIds: [],
+      focusFactIds: ["incident"],
+    });
+
+    expect(plan.reactionAct).toBe("emotional-reaction");
+    expect(plan.focusFactIds).toEqual([]);
   });
 
   it("keeps all conversational pauses short and bounded", () => {

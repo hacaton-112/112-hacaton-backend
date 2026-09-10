@@ -784,6 +784,10 @@ export class VoicePipelineGateway
               sessionId: state.sessionId,
               operatorText: command.operatorText,
               reply: event.result.reply,
+              generation: {
+                source: event.result.source,
+                attempts: event.result.attempts,
+              },
               initiative,
             });
           } catch (error) {
