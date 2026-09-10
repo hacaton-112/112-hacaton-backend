@@ -3,6 +3,7 @@ export const ApiRoutes = {
   Asr: "asr",
   Auth: "auth",
   Scenarios: "scenarios",
+  Calls: "calls",
 } as const;
 
 export type ApiRouteName = (typeof ApiRoutes)[keyof typeof ApiRoutes];

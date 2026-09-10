@@ -1,7 +1,4 @@
-import type {
-  GenerateCallerReplyRequest,
-  LlmStreamEvent,
-} from "@/contracts";
+import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 
 import type { AliceAiConfig } from "./alice-ai.config";
 import { AliceAiLlmAdapter } from "./alice-ai.adapter";
@@ -206,10 +203,7 @@ describe(AliceAiLlmAdapter.name, () => {
         });
       });
     };
-    const adapter = new AliceAiLlmAdapter(
-      timeoutConfig,
-      fetchImplementation,
-    );
+    const adapter = new AliceAiLlmAdapter(timeoutConfig, fetchImplementation);
 
     await expect(collect(adapter)).rejects.toEqual(
       expect.objectContaining({

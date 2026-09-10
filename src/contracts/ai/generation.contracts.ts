@@ -39,9 +39,22 @@ export const CallerReplyTextSchema = z
   .min(1)
   .max(MAX_CALLER_REPLY_LENGTH);
 
-export const EmotionIntensitySchema = z.number().min(0).max(1);
+/**
+ * Границы окраски голоса живут отдельными константами: их знает и схема, и
+ * поставщик модели, которому диапазон приходится диктовать явно.
+ */
+export const EMOTION_INTENSITY_RANGE = { min: 0, max: 1 } as const;
+export const SPEECH_RATE_RANGE = { min: 0.5, max: 2 } as const;
 
-export const SpeechRateSchema = z.number().min(0.5).max(2);
+export const EmotionIntensitySchema = z
+  .number()
+  .min(EMOTION_INTENSITY_RANGE.min)
+  .max(EMOTION_INTENSITY_RANGE.max);
+
+export const SpeechRateSchema = z
+  .number()
+  .min(SPEECH_RATE_RANGE.min)
+  .max(SPEECH_RATE_RANGE.max);
 
 export const ScenarioFactSchema = z
   .object({

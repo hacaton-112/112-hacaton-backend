@@ -10,6 +10,7 @@ import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { HealthModule } from "@/modules/health/health.module";
+import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
 
@@ -30,6 +31,7 @@ import { DatabaseModule } from "./database/database.module";
     HealthModule,
     AuthModule,
     AsrModule,
+    IncidentCardModule,
     ScenarioCatalogModule,
     VoicePipelineModule,
   ],

@@ -38,7 +38,13 @@ describe("createDemoVoicePipelineRequest", () => {
           recentTurns: [],
         },
       },
-      voiceId: "Vivian",
+      voice: {
+        voiceId: "Vivian",
+        gender: "male",
+        emotion: "panic",
+        intensity: 0.75,
+        speechRate: 1.15,
+      },
     });
   });
 
@@ -51,7 +57,7 @@ describe("createDemoVoicePipelineRequest", () => {
       true,
     );
 
-    expect(request.voiceId).toBe("Chelsie");
+    expect(request.voice.voiceId).toBe("Chelsie");
   });
 
   it("rejects use unless demo mode is explicitly enabled", () => {

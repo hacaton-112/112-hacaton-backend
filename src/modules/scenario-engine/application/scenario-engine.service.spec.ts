@@ -32,6 +32,7 @@ const version = (
   fallbackLine: "Повторите, вас плохо слышно.",
   persona: {
     displayName: "Мужчина, 34 года",
+    gender: "male" as const,
     ageYears: 34,
     condition: "Волнение, быстрая речь",
     speechStyle: "Говорит рублеными фразами.",
@@ -78,7 +79,14 @@ const version = (
       trigger: "calming_phrase",
       direction: "down",
       cooldownSeconds: 0,
-      keywords: ["помощь уже", "я вас слышу"],
+      keywords: ["помощь уже", "я вас слышу", "бригада выехала"],
+    },
+    {
+      // Диспетчеров 112 учат не говорить «успокойтесь»: сценарий это наказывает.
+      trigger: "forbidden_phrase",
+      direction: "up",
+      cooldownSeconds: 0,
+      keywords: ["успокойтесь", "не кричите"],
     },
   ],
   mandatoryQuestions: [
@@ -112,6 +120,7 @@ const callState = (
 ): CallStateSnapshot => ({
   trainingSessionId: "session-1",
   scenarioVersionId: "version-1",
+  operatorId: "operator-1",
   stage: "conversation",
   panicLevel: 2,
   panicChangedAt: null,
@@ -133,6 +142,7 @@ interface StoreMocks {
   loadCall: jest.Mock;
   startCall: jest.Mock;
   appendTurn: jest.Mock;
+  loadRecentTurns: jest.Mock;
 }
 
 const createEngine = (
@@ -143,6 +153,7 @@ const createEngine = (
     loadCall: jest.fn().mockResolvedValue(callState()),
     startCall: jest.fn().mockResolvedValue("applied"),
     appendTurn: jest.fn().mockResolvedValue("applied"),
+    loadRecentTurns: jest.fn().mockResolvedValue([]),
     ...overrides,
   };
 
@@ -219,6 +230,38 @@ describe(`${ScenarioEngineService.name} startCall`, () => {
 
     expect(snapshot.locator?.radiusMeters).toBe(300);
     expect(JSON.stringify(snapshot)).not.toContain("Учебная");
+  });
+});
+
+describe(`${ScenarioEngineService.name} startCall on a used session`, () => {
+  it("answers a repeated command with the call it already opened", async () => {
+    const { engine } = createEngine({
+      startCall: jest.fn().mockResolvedValue("duplicate"),
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+    });
+
+    await expect(
+      engine.startCall({
+        trainingSessionId: "session-1",
+        scenarioVersionId: "version-1",
+        eventId: "event-1",
+      }),
+    ).resolves.toMatchObject({ stage: "offered" });
+  });
+
+  it("refuses a second call rather than passing off the old one as new", async () => {
+    const { engine } = createEngine({
+      startCall: jest.fn().mockResolvedValue("duplicate"),
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "declined" })),
+    });
+
+    await expect(
+      engine.startCall({
+        trainingSessionId: "session-1",
+        scenarioVersionId: "version-1",
+        eventId: "event-2",
+      }),
+    ).rejects.toThrow(ScenarioEngineError);
   });
 });
 
@@ -483,6 +526,143 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
       "address_street",
     );
     expect(built.context.persona.description).toContain("Оператор молчит");
+  });
+});
+
+describe(`${ScenarioEngineService.name} the operator's own words`, () => {
+  it("keeps a fired rule in the journal even at the top of the scale", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Успокойтесь, я вас прошу.",
+      reply: reply(),
+    });
+
+    // Ступень уже на потолке, двигать её некуда — но ошибку оператора разбор
+    // занятия должен увидеть.
+    expect(eventTypes(store)).toContain("escalation.fired");
+  });
+
+  it("does not repeat a rule that actually moved the step", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Успокойтесь, я вас прошу.",
+      reply: reply(),
+    });
+
+    expect(eventTypes(store)).toContain("panic.changed");
+    expect(eventTypes(store)).not.toContain("escalation.fired");
+  });
+
+  it("tells the caller that he was told to calm down", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Успокойтесь, мы вызвали пожарную.",
+    });
+
+    expect(built.context.persona.description).toContain("только злит");
+  });
+
+  it("tells the caller that help is on the way when it is", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Я вас слышу, бригада выехала.",
+    });
+
+    expect(built.context.persona.description).toContain("чуть легче");
+  });
+
+  it("describes how the caller speaks, not only how he feels", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что произошло?",
+    });
+
+    expect(built.context.persona.description).toContain("Как говорит:");
+    expect(built.context.persona.description).toContain(
+      "Так звучат его реплики:",
+    );
+  });
+});
+
+describe(`${ScenarioEngineService.name} voice and memory`, () => {
+  it("gives the model the turns that already happened", async () => {
+    const turns = [
+      { role: "operator" as const, text: "Что у вас случилось?" },
+      { role: "caller" as const, text: "Горит квартира!" },
+    ];
+    const { engine, store } = createEngine({
+      loadRecentTurns: jest.fn().mockResolvedValue(turns),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес.",
+    });
+
+    // Без этого заявитель отвечает так, будто звонок только начался, и
+    // повторяет одну и ту же первую фразу.
+    expect(built.context.recentTurns).toEqual(turns);
+    expect(store.loadRecentTurns).toHaveBeenCalledWith("session-1", 8);
+  });
+
+  it("lets the step of panic drive the voice, not the model", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Успокойтесь.",
+    });
+
+    expect(built.voice).toMatchObject({
+      gender: "male",
+      emotion: "panic",
+    });
+    expect(built.voice.intensity).toBeGreaterThan(0.8);
+    expect(built.voice.speechRate).toBeGreaterThan(1);
+  });
+
+  it("speaks calmly at the bottom of the scale", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 0 })),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что произошло?",
+    });
+
+    expect(built.voice.emotion).toBe("calm");
+    expect(built.voice.intensity).toBeLessThan(0.3);
+  });
+
+  it("keeps the voice of the persona the scenario cast", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что произошло?",
+    });
+
+    // Мужчина не должен говорить женским голосом: занятие рассыпается
+    // быстрее, чем от любой ошибки в тексте.
+    expect(built.voice.gender).toBe("male");
+    expect(built.voice.voiceId).toBe("Vivian");
   });
 });
 

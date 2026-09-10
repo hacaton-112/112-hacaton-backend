@@ -21,6 +21,12 @@ export const ErrorCodes = {
   // A distinguishable reason only helps an attacker probe tokens.
   AUTH_REFRESH_TOKEN_INVALID: "AUTH_REFRESH_TOKEN_INVALID",
   AUTH_USER_NOT_FOUND: "AUTH_USER_NOT_FOUND",
+
+  // ── Учебный звонок ─────────────────────────────────────────
+  // Чужой звонок неотличим от несуществующего: знать чужие идентификаторы
+  // сессий оператору незачем.
+  CALL_NOT_FOUND: "CALL_NOT_FOUND",
+  INCIDENT_CARD_CLOSED: "INCIDENT_CARD_CLOSED",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

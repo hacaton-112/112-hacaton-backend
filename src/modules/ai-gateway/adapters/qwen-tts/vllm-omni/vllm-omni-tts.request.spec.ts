@@ -22,6 +22,7 @@ const request: TtsSynthesisRequest = {
   text: "На кухне сильный дым!",
   language: "Russian",
   voiceId: "Vivian",
+  gender: "male",
   emotion: "panic",
   intensity: 0.85,
   speechRate: 1.25,
@@ -36,7 +37,7 @@ describe(buildVllmOmniTtsRequest.name, () => {
       task_type: "CustomVoice",
       language: "Russian",
       instructions:
-        "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная. Темп речи: быстрый.",
+        "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная. Голос: мужской. Темп речи: быстрый.",
       response_format: "pcm",
       sample_rate: 24_000,
       stream: true,

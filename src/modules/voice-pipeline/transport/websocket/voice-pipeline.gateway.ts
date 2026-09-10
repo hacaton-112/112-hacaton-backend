@@ -28,6 +28,7 @@ import {
   type RecordingSegment,
 } from "@/modules/call-recording";
 import type { VerifiedJwtPayload } from "@/modules/auth/dto/jwt-payload.dto";
+import { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 import {
   INITIATIVE_OPERATOR_TEXT,
   ScenarioEngineError,
@@ -120,6 +121,7 @@ export class VoicePipelineGateway
     private readonly asr: AsrStreamer,
     @Inject(CALL_RECORDER)
     private readonly recorder: CallRecorder,
+    private readonly incidentCards: IncidentCardService,
   ) {}
 
   /**
@@ -367,10 +369,16 @@ export class VoicePipelineGateway
   ): Promise<void> {
     try {
       if (command.type === "start") {
+        // Каждый вызов — своя учебная сессия. Соединение переживает несколько
+        // звонков подряд, а журнал, запись и разбор принадлежат звонку.
+        state.sessionId = generateId();
+        state.lastSnapshotKey = null;
+
         const snapshot = await this.engine.startCall({
           trainingSessionId: state.sessionId,
           scenarioVersionId: command.scenarioVersionId,
           eventId: generateId(),
+          operatorId: state.user.sub,
         });
         state.callStarted = true;
 
@@ -420,6 +428,9 @@ export class VoicePipelineGateway
       this.stopTicking(state);
       this.abortListening(state);
       this.recorder.finishCall(state.sessionId);
+      // Карточка закрывается вместе со звонком: дописанное после разговора
+      // оценивать нечестно.
+      await this.incidentCards.close(state.sessionId);
       await this.cancelActiveRequest(client, state);
       await this.sendEvent(client, state, {
         type: "call.ended",

@@ -17,6 +17,7 @@ const request: TtsSynthesisRequest = {
   text: "На кухне сильный дым!",
   language: "Russian",
   voiceId: "vivian",
+  gender: "male",
   emotion: "panic",
   intensity: 0.85,
   speechRate: 1.15,
@@ -84,6 +85,7 @@ describe(MlxAudioTtsAdapter.name, () => {
           model: config.model,
           input: request.text,
           voice: request.voiceId,
+          gender: request.gender,
           speed: request.speechRate,
           lang_code: "Russian",
           instruct:

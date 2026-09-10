@@ -24,6 +24,16 @@ export interface PanicProfile {
   readonly initiativeSilenceSeconds: number | null;
   /** Описание для промпта: модель получает состояние словами, а не числом. */
   readonly description: string;
+  /**
+   * Как заявитель говорит на этой ступени.
+   *
+   * Описания состояния модели мало: получив «в панике», она всё равно пишет
+   * ровную фразу с точкой. Правила задают длину, повторы и право строить
+   * связный рассказ — то, чем ступень отличается на слух.
+   */
+  readonly speechRules: string;
+  /** Примеры реплик: на стиль они действуют вернее любого описания. */
+  readonly examples: readonly string[];
 }
 
 const PROFILES: Record<PanicLevel, PanicProfile> = {
@@ -36,6 +46,12 @@ const PROFILES: Record<PanicLevel, PanicProfile> = {
     initiativeSilenceSeconds: null,
     description:
       "владеет собой, отвечает по существу и сам структурирует рассказ",
+    speechRules:
+      "Отвечает полными фразами, может назвать несколько подробностей подряд.",
+    examples: [
+      "Возгорание на кухне, я вывел всех в подъезд.",
+      "Дом двенадцать, второй подъезд. Жду вас у арки.",
+    ],
   },
   1: {
     emotion: "anxious",
@@ -45,6 +61,11 @@ const PROFILES: Record<PanicLevel, PanicProfile> = {
     allowsInterruption: false,
     initiativeSilenceSeconds: null,
     description: "встревожен, отвечает на вопрос, но добавляет лишнее",
+    speechRules: "Одно-два предложения, к ответу добавляет лишнюю подробность.",
+    examples: [
+      "Горит на пятом этаже. Дым уже в подъезде, я вышел во двор.",
+      "Кажется, из-за проводки. Там соседи ещё, я не знаю.",
+    ],
   },
   2: {
     emotion: "anxious",
@@ -55,6 +76,12 @@ const PROFILES: Record<PanicLevel, PanicProfile> = {
     initiativeSilenceSeconds: 6,
     description:
       "взвинчен, говорит короткими фразами, перескакивает между темами",
+    speechRules:
+      "Короткие рубленые фразы, перескакивает с темы на тему, не заканчивает предложение.",
+    examples: [
+      "Дым идёт, весь подъезд. Пятый этаж… там окна лопнули.",
+      "Я во дворе, я не могу туда. Приезжайте быстрее.",
+    ],
   },
   3: {
     emotion: "panic",
@@ -65,6 +92,12 @@ const PROFILES: Record<PanicLevel, PanicProfile> = {
     initiativeSilenceSeconds: 4,
     description:
       "в панике, отвечает одним-двумя предложениями и повторяет уже сказанное",
+    speechRules:
+      "Одно-два коротких предложения, повторяет уже сказанное, связного рассказа не строит.",
+    examples: [
+      "Горит! Пятый этаж горит, дым везде!",
+      "Дети там, дети! Они кричат, я их слышу!",
+    ],
   },
   4: {
     emotion: "panic",
@@ -75,6 +108,9 @@ const PROFILES: Record<PanicLevel, PanicProfile> = {
     initiativeSilenceSeconds: 3,
     description:
       "не владеет собой, кричит, воспринимает только короткие простые команды",
+    speechRules:
+      "Кричит обрывками, повторяет одно и то же, воспринимает только короткие простые вопросы.",
+    examples: ["Там дети! Дети там!", "Быстрее, ну быстрее же!"],
   },
 };
 

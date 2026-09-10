@@ -56,6 +56,7 @@ const seedScenario = async (
         id: generateId(),
         code: seed.persona.code,
         displayName: seed.persona.displayName,
+        gender: seed.persona.gender,
         ageYears: seed.persona.ageYears,
         condition: seed.persona.condition,
         speechStyle: seed.persona.speechStyle,

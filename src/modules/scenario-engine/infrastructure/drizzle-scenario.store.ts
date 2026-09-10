@@ -1,7 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
+import type { DialogueTurn } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
@@ -100,6 +101,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
       fallbackLine: row.version.fallbackLine,
       persona: {
         displayName: row.persona.displayName,
+        gender: row.persona.gender,
         ageYears: row.persona.ageYears,
         condition: row.persona.condition,
         speechStyle: row.persona.speechStyle,
@@ -158,6 +160,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
     return {
       trainingSessionId: row.trainingSessionId,
       scenarioVersionId: row.scenarioVersionId,
+      operatorId: row.operatorId,
       stage: row.stage,
       panicLevel: toPanicLevel(row.panicLevel),
       panicChangedAt: row.panicChangedAt,
@@ -185,6 +188,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
         .values({
           trainingSessionId: state.trainingSessionId,
           scenarioVersionId: state.scenarioVersionId,
+          operatorId: state.operatorId,
           stage: state.stage,
           panicLevel: state.panicLevel,
           rngSeed: state.rngSeed,
@@ -214,6 +218,39 @@ export class DrizzleScenarioStore implements ScenarioStore {
 
       return "applied";
     });
+  }
+
+  async loadRecentTurns(
+    trainingSessionId: string,
+    limit: number,
+  ): Promise<readonly DialogueTurn[]> {
+    // Берём хвост журнала и разворачиваем: модели нужен порядок разговора, а
+    // выбирать последние строки удобнее по убыванию.
+    const rows = await this.db
+      .select({
+        type: callEvents.type,
+        payload: callEvents.payload,
+      })
+      .from(callEvents)
+      .where(
+        and(
+          eq(callEvents.trainingSessionId, trainingSessionId),
+          inArray(callEvents.type, ["operator.utterance", "caller.reply"]),
+        ),
+      )
+      .orderBy(desc(callEvents.sequence))
+      .limit(limit);
+
+    return rows
+      .reverse()
+      .map((row) => ({
+        role:
+          row.type === "operator.utterance"
+            ? ("operator" as const)
+            : ("caller" as const),
+        text: String(row.payload?.text ?? ""),
+      }))
+      .filter((turn) => turn.text.length > 0);
   }
 
   async appendTurn(

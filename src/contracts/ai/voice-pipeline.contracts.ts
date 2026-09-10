@@ -1,19 +1,31 @@
 import { z } from "zod";
 
 import {
-  AiIdentifierSchema,
   DialogueGenerationResultSchema,
   GenerateCallerReplyRequestSchema,
 } from "./generation.contracts";
 import {
   AudioChunkSchema,
   SpeechSynthesisMetricsSchema,
+  TtsSynthesisRequestSchema,
 } from "./speech.contracts";
+
+/**
+ * Как реплика должна звучать. Решает это сценарий, а не модель: ступень паники
+ * задаёт силу и темп речи, персонаж — голос и пол. Модель пишет слова.
+ */
+export const VoicePipelineVoiceSchema = TtsSynthesisRequestSchema.pick({
+  voiceId: true,
+  gender: true,
+  emotion: true,
+  intensity: true,
+  speechRate: true,
+}).strict();
 
 export const VoicePipelineRequestSchema = z
   .object({
     generation: GenerateCallerReplyRequestSchema,
-    voiceId: AiIdentifierSchema,
+    voice: VoicePipelineVoiceSchema,
   })
   .strict();
 
@@ -90,6 +102,7 @@ export const VoicePipelineStreamEventSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 
+export type VoicePipelineVoice = z.infer<typeof VoicePipelineVoiceSchema>;
 export type VoicePipelineRequest = z.infer<typeof VoicePipelineRequestSchema>;
 export type VoicePipelineGenerationMetrics = z.infer<
   typeof VoicePipelineGenerationMetricsSchema

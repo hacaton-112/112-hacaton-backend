@@ -1,4 +1,6 @@
+import type { DialogueTurn } from "@/contracts";
 import type {
+  CallerGenderValue,
   CallEventActor,
   CallEventType,
   CallStage,
@@ -12,6 +14,7 @@ import type { EscalationRule, PanicLevel } from "../domain/panic-scale";
 
 export interface PersonaSnapshot {
   readonly displayName: string;
+  readonly gender: CallerGenderValue;
   readonly ageYears: number;
   readonly condition: string;
   readonly speechStyle: string;
@@ -69,6 +72,8 @@ export interface ScenarioVersionSnapshot {
 export interface CallStateSnapshot {
   readonly trainingSessionId: string;
   readonly scenarioVersionId: string;
+  /** Кто ведёт звонок: по нему разрешается правка карточки происшествия. */
+  readonly operatorId: string | null;
   readonly stage: CallStage;
   readonly panicLevel: PanicLevel;
   readonly panicChangedAt: Date | null;
@@ -96,7 +101,7 @@ export type CallStatePatch = {
   -readonly [
     Key in keyof Omit<
       CallStateSnapshot,
-      "trainingSessionId" | "scenarioVersionId" | "rngSeed"
+      "trainingSessionId" | "scenarioVersionId" | "operatorId" | "rngSeed"
     >
   ]?: CallStateSnapshot[Key];
 };
@@ -136,4 +141,15 @@ export interface ScenarioStore {
     events: readonly NewCallEvent[],
     patch: CallStatePatch,
   ): Promise<AppendOutcome>;
+
+  /**
+   * Последние реплики разговора, старые первыми.
+   *
+   * Без них модель каждый раз отвечает так, будто разговор только начался, и
+   * заявитель повторяет одну и ту же фразу про горящую квартиру.
+   */
+  loadRecentTurns(
+    trainingSessionId: string,
+    limit: number,
+  ): Promise<readonly DialogueTurn[]>;
 }

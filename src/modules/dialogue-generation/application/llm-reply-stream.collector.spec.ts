@@ -30,9 +30,7 @@ async function* events(values: readonly unknown[]): AsyncIterable<unknown> {
 const completedEvent: LlmStreamEvent = { type: "response.completed" };
 
 describe(LlmReplyStreamCollector.name, () => {
-  const collector = new LlmReplyStreamCollector(
-    new CallerReplySafetyService(),
-  );
+  const collector = new LlmReplyStreamCollector(new CallerReplySafetyService());
 
   it("collects and validates a JSON reply from multiple deltas", async () => {
     const serializedReply = JSON.stringify(validReply);
@@ -69,7 +67,10 @@ describe(LlmReplyStreamCollector.name, () => {
     await expect(
       collector.collect(
         events([
-          { type: "text.delta", delta: JSON.stringify({ text: "Недостаточно" }) },
+          {
+            type: "text.delta",
+            delta: JSON.stringify({ text: "Недостаточно" }),
+          },
           completedEvent,
         ]),
         allowedFacts,

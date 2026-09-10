@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { scenarioVersions } from "./scenario.schema";
+import { users } from "./user.schema";
 
 export const CALL_STAGES = [
   "offered",
@@ -34,6 +35,8 @@ export const CALL_EVENT_TYPES = [
   "operator.utterance",
   "caller.reply",
   "panic.changed",
+  /** Правило сработало, но ступень не изменилась: потолок, пол или пауза. */
+  "escalation.fired",
   "caller.initiative",
   "caller.interrupted",
   "fact.revealed",
@@ -64,6 +67,10 @@ export const callStates = pgTable(
     scenarioVersionId: text("scenario_version_id")
       .notNull()
       .references(() => scenarioVersions.id, { onDelete: "restrict" }),
+    /** Кто ведёт звонок: карточку правит только он. */
+    operatorId: text("operator_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     stage: callStage("stage").notNull().default("offered"),
     panicLevel: smallint("panic_level").notNull(),
     panicChangedAt: timestamp("panic_changed_at", { withTimezone: true }),

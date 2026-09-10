@@ -1,0 +1,1 @@
+ALTER TYPE "public"."call_event_type" ADD VALUE 'escalation.fired' BEFORE 'caller.initiative';

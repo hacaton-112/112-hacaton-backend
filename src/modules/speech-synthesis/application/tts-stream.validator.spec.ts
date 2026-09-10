@@ -66,14 +66,8 @@ describe(TtsStreamValidator.name, () => {
 
   it.each([
     ["non-zero first sequence", [createChunk(1, true)]],
-    [
-      "skipped sequence",
-      [createChunk(0, false), createChunk(2, true)],
-    ],
-    [
-      "repeated sequence",
-      [createChunk(0, false), createChunk(0, true)],
-    ],
+    ["skipped sequence", [createChunk(0, false), createChunk(2, true)]],
+    ["repeated sequence", [createChunk(0, false), createChunk(0, true)]],
   ])("rejects %s", async (_name, values) => {
     await expectValidationError(values, "sequence-mismatch");
   });
@@ -81,17 +75,11 @@ describe(TtsStreamValidator.name, () => {
   it.each([
     [
       "stream ID change",
-      [
-        createChunk(0, false),
-        createChunk(1, true, { streamId: "stream-2" }),
-      ],
+      [createChunk(0, false), createChunk(1, true, { streamId: "stream-2" })],
     ],
     [
       "sample rate change",
-      [
-        createChunk(0, false),
-        createChunk(1, true, { sampleRate: 48_000 }),
-      ],
+      [createChunk(0, false), createChunk(1, true, { sampleRate: 48_000 })],
     ],
   ])("rejects %s", async (_name, values) => {
     await expectValidationError(values, "metadata-mismatch");
@@ -124,8 +112,8 @@ describe(TtsStreamValidator.name, () => {
     const reason = new Error("Synthesis cancelled");
     controller.abort(reason);
 
-    await expect(collect([createChunk(0, true)], controller.signal)).rejects.toBe(
-      reason,
-    );
+    await expect(
+      collect([createChunk(0, true)], controller.signal),
+    ).rejects.toBe(reason);
   });
 });
