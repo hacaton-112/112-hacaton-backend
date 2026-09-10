@@ -18,6 +18,7 @@ import {
   PhoneOff,
   Play,
   Plus,
+  ClipboardList,
   RotateCcw,
   Volume2,
 } from "lucide-react";
@@ -25,6 +26,13 @@ import {
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
 import { MOSCOW } from "../../config/map";
+import { useNavigate } from "react-router";
+
+import {
+  DISPATCH_SERVICE_LABELS,
+  DISPATCH_SERVICES,
+  type DispatchService,
+} from "../../contracts/incident";
 import type {
   CallControls,
   CallSnapshot,
@@ -32,7 +40,13 @@ import type {
 } from "../../hooks/use-call";
 import { ScenarioPicker } from "./scenario-picker";
 
-type DispatchCallPanelProps = CallSnapshot & CallControls;
+interface ServicesProps {
+  /** Выбранные службы карточки: тот же список, что уходит на backend. */
+  services: DispatchService[];
+  onToggleService: (service: DispatchService) => void;
+}
+
+type DispatchCallPanelProps = CallSnapshot & CallControls & ServicesProps;
 
 const STATE_LABELS: Record<CallState, string> = {
   idle: "Оператор свободен",
@@ -54,23 +68,9 @@ const PANIC_COLORS: ("green" | "amber" | "orange" | "red")[] = [
 const formatDuration = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
-const services = [
-  "ДДС-01",
-  "ДДС-02",
-  "ДДС-03",
-  "ДДС-04",
-  "ЖКХ",
-  "Антитеррор",
-  "ЕДДС",
-  "УАДиТ",
-  "Росгвардия",
-  "ЦУКС",
-  "АСС",
-  "ЛПЦ",
-  "СС",
-];
-
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
+  const navigate = useNavigate();
+
   return (
     <aside className="dispatch-panel grid min-h-full grid-rows-[210px_263px_minmax(320px,418px)] content-start gap-4 min-[1480px]:h-full min-[1480px]:grid-cols-1 min-[1480px]:grid-rows-[210px_263px_minmax(418px,1fr)] md:grid-cols-2 md:grid-rows-[263px_minmax(320px,418px)]">
       <Card
@@ -89,17 +89,25 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         </Flex>
 
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {services.map((service) => (
-            <Button
-              key={service}
-              type="button"
-              size="1"
-              color={service === "ДДС-03" ? "blue" : "gray"}
-              variant={service === "ДДС-03" ? "solid" : "soft"}
-            >
-              {service}
-            </Button>
-          ))}
+          {DISPATCH_SERVICES.map((service) => {
+            const chosen = props.services.includes(service);
+
+            return (
+              <Button
+                key={service}
+                type="button"
+                size="1"
+                color={chosen ? "blue" : "gray"}
+                variant={chosen ? "solid" : "soft"}
+                // Службы выбираются только пока идёт разговор: закончившийся
+                // звонок карточку уже не принимает.
+                disabled={props.state !== "active"}
+                onClick={() => props.onToggleService(service)}
+              >
+                {DISPATCH_SERVICE_LABELS[service]}
+              </Button>
+            );
+          })}
         </div>
 
         <div className="bg-grayA-4 my-3 h-px" />
@@ -225,16 +233,29 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             )}
 
             {props.state === "ended" && (
-              <Button
-                mt="3"
-                size="1"
-                variant="soft"
-                color="gray"
-                onClick={props.reset}
-                className="w-full"
-              >
-                <RotateCcw size={14} /> К следующему вызову
-              </Button>
+              <Flex gap="2" mt="3">
+                {props.trainingSessionId && (
+                  <Button
+                    size="1"
+                    variant="soft"
+                    onClick={() =>
+                      navigate(`/debrief/${props.trainingSessionId}`)
+                    }
+                    className="flex-1"
+                  >
+                    <ClipboardList size={14} /> Разбор вызова
+                  </Button>
+                )}
+                <Button
+                  size="1"
+                  variant="soft"
+                  color="gray"
+                  onClick={props.reset}
+                  className="flex-1"
+                >
+                  <RotateCcw size={14} /> К следующему вызову
+                </Button>
+              </Flex>
             )}
           </Tabs.Content>
 

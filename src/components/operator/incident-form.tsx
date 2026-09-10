@@ -2,7 +2,6 @@ import {
   Button,
   Card,
   Checkbox,
-  DatePicker,
   Flex,
   NumberField,
   Select,
@@ -12,11 +11,19 @@ import {
 } from "@bolid-ui/themes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  useWatch,
+  type Control,
+  type UseFormRegister,
+} from "react-hook-form";
 
 import {
+  EMPTY_INCIDENT_CARD,
+  INCIDENT_CATEGORIES,
   INCIDENT_CATEGORY_LABELS,
-  INCIDENT_PRIORITY_LABELS,
+  INCIDENT_TYPE_OPTIONS,
   type IncidentCard,
   type IncidentCardInput,
   IncidentCardSchema,
@@ -24,64 +31,68 @@ import {
 import { FormField } from "../auth/form-field";
 import { DuplicateSuspicion } from "./duplicate-suspicion";
 
-const EMPTY_CARD: IncidentCardInput = {
-  category: "other",
-  address: "",
-  apartment: "",
-  landmark: "",
-  callerName: "",
-  callerPhone: "",
-  callerRole: "witness",
-  threatToLife: false,
-  victimsCount: 0,
-  services: ["police"],
-  priority: "normal",
-  description: "",
-};
+/** Те же три параметра, что у формы: вход, контекст резолвера и результат. */
+type CardControl = Control<IncidentCardInput, unknown, IncidentCard>;
 
 interface IncidentFormProps {
   /** Адрес, определённый по вызову: подставляется в поле, но остаётся редактируемым. */
   resolvedAddress?: string;
   resolvedLatitude?: number;
   resolvedLongitude?: number;
-  callerPhone?: string;
   disabled?: boolean;
-  onSubmit?: (card: IncidentCard) => void;
+  /** Карточка звонка: приходит с backend и переживает перезагрузку окна. */
+  card?: IncidentCardInput;
+  /** Вызывается на каждое изменение: карточка пишется по ходу разговора. */
+  onChange?: (card: IncidentCard) => void;
 }
 
 export function IncidentForm({
   resolvedAddress,
   resolvedLatitude,
   resolvedLongitude,
-  callerPhone,
   disabled = false,
-  onSubmit,
+  card,
+  onChange,
 }: IncidentFormProps) {
-  const {
-    control,
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<IncidentCardInput, unknown, IncidentCard>({
+  const { control, register, reset, setValue, getValues } = useForm<
+    IncidentCardInput,
+    unknown,
+    IncidentCard
+  >({
     resolver: zodResolver(IncidentCardSchema),
-    defaultValues: EMPTY_CARD,
+    defaultValues: EMPTY_INCIDENT_CARD,
   });
 
+  // Карточку присылает backend: она могла заполняться до перезагрузки окна.
   useEffect(() => {
-    if (resolvedAddress) setValue("address", resolvedAddress);
+    if (card) reset(card);
+  }, [card, reset]);
+
+  useEffect(() => {
+    if (resolvedAddress) setValue("addressText", resolvedAddress);
   }, [resolvedAddress, setValue]);
 
   useEffect(() => {
-    if (callerPhone) setValue("callerPhone", callerPhone);
-  }, [callerPhone, setValue]);
+    if (resolvedLatitude !== undefined) {
+      setValue("latitude", resolvedLatitude.toFixed(6));
+      setValue("longitude", (resolvedLongitude ?? 0).toFixed(6));
+    }
+  }, [resolvedLatitude, resolvedLongitude, setValue]);
+
+  // Кнопки «сохранить» в АРМ нет: карточка уходит на сервер по ходу разговора,
+  // а закрывает её конец звонка.
+  const values = useWatch({ control });
+
+  useEffect(() => {
+    const parsed = IncidentCardSchema.safeParse(getValues());
+
+    if (parsed.success) {
+      onChange?.(parsed.data);
+    }
+  }, [values, getValues, onChange]);
 
   return (
-    <form
-      className="grid content-start gap-4"
-      onSubmit={handleSubmit((card) => onSubmit?.(card))}
-      noValidate
-    >
+    <form className="grid content-start gap-4" noValidate>
       <Card size="2" variant="classic" aria-labelledby="location-title">
         <Text id="location-title" size="2" weight="bold">
           Место происшествия
@@ -89,86 +100,99 @@ export function IncidentForm({
 
         <FormField
           label="Адрес (улица, дом, корпус, строение, владение, дорога, километр, метр, адресный участок, объект)"
-          htmlFor="address"
-          error={errors.address?.message}
+          htmlFor="addressText"
         >
           <TextField.Root
-            id="address"
+            id="addressText"
             size="1"
             placeholder="Введите адрес"
             disabled={disabled}
-            {...register("address")}
+            {...register("addressText")}
           />
         </FormField>
 
         <div className="incident-pair-grid mt-3 grid gap-2">
-          <SelectField
+          <TextInput
+            name="district"
             label="Район"
-            placeholder="Выберите район"
+            placeholder="Введите район"
+            register={register}
             disabled={disabled}
           />
-          <SelectField
+          <TextInput
+            name="objectType"
             label="Объект"
-            placeholder="Выберите объект"
+            placeholder="Введите объект"
+            register={register}
             disabled={disabled}
           />
         </div>
 
         <div className="location-details-grid mt-3 grid gap-3">
-          <FormField
+          <TextInput
+            name="entrance"
             label="Подъезд"
-            htmlFor="apartment"
-            error={errors.apartment?.message}
-          >
-            <TextField.Root
-              id="apartment"
-              size="1"
-              placeholder="Введите подъезд"
-              disabled={disabled}
-              {...register("apartment")}
-            />
-          </FormField>
-          <CompactField
+            placeholder="Введите подъезд"
+            register={register}
+            disabled={disabled}
+          />
+          <TextInput
+            name="floor"
             label="Этаж"
             placeholder="Введите этаж"
+            register={register}
             disabled={disabled}
           />
-          <CompactField
+          <TextInput
+            name="intercom"
             label="Домофон"
             placeholder="Введите домофон"
+            register={register}
             disabled={disabled}
           />
-          <CompactField
+          <TextInput
+            name="latitude"
             label="Широта"
             placeholder="Введите широту"
-            value={resolvedLatitude?.toFixed(6)}
+            register={register}
             disabled={disabled}
           />
-          <CompactField
+          <TextInput
+            name="longitude"
             label="Долгота"
             placeholder="Введите долготу"
-            value={resolvedLongitude?.toFixed(6)}
+            register={register}
             disabled={disabled}
           />
           <Text as="label" size="1" color="gray" className="self-end pb-1">
             <Flex align="center" gap="1">
-              <Checkbox size="1" disabled={disabled} /> Район
+              <Controller
+                control={control}
+                name="nearby"
+                render={({ field }) => (
+                  <Checkbox
+                    size="1"
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={disabled}
+                  />
+                )}
+              />
+              Рядом
             </Flex>
           </Text>
         </div>
 
-        <FormField
-          label="Доп. информация"
-          htmlFor="landmark"
-          error={errors.landmark?.message}
-        >
+        <FormField label="Доп. информация" htmlFor="placeNotes">
           <TextArea
-            id="landmark"
+            id="placeNotes"
             size="1"
             rows={2}
             placeholder="Напишите…"
             disabled={disabled}
-            {...register("landmark")}
+            {...register("placeNotes")}
           />
         </FormField>
       </Card>
@@ -178,34 +202,28 @@ export function IncidentForm({
           О происшествии
         </Text>
 
-        <FormField
-          label="Тип происшествия"
-          htmlFor="category"
-          error={errors.category?.message}
-        >
+        <FormField label="Тип происшествия" htmlFor="incidentType">
           <Controller
             control={control}
-            name="category"
+            name="incidentType"
             render={({ field }) => (
               <Select.Root
                 size="1"
-                value={field.value}
+                value={field.value ?? ""}
                 onValueChange={field.onChange}
                 disabled={disabled}
               >
                 <Select.Trigger
-                  id="category"
+                  id="incidentType"
                   className="w-full"
                   placeholder="Выберите тип"
                 />
                 <Select.Content>
-                  {Object.entries(INCIDENT_CATEGORY_LABELS).map(
-                    ([value, label]) => (
-                      <Select.Item key={value} value={value}>
-                        {label}
-                      </Select.Item>
-                    ),
-                  )}
+                  {INCIDENT_TYPE_OPTIONS.map((type) => (
+                    <Select.Item key={type} value={type}>
+                      {type}
+                    </Select.Item>
+                  ))}
                 </Select.Content>
               </Select.Root>
             )}
@@ -217,100 +235,65 @@ export function IncidentForm({
             <Text size="1" color="gray">
               Категория
             </Text>
-            <Flex gap="1" mt="1" wrap="wrap">
-              <Tag>Социально-значимое</Tag>
-              <Controller
-                control={control}
-                name="threatToLife"
-                render={({ field }) => (
-                  <Tag
-                    active={field.value}
-                    onClick={() => field.onChange(!field.value)}
-                    disabled={disabled}
-                  >
-                    Угроза людям
-                  </Tag>
-                )}
-              />
-              <Tag>Угроза ЧС</Tag>
-              <Tag>Важно</Tag>
-            </Flex>
-          </div>
-          <FormField
-            label=""
-            htmlFor="priority"
-            error={errors.priority?.message}
-          >
             <Controller
               control={control}
-              name="priority"
+              name="categories"
               render={({ field }) => (
-                <Select.Root
-                  size="1"
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={disabled}
-                >
-                  <Select.Trigger id="priority" className="w-full" />
-                  <Select.Content>
-                    {Object.entries(INCIDENT_PRIORITY_LABELS).map(
-                      ([value, label]) => (
-                        <Select.Item key={value} value={value}>
-                          {label}
-                        </Select.Item>
-                      ),
-                    )}
-                  </Select.Content>
-                </Select.Root>
+                <Flex gap="1" mt="1" wrap="wrap">
+                  {INCIDENT_CATEGORIES.map((category) => {
+                    const active = field.value.includes(category);
+
+                    return (
+                      <Tag
+                        key={category}
+                        active={active}
+                        disabled={disabled}
+                        onClick={() =>
+                          field.onChange(
+                            active
+                              ? field.value.filter((item) => item !== category)
+                              : [...field.value, category],
+                          )
+                        }
+                      >
+                        {INCIDENT_CATEGORY_LABELS[category]}
+                      </Tag>
+                    );
+                  })}
+                </Flex>
               )}
             />
-          </FormField>
-          <DatePicker size="1" placeholder="дд.мм.гггг" disabled={disabled} />
+          </div>
         </div>
 
         <div className="incident-counts-grid mt-3 grid gap-3">
-          <FormField
-            label="Пострадавшие"
-            htmlFor="victimsCount"
-            error={errors.victimsCount?.message}
-          >
-            <Controller
-              control={control}
-              name="victimsCount"
-              render={({ field }) => (
-                <NumberField.Root
-                  id="victimsCount"
-                  size="1"
-                  className="w-full"
-                  placeholder="Введите кол-во"
-                  value={Number(field.value)}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  minValue={0}
-                  maxValue={999}
-                  disabled={disabled}
-                />
-              )}
-            />
-          </FormField>
           <CountField
-            id="child-victims"
-            label="Из них детей"
+            name="victimsTotal"
+            label="Пострадавшие"
+            control={control}
             disabled={disabled}
           />
-          <CountField id="fatalities" label="Погибшие" disabled={disabled} />
           <CountField
-            id="child-fatalities"
+            name="victimsChildren"
             label="Из них детей"
+            control={control}
+            disabled={disabled}
+          />
+          <CountField
+            name="deathsTotal"
+            label="Погибшие"
+            control={control}
+            disabled={disabled}
+          />
+          <CountField
+            name="deathsChildren"
+            label="Из них детей"
+            control={control}
             disabled={disabled}
           />
         </div>
 
-        <FormField
-          label="Описание со слов заявителя"
-          htmlFor="description"
-          error={errors.description?.message}
-        >
+        <FormField label="Описание со слов заявителя" htmlFor="description">
           <TextArea
             id="description"
             size="1"
@@ -327,75 +310,74 @@ export function IncidentForm({
   );
 }
 
-function SelectField({
-  label,
-  placeholder,
-  disabled,
-}: {
-  label: string;
-  placeholder: string;
-  disabled: boolean;
-}) {
-  return (
-    <FormField label={label} htmlFor={`select-${label}`}>
-      <Select.Root defaultValue="none" size="1" disabled={disabled}>
-        <Select.Trigger
-          id={`select-${label}`}
-          className="w-full"
-          placeholder={placeholder}
-        />
-        <Select.Content>
-          <Select.Item value="none">{placeholder}</Select.Item>
-          <Select.Item value="selected">Выбрано</Select.Item>
-        </Select.Content>
-      </Select.Root>
-    </FormField>
-  );
-}
+type TextFieldName =
+  | "district"
+  | "objectType"
+  | "entrance"
+  | "floor"
+  | "intercom"
+  | "latitude"
+  | "longitude";
 
-function CompactField({
+function TextInput({
+  name,
   label,
   placeholder,
-  value,
+  register,
   disabled,
 }: {
+  name: TextFieldName;
   label: string;
   placeholder: string;
-  value?: string;
+  register: UseFormRegister<IncidentCardInput>;
   disabled: boolean;
 }) {
   return (
-    <FormField label={label} htmlFor={`field-${label}`}>
+    <FormField label={label} htmlFor={name}>
       <TextField.Root
-        id={`field-${label}`}
+        id={name}
         size="1"
         placeholder={placeholder}
-        value={value}
-        readOnly={value !== undefined}
         disabled={disabled}
+        {...register(name)}
       />
     </FormField>
   );
 }
 
+type CountFieldName =
+  "victimsTotal" | "victimsChildren" | "deathsTotal" | "deathsChildren";
+
 function CountField({
-  id,
+  name,
   label,
+  control,
   disabled,
 }: {
-  id: string;
+  name: CountFieldName;
   label: string;
+  control: CardControl;
   disabled: boolean;
 }) {
   return (
-    <FormField label={label} htmlFor={id}>
-      <NumberField.Root
-        id={id}
-        size="1"
-        className="w-full"
-        placeholder="Введите кол-во"
-        minValue={0}
-        disabled={disabled}
+    <FormField label={label} htmlFor={name}>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field }) => (
+          <NumberField.Root
+            id={name}
+            size="1"
+            className="w-full"
+            placeholder="Введите кол-во"
+            value={field.value === "" ? undefined : Number(field.value)}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            minValue={0}
+            maxValue={9_999}
+            disabled={disabled}
+          />
+        )}
       />
     </FormField>
   );
