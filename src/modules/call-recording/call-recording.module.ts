@@ -61,6 +61,6 @@ const createCallRecordingConfig = (configService: ConfigService) =>
           : new NoopCallRecordingService(),
     },
   ],
-  exports: [CALL_RECORDER],
+  exports: [CALL_RECORDER, RECORDING_STORAGE],
 })
 export class CallRecordingModule {}

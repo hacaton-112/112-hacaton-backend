@@ -8,6 +8,10 @@ const ALGORITHM = "AWS4-HMAC-SHA256";
 const SERVICE = "s3";
 const REQUEST_TIMEOUT_MS = 15_000;
 
+/** SHA-256 пустого тела: у GET его нет, но подпись требует хеш. */
+const EMPTY_PAYLOAD_HASH =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
 const sha256 = (data: string | Uint8Array): string =>
   createHash("sha256").update(data).digest("hex");
 
@@ -46,21 +50,57 @@ export class S3RecordingStorage implements RecordingStorage {
     body: Uint8Array<ArrayBuffer>,
     contentType: string,
   ): Promise<void> {
+    const response = await this.send("PUT", key, {
+      payload: body,
+      contentType,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Recording storage rejected ${key}: HTTP ${response.status}`,
+      );
+    }
+  }
+
+  async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
+    const response = await this.send("GET", key);
+
+    // Пропавшая запись — не поломка разбора: занятие могло идти с выключенным
+    // хранилищем, и об этом честнее сказать пустотой, чем ошибкой.
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Recording storage refused ${key}: HTTP ${response.status}`,
+      );
+    }
+
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  /** Одна подпись на оба запроса: различаются они телом и методом. */
+  private send(
+    method: "GET" | "PUT",
+    key: string,
+    body?: { payload: Uint8Array<ArrayBuffer>; contentType: string },
+  ): Promise<Response> {
     const endpoint = new URL(this.config.endpoint);
     const path = `/${this.config.bucket}/${encodeKey(key)}`;
-    const now = new Date();
-    const timestamp = amzDate(now);
+    const timestamp = amzDate(new Date());
     const date = timestamp.slice(0, 8);
-    const payloadHash = sha256(body);
+    const payloadHash =
+      body === undefined ? EMPTY_PAYLOAD_HASH : sha256(body.payload);
     const headers: Record<string, string> = {
-      "content-type": contentType,
       host: endpoint.host,
       "x-amz-content-sha256": payloadHash,
       "x-amz-date": timestamp,
+      ...(body === undefined ? {} : { "content-type": body.contentType }),
     };
     const signedHeaders = Object.keys(headers).sort();
     const canonicalRequest = [
-      "PUT",
+      method,
       path,
       "",
       ...signedHeaders.map((name) => `${name}:${headers[name]}`),
@@ -77,23 +117,19 @@ export class S3RecordingStorage implements RecordingStorage {
     ].join("\n");
     const signature = hmac(this.signingKey(date), stringToSign).toString("hex");
 
-    const response = await fetch(new URL(path, endpoint), {
-      method: "PUT",
+    return fetch(new URL(path, endpoint), {
+      method,
       headers: {
         ...headers,
         authorization: `${ALGORITHM} Credential=${this.config.accessKeyId ?? ""}/${scope}, SignedHeaders=${signedHeaders.join(";")}, Signature=${signature}`,
       },
       // Blob, а не сам массив: типы fetch требуют буфер с известным видом,
       // а копия здесь не делается.
-      body: new Blob([body], { type: contentType }),
+      ...(body === undefined
+        ? {}
+        : { body: new Blob([body.payload], { type: body.contentType }) }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-
-    if (!response.ok) {
-      throw new Error(
-        `Recording storage rejected ${key}: HTTP ${response.status}`,
-      );
-    }
   }
 
   private signingKey(date: string): Buffer {

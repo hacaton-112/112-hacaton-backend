@@ -27,6 +27,7 @@ export const ErrorCodes = {
   // сессий оператору незачем.
   CALL_NOT_FOUND: "CALL_NOT_FOUND",
   INCIDENT_CARD_CLOSED: "INCIDENT_CARD_CLOSED",
+  RECORDING_NOT_FOUND: "RECORDING_NOT_FOUND",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
