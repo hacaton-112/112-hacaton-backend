@@ -1,0 +1,350 @@
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+
+import WebSocket from "ws";
+import { z } from "zod";
+
+import {
+  AiIdentifierSchema,
+  type AudioChunk,
+  type SpeechSynthesisMetrics,
+  type TtsSynthesisRequest,
+} from "@/contracts";
+import {
+  type QwenTtsEnvironment,
+  parseQwenTtsConfig,
+} from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
+import { createQwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.factory";
+import {
+  characterErrorRate,
+  concatPcmChunks,
+  createTtsDiagnosticArtifact,
+  createTtsDiagnosticManifest,
+  resamplePcm16Mono,
+  TTS_DIAGNOSTIC_CASES,
+  type TtsDiagnosticAsrResult,
+  type TtsDiagnosticEntry,
+} from "@/modules/ai-gateway/diagnostics/tts-diagnostic";
+import { SpeechSynthesisService } from "@/modules/speech-synthesis/application/speech-synthesis.service";
+import { TtsStreamValidator } from "@/modules/speech-synthesis/application/tts-stream.validator";
+
+const DIAGNOSTIC_TIMEOUT_MS = 300_000;
+const ASR_TIMEOUT_MS = 60_000;
+const DEFAULT_ASR_SERVICE_URL = "http://127.0.0.1:8787";
+const ASR_FRAME_MS = 100;
+
+const QWEN_ENVIRONMENT_KEYS = [
+  "QWEN_TTS_PROVIDER",
+  "QWEN_TTS_BASE_URL",
+  "QWEN_TTS_MODEL",
+  "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
+  "QWEN_TTS_REQUEST_TIMEOUT_MS",
+] as const satisfies readonly (keyof QwenTtsEnvironment)[];
+
+const TtsDiagnosticOptionsSchema = z
+  .object({
+    output: z.string().trim().min(1),
+    repetitions: z.coerce.number().int().min(1).max(20).default(3),
+    voiceId: AiIdentifierSchema.default("Dylan"),
+    asrRoundTrip: z.boolean().default(false),
+  })
+  .strict();
+
+type TtsDiagnosticOptions = z.infer<typeof TtsDiagnosticOptionsSchema>;
+
+const AsrSessionSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    sampleRate: z.number().int().positive(),
+  })
+  .loose();
+
+const AsrEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("ready") }).loose(),
+  z
+    .object({
+      type: z.literal("partial"),
+      transcript: z.string(),
+    })
+    .loose(),
+  z
+    .object({
+      type: z.literal("final"),
+      transcript: z.string(),
+      audioMs: z.number().nonnegative(),
+      processingMs: z.number().nonnegative(),
+    })
+    .loose(),
+  z.object({ type: z.literal("error"), message: z.string() }).loose(),
+  z.object({ type: z.literal("pong") }).loose(),
+]);
+
+const selectEnvironment = (keys: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+
+const parseOptions = (argv: readonly string[]): TtsDiagnosticOptions => {
+  const values = new Map<string, string>();
+  let asrRoundTrip = false;
+
+  for (const argument of argv) {
+    if (argument === "--asr") {
+      asrRoundTrip = true;
+      continue;
+    }
+
+    const match = /^--(output|repetitions|voice)=(.+)$/.exec(argument);
+    if (!match) {
+      throw new Error(`Unknown diagnostic option: ${argument}`);
+    }
+
+    values.set(match[1], match[2]);
+  }
+
+  return TtsDiagnosticOptionsSchema.parse({
+    output: values.get("output"),
+    repetitions: values.get("repetitions"),
+    voiceId: values.get("voice"),
+    asrRoundTrip,
+  });
+};
+
+const ensureEmptyOutputDirectory = async (path: string): Promise<void> => {
+  await mkdir(path, { recursive: true });
+  const existing = await readdir(path);
+
+  if (existing.length > 0) {
+    throw new Error(
+      `Diagnostic output directory is not empty: ${path}. Choose a fresh directory.`,
+    );
+  }
+};
+
+const buildAsrSocketUrl = (serviceUrl: string, sessionId: string): string => {
+  const base = serviceUrl.replace(/\/+$/, "");
+  const scheme = base.startsWith("https://") ? "wss://" : "ws://";
+
+  return `${scheme}${base.replace(/^https?:\/\//, "")}/v1/ws/${sessionId}`;
+};
+
+const createAsrSession = async (
+  serviceUrl: string,
+): Promise<z.infer<typeof AsrSessionSchema>> => {
+  const response = await fetch(
+    `${serviceUrl.replace(/\/+$/, "")}/v1/sessions`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: "ru" }),
+      signal: AbortSignal.timeout(5_000),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `ASR session creation failed with HTTP ${response.status}: ${await response.text()}`,
+    );
+  }
+
+  return AsrSessionSchema.parse(await response.json());
+};
+
+const recogniseGeneratedAudio = async (
+  pcm: Uint8Array,
+  expectedText: string,
+): Promise<TtsDiagnosticAsrResult> => {
+  const serviceUrl = process.env.ASR_SERVICE_URL ?? DEFAULT_ASR_SERVICE_URL;
+  const session = await createAsrSession(serviceUrl);
+  const audio = resamplePcm16Mono(pcm, 24_000, session.sampleRate);
+  const frameBytes = (session.sampleRate * 2 * ASR_FRAME_MS) / 1_000;
+
+  return new Promise<TtsDiagnosticAsrResult>((resolveResult, rejectResult) => {
+    const socket = new WebSocket(
+      buildAsrSocketUrl(serviceUrl, session.sessionId),
+    );
+    let settled = false;
+
+    function settle(
+      error: Error | null,
+      result?: TtsDiagnosticAsrResult,
+    ): void {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      socket.close();
+
+      if (error !== null) {
+        rejectResult(error);
+      } else if (result !== undefined) {
+        resolveResult(result);
+      }
+    }
+
+    const timeout = setTimeout(() => {
+      settle(new Error("ASR round-trip did not finish in time"));
+    }, ASR_TIMEOUT_MS);
+
+    socket.on("message", (data) => {
+      let event: z.infer<typeof AsrEventSchema>;
+
+      try {
+        event = AsrEventSchema.parse(JSON.parse(data.toString()) as unknown);
+      } catch (error) {
+        settle(
+          error instanceof Error
+            ? error
+            : new Error("ASR returned an invalid event"),
+        );
+        return;
+      }
+
+      if (event.type === "ready") {
+        for (let offset = 0; offset < audio.byteLength; offset += frameBytes) {
+          socket.send(audio.subarray(offset, offset + frameBytes));
+        }
+        socket.send(JSON.stringify({ type: "stop" }));
+        return;
+      }
+
+      if (event.type === "final") {
+        settle(null, {
+          transcript: event.transcript,
+          audioMs: event.audioMs,
+          processingMs: event.processingMs,
+          characterErrorRate: characterErrorRate(
+            expectedText,
+            event.transcript,
+          ),
+        });
+        return;
+      }
+
+      if (event.type === "error") {
+        settle(new Error(`ASR rejected diagnostic audio: ${event.message}`));
+      }
+    });
+
+    socket.on("error", (error) => settle(error));
+    socket.on("close", () => {
+      if (!settled) {
+        settle(new Error("ASR closed before returning a final transcript"));
+      }
+    });
+  });
+};
+
+const synthesize = async (
+  service: SpeechSynthesisService,
+  request: TtsSynthesisRequest,
+): Promise<{
+  readonly pcm: Uint8Array;
+  readonly metrics: SpeechSynthesisMetrics;
+}> => {
+  const chunks: AudioChunk["audio"][] = [];
+  let metrics: SpeechSynthesisMetrics | null = null;
+
+  for await (const event of service.synthesize(
+    request,
+    AbortSignal.timeout(DIAGNOSTIC_TIMEOUT_MS),
+  )) {
+    if (event.type === "audio.chunk") {
+      chunks.push(event.chunk.audio);
+    } else {
+      metrics = event.metrics;
+    }
+  }
+
+  if (metrics === null) {
+    throw new Error("TTS stream ended without completion metrics");
+  }
+
+  return { pcm: concatPcmChunks(chunks), metrics };
+};
+
+const main = async (): Promise<void> => {
+  const options = parseOptions(process.argv.slice(2));
+  const output = resolve(options.output);
+  await ensureEmptyOutputDirectory(output);
+
+  const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
+  const adapter = createQwenTtsAdapter(
+    config,
+    globalThis.fetch.bind(globalThis),
+  );
+  const service = new SpeechSynthesisService(adapter, new TtsStreamValidator());
+  const entries: TtsDiagnosticEntry[] = [];
+
+  for (const diagnosticCase of TTS_DIAGNOSTIC_CASES) {
+    for (
+      let repetition = 1;
+      repetition <= options.repetitions;
+      repetition += 1
+    ) {
+      const suffix = `r${String(repetition).padStart(2, "0")}`;
+      const request: TtsSynthesisRequest = {
+        requestId: `tts-diagnostic-${diagnosticCase.id}-${suffix}`,
+        sessionId: "tts-diagnostic",
+        text: diagnosticCase.text,
+        language: "Russian",
+        voiceId: options.voiceId,
+        emotion: diagnosticCase.emotion,
+        intensity: diagnosticCase.intensity,
+        speechRate: diagnosticCase.speechRate,
+      };
+      const generated = await synthesize(service, request);
+      const asr = options.asrRoundTrip
+        ? await recogniseGeneratedAudio(generated.pcm, diagnosticCase.text)
+        : null;
+      const artifact = createTtsDiagnosticArtifact({
+        diagnosticCase,
+        repetition,
+        request,
+        pcm: generated.pcm,
+        metrics: generated.metrics,
+        asr,
+      });
+
+      await writeFile(join(output, artifact.entry.artifact), artifact.wav, {
+        flag: "wx",
+      });
+      entries.push(artifact.entry);
+      console.log(
+        `${diagnosticCase.id} ${suffix}: ${artifact.entry.audioDurationMs} ms, ${artifact.entry.sha256.slice(0, 12)}`,
+      );
+    }
+  }
+
+  const manifest = createTtsDiagnosticManifest({
+    schemaVersion: 1,
+    createdAt: new Date().toISOString(),
+    provider: {
+      provider: config.provider,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      requestTimeoutMs: config.requestTimeoutMs,
+      streamingIntervalSeconds:
+        config.provider === "mlx-audio"
+          ? config.streamingIntervalSeconds
+          : null,
+    },
+    options: {
+      repetitions: options.repetitions,
+      voiceId: options.voiceId,
+      asrRoundTrip: options.asrRoundTrip,
+    },
+    entries,
+  });
+
+  const manifestPath = join(output, "manifest.json");
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
+    flag: "wx",
+  });
+  console.log(`Manifest: ${manifestPath}`);
+};
+
+void main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
