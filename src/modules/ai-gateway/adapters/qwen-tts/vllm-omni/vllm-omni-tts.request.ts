@@ -55,6 +55,12 @@ const builtInVoices = [
   "vivian",
 ] as const;
 
+const speechRateInstructions = {
+  медленный: "Темп речи слегка замедленный, без неестественных пауз.",
+  обычный: "Темп речи обычный и ровный.",
+  быстрый: "Темп речи слегка ускоренный, без проглатывания слов.",
+} as const satisfies Record<VllmOmniSpeechRateLevel, string>;
+
 export const normalizeVllmOmniVoice = (voiceId: string): string => {
   const voice = AiIdentifierSchema.parse(voiceId);
   const normalizedVoice = voice.toLowerCase();
@@ -85,7 +91,7 @@ export const buildVllmOmniTtsInstruction = (
 ): string => {
   const rate = mapVllmOmniSpeechRate(request.speechRate);
 
-  return `${buildQwenTtsInstruction(request.emotion, request.intensity)} Темп речи: ${rate}.`;
+  return `${buildQwenTtsInstruction(request.emotion, request.intensity)} ${speechRateInstructions[rate]}`;
 };
 
 export const buildVllmOmniTtsRequest = (
