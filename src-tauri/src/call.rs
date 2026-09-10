@@ -19,7 +19,7 @@ use tauri::{
     ipc::{Channel, Response},
     State,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{
@@ -41,6 +41,10 @@ const PENDING_CHUNKS: usize = 32;
 
 const LISTEN_STOP: &str = r#"{"type":"listen.stop"}"#;
 
+/// Сколько ждём конца реплики, прежде чем начать следующую. Хвост — это доли
+/// секунды; больше значит, что микрофон завис, и держать интерфейс нельзя.
+const FLOOR_CLOSE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
 enum Outgoing {
     Command(String),
     Pcm(Vec<u8>),
@@ -52,7 +56,16 @@ struct ActiveCall {
     /// в сокет другого.
     id: String,
     outgoing: mpsc::Sender<Outgoing>,
-    capture: Option<CaptureHandle>,
+    floor: Option<Floor>,
+}
+
+/// Реплика оператора, пока он держит слово.
+struct Floor {
+    capture: CaptureHandle,
+    /// Срабатывает, когда хвост реплики отдан и `listen.stop` поставлен в
+    /// очередь. Без ожидания быстрый повторный зажим открывал бы окно раньше,
+    /// чем закроется предыдущее, и звук уходил бы мимо распознавания.
+    finished: oneshot::Receiver<()>,
 }
 
 #[derive(Default)]
@@ -112,7 +125,7 @@ pub async fn call_connect(
     *guard = Some(ActiveCall {
         id: id.clone(),
         outgoing: outgoing_tx,
-        capture: None,
+        floor: None,
     });
 
     Ok(id)
@@ -151,9 +164,9 @@ pub async fn call_listen_start(
     state: State<'_, CallState>,
     connection: String,
 ) -> Result<(), String> {
-    let (sender, already_listening) = {
-        let guard = state.active.lock().map_err(lock_error)?;
-        let Some(active) = guard.as_ref() else {
+    let (sender, previous) = {
+        let mut guard = state.active.lock().map_err(lock_error)?;
+        let Some(active) = guard.as_mut() else {
             return Err("the call socket is not open".to_owned());
         };
 
@@ -161,12 +174,12 @@ pub async fn call_listen_start(
             return Err("this call socket has been replaced".to_owned());
         }
 
-        (active.outgoing.clone(), active.capture.is_some())
+        (active.outgoing.clone(), active.floor.take())
     };
 
-    if already_listening {
-        return Err("the operator already holds the floor".to_owned());
-    }
+    // Оператор мог зажать кнопку снова, не дав закрыться прошлой реплике:
+    // дожидаемся её конца, иначе окна записи наложатся друг на друга.
+    finish_floor(previous).await;
 
     sender
         .send(Outgoing::Command(json!({ "type": "listen.start" }).to_string()))
@@ -177,7 +190,8 @@ pub async fn call_listen_start(
     let capture = start_capture(pcm_tx)
         .map_err(|error| format!("could not start microphone capture: {error}"))?;
 
-    tauri::async_runtime::spawn(forward_pcm(pcm_rx, sender));
+    let (finished_tx, finished_rx) = oneshot::channel::<()>();
+    tauri::async_runtime::spawn(forward_pcm(pcm_rx, sender, finished_tx));
 
     state
         .active
@@ -185,7 +199,10 @@ pub async fn call_listen_start(
         .map_err(lock_error)?
         .as_mut()
         .ok_or_else(|| "the call socket is not open".to_owned())?
-        .capture = Some(capture);
+        .floor = Some(Floor {
+        capture,
+        finished: finished_rx,
+    });
 
     Ok(())
 }
@@ -198,19 +215,31 @@ pub async fn call_listen_stop(
     state: State<'_, CallState>,
     connection: String,
 ) -> Result<(), String> {
-    let capture = state
+    let floor = state
         .active
         .lock()
         .map_err(lock_error)?
         .as_mut()
         .filter(|active| active.id == connection)
-        .and_then(|active| active.capture.take());
+        .and_then(|active| active.floor.take());
 
-    if let Some(mut capture) = capture {
-        capture.stop();
-    }
+    // Команда возвращается, только когда реплика действительно отправлена:
+    // следующий зажим кнопки не должен обгонять её конец.
+    finish_floor(floor).await;
 
     Ok(())
+}
+
+/// Останавливает захват и ждёт, пока поток пересылки отдаст хвост и закроет
+/// окно. Ожидание ограничено: микрофон не должен подвесить интерфейс.
+async fn finish_floor(floor: Option<Floor>) {
+    let Some(mut floor) = floor else {
+        return;
+    };
+
+    floor.capture.stop();
+
+    let _ = tokio::time::timeout(FLOOR_CLOSE_TIMEOUT, floor.finished).await;
 }
 
 #[tauri::command]
@@ -224,17 +253,23 @@ fn close_active(state: &State<'_, CallState>) -> Result<(), String> {
     let active = state.active.lock().map_err(lock_error)?.take();
 
     if let Some(mut active) = active {
-        if let Some(mut capture) = active.capture.take() {
-            capture.stop();
+        if let Some(mut floor) = active.floor.take() {
+            floor.capture.stop();
         }
     }
 
     Ok(())
 }
 
-async fn forward_pcm(mut pcm_rx: mpsc::Receiver<Vec<u8>>, outgoing: mpsc::Sender<Outgoing>) {
+async fn forward_pcm(
+    mut pcm_rx: mpsc::Receiver<Vec<u8>>,
+    outgoing: mpsc::Sender<Outgoing>,
+    finished: oneshot::Sender<()>,
+) {
     while let Some(chunk) = pcm_rx.recv().await {
         if outgoing.send(Outgoing::Pcm(chunk)).await.is_err() {
+            let _ = finished.send(());
+
             return;
         }
     }
@@ -242,6 +277,7 @@ async fn forward_pcm(mut pcm_rx: mpsc::Receiver<Vec<u8>>, outgoing: mpsc::Sender
     let _ = outgoing
         .send(Outgoing::Command(LISTEN_STOP.to_owned()))
         .await;
+    let _ = finished.send(());
 }
 
 type Socket =
