@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FactIdSchema } from "@/contracts";
+import { findQwenTtsVoice, FactIdSchema } from "@/contracts";
 import {
   CALLER_GENDERS,
   EMERGENCY_SERVICES,
@@ -59,7 +59,18 @@ export const ScenarioSeedSchema = z
         baselinePanicLevel: PanicLevelSchema,
         baseSpeechRate: z.number().min(0.5).max(2),
       })
-      .strict(),
+      .strict()
+      // Несовпадение ловится здесь, а не на занятии: мужчина, заговоривший
+      // женским голосом, разрушает разбор быстрее любой ошибки в тексте.
+      .refine(
+        (persona) =>
+          findQwenTtsVoice(persona.voiceId)?.gender === persona.gender,
+        {
+          message:
+            "Голос персонажа неизвестен рантайму синтеза или не совпадает с его полом",
+          path: ["voiceId"],
+        },
+      ),
     version: z
       .object({
         panicFloor: PanicLevelSchema,
