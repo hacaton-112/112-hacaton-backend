@@ -1,4 +1,5 @@
 import {
+  PrescribedSpeechRequestSchema,
   VoicePipelineMetricsSchema,
   VoicePipelineRequestSchema,
   VoicePipelineStreamEventSchema,
@@ -17,8 +18,33 @@ const validGenerationRequest = {
     },
     allowedFacts: [{ id: "fire", value: "На кухне пожар" }],
     recentTurns: [],
+    turnPlan: { reactionAct: "answer", minimumResponseDelayMs: 320 },
   },
 } as const;
+
+describe(
+  PrescribedSpeechRequestSchema.description ?? "PrescribedSpeechRequestSchema",
+  () => {
+    it("accepts scenario text with a bounded response pause", () => {
+      expect(
+        PrescribedSpeechRequestSchema.safeParse({
+          requestId: "opening-1",
+          sessionId: "session-1",
+          text: "Горит квартира!",
+          language: "Russian",
+          voice: {
+            voiceId: "vivian",
+            gender: "male",
+            emotion: "panic",
+            intensity: 0.8,
+            speechRate: 1.2,
+          },
+          minimumResponseDelayMs: 220,
+        }).success,
+      ).toBe(true);
+    });
+  },
+);
 
 const validReply = {
   text: "На кухне пожар!",

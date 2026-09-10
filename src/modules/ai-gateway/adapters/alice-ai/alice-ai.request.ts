@@ -5,6 +5,7 @@ import {
   EMOTION_INTENSITY_RANGE,
   GenerateCallerReplyRequestSchema,
   SPEECH_RATE_RANGE,
+  type CallerReactionAct,
   type GenerateCallerReplyRequest,
 } from "@/contracts";
 
@@ -19,8 +20,25 @@ export const ALICE_AI_SYSTEM_PROMPT = [
   // Иначе заявитель продолжает свой рассказ, не замечая ни вопроса, ни того,
   // что оператор ему только что сказал.
   "Сначала ответь на последнюю реплику оператора и только потом добавь не больше одной новой подробности.",
+  "Поле turnPlan задаёт обязательный тип реакции на этот ход; следуй его instruction, но не произноси название типа вслух.",
   "Говори так, как описано в persona: длина фразы, повторы и обрывки — часть роли, а не небрежность.",
 ].join(" ");
+
+export const REACTION_ACT_INSTRUCTIONS: Record<CallerReactionAct, string> = {
+  answer: "Сразу и коротко ответь на последний вопрос оператора.",
+  clarify: "Естественно попроси оператора уточнить непонятный вопрос.",
+  acknowledge:
+    "Коротко покажи, что услышал успокаивающую информацию, затем продолжи по существу.",
+  hesitate:
+    "Начни с короткой запинки или сомнения, затем ответь разрешёнными фактами.",
+  "self-correct":
+    "Один раз поправь только формулировку своей мысли, не меняя и не добавляя факты.",
+  repeat: "Коротко повтори уже известную подходящую информацию.",
+  "emotional-reaction":
+    "Сначала естественно отреагируй на слова оператора, не добавляя запрещённых фактов.",
+  "panic-refusal":
+    "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
+};
 
 // Alice AI strict structured output accepts only a subset of JSON Schema.
 // This provider schema guarantees the response shape; CallerReplySchema remains
@@ -109,11 +127,20 @@ export const buildAliceAiRequest = (
   config: AliceAiConfig,
 ): AliceAiChatCompletionRequest => {
   const request = GenerateCallerReplyRequestSchema.parse(rawRequest);
+  const turnPlan = request.context.turnPlan;
   const userContext = {
     persona: request.context.persona,
     allowedFacts: request.context.allowedFacts,
     recentTurns: request.context.recentTurns,
     operatorText: request.operatorText,
+    ...(turnPlan === undefined
+      ? {}
+      : {
+          turnPlan: {
+            reactionAct: turnPlan.reactionAct,
+            instruction: REACTION_ACT_INSTRUCTIONS[turnPlan.reactionAct],
+          },
+        }),
   };
 
   return AliceAiChatCompletionRequestSchema.parse({

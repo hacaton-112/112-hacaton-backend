@@ -1,6 +1,7 @@
 import type {
   AudioChunk,
   DialogueGenerationResult,
+  PrescribedSpeechRequest,
   SpeechSynthesisStreamEvent,
   TtsSynthesisRequest,
   VoicePipelineRequest,
@@ -10,7 +11,10 @@ import type { DialogueGenerationService } from "@/modules/dialogue-generation";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
 
 import { VoicePipelineError } from "../domain/voice-pipeline.error";
-import { VoicePipelineService } from "./voice-pipeline.service";
+import {
+  remainingResponseDelayMs,
+  VoicePipelineService,
+} from "./voice-pipeline.service";
 
 const request: VoicePipelineRequest = {
   generation: {
@@ -28,6 +32,10 @@ const request: VoicePipelineRequest = {
         { id: "fire_location", value: "Возгорание находится на кухне" },
       ],
       recentTurns: [],
+      turnPlan: {
+        reactionAct: "answer",
+        minimumResponseDelayMs: 0,
+      },
     },
   },
   voice: {
@@ -164,6 +172,15 @@ const collect = async (
   return events;
 };
 
+const prescribedRequest: PrescribedSpeechRequest = {
+  requestId: "opening-1",
+  sessionId: "session-1",
+  text: "Горит квартира!",
+  language: "Russian",
+  voice: request.voice,
+  minimumResponseDelayMs: 0,
+};
+
 describe(VoicePipelineService.name, () => {
   it("streams a validated reply, zero-copy PCM, and full metrics", async () => {
     const audio = new Uint8Array([0, 1, 2, 3]);
@@ -202,6 +219,12 @@ describe(VoicePipelineService.name, () => {
           chunkCount: 1,
           audioBytes: audio.byteLength,
         }),
+        turnTaking: {
+          reactionAct: "answer",
+          minimumResponseDelayMs: 0,
+          elapsedBeforePipelineMs: 0,
+          appliedDelayMs: expect.any(Number),
+        },
       }),
     });
     expect(dialogue.generate).toHaveBeenCalledTimes(1);
@@ -322,6 +345,72 @@ describe(VoicePipelineService.name, () => {
     expect(String(thrown)).not.toContain(modelResult.reply.text);
     expect(dialogue.generate).toHaveBeenCalledTimes(1);
     expect(speech.synthesize).toHaveBeenCalledTimes(1);
+  });
+
+  it("synthesizes prescribed scenario speech without calling the LLM", async () => {
+    const dialogue = createDialogueMock();
+    const speech = createSpeechMock();
+    const service = new VoicePipelineService(dialogue.service, speech.service);
+    const events: SpeechSynthesisStreamEvent[] = [];
+
+    for await (const event of service.streamPrescribedSpeech(
+      prescribedRequest,
+      new AbortController().signal,
+    )) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      "audio.chunk",
+      "synthesis.completed",
+    ]);
+    expect(dialogue.generate).not.toHaveBeenCalled();
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      {
+        requestId: "opening-1",
+        sessionId: "session-1",
+        text: "Горит квартира!",
+        language: "Russian",
+        ...request.voice,
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("waits for the prescribed opening pause before starting TTS", async () => {
+    jest.useFakeTimers();
+
+    try {
+      const dialogue = createDialogueMock();
+      const speech = createSpeechMock();
+      const service = new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+      );
+      const stream = service.streamPrescribedSpeech(
+        { ...prescribedRequest, minimumResponseDelayMs: 240 },
+        new AbortController().signal,
+      );
+      const iterator = stream[Symbol.asyncIterator]();
+      const firstEvent = iterator.next();
+
+      await Promise.resolve();
+      expect(speech.synthesize).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(239);
+      expect(speech.synthesize).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(1);
+      await firstEvent;
+      expect(speech.synthesize).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("waits only for the part of the planned pause AI latency did not consume", () => {
+    expect(remainingResponseDelayMs(500, 180)).toBe(320);
+    expect(remainingResponseDelayMs(500, 700)).toBe(0);
   });
 
   it("does not restart generation or audio after a late synthesis failure", async () => {

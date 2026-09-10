@@ -2,13 +2,16 @@ import { Injectable } from "@nestjs/common";
 
 import {
   DialogueGenerationResultSchema,
+  PrescribedSpeechRequestSchema,
   SpeechSynthesisStreamEventSchema,
   TtsSynthesisRequestSchema,
   VoicePipelineMetricsSchema,
   VoicePipelineRequestSchema,
   VoicePipelineStreamEventSchema,
   type DialogueGenerationResult,
+  type PrescribedSpeechRequest,
   type SpeechSynthesisMetrics,
+  type SpeechSynthesisStreamEvent,
   type TtsSynthesisRequest,
   type VoicePipelineMetrics,
   type VoicePipelineRequest,
@@ -23,6 +26,34 @@ import {
   type VoicePipelineFailureMetrics,
 } from "../domain/voice-pipeline.error";
 
+export const remainingResponseDelayMs = (
+  minimumResponseDelayMs: number,
+  elapsedMs: number,
+): number => Math.max(0, minimumResponseDelayMs - elapsedMs);
+
+const waitForDelay = (delayMs: number, signal: AbortSignal): Promise<void> => {
+  if (signal.aborted) {
+    return Promise.reject(signal.reason);
+  }
+
+  if (delayMs <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal.reason);
+    };
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+};
+
 @Injectable()
 export class VoicePipelineService {
   constructor(
@@ -33,16 +64,51 @@ export class VoicePipelineService {
   streamReply(
     input: unknown,
     signal: AbortSignal,
+    elapsedBeforePipelineMs = 0,
   ): AsyncIterable<VoicePipelineStreamEvent> {
     const request = VoicePipelineRequestSchema.parse(input);
     signal.throwIfAborted();
 
-    return this.streamValidatedReply(request, signal);
+    return this.streamValidatedReply(
+      request,
+      signal,
+      Math.max(0, elapsedBeforePipelineMs),
+    );
+  }
+
+  streamPrescribedSpeech(
+    input: unknown,
+    signal: AbortSignal,
+  ): AsyncIterable<SpeechSynthesisStreamEvent> {
+    const request = PrescribedSpeechRequestSchema.parse(input);
+    signal.throwIfAborted();
+
+    return this.streamValidatedPrescribedSpeech(request, signal);
+  }
+
+  private async *streamValidatedPrescribedSpeech(
+    request: PrescribedSpeechRequest,
+    signal: AbortSignal,
+  ): AsyncIterable<SpeechSynthesisStreamEvent> {
+    await waitForDelay(request.minimumResponseDelayMs, signal);
+    signal.throwIfAborted();
+
+    yield* this.speechSynthesis.synthesize(
+      TtsSynthesisRequestSchema.parse({
+        requestId: request.requestId,
+        sessionId: request.sessionId,
+        text: request.text,
+        language: request.language,
+        ...request.voice,
+      }),
+      signal,
+    );
   }
 
   private async *streamValidatedReply(
     request: VoicePipelineRequest,
     signal: AbortSignal,
+    elapsedBeforePipelineMs: number,
   ): AsyncIterable<VoicePipelineStreamEvent> {
     const startedAt = performance.now();
     let generationResult: DialogueGenerationResult;
@@ -67,6 +133,16 @@ export class VoicePipelineService {
       result: generationResult,
       timeToReplyMs,
     });
+
+    const turnPlan = request.generation.context.turnPlan;
+    const plannedDelayMs = turnPlan?.minimumResponseDelayMs ?? 0;
+    const delayMs = remainingResponseDelayMs(
+      plannedDelayMs,
+      elapsedBeforePipelineMs + performance.now() - startedAt,
+    );
+    const delayStartedAt = performance.now();
+    await waitForDelay(delayMs, signal);
+    const appliedDelayMs = performance.now() - delayStartedAt;
 
     const synthesisRequest = this.createSynthesisRequest(
       request,
@@ -186,6 +262,16 @@ export class VoicePipelineService {
           attempts: generationResult.attempts,
         },
         synthesis: synthesisMetrics,
+        ...(turnPlan === undefined
+          ? {}
+          : {
+              turnTaking: {
+                reactionAct: turnPlan.reactionAct,
+                minimumResponseDelayMs: plannedDelayMs,
+                elapsedBeforePipelineMs,
+                appliedDelayMs,
+              },
+            }),
       });
     } catch {
       throw this.createError(

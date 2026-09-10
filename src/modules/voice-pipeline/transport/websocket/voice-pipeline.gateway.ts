@@ -34,6 +34,7 @@ import {
   ScenarioEngineError,
   ScenarioEngineService,
   type CallSnapshot,
+  type EngineOpeningTurn,
 } from "@/modules/scenario-engine";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
@@ -410,6 +411,8 @@ export class VoicePipelineGateway
           ...this.snapshotFields(snapshot),
         });
 
+        await this.startOpeningLine(client, state, snapshot.openingTurn);
+
         return;
       }
 
@@ -471,6 +474,10 @@ export class VoicePipelineGateway
 
       return;
     }
+
+    // Нажатие кнопки разговора — явный barge-in: оператор забирает слово, а
+    // ещё идущая реплика заявителя перестаёт присылать новые аудиокадры.
+    await this.cancelActiveRequest(client, state);
 
     // Второй listen.start без stop — оператор передумал: начатую реплику
     // бросаем, дослушивать её уже некому.
@@ -542,6 +549,9 @@ export class VoicePipelineGateway
 
     state.listening = null;
     listening.recording.close();
+    // Естественная пауза ответа начинается, когда оператор физически отпустил
+    // кнопку, а не после того, как ASR и Scenario Engine закончили работу.
+    const responseWaitingSince = performance.now();
 
     let transcript;
     try {
@@ -577,10 +587,16 @@ export class VoicePipelineGateway
       return;
     }
 
-    await this.startRequest(client, state, {
-      type: "speak",
-      operatorText,
-    });
+    await this.startRequest(
+      client,
+      state,
+      {
+        type: "speak",
+        operatorText,
+      },
+      false,
+      responseWaitingSince,
+    );
   }
 
   private handleAudioFrame(state: ConnectionState, data: RawData): void {
@@ -693,6 +709,7 @@ export class VoicePipelineGateway
       { type: "speak" }
     >,
     initiative = false,
+    responseWaitingSince = performance.now(),
   ): Promise<void> {
     await this.cancelActiveRequest(client, state);
 
@@ -701,6 +718,22 @@ export class VoicePipelineGateway
       requestId: generateId(),
     };
     state.activeRequest = activeRequest;
+
+    try {
+      await this.engine.setCallerSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: true,
+      });
+    } catch {
+      await this.sendError(
+        client,
+        state,
+        activeRequest.requestId,
+        "context-unavailable",
+      );
+      await this.releaseCallerFloor(state, activeRequest);
+      return;
+    }
 
     let request;
     try {
@@ -720,7 +753,7 @@ export class VoicePipelineGateway
           "context-unavailable",
         );
       }
-      this.clearIfCurrent(state, activeRequest);
+      await this.releaseCallerFloor(state, activeRequest);
       return;
     }
 
@@ -735,6 +768,7 @@ export class VoicePipelineGateway
       for await (const event of this.voicePipeline.streamReply(
         request,
         activeRequest.controller.signal,
+        performance.now() - responseWaitingSince,
       )) {
         if (!this.isCurrent(state, activeRequest)) {
           return;
@@ -767,7 +801,6 @@ export class VoicePipelineGateway
               activeRequest.requestId,
               "pipeline-failed",
             );
-            this.clearIfCurrent(state, activeRequest);
 
             return;
           }
@@ -827,6 +860,153 @@ export class VoicePipelineGateway
     } finally {
       // Прерванная реплика тоже слышна оператору, поэтому остаётся в записи.
       recording?.close();
+      await this.releaseCallerFloor(state, activeRequest);
+    }
+  }
+
+  /** Первая реплика задана сценарием и идёт сразу в TTS, минуя LLM. */
+  private async startOpeningLine(
+    client: WebSocket,
+    state: ConnectionState,
+    turn: EngineOpeningTurn,
+  ): Promise<void> {
+    await this.cancelActiveRequest(client, state);
+
+    const activeRequest: ActiveRequest = {
+      controller: new AbortController(),
+      requestId: generateId(),
+    };
+    state.activeRequest = activeRequest;
+
+    try {
+      await this.engine.setCallerSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: true,
+      });
+    } catch {
+      await this.sendError(
+        client,
+        state,
+        activeRequest.requestId,
+        "context-unavailable",
+      );
+      await this.releaseCallerFloor(state, activeRequest);
+      return;
+    }
+
+    const startedAt = performance.now();
+    let firstAudioAt: number | null = null;
+    let audioStarted = false;
+    let completed = false;
+    let recording: RecordingSegment | null = null;
+
+    try {
+      for await (const event of this.voicePipeline.streamPrescribedSpeech(
+        {
+          requestId: activeRequest.requestId,
+          sessionId: state.sessionId,
+          text: turn.text,
+          language: "Russian",
+          voice: turn.voice,
+          minimumResponseDelayMs: turn.minimumResponseDelayMs,
+        },
+        activeRequest.controller.signal,
+      )) {
+        if (!this.isCurrent(state, activeRequest)) {
+          return;
+        }
+
+        if (completed) {
+          throw new Error("Opening speech continued after completion");
+        }
+
+        if (event.type === "audio.chunk") {
+          if (event.chunk.streamId !== activeRequest.requestId) {
+            throw new Error("Opening speech returned another stream");
+          }
+
+          if (!audioStarted) {
+            audioStarted = true;
+            firstAudioAt = performance.now();
+            recording = this.recorder.openSegment({
+              sessionId: state.sessionId,
+              track: "caller",
+              sampleRate: event.chunk.sampleRate,
+            });
+            await this.sendEvent(client, state, {
+              type: "audio.start",
+              requestId: activeRequest.requestId,
+              streamId: event.chunk.streamId,
+              sampleRate: event.chunk.sampleRate,
+              channels: event.chunk.channels,
+              format: event.chunk.format,
+            });
+          }
+
+          recording?.write(event.chunk.audio);
+          await this.sendAudio(client, event.chunk.audio);
+          continue;
+        }
+
+        if (!audioStarted || firstAudioAt === null) {
+          throw new Error("Opening speech completed without audio");
+        }
+
+        completed = true;
+        await this.sendEvent(client, state, {
+          type: "audio.done",
+          requestId: activeRequest.requestId,
+          metrics: {
+            kind: "prescribed",
+            minimumResponseDelayMs: turn.minimumResponseDelayMs,
+            timeToFirstAudioMs: firstAudioAt - startedAt,
+            durationMs: performance.now() - startedAt,
+            synthesis: event.metrics,
+          },
+        });
+      }
+
+      if (!completed) {
+        throw new Error("Opening speech ended without completion");
+      }
+    } catch {
+      if (
+        !activeRequest.controller.signal.aborted &&
+        this.isCurrent(state, activeRequest)
+      ) {
+        await this.sendError(
+          client,
+          state,
+          activeRequest.requestId,
+          "pipeline-failed",
+        );
+      }
+    } finally {
+      recording?.close();
+      await this.releaseCallerFloor(state, activeRequest);
+    }
+  }
+
+  private async releaseCallerFloor(
+    state: ConnectionState,
+    activeRequest: ActiveRequest,
+  ): Promise<void> {
+    if (!this.isCurrent(state, activeRequest)) {
+      return;
+    }
+
+    try {
+      await this.engine.setCallerSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: false,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not release the caller floor for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    } finally {
       this.clearIfCurrent(state, activeRequest);
     }
   }
@@ -844,6 +1024,22 @@ export class VoicePipelineGateway
     activeRequest.controller.abort(
       new DOMException("Voice pipeline request cancelled", "AbortError"),
     );
+
+    // После явной отмены нового caller-turn может не быть. Старый async
+    // generator уже не считается current и сам таймер не освободит.
+    try {
+      await this.engine.setCallerSpeaking({
+        trainingSessionId: state.sessionId,
+        speaking: false,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not release a cancelled caller turn for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+
     await this.sendEvent(client, state, {
       type: "request.cancelled",
       requestId: activeRequest.requestId,

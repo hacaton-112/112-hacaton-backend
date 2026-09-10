@@ -7,7 +7,10 @@ import {
   GenerateCallerReplyRequestSchema,
 } from "./generation.contracts";
 import { AudioFormatSchema, AudioSampleRateSchema } from "./speech.contracts";
-import { VoicePipelineMetricsSchema } from "./voice-pipeline.contracts";
+import {
+  PrescribedSpeechMetricsSchema,
+  VoicePipelineMetricsSchema,
+} from "./voice-pipeline.contracts";
 
 const VoicePipelineEventMetadataShape = {
   eventId: AiIdentifierSchema,
@@ -213,7 +216,10 @@ export const VoicePipelineAudioDoneEventSchema = z
     ...VoicePipelineEventMetadataShape,
     type: z.literal("audio.done"),
     requestId: AiIdentifierSchema,
-    metrics: VoicePipelineMetricsSchema,
+    metrics: z.union([
+      VoicePipelineMetricsSchema,
+      PrescribedSpeechMetricsSchema,
+    ]),
   })
   .strict();
 
