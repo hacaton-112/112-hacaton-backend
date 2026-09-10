@@ -11,6 +11,7 @@ import {
 
 import { QWEN_TTS_SAMPLE_RATE } from "../qwen-tts.config";
 import { buildQwenTtsInstruction } from "../qwen-tts.instruction";
+import { resolveQwenTtsReferenceVoice } from "../qwen-tts.reference-voices";
 import type { VllmOmniTtsConfig } from "./vllm-omni-tts.config";
 
 export const VLLM_OMNI_TTS_MAX_NEW_TOKENS = 1_200;
@@ -21,12 +22,10 @@ export const VllmOmniSpeechRateLevelSchema = z.enum([
   "быстрый",
 ]);
 
-export const VllmOmniTtsSpeechRequestSchema = z
+const VllmOmniCommonSpeechRequestSchema = z
   .object({
     model: z.string().trim().min(1).max(256),
     input: CallerReplyTextSchema,
-    voice: AiIdentifierSchema,
-    task_type: z.literal("CustomVoice"),
     language: z.literal("Russian"),
     instructions: z.string().trim().min(1).max(768),
     response_format: z.literal("pcm"),
@@ -36,6 +35,25 @@ export const VllmOmniTtsSpeechRequestSchema = z
     max_new_tokens: z.literal(VLLM_OMNI_TTS_MAX_NEW_TOKENS),
   })
   .strict();
+
+export const VllmOmniCustomVoiceSpeechRequestSchema =
+  VllmOmniCommonSpeechRequestSchema.extend({
+    voice: AiIdentifierSchema,
+    task_type: z.literal("CustomVoice"),
+  }).strict();
+
+export const VllmOmniBaseIclSpeechRequestSchema =
+  VllmOmniCommonSpeechRequestSchema.extend({
+    task_type: z.literal("Base"),
+    ref_audio: z.string().startsWith("data:audio/wav;base64,"),
+    ref_text: z.string().trim().min(3).max(2_000),
+    x_vector_only_mode: z.literal(false),
+  }).strict();
+
+export const VllmOmniTtsSpeechRequestSchema = z.union([
+  VllmOmniCustomVoiceSpeechRequestSchema,
+  VllmOmniBaseIclSpeechRequestSchema,
+]);
 
 export type VllmOmniSpeechRateLevel = z.infer<
   typeof VllmOmniSpeechRateLevelSchema
@@ -92,18 +110,45 @@ export const buildVllmOmniTtsRequest = (
   config: VllmOmniTtsConfig,
 ): VllmOmniTtsSpeechRequest => {
   const request = TtsSynthesisRequestSchema.parse(rawRequest);
-
-  return VllmOmniTtsSpeechRequestSchema.parse({
+  const commonRequest = {
     model: config.model,
     input: request.text,
-    voice: normalizeVllmOmniVoice(request.voiceId),
-    task_type: "CustomVoice",
     language: request.language,
     instructions: buildVllmOmniTtsInstruction(request),
-    response_format: "pcm",
+    response_format: "pcm" as const,
     sample_rate: QWEN_TTS_SAMPLE_RATE,
-    stream: true,
-    stream_format: "audio",
+    stream: true as const,
+    stream_format: "audio" as const,
     max_new_tokens: VLLM_OMNI_TTS_MAX_NEW_TOKENS,
+  };
+
+  if (config.mode === "custom-voice") {
+    return VllmOmniCustomVoiceSpeechRequestSchema.parse({
+      model: config.model,
+      input: request.text,
+      voice: normalizeVllmOmniVoice(request.voiceId),
+      task_type: "CustomVoice",
+      language: request.language,
+      instructions: buildVllmOmniTtsInstruction(request),
+      response_format: "pcm",
+      sample_rate: QWEN_TTS_SAMPLE_RATE,
+      stream: true,
+      stream_format: "audio",
+      max_new_tokens: VLLM_OMNI_TTS_MAX_NEW_TOKENS,
+    });
+  }
+
+  const reference = resolveQwenTtsReferenceVoice(
+    config.referenceVoices,
+    request.voiceId,
+    request.gender,
+  );
+
+  return VllmOmniBaseIclSpeechRequestSchema.parse({
+    ...commonRequest,
+    task_type: "Base",
+    ref_audio: reference.audioDataUrl,
+    ref_text: reference.refText,
+    x_vector_only_mode: false,
   });
 };

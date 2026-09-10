@@ -8,10 +8,31 @@ import {
 
 const config: MlxAudioTtsConfig = {
   provider: "mlx-audio",
+  mode: "custom-voice",
   baseUrl: "http://127.0.0.1:8000",
   model: "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
   streamingIntervalSeconds: 0.32,
   requestTimeoutMs: 60_000,
+};
+
+const baseIclConfig: MlxAudioTtsConfig = {
+  ...config,
+  mode: "base-icl",
+  model: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+  referenceVoices: {
+    defaults: { male: "dylan" },
+    voices: {
+      dylan: {
+        id: "dylan",
+        gender: "male",
+        source: "synthetic",
+        audioPath: "/voices/dylan.wav",
+        refText: "Проверка связи. Я говорю спокойно и разборчиво.",
+        sha256: "a".repeat(64),
+        audioDataUrl: "data:audio/wav;base64,UklGRg==",
+      },
+    },
+  },
 };
 
 const request: TtsSynthesisRequest = {
@@ -50,6 +71,22 @@ describe(buildMlxAudioTtsRequest.name, () => {
 
     expect(serialized).not.toContain(request.requestId);
     expect(serialized).not.toContain(request.sessionId);
+  });
+
+  it("builds Base ICL with one registered reference and no preset voice", () => {
+    const providerRequest = buildMlxAudioTtsRequest(
+      { ...request, voiceId: "Dylan" },
+      baseIclConfig,
+    );
+
+    expect(providerRequest).toMatchObject({
+      model: baseIclConfig.model,
+      input: request.text,
+      ref_audio: "/voices/dylan.wav",
+      ref_text: "Проверка связи. Я говорю спокойно и разборчиво.",
+    });
+    expect(providerRequest).not.toHaveProperty("voice");
+    expect(providerRequest).not.toHaveProperty("gender");
   });
 
   it("validates the domain request before mapping", () => {

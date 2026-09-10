@@ -133,6 +133,7 @@ export const env = createEnv({
 
     // ── Qwen TTS ────────────────────────────────────────────────
     QWEN_TTS_PROVIDER: z.enum(["mlx-audio", "vllm-omni"]).default("mlx-audio"),
+    QWEN_TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
     QWEN_TTS_BASE_URL: z
       .url()
       .refine((url) => /^https?:\/\//.test(url), {
@@ -145,6 +146,12 @@ export const env = createEnv({
       .min(1)
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
+      .optional(),
+    QWEN_TTS_REFERENCE_VOICES_PATH: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1_024)
       .optional(),
     QWEN_TTS_STREAMING_INTERVAL_SECONDS: z.coerce
       .number()

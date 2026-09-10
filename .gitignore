@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 logs/
+var/tts-reference/
 
 .env
 .env.*

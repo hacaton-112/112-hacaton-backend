@@ -12,8 +12,10 @@ import {
 
 const QWEN_TTS_ENVIRONMENT_KEYS = [
   "QWEN_TTS_PROVIDER",
+  "QWEN_TTS_MODE",
   "QWEN_TTS_BASE_URL",
   "QWEN_TTS_MODEL",
+  "QWEN_TTS_REFERENCE_VOICES_PATH",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
   "QWEN_TTS_REQUEST_TIMEOUT_MS",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];

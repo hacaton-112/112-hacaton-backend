@@ -17,6 +17,7 @@ import {
   parseQwenTtsConfig,
 } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
 import { createQwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.factory";
+import { resolveQwenTtsReferenceVoice } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.reference-voices";
 import {
   characterErrorRate,
   concatPcmChunks,
@@ -37,8 +38,10 @@ const ASR_FRAME_MS = 100;
 
 const QWEN_ENVIRONMENT_KEYS = [
   "QWEN_TTS_PROVIDER",
+  "QWEN_TTS_MODE",
   "QWEN_TTS_BASE_URL",
   "QWEN_TTS_MODEL",
+  "QWEN_TTS_REFERENCE_VOICES_PATH",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
   "QWEN_TTS_REQUEST_TIMEOUT_MS",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];
@@ -330,11 +333,20 @@ const main = async (): Promise<void> => {
     }
   }
 
+  const reference =
+    config.mode === "base-icl"
+      ? resolveQwenTtsReferenceVoice(
+          config.referenceVoices,
+          options.voiceId,
+          options.gender,
+        )
+      : null;
   const manifest = createTtsDiagnosticManifest({
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     provider: {
       provider: config.provider,
+      mode: config.mode,
       baseUrl: config.baseUrl,
       model: config.model,
       requestTimeoutMs: config.requestTimeoutMs,
@@ -342,6 +354,14 @@ const main = async (): Promise<void> => {
         config.provider === "mlx-audio"
           ? config.streamingIntervalSeconds
           : null,
+      reference:
+        reference === null
+          ? null
+          : {
+              id: reference.id,
+              source: reference.source,
+              sha256: reference.sha256,
+            },
     },
     options: {
       repetitions: options.repetitions,
