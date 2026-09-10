@@ -44,6 +44,12 @@ export type VllmOmniTtsSpeechRequest = z.infer<
   typeof VllmOmniTtsSpeechRequestSchema
 >;
 
+const speechRateInstructions = {
+  медленный: "Темп речи слегка замедленный, без неестественных пауз.",
+  обычный: "Темп речи обычный и ровный.",
+  быстрый: "Темп речи слегка ускоренный, без проглатывания слов.",
+} as const satisfies Record<VllmOmniSpeechRateLevel, string>;
+
 export const normalizeVllmOmniVoice = (voiceId: string): string => {
   const voice = AiIdentifierSchema.parse(voiceId);
 
@@ -77,7 +83,7 @@ export const buildVllmOmniTtsInstruction = (
 
   return (
     `${buildQwenTtsInstruction(request.emotion, request.intensity)} ` +
-    `Голос: ${voice}. Темп речи: ${rate}.`
+    `Голос: ${voice}. ${speechRateInstructions[rate]}`
   );
 };
 

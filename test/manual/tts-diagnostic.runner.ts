@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import {
   AiIdentifierSchema,
+  CallerGenderSchema,
+  findQwenTtsVoice,
   type AudioChunk,
   type SpeechSynthesisMetrics,
   type TtsSynthesisRequest,
@@ -45,7 +47,8 @@ const TtsDiagnosticOptionsSchema = z
   .object({
     output: z.string().trim().min(1),
     repetitions: z.coerce.number().int().min(1).max(20).default(3),
-    voiceId: AiIdentifierSchema.default("Dylan"),
+    voiceId: AiIdentifierSchema,
+    gender: CallerGenderSchema,
     asrRoundTrip: z.boolean().default(false),
   })
   .strict();
@@ -92,7 +95,7 @@ const parseOptions = (argv: readonly string[]): TtsDiagnosticOptions => {
       continue;
     }
 
-    const match = /^--(output|repetitions|voice)=(.+)$/.exec(argument);
+    const match = /^--(output|repetitions|voice|gender)=(.+)$/.exec(argument);
     if (!match) {
       throw new Error(`Unknown diagnostic option: ${argument}`);
     }
@@ -100,10 +103,20 @@ const parseOptions = (argv: readonly string[]): TtsDiagnosticOptions => {
     values.set(match[1], match[2]);
   }
 
+  const voiceId = AiIdentifierSchema.parse(values.get("voice") ?? "Dylan");
+  const gender = values.get("gender") ?? findQwenTtsVoice(voiceId)?.gender;
+
+  if (gender === undefined) {
+    throw new Error(
+      `Cannot infer gender for voice ${voiceId}. Pass --gender=male or --gender=female.`,
+    );
+  }
+
   return TtsDiagnosticOptionsSchema.parse({
     output: values.get("output"),
     repetitions: values.get("repetitions"),
-    voiceId: values.get("voice"),
+    voiceId,
+    gender,
     asrRoundTrip,
   });
 };
@@ -289,6 +302,7 @@ const main = async (): Promise<void> => {
         text: diagnosticCase.text,
         language: "Russian",
         voiceId: options.voiceId,
+        gender: options.gender,
         emotion: diagnosticCase.emotion,
         intensity: diagnosticCase.intensity,
         speechRate: diagnosticCase.speechRate,

@@ -23,6 +23,7 @@ const request: TtsSynthesisRequest = {
   text: diagnosticCase.text,
   language: "Russian",
   voiceId: "Dylan",
+  gender: "male",
   emotion: diagnosticCase.emotion,
   intensity: diagnosticCase.intensity,
   speechRate: diagnosticCase.speechRate,

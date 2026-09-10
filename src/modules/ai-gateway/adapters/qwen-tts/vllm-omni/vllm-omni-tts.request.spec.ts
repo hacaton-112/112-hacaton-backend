@@ -4,6 +4,7 @@ import type { VllmOmniTtsConfig } from "./vllm-omni-tts.config";
 import {
   VLLM_OMNI_TTS_MAX_NEW_TOKENS,
   VllmOmniTtsSpeechRequestSchema,
+  buildVllmOmniTtsInstruction,
   buildVllmOmniTtsRequest,
   mapVllmOmniSpeechRate,
   normalizeVllmOmniVoice,
@@ -37,7 +38,7 @@ describe(buildVllmOmniTtsRequest.name, () => {
       task_type: "CustomVoice",
       language: "Russian",
       instructions:
-        "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная. Голос: мужской. Темп речи: быстрый.",
+        "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым. Голос: мужской. Темп речи слегка ускоренный, без проглатывания слов.",
       response_format: "pcm",
       sample_rate: 24_000,
       stream: true,
@@ -70,6 +71,16 @@ describe(buildVllmOmniTtsRequest.name, () => {
     [2, "быстрый"],
   ] as const)("maps speech rate %s to %s", (speechRate, level) => {
     expect(mapVllmOmniSpeechRate(speechRate)).toBe(level);
+  });
+
+  it.each([
+    [0.5, "Темп речи слегка замедленный, без неестественных пауз."],
+    [1, "Темп речи обычный и ровный."],
+    [1.5, "Темп речи слегка ускоренный, без проглатывания слов."],
+  ] as const)("keeps rate %s controlled", (speechRate, expectedInstruction) => {
+    expect(buildVllmOmniTtsInstruction({ ...request, speechRate })).toContain(
+      expectedInstruction,
+    );
   });
 
   it.each([

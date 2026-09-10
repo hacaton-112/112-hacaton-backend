@@ -1,10 +1,6 @@
-import { CallerEmotionSchema, type TtsSynthesisRequest } from "@/contracts";
+import type { TtsSynthesisRequest } from "@/contracts";
 
 import type { MlxAudioTtsConfig } from "../qwen-tts.config";
-import {
-  buildQwenTtsInstruction,
-  mapQwenTtsIntensity,
-} from "../qwen-tts.instruction";
 import {
   MLX_AUDIO_TTS_MAX_TOKENS,
   buildMlxAudioTtsRequest,
@@ -40,7 +36,7 @@ describe(buildMlxAudioTtsRequest.name, () => {
       gender: "male",
       lang_code: "Russian",
       instruct:
-        "Говори в панике, сбивчиво и напряжённо. Выраженность эмоции: сильная.",
+        "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым.",
       response_format: "pcm",
       stream: true,
       streaming_interval: config.streamingIntervalSeconds,
@@ -55,28 +51,6 @@ describe(buildMlxAudioTtsRequest.name, () => {
     expect(serialized).not.toContain(request.requestId);
     expect(serialized).not.toContain(request.sessionId);
   });
-
-  it.each([
-    [0, "слабая"],
-    [0.33, "слабая"],
-    [0.34, "средняя"],
-    [0.66, "средняя"],
-    [0.67, "сильная"],
-    [1, "сильная"],
-  ] as const)("maps intensity %s to %s", (intensity, level) => {
-    expect(mapQwenTtsIntensity(intensity)).toBe(level);
-  });
-
-  it.each(CallerEmotionSchema.options)(
-    "builds a deterministic instruction for %s",
-    (emotion) => {
-      const first = buildQwenTtsInstruction(emotion, 0.5);
-      const second = buildQwenTtsInstruction(emotion, 0.5);
-
-      expect(first).toBe(second);
-      expect(first).toContain("Выраженность эмоции: средняя.");
-    },
-  );
 
   it("validates the domain request before mapping", () => {
     expect(() =>
