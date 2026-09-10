@@ -37,6 +37,16 @@ import { SCENARIO_STORE } from "../scenario-engine.tokens";
 
 const MILLISECONDS_PER_SECOND = 1_000;
 
+type OperatorTone = "neutral" | "calming" | "forbidden";
+
+const TONE_PROMPTS: Record<OperatorTone, string> = {
+  neutral: "",
+  calming:
+    " Оператор сказал, что помощь уже едет: заявителю от этого чуть легче, и он это показывает.",
+  forbidden:
+    " Оператор велел ему успокоиться. Такое указание заявителя только злит: он отвечает на него, прежде чем продолжать.",
+};
+
 export interface CallSnapshot {
   readonly trainingSessionId: string;
   readonly scenarioVersionId: string;
@@ -262,6 +272,9 @@ export class ScenarioEngineService {
       version.persona.backgroundSounds === null
         ? ""
         : ` Фон: ${version.persona.backgroundSounds}.`;
+    // Что оператор только что сделал не так или, наоборот, правильно: заявитель
+    // обязан это заметить словами, а не только ступенью паники.
+    const tone = this.operatorTone(version, matchedText);
 
     return {
       scenarioVersionId: version.id,
@@ -278,7 +291,12 @@ export class ScenarioEngineService {
           description:
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
+            ` Как говорит: ${profile.speechRules}` +
+            ` Так звучат его реплики: ${profile.examples
+              .map((example) => `«${example}»`)
+              .join(" ")}` +
             background +
+            TONE_PROMPTS[tone] +
             (input.initiative === true
               ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
               : ""),
@@ -391,15 +409,36 @@ export class ScenarioEngineService {
         : { operatorSilenceSince: now }),
     };
 
+    const firedTriggers = this.triggersFromTurn(
+      version,
+      matchedText,
+      revealedNow,
+    );
     const transition = resolveEscalation({
       rules: version.escalationRules,
       currentLevel: state.panicLevel,
       floor: version.panicFloor,
       ceiling: version.panicCeiling,
-      firedTriggers: this.triggersFromTurn(version, matchedText, revealedNow),
+      firedTriggers,
       changedAt: state.panicChangedAt,
       now,
     });
+
+    // Сработавшее правило записывается, даже если ступень не сдвинулась: на
+    // потолке шкалы запрещённая фраза оператора иначе исчезала бы бесследно,
+    // а разбор занятия строится по журналу.
+    for (const trigger of firedTriggers) {
+      if (transition?.trigger === trigger) {
+        continue;
+      }
+
+      events.push({
+        type: "escalation.fired",
+        actor: "system",
+        occurredAt: now,
+        payload: { trigger, level: state.panicLevel, applied: false },
+      });
+    }
 
     if (transition !== null) {
       patch.panicLevel = transition.level;
@@ -585,6 +624,35 @@ export class ScenarioEngineService {
       },
       panicProfile(state.panicLevel).factBudget,
     );
+  }
+
+  /**
+   * Как прозвучала реплика оператора для заявителя.
+   *
+   * Правила сценария уже знают, какие слова успокаивают, а какие запрещены;
+   * здесь тот же разбор нужен до генерации, чтобы заявитель ответил на них, а
+   * не продолжил диктовать адрес.
+   */
+  private operatorTone(
+    version: ScenarioVersionSnapshot,
+    operatorText: string,
+  ): OperatorTone {
+    if (operatorText.length === 0) {
+      return "neutral";
+    }
+
+    const matched = version.escalationRules.filter(
+      (rule) =>
+        (rule.trigger === "calming_phrase" ||
+          rule.trigger === "forbidden_phrase") &&
+        matchesKeywords(operatorText, rule.keywords ?? []),
+    );
+
+    if (matched.some((rule) => rule.trigger === "forbidden_phrase")) {
+      return "forbidden";
+    }
+
+    return matched.length > 0 ? "calming" : "neutral";
   }
 
   private triggersFromTurn(

@@ -79,7 +79,14 @@ const version = (
       trigger: "calming_phrase",
       direction: "down",
       cooldownSeconds: 0,
-      keywords: ["помощь уже", "я вас слышу"],
+      keywords: ["помощь уже", "я вас слышу", "бригада выехала"],
+    },
+    {
+      // Диспетчеров 112 учат не говорить «успокойтесь»: сценарий это наказывает.
+      trigger: "forbidden_phrase",
+      direction: "up",
+      cooldownSeconds: 0,
+      keywords: ["успокойтесь", "не кричите"],
     },
   ],
   mandatoryQuestions: [
@@ -518,6 +525,75 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
       "address_street",
     );
     expect(built.context.persona.description).toContain("Оператор молчит");
+  });
+});
+
+describe(`${ScenarioEngineService.name} the operator's own words`, () => {
+  it("keeps a fired rule in the journal even at the top of the scale", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Успокойтесь, я вас прошу.",
+      reply: reply(),
+    });
+
+    // Ступень уже на потолке, двигать её некуда — но ошибку оператора разбор
+    // занятия должен увидеть.
+    expect(eventTypes(store)).toContain("escalation.fired");
+  });
+
+  it("does not repeat a rule that actually moved the step", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Успокойтесь, я вас прошу.",
+      reply: reply(),
+    });
+
+    expect(eventTypes(store)).toContain("panic.changed");
+    expect(eventTypes(store)).not.toContain("escalation.fired");
+  });
+
+  it("tells the caller that he was told to calm down", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Успокойтесь, мы вызвали пожарную.",
+    });
+
+    expect(built.context.persona.description).toContain("только злит");
+  });
+
+  it("tells the caller that help is on the way when it is", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Я вас слышу, бригада выехала.",
+    });
+
+    expect(built.context.persona.description).toContain("чуть легче");
+  });
+
+  it("describes how the caller speaks, not only how he feels", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что произошло?",
+    });
+
+    expect(built.context.persona.description).toContain("Как говорит:");
+    expect(built.context.persona.description).toContain(
+      "Так звучат его реплики:",
+    );
   });
 });
 

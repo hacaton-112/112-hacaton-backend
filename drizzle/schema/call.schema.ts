@@ -34,6 +34,8 @@ export const CALL_EVENT_TYPES = [
   "operator.utterance",
   "caller.reply",
   "panic.changed",
+  /** Правило сработало, но ступень не изменилась: потолок, пол или пауза. */
+  "escalation.fired",
   "caller.initiative",
   "caller.interrupted",
   "fact.revealed",

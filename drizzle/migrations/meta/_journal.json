@@ -43,6 +43,13 @@
       "when": 1789023711484,
       "tag": "0005_safe_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789025205243,
+      "tag": "0006_polite_titanium_man",
+      "breakpoints": true
     }
   ]
 }
