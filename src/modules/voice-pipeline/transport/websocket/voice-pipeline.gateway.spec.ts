@@ -274,6 +274,11 @@ const createRecorder = (): {
   };
 };
 
+const createCards = () =>
+  ({
+    close: jest.fn().mockResolvedValue(undefined),
+  }) as unknown as import("@/modules/incident-card").IncidentCardService;
+
 const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
   ({
     startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
@@ -309,6 +314,7 @@ const createRuntime = async (
     recorder: CallRecorder;
     mocks: RecorderMocks;
   } = createRecorder(),
+  cards = createCards(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -321,6 +327,7 @@ const createRuntime = async (
     engine,
     asr.asr,
     recording.recorder,
+    cards,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
@@ -355,6 +362,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -387,6 +395,7 @@ describe(VoicePipelineGateway.name, () => {
       engine,
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -413,6 +422,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       createAsr().asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 
@@ -1054,6 +1064,7 @@ describe(VoicePipelineGateway.name, () => {
       createEngine(),
       asr,
       createRecorder().recorder,
+      createCards(),
     );
     const socket = new SocketMock();
 

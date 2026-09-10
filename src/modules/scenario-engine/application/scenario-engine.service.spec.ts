@@ -120,6 +120,7 @@ const callState = (
 ): CallStateSnapshot => ({
   trainingSessionId: "session-1",
   scenarioVersionId: "version-1",
+  operatorId: "operator-1",
   stage: "conversation",
   panicLevel: 2,
   panicChangedAt: null,

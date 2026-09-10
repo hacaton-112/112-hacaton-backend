@@ -160,6 +160,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
     return {
       trainingSessionId: row.trainingSessionId,
       scenarioVersionId: row.scenarioVersionId,
+      operatorId: row.operatorId,
       stage: row.stage,
       panicLevel: toPanicLevel(row.panicLevel),
       panicChangedAt: row.panicChangedAt,
@@ -187,6 +188,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
         .values({
           trainingSessionId: state.trainingSessionId,
           scenarioVersionId: state.scenarioVersionId,
+          operatorId: state.operatorId,
           stage: state.stage,
           panicLevel: state.panicLevel,
           rngSeed: state.rngSeed,

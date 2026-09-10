@@ -22,6 +22,7 @@ import { ConfigModule } from "@nestjs/config";
 
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
+import { IncidentCardModule } from "@/modules/incident-card";
 import { CallRecordingModule } from "@/modules/call-recording";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
@@ -49,6 +50,7 @@ describe(VoicePipelineModule.name, () => {
       CallRecordingModule,
       ScenarioEngineModule,
       DialogueGenerationModule,
+      IncidentCardModule,
       SpeechSynthesisModule,
     ]);
   });

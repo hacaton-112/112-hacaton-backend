@@ -72,6 +72,8 @@ export interface ScenarioVersionSnapshot {
 export interface CallStateSnapshot {
   readonly trainingSessionId: string;
   readonly scenarioVersionId: string;
+  /** Кто ведёт звонок: по нему разрешается правка карточки происшествия. */
+  readonly operatorId: string | null;
   readonly stage: CallStage;
   readonly panicLevel: PanicLevel;
   readonly panicChangedAt: Date | null;
@@ -99,7 +101,7 @@ export type CallStatePatch = {
   -readonly [
     Key in keyof Omit<
       CallStateSnapshot,
-      "trainingSessionId" | "scenarioVersionId" | "rngSeed"
+      "trainingSessionId" | "scenarioVersionId" | "operatorId" | "rngSeed"
     >
   ]?: CallStateSnapshot[Key];
 };

@@ -113,6 +113,8 @@ export class ScenarioEngineService {
     trainingSessionId: string;
     scenarioVersionId: string;
     eventId: string;
+    /** Кто принимает вызов; в смоук-прогонах оператора может не быть. */
+    operatorId?: string;
     now?: Date;
   }): Promise<CallSnapshot> {
     const now = input.now ?? new Date();
@@ -128,6 +130,7 @@ export class ScenarioEngineService {
     const state: CallStateSnapshot = {
       trainingSessionId: input.trainingSessionId,
       scenarioVersionId: version.id,
+      operatorId: input.operatorId ?? null,
       stage: "offered",
       panicLevel: this.clampToScenario(
         version.persona.baselinePanicLevel,
