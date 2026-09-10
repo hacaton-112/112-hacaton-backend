@@ -12,6 +12,13 @@
   --app-transition-duration-base: 200ms;
   --app-transition-duration-sheet-close: 300ms;
   --app-transition-duration-sheet-open: 500ms;
+  --app-viewport-height: calc(100vh - var(--app-titlebar-height));
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-viewport-height: calc(100dvh - var(--app-titlebar-height));
+  }
 }
 
 @utility no-scrollbar {
@@ -443,12 +450,14 @@ body,
 }
 
 @media (min-width: 1480px) and (min-height: 954px) {
-  .operator-page-scroll > .rt-ScrollAreaViewport {
-    overflow: hidden !important;
-  }
-
-  .operator-page-scroll > .rt-ScrollAreaScrollbar {
-    display: none;
+  /*
+   * Контент-обёртка Radix-ScrollArea растёт под содержимое, поэтому h-full у
+   * рабочей области резолвится в высоту самой длинной колонки, а не окна: строка
+   * грида распухает, и панели уезжают под нижнюю границу вместо своих скроллов.
+   * Задаём высоту явно — тогда grid-rows-1 (minmax(0, 1fr)) держит колонки в окне.
+   */
+  .operator-workspace {
+    height: var(--app-viewport-height) !important;
   }
 
   .operator-column-scroll {

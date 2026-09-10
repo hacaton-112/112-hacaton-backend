@@ -42,16 +42,12 @@ export default function OperatorPage() {
         type="auto"
       >
         <div className="operator-workspace grid min-h-full grid-cols-1 gap-4 p-4 min-[1480px]:h-full min-[1480px]:min-h-0 min-[1480px]:grid-cols-[minmax(360px,0.92fr)_minmax(650px,1.95fr)_minmax(380px,1fr)] min-[1480px]:grid-rows-1 md:grid-cols-[minmax(340px,0.47fr)_minmax(560px,1fr)]">
-          <ScrollArea
-            className="operator-column-scroll min-h-0"
-            scrollbars="vertical"
-            type="auto"
-          >
+          <div className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden">
             <CallerPanel
               callerNumber={call.callerNumber}
               startedAt={call.startedAt}
             />
-          </ScrollArea>
+          </div>
           <ScrollArea
             className="operator-column-scroll min-h-0"
             scrollbars="vertical"
