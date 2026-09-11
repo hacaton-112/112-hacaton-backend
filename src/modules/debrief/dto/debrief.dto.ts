@@ -87,6 +87,8 @@ export const DebriefSchema = z
     questions: z.array(DebriefQuestionSchema),
     incidentCard: IncidentCardSchema.nullable(),
     recording: z.array(DebriefRecordingSegmentSchema),
+    /** Запись целиком; `null`, когда в звонке не прозвучало ни слова. */
+    recordingUrl: z.string().nullable(),
   })
   .strict();
 
