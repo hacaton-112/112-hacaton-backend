@@ -15,10 +15,19 @@ import {
   type RecordingStorage,
 } from "@/modules/call-recording/ports/recording-storage.port";
 import { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
+import type { IncidentCard } from "@/modules/incident-card/dto/incident-card.dto";
+
+import {
+  ADDRESS_FIELDS,
+  cardValuesForReference,
+  dispatchedServices,
+} from "../domain/card-mapping";
+import { evaluateCall } from "../domain/evaluation";
 
 import type {
   CallSummary,
   Debrief,
+  DebriefEvaluation,
   DebriefFact,
   DebriefQuestion,
   DebriefRecordingSegment,
@@ -80,6 +89,16 @@ export class DebriefService {
 
     const revealed = new Set(call.revealedFactKeys);
     const revealedAt = this.revealTimes(journal);
+    const debriefQuestions = questions.map((question): DebriefQuestion => ({
+      text: question.text,
+      isCritical: question.isCritical,
+      // Вопрос закрыт, когда прозвучали все сведения, которыми он
+      // считается закрытым: назвать улицу — ещё не назвать адрес.
+      satisfied: question.satisfiedByFactKeys.every((key) =>
+        revealed.has(key),
+      ),
+      satisfiedByFactKeys: [...question.satisfiedByFactKeys],
+    }));
 
     return {
       call: this.toSummary(call),
@@ -97,23 +116,100 @@ export class DebriefService {
         revealed: revealed.has(fact.key),
         revealedAt: revealedAt.get(fact.key)?.toISOString() ?? null,
       })),
-      questions: questions.map((question): DebriefQuestion => ({
-        text: question.text,
-        isCritical: question.isCritical,
-        // Вопрос закрыт, когда прозвучали все сведения, которыми он
-        // считается закрытым: назвать улицу — ещё не назвать адрес.
-        satisfied: question.satisfiedByFactKeys.every((key) =>
-          revealed.has(key),
-        ),
-        satisfiedByFactKeys: [...question.satisfiedByFactKeys],
-      })),
+      questions: debriefQuestions,
       incidentCard: card,
       recording: this.toSegments(trainingSessionId, recording),
       recordingUrl:
         recording.length === 0
           ? null
           : `/api/v1/calls/${trainingSessionId}/recording`,
+      // Незакончившийся звонок оценивать нечем: карточка ещё пишется, а
+      // вопросы могут закрыться в следующую минуту.
+      evaluation:
+        call.stage === "ended"
+          ? await this.evaluate(call, debriefQuestions, journal, card, revealed)
+          : null,
     };
+  }
+
+  /**
+   * Оценка звонка.
+   *
+   * Считается при первом открытии разбора и сохраняется: сравнение с группой
+   * читает чужие оценки, а не пересчитывает чужие звонки.
+   */
+  private async evaluate(
+    call: DebriefCall,
+    questions: readonly DebriefQuestion[],
+    journal: readonly JournalEntry[],
+    card: IncidentCard | null,
+    revealed: ReadonlySet<string>,
+  ): Promise<DebriefEvaluation> {
+    const reference = await this.store.loadReferenceCard(
+      call.scenarioVersionId,
+    );
+    const evaluation = evaluateCall({
+      questions: questions.map((question) => ({
+        text: question.text,
+        isCritical: question.isCritical,
+        satisfied: question.satisfied,
+        obtainedFactKeys: question.satisfiedByFactKeys.filter((key) =>
+          revealed.has(key),
+        ),
+        expectedFactKeys: question.satisfiedByFactKeys,
+      })),
+      // Части адреса сверяются вхождением, чем бы их ни объявил автор
+      // сценария: оператор пишет адрес одной строкой, и «улица Учебная» в ней
+      // не равно ей целиком.
+      reference: reference.map((field) => ({
+        ...field,
+        comparison: ADDRESS_FIELDS.includes(field.field)
+          ? ("contains" as const)
+          : field.comparison,
+      })),
+      cardValues: cardValuesForReference(card),
+      expectedServices: call.expectedServices,
+      dispatchedServices: dispatchedServices(card),
+      answerSeconds: this.answerSeconds(call),
+      answerNormSeconds: call.answerNormSeconds,
+      forbiddenPhrases: this.forbiddenPhrases(journal),
+      passThreshold: call.passThreshold,
+    });
+
+    if ((await this.store.loadScore(call.trainingSessionId)) !== evaluation.score) {
+      await this.store.saveScore(
+        call.trainingSessionId,
+        call.scenarioVersionId,
+        evaluation.score,
+      );
+    }
+
+    const group = await this.store.loadGroupResult(
+      call.scenarioVersionId,
+      call.trainingSessionId,
+    );
+
+    return {
+      score: evaluation.score,
+      verdict: evaluation.verdict,
+      passThreshold: evaluation.passThreshold,
+      skills: [...evaluation.skills],
+      fields: [...evaluation.fields],
+      recommendations: [...evaluation.recommendations],
+      difficulty: call.difficulty,
+      groupAverageScore: group.calls === 0 ? null : group.averageScore,
+      groupCalls: group.calls,
+    };
+  }
+
+  /** Сколько раз оператор сказал то, чего диспетчеру говорить нельзя. */
+  private forbiddenPhrases(journal: readonly JournalEntry[]): number {
+    return journal.filter(
+      (entry) =>
+        (entry.type === "escalation.fired" ||
+          entry.type === "panic.changed") &&
+        entry.payload?.trigger === "forbidden_phrase",
+    ).length;
   }
 
   /**

@@ -70,6 +70,42 @@ export const DebriefRecordingSegmentSchema = z
   })
   .strict();
 
+export const DebriefSkillSchema = z
+  .object({
+    key: z.enum(["questioning", "card", "services", "regulations"]),
+    label: z.string(),
+    percent: z.number().int().min(0).max(100),
+    /** Из чего сложился процент: строка под полосой на разборе. */
+    detail: z.string(),
+  })
+  .strict();
+
+export const DebriefFieldSchema = z
+  .object({
+    field: z.string(),
+    expected: z.string(),
+    actual: z.string().nullable(),
+    matched: z.boolean(),
+    isRequired: z.boolean(),
+  })
+  .strict();
+
+export const DebriefEvaluationSchema = z
+  .object({
+    score: z.number().int().min(0).max(100),
+    verdict: z.enum(["excellent", "passed", "failed"]),
+    passThreshold: z.number().int().min(0).max(100),
+    difficulty: z.number().int().min(1).max(5),
+    skills: z.array(DebriefSkillSchema),
+    /** Сравнение карточки с эталонной анкетой, поле за полем. */
+    fields: z.array(DebriefFieldSchema),
+    recommendations: z.array(z.string()),
+    /** Среднее по другим операторам; `null`, пока сравнивать не с кем. */
+    groupAverageScore: z.number().int().min(0).max(100).nullable(),
+    groupCalls: z.number().int().min(0),
+  })
+  .strict();
+
 export const DebriefSchema = z
   .object({
     call: CallSummarySchema,
@@ -89,6 +125,8 @@ export const DebriefSchema = z
     recording: z.array(DebriefRecordingSegmentSchema),
     /** Запись целиком; `null`, когда в звонке не прозвучало ни слова. */
     recordingUrl: z.string().nullable(),
+    /** Оценка; `null`, пока звонок не закончен и оценивать нечего. */
+    evaluation: DebriefEvaluationSchema.nullable(),
   })
   .strict();
 
@@ -108,3 +146,4 @@ export type DebriefRecordingSegment = z.infer<
   typeof DebriefRecordingSegmentSchema
 >;
 export type Debrief = z.infer<typeof DebriefSchema>;
+export type DebriefEvaluation = z.infer<typeof DebriefEvaluationSchema>;
