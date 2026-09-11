@@ -1,4 +1,4 @@
-import type { TimelineEntry } from "../../contracts/debrief";
+import type { Debrief, TimelineEntry } from "../../contracts/debrief";
 
 export const PANIC_LABELS = [
   "спокоен",
@@ -135,4 +135,90 @@ export const conversationOf = (
   }
 
   return lines;
+};
+
+export interface AnswerStats {
+  readonly satisfied: number;
+  readonly partial: number;
+  readonly missed: number;
+}
+
+/**
+ * Три корзины из макета по обязательным вопросам.
+ *
+ * «Наполовину» — это вопрос, по которому оператор получил часть сведений и
+ * остановился: назвал улицу, но не дом. Считать такой вопрос просто
+ * пропущенным значило бы не увидеть разницы между «не спросил» и «спросил, но
+ * не довёл».
+ */
+export const answerStats = (debrief: Debrief): AnswerStats => {
+  const revealed = new Set(
+    debrief.facts.filter((fact) => fact.revealed).map((fact) => fact.key),
+  );
+  let satisfied = 0;
+  let partial = 0;
+  let missed = 0;
+
+  for (const question of debrief.questions) {
+    const obtained = question.satisfiedByFactKeys.filter((key) =>
+      revealed.has(key),
+    ).length;
+
+    if (question.satisfied) {
+      satisfied += 1;
+    } else if (obtained > 0) {
+      partial += 1;
+    } else {
+      missed += 1;
+    }
+  }
+
+  return { satisfied, partial, missed };
+};
+
+export interface QuestionRow {
+  readonly text: string;
+  readonly isCritical: boolean;
+  readonly satisfied: boolean;
+  /** Что оператор получил: подписи прозвучавших сведений. */
+  readonly obtained: readonly string[];
+  /** Что ожидал сценарий: подписи всех нужных сведений. */
+  readonly expected: readonly string[];
+  /** Когда вопрос закрылся, от момента приёма вызова. */
+  readonly closedAtMs: number | null;
+}
+
+/** Строки таблицы «Детализация по вопросам». */
+export const questionRows = (debrief: Debrief): readonly QuestionRow[] => {
+  const byKey = new Map(debrief.facts.map((fact) => [fact.key, fact]));
+  const answeredAt =
+    debrief.call.answeredAt === null
+      ? null
+      : new Date(debrief.call.answeredAt).getTime();
+
+  return debrief.questions.map((question) => {
+    const facts = question.satisfiedByFactKeys.map((key) => byKey.get(key));
+    const revealedTimes = facts
+      .map((fact) =>
+        fact?.revealedAt == null ? null : new Date(fact.revealedAt).getTime(),
+      )
+      .filter((time): time is number => time !== null);
+
+    return {
+      text: question.text,
+      isCritical: question.isCritical,
+      satisfied: question.satisfied,
+      obtained: facts
+        .filter((fact) => fact?.revealed === true)
+        .map((fact) => fact?.label ?? ""),
+      expected: facts.map(
+        (fact, index) =>
+          fact?.label ?? question.satisfiedByFactKeys[index] ?? "",
+      ),
+      closedAtMs:
+        question.satisfied && answeredAt !== null && revealedTimes.length > 0
+          ? Math.max(...revealedTimes) - answeredAt
+          : null,
+    };
+  });
 };

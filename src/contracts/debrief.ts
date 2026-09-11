@@ -52,18 +52,49 @@ export const DebriefRecordingSegmentSchema = z.object({
   url: z.string(),
 });
 
+export const DebriefSkillSchema = z.object({
+  key: z.enum(["questioning", "card", "services", "regulations"]),
+  label: z.string(),
+  percent: z.number().int(),
+  /** Из чего сложился процент: строка под полосой. */
+  detail: z.string(),
+});
+
+export const DebriefFieldSchema = z.object({
+  field: z.string(),
+  expected: z.string(),
+  actual: z.string().nullable(),
+  matched: z.boolean(),
+  isRequired: z.boolean(),
+});
+
+export const DebriefEvaluationSchema = z.object({
+  score: z.number().int(),
+  verdict: z.enum(["excellent", "passed", "failed"]),
+  passThreshold: z.number().int(),
+  difficulty: z.number().int(),
+  skills: z.array(DebriefSkillSchema),
+  fields: z.array(DebriefFieldSchema),
+  recommendations: z.array(z.string()),
+  /** Среднее по другим операторам; `null`, пока сравнивать не с кем. */
+  groupAverageScore: z.number().int().nullable(),
+  groupCalls: z.number().int(),
+});
+
 export const DebriefSchema = z.object({
   call: CallSummarySchema,
   timings: z.object({
     answerSeconds: z.number().int().nullable(),
     answerNormSeconds: z.number().int(),
     durationSeconds: z.number().int().nullable(),
+    expectedDurationSeconds: z.number().int(),
   }),
   finalPanicLevel: z.number().int(),
   timeline: z.array(TimelineEntrySchema),
   facts: z.array(DebriefFactSchema),
   questions: z.array(DebriefQuestionSchema),
   incidentCard: IncidentCardSchema.nullable(),
+  evaluation: DebriefEvaluationSchema.nullable(),
   recording: z.array(DebriefRecordingSegmentSchema),
   /** Разговор одной дорожкой; `null`, когда записывать было нечего. */
   recordingUrl: z.string().nullable(),
@@ -75,6 +106,9 @@ export type CallSummary = z.infer<typeof CallSummarySchema>;
 export type TimelineEntry = z.infer<typeof TimelineEntrySchema>;
 export type DebriefFact = z.infer<typeof DebriefFactSchema>;
 export type DebriefQuestion = z.infer<typeof DebriefQuestionSchema>;
+export type DebriefEvaluation = z.infer<typeof DebriefEvaluationSchema>;
+export type DebriefSkill = z.infer<typeof DebriefSkillSchema>;
+export type DebriefField = z.infer<typeof DebriefFieldSchema>;
 export type DebriefRecordingSegment = z.infer<
   typeof DebriefRecordingSegmentSchema
 >;
