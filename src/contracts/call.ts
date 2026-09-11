@@ -83,7 +83,8 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("audio.start"),
-    sampleRate: z.number(),
+    streamId: z.string(),
+    sampleRate: z.number().int().positive(),
   }),
   z.object({ type: z.literal("audio.done") }),
   z.object({ type: z.literal("request.cancelled") }),
