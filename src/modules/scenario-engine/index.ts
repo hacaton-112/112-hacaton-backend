@@ -4,7 +4,9 @@ export {
   ScenarioEngineService,
   type CallDirective,
   type CallSnapshot,
+  type EngineCallerVoice,
   type EngineGenerationContext,
+  type EngineOpeningTurn,
 } from "./application/scenario-engine.service";
 export {
   ScenarioEngineError,

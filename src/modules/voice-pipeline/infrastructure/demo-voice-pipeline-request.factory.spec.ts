@@ -36,6 +36,10 @@ describe("createDemoVoicePipelineRequest", () => {
             },
           ],
           recentTurns: [],
+          turnPlan: {
+            reactionAct: "answer",
+            minimumResponseDelayMs: 0,
+          },
         },
       },
       voice: {

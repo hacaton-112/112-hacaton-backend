@@ -39,6 +39,10 @@ const validRequest = {
         text: "Служба 112, что у вас случилось?",
       },
     ],
+    turnPlan: {
+      reactionAct: "answer",
+      minimumResponseDelayMs: 320,
+    },
   },
 } as const;
 
@@ -150,6 +154,33 @@ describe(
         GenerateCallerReplyRequestSchema.safeParse({
           ...validRequest,
           context: { ...validRequest.context, hiddenFacts: [] },
+        }).success,
+      ).toBe(false);
+    });
+
+    it("rejects an unknown reaction act or an excessive response pause", () => {
+      expect(
+        GenerateCallerReplyRequestSchema.safeParse({
+          ...validRequest,
+          context: {
+            ...validRequest.context,
+            turnPlan: {
+              reactionAct: "improvise",
+              minimumResponseDelayMs: 320,
+            },
+          },
+        }).success,
+      ).toBe(false);
+      expect(
+        GenerateCallerReplyRequestSchema.safeParse({
+          ...validRequest,
+          context: {
+            ...validRequest.context,
+            turnPlan: {
+              reactionAct: "answer",
+              minimumResponseDelayMs: 1_501,
+            },
+          },
         }).success,
       ).toBe(false);
     });

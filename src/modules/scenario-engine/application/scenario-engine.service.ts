@@ -19,6 +19,11 @@ import {
   type ScenarioFact,
 } from "../domain/disclosure";
 import {
+  planCallerTurn,
+  planOpeningDelayMs,
+  type CallerTurnTone,
+} from "../domain/caller-turn-plan";
+import {
   panicProfile,
   resolveEscalation,
   resolveVoice,
@@ -37,9 +42,7 @@ import { SCENARIO_STORE } from "../scenario-engine.tokens";
 
 const MILLISECONDS_PER_SECOND = 1_000;
 
-type OperatorTone = "neutral" | "calming" | "forbidden";
-
-const TONE_PROMPTS: Record<OperatorTone, string> = {
+const TONE_PROMPTS: Record<CallerTurnTone, string> = {
   neutral: "",
   calming:
     " Оператор сказал, что помощь уже едет: заявителю от этого чуть легче, и он это показывает.",
@@ -65,6 +68,20 @@ export interface CallSnapshot {
 }
 
 /** Контекст для генерации реплики вместе с параметрами её озвучивания. */
+export interface EngineCallerVoice {
+  readonly voiceId: string;
+  readonly gender: CallerGenderValue;
+  readonly emotion: CallerEmotion;
+  readonly intensity: number;
+  readonly speechRate: number;
+}
+
+export interface EngineOpeningTurn {
+  readonly text: string;
+  readonly voice: EngineCallerVoice;
+  readonly minimumResponseDelayMs: number;
+}
+
 export interface EngineGenerationContext {
   readonly scenarioVersionId: string;
   readonly context: GenerationContext;
@@ -72,13 +89,7 @@ export interface EngineGenerationContext {
    * Как реплика должна звучать. Решает сценарий: персонаж даёт голос и пол,
    * ступень паники — силу и темп речи. Модель пишет только слова.
    */
-  readonly voice: {
-    readonly voiceId: string;
-    readonly gender: CallerGenderValue;
-    readonly emotion: CallerEmotion;
-    readonly intensity: number;
-    readonly speechRate: number;
-  };
+  readonly voice: EngineCallerVoice;
   readonly fallbackLine: string;
 }
 
@@ -187,7 +198,9 @@ export class ScenarioEngineService {
     trainingSessionId: string;
     eventId: string;
     now?: Date;
-  }): Promise<CallSnapshot & { openingLine: string }> {
+  }): Promise<
+    CallSnapshot & { openingLine: string; openingTurn: EngineOpeningTurn }
+  > {
     const now = input.now ?? new Date();
     const { state, version } = await this.loadCall(input.trainingSessionId);
 
@@ -196,8 +209,12 @@ export class ScenarioEngineService {
     const patch: CallStatePatch = {
       stage: "conversation",
       answeredAt: now,
-      operatorSilenceSince: now,
+      // Таймер молчания стартует только после того, как первая реплика
+      // действительно закончила звучать.
+      operatorSilenceSince: null,
+      callerTurns: state.callerTurns + 1,
     };
+    const openingVoice = this.callerVoice(state, version);
 
     await this.store.appendTurn(
       state.trainingSessionId,
@@ -210,6 +227,19 @@ export class ScenarioEngineService {
           occurredAt: now,
           payload: { from: state.stage, to: "conversation" },
         },
+        {
+          // Первая реплика участвует в памяти разговора так же, как ответы
+          // модели: иначе следующий ответ повторял начало звонка.
+          type: "caller.reply",
+          actor: "caller",
+          occurredAt: now,
+          payload: {
+            text: version.openingLine,
+            emotion: openingVoice.emotion,
+            intensity: openingVoice.intensity,
+            prescribed: true,
+          },
+        },
       ],
       patch,
     );
@@ -217,6 +247,14 @@ export class ScenarioEngineService {
     return {
       ...this.toSnapshot({ ...state, ...patch }, version),
       openingLine: version.openingLine,
+      openingTurn: {
+        text: version.openingLine,
+        voice: openingVoice,
+        minimumResponseDelayMs: planOpeningDelayMs(
+          state.rngSeed,
+          state.panicLevel,
+        ),
+      },
     };
   }
 
@@ -278,14 +316,21 @@ export class ScenarioEngineService {
     // Что оператор только что сделал не так или, наоборот, правильно: заявитель
     // обязан это заметить словами, а не только ступенью паники.
     const tone = this.operatorTone(version, matchedText);
+    const turnPlan = planCallerTurn({
+      rngSeed: state.rngSeed,
+      callerTurns: state.callerTurns,
+      operatorText: matchedText,
+      panicLevel: state.panicLevel,
+      tone,
+      initiative: input.initiative === true,
+      freshFactIds: allowed.fresh,
+      allowedFactIds: allowed.facts.map((fact) => fact.key),
+      recentTurns,
+    });
 
     return {
       scenarioVersionId: version.id,
-      voice: {
-        voiceId: version.persona.voiceId,
-        gender: version.persona.gender,
-        ...resolveVoice(state.panicLevel, version.persona.baseSpeechRate),
-      },
+      voice: this.callerVoice(state, version),
       fallbackLine: version.fallbackLine,
       context: {
         persona: {
@@ -311,6 +356,7 @@ export class ScenarioEngineService {
         // Разговор, который уже был: без него заявитель отвечает так, будто
         // звонок только начался, и повторяет одну и ту же первую фразу.
         recentTurns: [...recentTurns],
+        turnPlan,
       },
     };
   }
@@ -405,11 +451,10 @@ export class ScenarioEngineService {
     const patch: CallStatePatch = {
       revealedFactKeys,
       callerTurns: state.callerTurns + 1,
-      // После собственной реплики отсчёт молчания оператора не сбрасывается —
-      // он по-прежнему молчит. От повторов защищает пауза между инициативами.
-      ...(initiative
-        ? { lastInitiativeAt: now }
-        : { operatorSilenceSince: now }),
+      // Пока реплика синтезируется и звучит, молчание оператора не идёт.
+      // Транспорт запустит таймер после audio.done или безопасного fallback.
+      operatorSilenceSince: null,
+      ...(initiative ? { lastInitiativeAt: now } : {}),
     };
 
     const firedTriggers = this.triggersFromTurn(
@@ -477,6 +522,24 @@ export class ScenarioEngineService {
    * молчать заново — ждать ответа он не обязан бесконечно.
    */
   async setOperatorSpeaking(input: {
+    trainingSessionId: string;
+    speaking: boolean;
+    now?: Date;
+  }): Promise<void> {
+    const now = input.now ?? new Date();
+    const { state } = await this.loadCall(input.trainingSessionId);
+
+    if (state.stage !== "conversation") {
+      return;
+    }
+
+    await this.store.appendTurn(state.trainingSessionId, generateId(), [], {
+      operatorSilenceSince: input.speaking ? null : now,
+    });
+  }
+
+  /** Удерживает таймер молчания, пока заявитель готовит или говорит реплику. */
+  async setCallerSpeaking(input: {
     trainingSessionId: string;
     speaking: boolean;
     now?: Date;
@@ -639,7 +702,7 @@ export class ScenarioEngineService {
   private operatorTone(
     version: ScenarioVersionSnapshot,
     operatorText: string,
-  ): OperatorTone {
+  ): CallerTurnTone {
     if (operatorText.length === 0) {
       return "neutral";
     }
@@ -656,6 +719,17 @@ export class ScenarioEngineService {
     }
 
     return matched.length > 0 ? "calming" : "neutral";
+  }
+
+  private callerVoice(
+    state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
+  ): EngineCallerVoice {
+    return {
+      voiceId: version.persona.voiceId,
+      gender: version.persona.gender,
+      ...resolveVoice(state.panicLevel, version.persona.baseSpeechRate),
+    };
   }
 
   private triggersFromTurn(

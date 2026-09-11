@@ -279,7 +279,20 @@ describe(`${ScenarioEngineService.name} stage transitions`, () => {
 
     expect(snapshot.stage).toBe("conversation");
     expect(snapshot.openingLine).toBe("Горит квартира!");
-    expect(eventTypes(store)).toEqual(["call.accepted", "stage.changed"]);
+    expect(snapshot.openingTurn).toMatchObject({
+      text: "Горит квартира!",
+      voice: { voiceId: "Vivian", gender: "male", emotion: "anxious" },
+      minimumResponseDelayMs: expect.any(Number),
+    });
+    expect(eventTypes(store)).toEqual([
+      "call.accepted",
+      "stage.changed",
+      "caller.reply",
+    ]);
+    expect(patchOf(store)).toMatchObject({
+      operatorSilenceSince: null,
+      callerTurns: 1,
+    });
   });
 
   it("refuses to answer a call that is already in conversation", async () => {
@@ -364,6 +377,25 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
     expect(built.context.persona.description).toContain("взвинчен");
     expect(built.context.persona.description).not.toContain("2");
+  });
+
+  it("selects a deterministic reaction and response pause", async () => {
+    const { engine } = createEngine();
+
+    const first = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+    const repeated = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+
+    expect(first.context.turnPlan).toEqual(repeated.context.turnPlan);
+    expect(first.context.turnPlan).toMatchObject({
+      reactionAct: expect.any(String),
+      minimumResponseDelayMs: expect.any(Number),
+    });
   });
 });
 
@@ -493,7 +525,7 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
     expect(eventTypes(store)).toEqual(["caller.initiative", "caller.reply"]);
   });
 
-  it("keeps the silence running and remembers when the caller spoke", async () => {
+  it("holds the silence timer while the initiative is spoken", async () => {
     const { engine, store } = createEngine();
 
     await engine.applyCallerReply({
@@ -507,9 +539,7 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
 
     const patch = patchOf(store);
 
-    // Оператор всё ещё молчит, поэтому отсчёт не сбрасывается; от повторов
-    // защищает пауза между инициативами.
-    expect(patch.operatorSilenceSince).toBeUndefined();
+    expect(patch.operatorSilenceSince).toBeNull();
     expect(patch.lastInitiativeAt).toEqual(NOW);
   });
 
@@ -718,6 +748,28 @@ describe(`${ScenarioEngineService.name} setOperatorSpeaking`, () => {
     await expect(
       engine.tick({ trainingSessionId: "session-1", now: secondsAfter(600) }),
     ).resolves.toEqual([]);
+  });
+});
+
+describe(`${ScenarioEngineService.name} setCallerSpeaking`, () => {
+  it("holds and restarts the silence timer around caller audio", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.setCallerSpeaking({
+      trainingSessionId: "session-1",
+      speaking: true,
+      now: secondsAfter(2),
+    });
+    await engine.setCallerSpeaking({
+      trainingSessionId: "session-1",
+      speaking: false,
+      now: secondsAfter(7),
+    });
+
+    expect(patchOf(store, 0)).toEqual({ operatorSilenceSince: null });
+    expect(patchOf(store, 1)).toEqual({
+      operatorSilenceSince: secondsAfter(7),
+    });
   });
 });
 

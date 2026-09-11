@@ -6,6 +6,8 @@ import WebSocket, { type RawData } from "ws";
 
 import {
   VoicePipelineServerEventSchema,
+  type PrescribedSpeechRequest,
+  type SpeechSynthesisStreamEvent,
   type VoicePipelineRequest,
   type VoicePipelineStreamEvent,
 } from "@/contracts";
@@ -189,7 +191,14 @@ const authenticatedUser = {
 const handshake = (authorization?: string) =>
   ({ headers: { authorization } }) as unknown as IncomingMessage;
 
-const snapshot: CallSnapshot & { openingLine: string } = {
+const snapshot: CallSnapshot & {
+  openingLine: string;
+  openingTurn: {
+    text: string;
+    voice: VoicePipelineRequest["voice"];
+    minimumResponseDelayMs: number;
+  };
+} = {
   trainingSessionId: "session-1",
   scenarioVersionId: "version-1",
   scenarioCode: "S-015",
@@ -205,6 +214,11 @@ const snapshot: CallSnapshot & { openingLine: string } = {
   endedAt: null,
   answerNormSeconds: 240,
   openingLine: "Горит квартира!",
+  openingTurn: {
+    text: "Горит квартира!",
+    voice: request.voice,
+    minimumResponseDelayMs: 0,
+  },
 };
 
 const heard: AsrTranscript = {
@@ -290,6 +304,7 @@ const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
     tick: jest.fn().mockResolvedValue([]),
     getSnapshot: jest.fn().mockResolvedValue(snapshot),
     setOperatorSpeaking: jest.fn().mockResolvedValue(undefined),
+    setCallerSpeaking: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   }) as unknown as ScenarioEngineService;
 
@@ -319,9 +334,41 @@ const createRuntime = async (
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
   );
+  const streamPrescribedSpeech = jest.fn(
+    (
+      input: PrescribedSpeechRequest,
+    ): AsyncIterable<SpeechSynthesisStreamEvent> =>
+      (async function* () {
+        const audio = new Uint8Array([4, 5]);
+        yield {
+          type: "audio.chunk" as const,
+          chunk: {
+            streamId: input.requestId,
+            sequence: 0,
+            sampleRate: 24_000,
+            channels: 1 as const,
+            format: "pcm_s16le" as const,
+            isFinal: true,
+            audio,
+          },
+        };
+        yield {
+          type: "synthesis.completed" as const,
+          metrics: {
+            timeToFirstAudioMs: 0,
+            durationMs: 0,
+            chunkCount: 1,
+            audioBytes: audio.byteLength,
+            attempts: [
+              { attempt: 1, durationMs: 0, outcome: "success" as const },
+            ],
+          },
+        };
+      })(),
+  );
   const create = jest.fn(async () => request);
   const gateway = new VoicePipelineGateway(
-    { streamReply } as unknown as VoicePipelineService,
+    { streamReply, streamPrescribedSpeech } as unknown as VoicePipelineService,
     { create, recordReply } as unknown as VoicePipelineRequestFactory,
     { verify } as unknown as AccessTokenVerifier,
     engine,
@@ -343,6 +390,7 @@ const createRuntime = async (
     gateway,
     recordReply,
     socket,
+    streamPrescribedSpeech,
     streamReply,
     verify,
   };
@@ -452,6 +500,18 @@ describe(VoicePipelineGateway.name, () => {
       openingLine: "Горит квартира!",
       stage: "conversation",
     });
+    expect(runtime.streamPrescribedSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "Горит квартира!",
+        voice: request.voice,
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(textEvents(runtime.socket).map((event) => event.type)).toEqual([
+      "call.accepted",
+      "audio.start",
+      "audio.done",
+    ]);
   });
 
   it("reports a refused lifecycle command instead of failing silently", async () => {
@@ -632,6 +692,7 @@ describe(VoicePipelineGateway.name, () => {
     expect(runtime.streamReply).toHaveBeenCalledWith(
       request,
       expect.any(AbortSignal),
+      expect.any(Number),
     );
 
     expect(runtime.socket.sent.map(({ binary }) => binary)).toEqual([
@@ -654,6 +715,14 @@ describe(VoicePipelineGateway.name, () => {
       "audio.start",
       "audio.done",
     ]);
+    expect(runtime.engine.setCallerSpeaking).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ speaking: true }),
+    );
+    expect(runtime.engine.setCallerSpeaking).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ speaking: false }),
+    );
   });
 
   it.each([
@@ -819,6 +888,47 @@ describe(VoicePipelineGateway.name, () => {
     expect(observedSignal?.aborted).toBe(true);
     expect(textEvents(runtime.socket).map(({ type }) => type)).toEqual([
       "request.cancelled",
+    ]);
+    expect(runtime.engine.setCallerSpeaking).toHaveBeenLastCalledWith(
+      expect.objectContaining({ speaking: false }),
+    );
+  });
+
+  it("lets push-to-talk take the floor from an active caller reply", async () => {
+    let markStreamStarted!: () => void;
+    const streamStarted = new Promise<void>((resolve) => {
+      markStreamStarted = resolve;
+    });
+    const waitingStream = (
+      _request: VoicePipelineRequest,
+      signal: AbortSignal,
+    ): AsyncIterable<VoicePipelineStreamEvent> =>
+      failingIterable(async () => {
+        markStreamStarted();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+        signal.throwIfAborted();
+        throw new Error("unreachable");
+      });
+    const runtime = await createRuntime(waitingStream);
+    const active = runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+    await streamStarted;
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await active;
+
+    expect(textEvents(runtime.socket).map(({ type }) => type)).toEqual([
+      "request.cancelled",
+      "listen.started",
     ]);
   });
 

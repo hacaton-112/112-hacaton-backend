@@ -32,6 +32,10 @@ const request: GenerateCallerReplyRequest = {
     recentTurns: [
       { role: "operator", text: "Служба 112, что у вас случилось?" },
     ],
+    turnPlan: {
+      reactionAct: "hesitate",
+      minimumResponseDelayMs: 620,
+    },
   },
 };
 
@@ -50,6 +54,11 @@ describe(buildAliceAiRequest.name, () => {
             allowedFacts: request.context.allowedFacts,
             recentTurns: request.context.recentTurns,
             operatorText: request.operatorText,
+            turnPlan: {
+              reactionAct: "hesitate",
+              instruction:
+                "Начни с короткой запинки или сомнения, затем ответь разрешёнными фактами.",
+            },
           }),
         },
       ],

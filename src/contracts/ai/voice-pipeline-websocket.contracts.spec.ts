@@ -104,6 +104,18 @@ describe("voice pipeline WebSocket contracts", () => {
       },
       {
         ...metadata,
+        type: "audio.done",
+        requestId: "opening-1",
+        metrics: {
+          kind: "prescribed",
+          minimumResponseDelayMs: 220,
+          timeToFirstAudioMs: 240,
+          durationMs: 280,
+          synthesis,
+        },
+      },
+      {
+        ...metadata,
         type: "request.cancelled",
         requestId: "request-1",
       },

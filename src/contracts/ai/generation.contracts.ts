@@ -56,6 +56,34 @@ export const SpeechRateSchema = z
   .min(SPEECH_RATE_RANGE.min)
   .max(SPEECH_RATE_RANGE.max);
 
+/**
+ * Смысл хода выбирает Scenario Engine. Модель получает уже выбранный способ
+ * реакции и отвечает только за естественную формулировку разрешённых фактов.
+ */
+export const CallerReactionActSchema = z.enum([
+  "answer",
+  "clarify",
+  "acknowledge",
+  "hesitate",
+  "self-correct",
+  "repeat",
+  "emotional-reaction",
+  "panic-refusal",
+]);
+
+export const MinimumResponseDelayMsSchema = z.number().int().min(0).max(1_500);
+
+export const CallerTurnPlanSchema = z
+  .object({
+    reactionAct: CallerReactionActSchema,
+    /**
+     * Минимальная пауза от конца реплики оператора до запуска TTS. Если LLM
+     * уже думала дольше, искусственная задержка не добавляется.
+     */
+    minimumResponseDelayMs: MinimumResponseDelayMsSchema,
+  })
+  .strict();
+
 export const ScenarioFactSchema = z
   .object({
     id: FactIdSchema,
@@ -88,6 +116,9 @@ export const GenerationContextSchema = z
         message: "Fact IDs must be unique",
       }),
     recentTurns: z.array(DialogueTurnSchema).max(MAX_RECENT_TURNS),
+    // Поле опционально для совместимости с диагностическими клиентами старой
+    // версии. Настоящий Scenario Engine всегда его заполняет.
+    turnPlan: CallerTurnPlanSchema.optional(),
   })
   .strict();
 
@@ -160,6 +191,8 @@ export type CallerEmotion = z.infer<typeof CallerEmotionSchema>;
 export type CallerReplyText = z.infer<typeof CallerReplyTextSchema>;
 export type EmotionIntensity = z.infer<typeof EmotionIntensitySchema>;
 export type SpeechRate = z.infer<typeof SpeechRateSchema>;
+export type CallerReactionAct = z.infer<typeof CallerReactionActSchema>;
+export type CallerTurnPlan = z.infer<typeof CallerTurnPlanSchema>;
 export type ScenarioFact = z.infer<typeof ScenarioFactSchema>;
 export type DialogueTurn = z.infer<typeof DialogueTurnSchema>;
 export type CallerPersona = z.infer<typeof CallerPersonaSchema>;
