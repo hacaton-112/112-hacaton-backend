@@ -25,6 +25,10 @@ const call = (overrides: Partial<DebriefCall> = {}): DebriefCall => ({
   endedAt: ENDED.toISOString(),
   durationSeconds: 240,
   answerNormSeconds: 240,
+  expectedDurationSeconds: 372,
+  passThreshold: 75,
+  difficulty: 3,
+  expectedServices: ["fire"],
   panicLevel: 4,
   revealedFactKeys: ["incident_type"],
   ...overrides,
@@ -96,6 +100,12 @@ const createService = (
       loadJournal: jest.fn().mockResolvedValue(journal),
       loadFacts: jest.fn().mockResolvedValue(facts),
       loadQuestions: jest.fn().mockResolvedValue(questions),
+      loadReferenceCard: jest.fn().mockResolvedValue([]),
+      loadScore: jest.fn().mockResolvedValue(null),
+      saveScore: jest.fn().mockResolvedValue(undefined),
+      loadGroupResult: jest
+        .fn()
+        .mockResolvedValue({ averageScore: 0, calls: 0 }),
       ...overrides,
     },
     storage: { get: storageGet, put: jest.fn().mockResolvedValue(undefined) },
@@ -132,6 +142,7 @@ describe(DebriefService.name, () => {
       answerSeconds: 9,
       answerNormSeconds: 240,
       durationSeconds: 240,
+      expectedDurationSeconds: 372,
     });
   });
 
@@ -211,6 +222,64 @@ describe(DebriefService.name, () => {
         recording: [],
       },
     );
+  });
+
+  it("scores a finished call and keeps the score", async () => {
+    const { service, mocks } = createService({
+      loadReferenceCard: jest.fn().mockResolvedValue([
+        {
+          field: "street",
+          expectedValue: "Учебная",
+          acceptableValues: [],
+          comparison: "normalized",
+          isRequired: true,
+        },
+      ]),
+    });
+    mocks.cards.get.mockResolvedValue({
+      trainingSessionId: "session-1",
+      callerAnonymous: false,
+      // Адрес одной строкой: части сверяются вхождением, а не целиком.
+      addressText: "улица Учебная, дом 12",
+      categories: [],
+      nearby: false,
+      services: ["dds_01"],
+      victims: [],
+      submittedAt: null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    expect(debrief.evaluation).toMatchObject({
+      verdict: expect.any(String),
+      passThreshold: 75,
+      difficulty: 3,
+      groupAverageScore: null,
+      groupCalls: 0,
+    });
+    expect(debrief.evaluation?.skills.map((skill) => skill.key)).toEqual([
+      "questioning",
+      "card",
+      "services",
+      "regulations",
+    ]);
+    expect(mocks.store.saveScore).toHaveBeenCalledWith(
+      "session-1",
+      "version-1",
+      debrief.evaluation?.score,
+    );
+  });
+
+  it("does not judge a call that is still running", async () => {
+    const { service, mocks } = createService({
+      loadCall: jest.fn().mockResolvedValue(call({ stage: "conversation" })),
+    });
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    expect(debrief.evaluation).toBeNull();
+    expect(mocks.store.saveScore).not.toHaveBeenCalled();
   });
 
   it("offers the whole recording only when something was recorded", async () => {

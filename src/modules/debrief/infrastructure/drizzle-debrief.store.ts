@@ -1,12 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, avg, count, desc, eq, ne } from "drizzle-orm";
 
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
+  callEvaluations,
   callEvents,
   callStates,
   mandatoryQuestions,
+  referenceCardFields,
   scenarioFacts,
   scenarios,
   scenarioVersions,
@@ -16,8 +18,10 @@ import type { CallSummary } from "../dto/debrief.dto";
 import type {
   DebriefCall,
   DebriefStore,
+  GroupResult,
   JournalEntry,
   MandatoryQuestionRow,
+  ReferenceFieldRow,
   ScenarioFactRow,
 } from "../ports/debrief.store.port";
 
@@ -77,6 +81,10 @@ export class DrizzleDebriefStore implements DebriefStore {
         panicLevel: callStates.panicLevel,
         revealedFactKeys: callStates.revealedFactKeys,
         answerNormSeconds: scenarioVersions.answerNormSeconds,
+        expectedDurationSeconds: scenarioVersions.expectedDurationSeconds,
+        passThreshold: scenarioVersions.passThreshold,
+        expectedServices: scenarioVersions.expectedServices,
+        difficulty: scenarios.difficulty,
       })
       .from(callStates)
       .innerJoin(
@@ -96,8 +104,75 @@ export class DrizzleDebriefStore implements DebriefStore {
       operatorId: row.operatorId,
       scenarioVersionId: row.scenarioVersionId,
       answerNormSeconds: row.answerNormSeconds,
+      expectedDurationSeconds: row.expectedDurationSeconds,
+      passThreshold: row.passThreshold,
+      difficulty: row.difficulty,
+      expectedServices: row.expectedServices,
       panicLevel: row.panicLevel,
       revealedFactKeys: row.revealedFactKeys,
+    };
+  }
+
+  async loadReferenceCard(
+    scenarioVersionId: string,
+  ): Promise<readonly ReferenceFieldRow[]> {
+    return this.db
+      .select({
+        field: referenceCardFields.field,
+        expectedValue: referenceCardFields.expectedValue,
+        acceptableValues: referenceCardFields.acceptableValues,
+        comparison: referenceCardFields.comparison,
+        isRequired: referenceCardFields.isRequired,
+      })
+      .from(referenceCardFields)
+      .where(eq(referenceCardFields.scenarioVersionId, scenarioVersionId));
+  }
+
+  async loadScore(trainingSessionId: string): Promise<number | null> {
+    const [row] = await this.db
+      .select({ score: callEvaluations.score })
+      .from(callEvaluations)
+      .where(eq(callEvaluations.trainingSessionId, trainingSessionId))
+      .limit(1);
+
+    return row?.score ?? null;
+  }
+
+  async saveScore(
+    trainingSessionId: string,
+    scenarioVersionId: string,
+    score: number,
+  ): Promise<void> {
+    // Пересчёт того же звонка даёт то же число, поэтому конфликт — не ошибка.
+    await this.db
+      .insert(callEvaluations)
+      .values({ trainingSessionId, scenarioVersionId, score })
+      .onConflictDoUpdate({
+        target: callEvaluations.trainingSessionId,
+        set: { score, computedAt: new Date() },
+      });
+  }
+
+  async loadGroupResult(
+    scenarioVersionId: string,
+    exceptTrainingSessionId: string,
+  ): Promise<GroupResult> {
+    const [row] = await this.db
+      .select({
+        averageScore: avg(callEvaluations.score),
+        calls: count(callEvaluations.trainingSessionId),
+      })
+      .from(callEvaluations)
+      .where(
+        and(
+          eq(callEvaluations.scenarioVersionId, scenarioVersionId),
+          ne(callEvaluations.trainingSessionId, exceptTrainingSessionId),
+        ),
+      );
+
+    return {
+      averageScore: Math.round(Number(row?.averageScore ?? 0)),
+      calls: Number(row?.calls ?? 0),
     };
   }
 
