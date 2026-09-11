@@ -29,7 +29,11 @@ const captureFetch = (
       headers: init.headers as Record<string, string>,
     });
 
-    return { ok: status < 400, status } as Response;
+    return {
+      ok: status < 400,
+      status,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response;
   });
 
   global.fetch = fetchMock as unknown as typeof fetch;
@@ -101,6 +105,44 @@ describe(S3RecordingStorage.name, () => {
         body([1, 2]),
         "audio/wav",
       ),
+    ).rejects.toThrow("calls/session-1/0001-operator.wav");
+  });
+});
+
+describe(`${S3RecordingStorage.name} reading a recording back`, () => {
+  it("signs a read the way a compatible store expects", async () => {
+    const { calls } = captureFetch();
+
+    await new S3RecordingStorage(config).get("calls/session-1/manifest.json");
+
+    const headers = calls[0]?.headers ?? {};
+    expect(calls[0]?.method).toBe("GET");
+    expect(calls[0]?.url).toBe(
+      "http://127.0.0.1:9000/call-recordings/calls/session-1/manifest.json",
+    );
+    // У чтения нет тела, но подпись всё равно требует его хеш.
+    expect(headers["x-amz-content-sha256"]).toBe(
+      createHash("sha256").update("").digest("hex"),
+    );
+    expect(headers.authorization).toContain(
+      "SignedHeaders=host;x-amz-content-sha256;x-amz-date",
+    );
+  });
+
+  it("answers with nothing for a recording that was never stored", async () => {
+    captureFetch(404);
+
+    // Занятие могло идти с выключенной записью: это не поломка разбора.
+    await expect(
+      new S3RecordingStorage(config).get("calls/session-1/0001-operator.wav"),
+    ).resolves.toBeNull();
+  });
+
+  it("names the recording it could not read", async () => {
+    captureFetch(500);
+
+    await expect(
+      new S3RecordingStorage(config).get("calls/session-1/0001-operator.wav"),
     ).rejects.toThrow("calls/session-1/0001-operator.wav");
   });
 });
