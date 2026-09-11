@@ -65,6 +65,8 @@ export const DebriefSchema = z.object({
   questions: z.array(DebriefQuestionSchema),
   incidentCard: IncidentCardSchema.nullable(),
   recording: z.array(DebriefRecordingSegmentSchema),
+  /** Разговор одной дорожкой; `null`, когда записывать было нечего. */
+  recordingUrl: z.string().nullable(),
 });
 
 export const CallListSchema = z.object({ calls: z.array(CallSummarySchema) });
