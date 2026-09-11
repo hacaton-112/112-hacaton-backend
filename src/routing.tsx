@@ -3,6 +3,7 @@ import { Outlet, Route, Routes } from "react-router";
 import { AppLayout } from "./layouts/app-layout";
 import { AuthLayout } from "./layouts/auth-layout";
 import AuthPage from "./pages/main/auth-page";
+import DebriefPage from "./pages/main/debrief-page";
 import OperatorPage from "./pages/main/operator-page";
 import MapPage from "./pages/map/map-page";
 import { withAppProviders, withMapWindowProviders } from "./providers";
@@ -14,6 +15,13 @@ export function Routing() {
         <Route element={<AppLayout />}>
           <Route element={<AuthLayout />}>
             <Route index element={<OperatorPage />} />
+          </Route>
+          <Route element={<AuthLayout />}>
+            <Route path="/debrief" element={<DebriefPage />} />
+            <Route
+              path="/debrief/:trainingSessionId"
+              element={<DebriefPage />}
+            />
           </Route>
           <Route path="/auth" element={<AuthPage />} />
         </Route>

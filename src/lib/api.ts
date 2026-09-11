@@ -173,6 +173,13 @@ class Api {
       .then((response) => response.data);
   }
 
+  /** Двоичный ответ: запись звонка приходит с тем же токеном, что и всё остальное. */
+  getBlob(url: string, config?: AxiosRequestConfig) {
+    return this.instance
+      .get<Blob>(url, { ...config, responseType: "blob" })
+      .then((response) => response.data);
+  }
+
   put<T>(url: string, body?: unknown, config?: AxiosRequestConfig) {
     return this.instance
       .put<T>(url, body, config)

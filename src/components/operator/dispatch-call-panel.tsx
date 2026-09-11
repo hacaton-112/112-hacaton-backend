@@ -18,6 +18,7 @@ import {
   PhoneOff,
   Play,
   Plus,
+  ClipboardList,
   RotateCcw,
   Volume2,
 } from "lucide-react";
@@ -25,6 +26,8 @@ import {
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
 import { MOSCOW } from "../../config/map";
+import { useNavigate } from "react-router";
+
 import {
   DISPATCH_SERVICE_LABELS,
   DISPATCH_SERVICES,
@@ -66,6 +69,8 @@ const formatDuration = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
+  const navigate = useNavigate();
+
   return (
     <aside className="dispatch-panel grid min-h-full grid-rows-[210px_263px_minmax(320px,418px)] content-start gap-4 min-[1480px]:h-full min-[1480px]:grid-cols-1 min-[1480px]:grid-rows-[210px_263px_minmax(418px,1fr)] md:grid-cols-2 md:grid-rows-[263px_minmax(320px,418px)]">
       <Card
@@ -228,16 +233,29 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             )}
 
             {props.state === "ended" && (
-              <Button
-                mt="3"
-                size="1"
-                variant="soft"
-                color="gray"
-                onClick={props.reset}
-                className="w-full"
-              >
-                <RotateCcw size={14} /> К следующему вызову
-              </Button>
+              <Flex gap="2" mt="3">
+                {props.trainingSessionId && (
+                  <Button
+                    size="1"
+                    variant="soft"
+                    onClick={() =>
+                      navigate(`/debrief/${props.trainingSessionId}`)
+                    }
+                    className="flex-1"
+                  >
+                    <ClipboardList size={14} /> Разбор вызова
+                  </Button>
+                )}
+                <Button
+                  size="1"
+                  variant="soft"
+                  color="gray"
+                  onClick={props.reset}
+                  className="flex-1"
+                >
+                  <RotateCcw size={14} /> К следующему вызову
+                </Button>
+              </Flex>
             )}
           </Tabs.Content>
 
