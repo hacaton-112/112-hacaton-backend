@@ -32,19 +32,19 @@ export class CallerReplySafetyService {
       );
     }
 
+    // Скрытых фактов модель не получает и раскрыть их не может: в контекст
+    // уходит только разрешённый набор. Поэтому лишний идентификатор — это
+    // неверная пометка, а не утечка, и стоит она ровно того, чтобы её снять.
+    // Раньше из-за одной такой пометки пропадала вся реплика, и оператор не
+    // слышал ничего.
     const allowedFactIds = new Set(allowedFacts.map(({ id }) => id));
-    const forbiddenFactId = parsedReply.data.revealedFactIds.find(
-      (factId) => !allowedFactIds.has(factId),
+    const revealedFactIds = parsedReply.data.revealedFactIds.filter((factId) =>
+      allowedFactIds.has(factId),
     );
 
-    if (forbiddenFactId !== undefined) {
-      throw new CallerReplyValidationError(
-        "forbidden-fact",
-        `The generated caller reply references a forbidden fact: ${forbiddenFactId}`,
-      );
-    }
-
-    return parsedReply.data;
+    return revealedFactIds.length === parsedReply.data.revealedFactIds.length
+      ? parsedReply.data
+      : { ...parsedReply.data, revealedFactIds };
   }
 
   /**

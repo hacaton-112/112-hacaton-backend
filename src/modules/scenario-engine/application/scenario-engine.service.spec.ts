@@ -710,23 +710,29 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
     );
   });
 
-  it("rejects a reply that reveals a fact the scenario did not allow", async () => {
+  it("keeps the reply and strips a fact the scenario did not allow", async () => {
     const { engine, store } = createEngine();
 
-    await expect(
-      engine.applyCallerReply({
-        trainingSessionId: "session-1",
-        eventId: "event-3",
-        operatorText: "Что случилось?",
-        reply: reply({ revealedFactIds: ["address_street"] }),
-        now: NOW,
+    // The model never received the street, so the identifier is a wrong label
+    // rather than a leak. Throwing the reply away left the operator with
+    // silence; the label is journalled instead.
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Что случилось?",
+      reply: reply({
+        text: "Приезжайте скорее!",
+        revealedFactIds: ["address_street"],
       }),
-    ).rejects.toBeInstanceOf(ScenarioEngineError);
+      now: NOW,
+    });
 
-    // The attempt is journalled as a prompt-quality signal, and nothing about
-    // the call state moves.
-    expect(eventTypes(store)).toEqual(["fact.rejected"]);
-    expect(patchOf(store)).toEqual({});
+    expect(snapshot.revealedFactKeys).toEqual([]);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.rejected",
+    ]);
   });
 
   it("raises the step once when a heavy fact is spoken aloud", async () => {

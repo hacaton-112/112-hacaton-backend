@@ -404,9 +404,11 @@ export class ScenarioEngineService {
   /**
    * Применяет реплику заявителя.
    *
-   * Раскрытие факта вне разрешённого набора — нарушение инварианта: реплика
-   * отбрасывается целиком и не доходит до синтеза, а попытка попадает в журнал
-   * как сигнал качества промпта.
+   * Идентификатор факта вне разрешённого набора снимается, а сама реплика
+   * доходит до синтеза: скрытых фактов модель не получает и раскрыть их не
+   * может, поэтому лишняя пометка — ошибка разметки, а не утечка. Снятие
+   * попадает в журнал как `fact.rejected`: это сигнал качества промпта, но не
+   * повод оставить оператора без ответа.
    */
   async applyCallerReply(input: {
     trainingSessionId: string;
@@ -429,34 +431,16 @@ export class ScenarioEngineService {
     const forbidden = input.reply.revealedFactIds.filter(
       (key) => !allowedKeys.has(key),
     );
-
-    if (forbidden.length > 0) {
-      await this.store.appendTurn(
-        state.trainingSessionId,
-        input.eventId,
-        [
-          {
-            type: "fact.rejected",
-            actor: "system",
-            occurredAt: now,
-            payload: { factKeys: forbidden },
-          },
-        ],
-        {},
-      );
-
-      throw new ScenarioEngineError(
-        "fact-not-allowed",
-        `The reply reveals facts the scenario did not allow: ${forbidden.join(", ")}`,
-      );
-    }
+    const declared = input.reply.revealedFactIds.filter((key) =>
+      allowedKeys.has(key),
+    );
 
     // Модель обязана перечислять раскрытые факты и регулярно этого не делает:
     // заявитель отвечает «Там дети!», а обязательный вопрос остаётся открытым.
     // Сказанное вслух считается наравне с объявленным — и только среди фактов,
     // разрешённых на этом ходу: словами открыть закрытое всё так же нельзя.
     const revealed = new Set([
-      ...input.reply.revealedFactIds,
+      ...declared,
       ...factsCarriedBy(input.reply.text, allowed.facts),
     ]);
     const revealedNow = [...revealed].filter(
@@ -498,6 +482,16 @@ export class ScenarioEngineService {
         occurredAt: now,
         payload: { key },
       })),
+      ...(forbidden.length === 0
+        ? []
+        : [
+            {
+              type: "fact.rejected" as const,
+              actor: "system" as const,
+              occurredAt: now,
+              payload: { factKeys: forbidden },
+            },
+          ]),
     ];
 
     const patch: CallStatePatch = {
