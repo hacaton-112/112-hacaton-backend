@@ -64,6 +64,13 @@
       "when": 1789107857373,
       "tag": "0008_little_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789152475997,
+      "tag": "0009_slippery_satana",
+      "breakpoints": true
     }
   ]
 }
