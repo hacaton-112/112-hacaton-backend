@@ -1,4 +1,7 @@
-export type CallerReplyValidationReason = "invalid-schema" | "forbidden-fact";
+export type CallerReplyValidationReason =
+  | "invalid-schema"
+  /** Реплика пересказывает предыдущую: заявитель ходит по кругу. */
+  | "repeats-previous";
 
 export class CallerReplyValidationError extends Error {
   public readonly reason: CallerReplyValidationReason;

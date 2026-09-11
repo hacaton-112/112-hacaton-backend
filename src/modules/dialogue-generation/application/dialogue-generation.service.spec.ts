@@ -98,6 +98,111 @@ describe(DialogueGenerationService.name, () => {
     expect(llmPort.calls).toHaveLength(1);
   });
 
+  it("retries a reply that retells the previous one", async () => {
+    const repeated = {
+      ...validReply,
+      text: "Дети в комнате! Дверь горит! Быстрее!",
+      revealedFactIds: [],
+    };
+    const different = {
+      ...validReply,
+      text: "Я не могу туда войти, дым в подъезде!",
+      revealedFactIds: [],
+    };
+    const llmPort = new FakeLlmPort([
+      () => replyStream(JSON.stringify(repeated)),
+      () => replyStream(JSON.stringify(different)),
+    ]);
+
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        context: {
+          ...validRequest.context,
+          allowedFacts: [],
+          recentTurns: [
+            { role: "operator", text: "Кто в квартире?" },
+            {
+              role: "caller",
+              text: "Хорошо, жду. Дети в комнате, дверь горит!",
+            },
+          ],
+        },
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.reply.text).toBe(different.text);
+    expect(result.attempts).toEqual([
+      expect.objectContaining({ attempt: 1, outcome: "invalid-response" }),
+      expect.objectContaining({ attempt: 2, outcome: "success" }),
+    ]);
+  });
+
+  it("keeps a repeated reply rather than leaving the operator without an answer", async () => {
+    const repeated = {
+      ...validReply,
+      text: "Дети в комнате! Дверь горит! Быстрее!",
+      revealedFactIds: [],
+    };
+    const llmPort = new FakeLlmPort([
+      () => replyStream(JSON.stringify(repeated)),
+      () => replyStream(JSON.stringify(repeated)),
+    ]);
+
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        context: {
+          ...validRequest.context,
+          allowedFacts: [],
+          recentTurns: [
+            {
+              role: "caller",
+              text: "Хорошо, жду. Дети в комнате, дверь горит!",
+            },
+          ],
+        },
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.source).toBe("model");
+    expect(result.reply.text).toBe(repeated.text);
+  });
+
+  it("does not fight a repetition the operator asked for", async () => {
+    const repeated = {
+      ...validReply,
+      text: "Улица Учебная, дом двенадцать!",
+      revealedFactIds: [],
+    };
+    const llmPort = new FakeLlmPort([() => replyStream(JSON.stringify(repeated))]);
+
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        operatorText: "Повторите адрес",
+        context: {
+          ...validRequest.context,
+          allowedFacts: [],
+          recentTurns: [
+            { role: "caller", text: "Улица Учебная, дом двенадцать." },
+          ],
+          turnPlan: {
+            reactionAct: "repeat",
+            focusFactIds: [],
+            minimumResponseDelayMs: 280,
+          },
+        },
+      },
+      new AbortController().signal,
+    );
+
+    expect(llmPort.calls).toHaveLength(1);
+    expect(result.reply.text).toBe(repeated.text);
+  });
+
   it("retries an invalid response and returns the second valid reply", async () => {
     const llmPort = new FakeLlmPort([() => replyStream("{"), replyStream]);
 
