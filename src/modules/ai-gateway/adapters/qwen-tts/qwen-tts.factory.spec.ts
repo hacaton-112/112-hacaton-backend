@@ -10,6 +10,7 @@ describe(createQwenTtsAdapter.name, () => {
       createQwenTtsAdapter(
         {
           provider: "mlx-audio",
+          mode: "custom-voice",
           baseUrl: "http://127.0.0.1:8000",
           model: "mlx-community/Qwen3-TTS",
           streamingIntervalSeconds: 0.32,
@@ -25,6 +26,7 @@ describe(createQwenTtsAdapter.name, () => {
       createQwenTtsAdapter(
         {
           provider: "vllm-omni",
+          mode: "custom-voice",
           baseUrl: "http://127.0.0.1:8091",
           model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
           requestTimeoutMs: 60_000,

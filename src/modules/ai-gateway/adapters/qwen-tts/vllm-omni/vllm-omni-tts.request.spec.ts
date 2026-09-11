@@ -12,9 +12,30 @@ import {
 
 const config: VllmOmniTtsConfig = {
   provider: "vllm-omni",
+  mode: "custom-voice",
   baseUrl: "http://127.0.0.1:8091",
   model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   requestTimeoutMs: 60_000,
+};
+
+const baseIclConfig: VllmOmniTtsConfig = {
+  ...config,
+  mode: "base-icl",
+  model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  referenceVoices: {
+    defaults: { male: "dylan" },
+    voices: {
+      dylan: {
+        id: "dylan",
+        gender: "male",
+        source: "synthetic",
+        audioPath: "/voices/dylan.wav",
+        refText: "Проверка связи. Я говорю спокойно и разборчиво.",
+        sha256: "a".repeat(64),
+        audioDataUrl: "data:audio/wav;base64,UklGRg==",
+      },
+    },
+  },
 };
 
 const request: TtsSynthesisRequest = {
@@ -59,6 +80,23 @@ describe(buildVllmOmniTtsRequest.name, () => {
     expect(providerRequest).not.toHaveProperty("verbose");
     expect(serialized).not.toContain(request.requestId);
     expect(serialized).not.toContain(request.sessionId);
+  });
+
+  it("builds Base ICL with embedded audio and disables x-vector-only mode", () => {
+    const providerRequest = buildVllmOmniTtsRequest(
+      { ...request, voiceId: "Dylan" },
+      baseIclConfig,
+    );
+
+    expect(providerRequest).toMatchObject({
+      model: baseIclConfig.model,
+      input: request.text,
+      task_type: "Base",
+      ref_audio: "data:audio/wav;base64,UklGRg==",
+      ref_text: "Проверка связи. Я говорю спокойно и разборчиво.",
+      x_vector_only_mode: false,
+    });
+    expect(providerRequest).not.toHaveProperty("voice");
   });
 
   it.each([

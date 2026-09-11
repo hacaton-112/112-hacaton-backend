@@ -85,10 +85,12 @@ describe("TTS diagnostic artifacts", () => {
       createdAt: "2026-09-10T12:00:00.000Z",
       provider: {
         provider: "vllm-omni",
+        mode: "custom-voice",
         baseUrl: "http://127.0.0.1:8091",
         model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
         requestTimeoutMs: 60_000,
         streamingIntervalSeconds: null,
+        reference: null,
       },
       options: {
         repetitions: 1,

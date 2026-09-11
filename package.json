@@ -23,6 +23,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "diagnose:alice-ai": "bun --env-file=.env test/manual/alice-ai-request.diagnostic.ts",
     "diagnose:tts": "bun --env-file=.env test/manual/tts-diagnostic.runner.ts",
+    "prepare:tts-reference": "bun --env-file=.env test/manual/prepare-tts-reference.ts",
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
     "smoke:auth-refresh": "bun --env-file=.env test/manual/refresh-rotation.smoke.ts",

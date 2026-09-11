@@ -13,6 +13,7 @@ import { encodeWav, pcmDurationMs } from "@/modules/call-recording/domain/wav";
 
 import {
   QWEN_TTS_SAMPLE_RATE,
+  QwenTtsModeSchema,
   QwenTtsProviderSchema,
 } from "../adapters/qwen-tts/qwen-tts.config";
 
@@ -99,10 +100,19 @@ export const TtsDiagnosticManifestSchema = z
     provider: z
       .object({
         provider: QwenTtsProviderSchema,
+        mode: QwenTtsModeSchema,
         baseUrl: z.url(),
         model: z.string().min(1),
         requestTimeoutMs: z.number().int().positive(),
         streamingIntervalSeconds: z.number().positive().nullable(),
+        reference: z
+          .object({
+            id: AiIdentifierSchema,
+            source: z.literal("synthetic"),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/),
+          })
+          .strict()
+          .nullable(),
       })
       .strict(),
     options: z

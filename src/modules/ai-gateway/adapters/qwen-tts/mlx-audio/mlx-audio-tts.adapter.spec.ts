@@ -5,6 +5,7 @@ import { MlxAudioTtsAdapter } from "./mlx-audio-tts.adapter";
 
 const config: MlxAudioTtsConfig = {
   provider: "mlx-audio",
+  mode: "custom-voice",
   baseUrl: "http://127.0.0.1:8000",
   model: "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
   streamingIntervalSeconds: 0.32,
@@ -81,24 +82,31 @@ describe(MlxAudioTtsAdapter.name, () => {
           Accept: "audio/pcm",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model: config.model,
-          input: request.text,
-          voice: request.voiceId,
-          gender: request.gender,
-          speed: request.speechRate,
-          lang_code: "Russian",
-          instruct:
-            "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым.",
-          response_format: "pcm",
-          stream: true,
-          streaming_interval: config.streamingIntervalSeconds,
-          max_tokens: 1_200,
-          verbose: false,
-        }),
+        body: expect.any(String),
         signal: expect.any(AbortSignal),
       }),
     );
+    const [, init] = fetchImplementation.mock.calls[0] ?? [];
+
+    if (typeof init?.body !== "string") {
+      throw new Error("Expected the MLX-Audio request body to be JSON");
+    }
+
+    expect(JSON.parse(init.body)).toEqual({
+      model: config.model,
+      input: request.text,
+      voice: request.voiceId,
+      gender: request.gender,
+      speed: request.speechRate,
+      lang_code: "Russian",
+      instruct:
+        "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым.",
+      response_format: "pcm",
+      stream: true,
+      streaming_interval: config.streamingIntervalSeconds,
+      max_tokens: 1_200,
+      verbose: false,
+    });
   });
 
   it.each([

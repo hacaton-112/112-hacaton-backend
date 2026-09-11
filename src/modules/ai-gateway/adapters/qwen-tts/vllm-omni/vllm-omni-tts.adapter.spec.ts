@@ -5,6 +5,7 @@ import { VllmOmniTtsAdapter } from "./vllm-omni-tts.adapter";
 
 const config: VllmOmniTtsConfig = {
   provider: "vllm-omni",
+  mode: "custom-voice",
   baseUrl: "http://127.0.0.1:8091",
   model: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   requestTimeoutMs: 60_000,
@@ -79,23 +80,30 @@ describe(VllmOmniTtsAdapter.name, () => {
           Accept: "audio/pcm",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model: config.model,
-          input: request.text,
-          voice: "vivian",
-          task_type: "CustomVoice",
-          language: "Russian",
-          instructions:
-            "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым. Голос: мужской. Темп речи слегка ускоренный, без проглатывания слов.",
-          response_format: "pcm",
-          sample_rate: 24_000,
-          stream: true,
-          stream_format: "audio",
-          max_new_tokens: 1_200,
-        }),
+        body: expect.any(String),
         signal: expect.any(AbortSignal),
       }),
     );
+    const [, init] = fetchImplementation.mock.calls[0] ?? [];
+
+    if (typeof init?.body !== "string") {
+      throw new Error("Expected the vLLM-Omni request body to be JSON");
+    }
+
+    expect(JSON.parse(init.body)).toEqual({
+      model: config.model,
+      input: request.text,
+      voice: "vivian",
+      task_type: "CustomVoice",
+      language: "Russian",
+      instructions:
+        "Сохраняй естественный голос выбранного диктора: не меняй тембр, высоту голоса, возраст и акцент. Меняй только эмоциональную подачу. Точно произноси заданный текст: не добавляй, не пропускай и не заменяй слова. Не переходи на крик или фальцет и не вставляй стоны, вздохи и другие неречевые звуки. Подача срочная и испуганная, со слегка сбившимся дыханием. Эмоция выражена сильно, но голос остаётся контролируемым и разборчивым. Голос: мужской. Темп речи слегка ускоренный, без проглатывания слов.",
+      response_format: "pcm",
+      sample_rate: 24_000,
+      stream: true,
+      stream_format: "audio",
+      max_new_tokens: 1_200,
+    });
   });
 
   it.each([
