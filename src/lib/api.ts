@@ -6,7 +6,8 @@ import axios, {
 } from "axios";
 import { toast } from "@bolid-ui/themes";
 
-import { API_CONFIG } from "../config/api";
+import { API_CONFIG, API_PREFIX } from "../config/api";
+import { env } from "../config/env";
 import { AuthSessionSchema, type AuthSession } from "../contracts/auth";
 import {
   getAccessToken,
@@ -51,9 +52,9 @@ class Api {
   private readonly instance: AxiosInstance;
   private refreshRequest?: Promise<AuthSession>;
 
-  constructor(baseURL: string) {
+  constructor() {
     this.instance = axios.create({
-      baseURL,
+      baseURL: `${env.apiUrl}${API_PREFIX}`,
       timeout: 15_000,
       headers: { "Content-Type": "application/json" },
     });
@@ -68,6 +69,12 @@ class Api {
   }
 
   private attachToken(config: InternalAxiosRequestConfig) {
+    if (config.url === API_PREFIX) {
+      config.url = "/";
+    } else if (config.url?.startsWith(`${API_PREFIX}/`)) {
+      config.url = config.url.slice(API_PREFIX.length);
+    }
+
     const token = getAccessToken();
     if (token) {
       config.headers.set("Authorization", `Bearer ${token}`);
@@ -173,6 +180,13 @@ class Api {
       .then((response) => response.data);
   }
 
+  /** Двоичный ответ: запись звонка приходит с тем же токеном, что и всё остальное. */
+  getBlob(url: string, config?: AxiosRequestConfig) {
+    return this.instance
+      .get<Blob>(url, { ...config, responseType: "blob" })
+      .then((response) => response.data);
+  }
+
   put<T>(url: string, body?: unknown, config?: AxiosRequestConfig) {
     return this.instance
       .put<T>(url, body, config)
@@ -192,4 +206,4 @@ class Api {
   }
 }
 
-export const api = new Api(API_CONFIG.getBaseUrl());
+export const api = new Api();

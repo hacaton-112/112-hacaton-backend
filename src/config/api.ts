@@ -1,16 +1,21 @@
 import { env } from "./env";
 
-const API_PREFIX = "/api/v1";
-const API_BASE_URL = `${env.apiUrl}${API_PREFIX}`;
+export const API_PREFIX = "/api/v1";
 const API_WS_BASE_URL = `${env.wsUrl}${API_PREFIX}`;
 
-/** Полные URL маршрутов Nest API. */
+/** Относительные маршруты Nest API. */
 export const API_CONFIG = {
-  getBaseUrl: () => API_BASE_URL,
-  getLoginUrl: () => `${API_BASE_URL}/auth/login`,
-  getRefreshUrl: () => `${API_BASE_URL}/auth/refresh`,
-  getLogoutUrl: () => `${API_BASE_URL}/auth/logout`,
-  getCurrentUserUrl: () => `${API_BASE_URL}/auth/me`,
-  getScenariosUrl: () => `${API_BASE_URL}/scenarios`,
+  getLoginUrl: () => `/auth/login`,
+  getRefreshUrl: () => `/auth/refresh`,
+  getLogoutUrl: () => `/auth/logout`,
+  getCurrentUserUrl: () => `/auth/me`,
+  getScenariosUrl: () => `/scenarios`,
+  getCallsUrl: () => `/calls`,
+  getIncidentCardUrl: (trainingSessionId: string) =>
+    `/calls/${trainingSessionId}/incident-card`,
+  getDebriefUrl: (trainingSessionId: string) =>
+    `/calls/${trainingSessionId}/debrief`,
+  getRecordingUrl: (trainingSessionId: string, index: number) =>
+    `/calls/${trainingSessionId}/recording/${index}`,
   getVoicePipelineStreamUrl: () => `${API_WS_BASE_URL}/voice-pipeline/stream`,
 } as const;

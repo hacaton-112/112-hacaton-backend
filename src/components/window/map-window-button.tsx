@@ -21,10 +21,13 @@ export function MapWindowButton({ label = "Карта" }: { label?: string }) {
     <Button
       type="button"
       size="1"
-      variant="soft"
+      color="blue"
+      variant="solid"
+      className="max-w-full shadow-md"
       onClick={() => void showMap()}
     >
-      <ExternalLink size={13} /> {label}
+      <ExternalLink size={13} className="shrink-0" />
+      <span className="truncate">{label}</span>
     </Button>
   );
 }

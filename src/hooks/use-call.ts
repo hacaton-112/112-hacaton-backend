@@ -21,6 +21,8 @@ export interface DialogueTurn {
 
 export interface CallSnapshot {
   state: CallState;
+  /** Учебная сессия звонка: по ней адресуется карточка и разбор. */
+  trainingSessionId?: string;
   /** Готовность соединения: до неё звонок начать нельзя. */
   isConnected: boolean;
   callerNumber?: string;
@@ -96,6 +98,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [isConnected, setConnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<CallState>("idle");
+  const [trainingSessionId, setTrainingSessionId] = useState<string>();
   const [locator, setLocator] = useState<CallLocator | null>(null);
   const [scenarioTitle, setScenarioTitle] = useState<string>();
   const [panicLevel, setPanicLevel] = useState(0);
@@ -116,6 +119,7 @@ export function useCall(): CallSnapshot & CallControls {
     switch (event.type) {
       case "call.offered":
         setState("ringing");
+        setTrainingSessionId(event.sessionId);
         setLocator(event.locator);
         setScenarioTitle(event.title);
         setPanicLevel(event.panicLevel);
@@ -276,6 +280,7 @@ export function useCall(): CallSnapshot & CallControls {
 
   const reset = useCallback(() => {
     setState("idle");
+    setTrainingSessionId(undefined);
     setLocator(null);
     setScenarioTitle(undefined);
     setPanicLevel(0);
@@ -304,6 +309,7 @@ export function useCall(): CallSnapshot & CallControls {
 
   return {
     state,
+    trainingSessionId,
     isConnected,
     callerNumber: locator?.callerNumber,
     incident,

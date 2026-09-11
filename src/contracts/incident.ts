@@ -1,91 +1,149 @@
 import { z } from "zod";
 
-export const IncidentCategorySchema = z.enum([
-  "fire",
-  "accident",
-  "medical",
-  "crime",
-  "utilities",
-  "other",
-]);
+/**
+ * Службы так, как они подписаны на кнопках АРМ. Коды совпадают с backend:
+ * называть ДДС-01 «пожарной» внутри карточки значит заставить оператора и
+ * разбор занятия говорить на разных языках.
+ */
+export const DISPATCH_SERVICES = [
+  "dds_01",
+  "dds_02",
+  "dds_03",
+  "dds_04",
+  "zhkh",
+  "antiterror",
+  "eddc",
+  "uadit",
+  "rosgvardia",
+  "cuks",
+  "ass",
+  "lpc",
+  "ss",
+] as const;
 
-export const CallerRoleSchema = z.enum([
-  "witness",
-  "participant",
-  "victim",
-  "relative",
-]);
+export const INCIDENT_CATEGORIES = [
+  "socially_significant",
+  "threat_to_people",
+  "emergency_threat",
+  "important",
+] as const;
 
-export const EmergencyServiceSchema = z.enum([
-  "fire",
-  "police",
-  "ambulance",
-  "gas",
-  "rescue",
-]);
+export const DispatchServiceSchema = z.enum(DISPATCH_SERVICES);
+export const IncidentCategorySchema = z.enum(INCIDENT_CATEGORIES);
 
-export const IncidentPrioritySchema = z.enum(["low", "normal", "high"]);
-
-/** Карточка происшествия: то, что оператор обязан собрать за время разговора. */
-export const IncidentCardSchema = z.object({
-  category: IncidentCategorySchema,
-  address: z.string().trim().min(5, "Укажите адрес происшествия").max(200),
-  apartment: z.string().trim().max(30).optional(),
-  landmark: z.string().trim().max(200).optional(),
-  callerName: z.string().trim().max(120).optional(),
-  callerPhone: z.string().trim().max(30).optional(),
-  callerRole: CallerRoleSchema,
-  threatToLife: z.boolean(),
-  victimsCount: z.coerce
-    .number()
-    .int("Целое число")
-    .min(0, "Не может быть отрицательным")
-    .max(999),
-  services: z
-    .array(EmergencyServiceSchema)
-    .min(1, "Выберите хотя бы одну службу"),
-  priority: IncidentPrioritySchema,
-  description: z
+/** Пустое поле — «оператор не заполнил», а не пустая строка. */
+const text = (max: number) =>
+  z
     .string()
     .trim()
-    .min(10, "Опишите происшествие подробнее")
-    .max(2000),
+    .max(max)
+    .transform((value) => value || null)
+    .nullable();
+
+/**
+ * В DOM число приходит строкой, а пустое поле — пустой строкой; backend же
+ * присылает незаполненный счётчик как `null`. Одна схема читает и то и другое:
+ * иначе разбор звонка не открывается, пока оператор не заполнил все счётчики.
+ */
+const count = z
+  .union([z.string(), z.number(), z.null()])
+  .transform((value) => (value === "" || value === null ? null : Number(value)))
+  .pipe(z.number().int().min(0).max(9_999).nullable());
+
+const coordinate = (limit: number) =>
+  z
+    .union([z.string(), z.number(), z.null()])
+    .transform((value) =>
+      value === "" || value === null ? null : Number(value),
+    )
+    .pipe(z.number().min(-limit).max(limit).nullable());
+
+/**
+ * Карточка происшествия — то же, что хранит backend.
+ *
+ * Адрес одной строкой, как его просит настоящее АРМ: улица, дом, корпус,
+ * строение, владение, дорога, километр, метр, участок и объект в одном поле.
+ * Разбирать её на части будет эталонная анкета сценария.
+ */
+export const IncidentCardSchema = z.object({
+  addressText: text(2_000),
+  district: text(200),
+  objectType: text(200),
+  entrance: text(32),
+  floor: text(32),
+  intercom: text(32),
+  latitude: coordinate(90),
+  longitude: coordinate(180),
+  nearby: z.boolean(),
+  placeNotes: text(2_000),
+
+  incidentType: text(200),
+  categories: z.array(IncidentCategorySchema).max(4),
+  victimsTotal: count,
+  victimsChildren: count,
+  deathsTotal: count,
+  deathsChildren: count,
+  description: text(2_000),
+
+  services: z.array(DispatchServiceSchema).max(DISPATCH_SERVICES.length),
 });
 
+export type DispatchService = z.infer<typeof DispatchServiceSchema>;
 export type IncidentCategory = z.infer<typeof IncidentCategorySchema>;
-export type CallerRole = z.infer<typeof CallerRoleSchema>;
-export type EmergencyService = z.infer<typeof EmergencyServiceSchema>;
-export type IncidentPriority = z.infer<typeof IncidentPrioritySchema>;
 export type IncidentCard = z.infer<typeof IncidentCardSchema>;
-/** Значения полей до валидации: в DOM число приходит строкой, отсюда `z.coerce`. */
+/** Значения полей до валидации: в DOM всё приходит строками. */
 export type IncidentCardInput = z.input<typeof IncidentCardSchema>;
 
+export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
+  addressText: "",
+  district: "",
+  objectType: "",
+  entrance: "",
+  floor: "",
+  intercom: "",
+  latitude: "",
+  longitude: "",
+  nearby: false,
+  placeNotes: "",
+  incidentType: "",
+  categories: [],
+  victimsTotal: "",
+  victimsChildren: "",
+  deathsTotal: "",
+  deathsChildren: "",
+  description: "",
+  services: [],
+};
+
 export const INCIDENT_CATEGORY_LABELS: Record<IncidentCategory, string> = {
-  fire: "Пожар, задымление",
-  accident: "ДТП",
-  medical: "Медицинский случай",
-  crime: "Правонарушение",
-  utilities: "Авария ЖКХ",
-  other: "Иное",
+  socially_significant: "Социально-значимое",
+  threat_to_people: "Угроза людям",
+  emergency_threat: "Угроза ЧС",
+  important: "Важно",
 };
 
-export const CALLER_ROLE_LABELS: Record<CallerRole, string> = {
-  witness: "Очевидец",
-  participant: "Участник",
-  victim: "Пострадавший",
-  relative: "Родственник",
+export const DISPATCH_SERVICE_LABELS: Record<DispatchService, string> = {
+  dds_01: "ДДС-01",
+  dds_02: "ДДС-02",
+  dds_03: "ДДС-03",
+  dds_04: "ДДС-04",
+  zhkh: "ЖКХ",
+  antiterror: "Антитеррор",
+  eddc: "ЕДДС",
+  uadit: "УАДиТ",
+  rosgvardia: "Росгвардия",
+  cuks: "ЦУКС",
+  ass: "АСС",
+  lpc: "ЛПЦ",
+  ss: "СС",
 };
 
-export const EMERGENCY_SERVICE_LABELS: Record<EmergencyService, string> = {
-  fire: "Пожарная охрана",
-  police: "Полиция",
-  ambulance: "Скорая помощь",
-  gas: "Газовая служба",
-  rescue: "Спасатели",
-};
-
-export const INCIDENT_PRIORITY_LABELS: Record<IncidentPriority, string> = {
-  low: "Низкий",
-  normal: "Обычный",
-  high: "Высокий",
-};
+/** Подсказки для поля «Тип происшествия»; хранится оно свободным текстом. */
+export const INCIDENT_TYPE_OPTIONS = [
+  "Пожар, задымление",
+  "ДТП",
+  "Медицинский случай",
+  "Правонарушение",
+  "Авария ЖКХ",
+  "Иное",
+] as const;

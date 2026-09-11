@@ -20,17 +20,19 @@ export function ThemeWithPanel({ children }: { children: ReactNode }) {
         radius="medium"
       >
         <IconButton
-          variant="soft"
-          color="gray"
+          size="2"
+          radius="full"
+          variant="solid"
+          color="blue"
+          highContrast
           aria-label="Настройки темы"
+          title="Настройки темы"
           onClick={() => setIsPanelOpen((open) => !open)}
-          className="fixed right-4 bottom-10 z-50"
+          className="fixed right-4 bottom-4 z-[10000] shadow-lg ring-2 ring-white/80"
         >
           <PaletteIcon size={16} />
         </IconButton>
-        {/* ThemePanel вешает на document горячие клавиши T и D, поэтому монтируем
-          его только на время показа — иначе они перехватывают ввод всегда. */}
-        {isPanelOpen && <ThemePanel />}
+        <ThemePanel open={isPanelOpen} onOpenChange={setIsPanelOpen} />
         <Toaster position="top-center" duration={6_000} />
         {children}
       </Theme>
