@@ -4,6 +4,13 @@ import { z } from "zod";
 import { AppNotFoundException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
 import {
+  mixCallRecording,
+  MIXDOWN_SAMPLE_RATE,
+  toPcmBytes,
+  type RecordingPart,
+} from "@/modules/call-recording/domain/mixdown";
+import { encodeWav } from "@/modules/call-recording/domain/wav";
+import {
   RECORDING_STORAGE,
   type RecordingStorage,
 } from "@/modules/call-recording/ports/recording-storage.port";
@@ -102,7 +109,88 @@ export class DebriefService {
       })),
       incidentCard: card,
       recording: this.toSegments(trainingSessionId, recording),
+      recordingUrl:
+        recording.length === 0
+          ? null
+          : `/api/v1/calls/${trainingSessionId}/recording`,
     };
+  }
+
+  /**
+   * Разговор одной дорожкой.
+   *
+   * Собранная запись кладётся рядом с кусками: закончившийся звонок больше не
+   * меняется, а собирать её заново на каждое открытие разбора — это полсотни
+   * запросов в хранилище ради одного и того же файла.
+   */
+  async readWholeRecording(
+    trainingSessionId: string,
+    operatorId: string,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    await this.requireOwnCall(trainingSessionId, operatorId);
+
+    const key = `calls/${trainingSessionId}/call.wav`;
+    const stored = await this.recordings.get(key);
+
+    if (stored !== null) {
+      return stored;
+    }
+
+    const manifest = await this.readRecording(trainingSessionId);
+
+    if (manifest.length === 0) {
+      throw new AppNotFoundException(
+        ErrorCodes.RECORDING_NOT_FOUND,
+        "There is no recording for this call",
+      );
+    }
+
+    const parts: RecordingPart[] = [];
+
+    for (const segment of manifest) {
+      const audio = await this.recordings.get(segment.key);
+
+      // Пропавший кусок не должен стоить всей записи: на разборе лучше
+      // разговор с дырой, чем отказ открыть его целиком.
+      if (audio === null) {
+        this.logger.warn(
+          `Recording segment ${segment.key} is missing from storage`,
+        );
+        continue;
+      }
+
+      parts.push({
+        audio,
+        startMs: segment.startMs,
+        sampleRate: segment.sampleRate,
+      });
+    }
+
+    if (parts.length === 0) {
+      throw new AppNotFoundException(
+        ErrorCodes.RECORDING_NOT_FOUND,
+        "The recording of this call is not in storage",
+      );
+    }
+
+    const call = encodeWav(
+      toPcmBytes(mixCallRecording(parts, MIXDOWN_SAMPLE_RATE)),
+      MIXDOWN_SAMPLE_RATE,
+    );
+
+    try {
+      await this.recordings.put(key, call, "audio/wav");
+    } catch (error) {
+      // Не сохранилось — разбор всё равно получит запись, просто следующий
+      // раз соберём заново.
+      this.logger.warn(
+        `Could not store the mixed recording of ${trainingSessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+
+    return call;
   }
 
   /** Кусок записи отдаётся через backend: корзина остаётся закрытой. */

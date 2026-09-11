@@ -45,6 +45,22 @@ export class DebriefController {
     return this.debrief.get(trainingSessionId, request.user.sub);
   }
 
+  /** Разговор целиком: то, что слушают на разборе первым делом. */
+  @Get(":trainingSessionId/recording")
+  @Header("Content-Type", "audio/wav")
+  @Header("Cache-Control", "private, max-age=3600")
+  async wholeRecording(
+    @Param("trainingSessionId") trainingSessionId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<StreamableFile> {
+    const audio = await this.debrief.readWholeRecording(
+      trainingSessionId,
+      request.user.sub,
+    );
+
+    return new StreamableFile(Buffer.from(audio));
+  }
+
   /**
    * Кусок записи проигрывается через backend, а не по ссылке в хранилище:
    * корзина остаётся закрытой, а клиенту не нужны ключи от неё.

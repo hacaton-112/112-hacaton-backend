@@ -1,5 +1,7 @@
 import { AppException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
+import { toPcmBytes } from "@/modules/call-recording/domain/mixdown";
+import { encodeWav } from "@/modules/call-recording/domain/wav";
 import type { RecordingStorage } from "@/modules/call-recording/ports/recording-storage.port";
 import type { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 
@@ -77,7 +79,7 @@ const manifest = {
 
 interface Mocks {
   store: Record<string, jest.Mock>;
-  storage: { get: jest.Mock };
+  storage: { get: jest.Mock; put: jest.Mock };
   cards: { get: jest.Mock };
 }
 
@@ -96,7 +98,7 @@ const createService = (
       loadQuestions: jest.fn().mockResolvedValue(questions),
       ...overrides,
     },
-    storage: { get: storageGet },
+    storage: { get: storageGet, put: jest.fn().mockResolvedValue(undefined) },
     cards: { get: jest.fn().mockResolvedValue(null) },
   };
 
@@ -211,6 +213,24 @@ describe(DebriefService.name, () => {
     );
   });
 
+  it("offers the whole recording only when something was recorded", async () => {
+    const { service } = createService();
+    const withRecording = await service.get("session-1", "operator-1");
+
+    expect(withRecording.recordingUrl).toBe("/api/v1/calls/session-1/recording");
+
+    const { service: silent } = createService(
+      {},
+      jest
+        .fn()
+        .mockResolvedValue(
+          new TextEncoder().encode(JSON.stringify({ segments: [] })),
+        ),
+    );
+
+    expect((await silent.get("session-1", "operator-1")).recordingUrl).toBeNull();
+  });
+
   it("hands the client an address of its own for every segment", async () => {
     const { service } = createService();
 
@@ -223,6 +243,68 @@ describe(DebriefService.name, () => {
       sampleRate: 16_000,
       url: "/api/v1/calls/session-1/recording/0",
     });
+  });
+
+  it("assembles one recording of the whole call and keeps it", async () => {
+    const utterance = encodeWav(toPcmBytes(new Int16Array(1_600).fill(800)), 16_000);
+    const { service, mocks } = createService(
+      {},
+      jest.fn().mockImplementation((key: string) => {
+        if (key.endsWith("manifest.json")) {
+          return Promise.resolve(
+            new TextEncoder().encode(JSON.stringify(manifest)),
+          );
+        }
+
+        // Собранной записи ещё нет, а кусок разговора есть.
+        return Promise.resolve(key.endsWith("call.wav") ? null : utterance);
+      }),
+    );
+
+    const call = await service.readWholeRecording("session-1", "operator-1");
+
+    expect(String.fromCodePoint(...call.subarray(0, 4))).toBe("RIFF");
+    // Смещение 30 мс плюс 100 мс речи оператора на общей частоте 24 кГц.
+    expect(call.byteLength).toBe(44 + Math.round(0.13 * 24_000) * 2);
+    expect(mocks.storage.put).toHaveBeenCalledWith(
+      "calls/session-1/call.wav",
+      expect.anything(),
+      "audio/wav",
+    );
+  });
+
+  it("serves the assembled recording again without rebuilding it", async () => {
+    const stored = encodeWav(toPcmBytes(new Int16Array(8).fill(1)), 24_000);
+    const { service, mocks } = createService(
+      {},
+      jest
+        .fn()
+        .mockImplementation((key: string) =>
+          Promise.resolve(key.endsWith("call.wav") ? stored : null),
+        ),
+    );
+
+    const call = await service.readWholeRecording("session-1", "operator-1");
+
+    expect(call).toBe(stored);
+    expect(mocks.storage.put).not.toHaveBeenCalled();
+  });
+
+  it("refuses a whole recording for a call where nobody spoke", async () => {
+    const { service } = createService(
+      {},
+      jest.fn().mockImplementation((key: string) =>
+        Promise.resolve(
+          key.endsWith("manifest.json")
+            ? new TextEncoder().encode(JSON.stringify({ segments: [] }))
+            : null,
+        ),
+      ),
+    );
+
+    expect(
+      await codeOf(() => service.readWholeRecording("session-1", "operator-1")),
+    ).toBe(ErrorCodes.RECORDING_NOT_FOUND);
   });
 
   it("hides another operator's call behind the same answer as a missing one", async () => {
