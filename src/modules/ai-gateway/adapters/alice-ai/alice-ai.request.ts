@@ -25,6 +25,7 @@ export const ALICE_AI_SYSTEM_PROMPT = [
   // что оператор ему только что сказал.
   "Сначала ответь на последнюю реплику оператора и только потом добавь не больше одной новой подробности.",
   "allowedFacts уже отобраны Scenario Engine именно для текущего хода. Не пересказывай другие известные подробности и не повторяй недавнюю реплику, если turnPlan не требует repeat.",
+  "alreadyToldFactIds — то, что заявитель уже сообщил за этот звонок. Считай это сказанным и не рассказывай заново, пока оператор не попросит повторить.",
   "Поле turnPlan задаёт обязательный тип реакции на этот ход; следуй его instruction, но не произноси название типа вслух.",
   "Говори так, как описано в persona: допустимы обрывки и повторы отдельных слов внутри новой реплики. Полностью повторяй недавнюю реплику только при reactionAct repeat.",
 ].join(" ");
@@ -138,6 +139,7 @@ export const buildAliceAiRequest = (
     persona: request.context.persona,
     allowedFacts: request.context.allowedFacts,
     recentTurns: request.context.recentTurns,
+    alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
     operatorText: request.operatorText,
     ...(turnPlan === undefined
       ? {}

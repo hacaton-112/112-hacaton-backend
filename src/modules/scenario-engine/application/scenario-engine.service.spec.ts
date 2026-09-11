@@ -376,6 +376,29 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("tells the model what the caller has already said", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 6,
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    // The window of recent turns is eight; a call is longer, and without this
+    // list the caller retells on the ninth turn what he said on the second.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+    });
+
+    expect(built.context.alreadyToldFactIds).toEqual([
+      "incident_type",
+      "trapped_children",
+    ]);
+  });
+
   it("does not answer a specific question with the fact that just opened", async () => {
     const { engine } = createEngine({
       loadCall: jest.fn().mockResolvedValue(
@@ -921,8 +944,10 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
     });
 
     expect(built.context.persona.description).toContain("Как говорит:");
+    // Примеры даются как образец подачи: раньше модель воспроизводила их
+    // дословно ход за ходом.
     expect(built.context.persona.description).toContain(
-      "Так звучат его реплики:",
+      "образец подачи, а не фразы для повторения",
     );
   });
 });

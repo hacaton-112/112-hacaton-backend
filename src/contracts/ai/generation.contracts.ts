@@ -5,6 +5,7 @@ const MAX_FACT_VALUE_LENGTH = 1_000;
 const MAX_OPERATOR_TEXT_LENGTH = 1_000;
 export const MAX_CALLER_REPLY_LENGTH = 500;
 export const MAX_RECENT_TURNS = 8;
+export const MAX_TOLD_FACTS = 64;
 export const MAX_ALLOWED_FACTS = 64;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -144,6 +145,9 @@ export const GenerationContextSchema = z
         message: "Fact IDs must be unique",
       }),
     recentTurns: z.array(DialogueTurnSchema).max(MAX_RECENT_TURNS),
+    // Что заявитель уже сообщил за звонок. Окно недавних реплик короткое, и без
+    // этого списка он на пятом ходу пересказывает то же, что на втором.
+    alreadyToldFactIds: z.array(FactIdSchema).max(MAX_TOLD_FACTS).optional(),
     // Поле опционально для совместимости с диагностическими клиентами старой
     // версии. Настоящий Scenario Engine всегда его заполняет.
     turnPlan: CallerTurnPlanSchema.optional(),

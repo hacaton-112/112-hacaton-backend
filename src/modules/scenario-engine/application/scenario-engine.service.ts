@@ -377,9 +377,8 @@ export class ScenarioEngineService {
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
             ` Как говорит: ${profile.speechRules}` +
-            ` Так звучат его реплики: ${profile.examples
-              .map((example) => `«${example}»`)
-              .join(" ")}` +
+            ` Так он звучит — это образец подачи, а не фразы для повторения:` +
+            ` ${profile.examples.map((example) => `«${example}»`).join(" ")}` +
             background +
             TONE_PROMPTS[tone] +
             (input.initiative === true
@@ -396,6 +395,10 @@ export class ScenarioEngineService {
         // Разговор, который уже был: без него заявитель отвечает так, будто
         // звонок только начался, и повторяет одну и ту же первую фразу.
         recentTurns: [...recentTurns],
+        // Окна недавних реплик хватает на восемь ходов, а звонок длиннее:
+        // список уже сказанного не даёт заявителю рассказывать одно и то же
+        // по кругу.
+        alreadyToldFactIds: [...state.revealedFactKeys],
         turnPlan,
       },
     };
