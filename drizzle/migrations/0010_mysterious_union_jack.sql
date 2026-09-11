@@ -1,0 +1,1 @@
+ALTER TABLE "scenario_versions" ADD COLUMN "seed_hash" text;

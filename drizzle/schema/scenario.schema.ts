@@ -228,6 +228,14 @@ export const scenarioVersions = pgTable(
     authoringSource: authoringSource("authoring_source")
       .notNull()
       .default("manual"),
+    /**
+     * Отпечаток исходного файла сценария.
+     *
+     * По нему сид отличает «файл не менялся» от «нужна новая версия». У
+     * версии, набранной руками, его нет — и это правильно: сравнивать её не
+     * с чем.
+     */
+    seedHash: text("seed_hash"),
     authoringPrompt: text("authoring_prompt"),
     reviewedBy: text("reviewed_by").references(() => users.id, {
       onDelete: "set null",
