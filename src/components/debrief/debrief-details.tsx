@@ -198,14 +198,20 @@ function Timeline({
   loadRecordingSegment: (url: string) => Promise<string>;
 }) {
   const [playing, setPlaying] = useState<string>();
+  const [loadingWholeCall, setLoadingWholeCall] = useState(false);
   // Разбор начинается с того, что было сказано; факты и ступени паники
   // читаются следом, поэтому разговор открыт по умолчанию.
   const [view, setView] = useState<"conversation" | "events">("conversation");
 
-  const play = async (url: string) => {
-    const source = await loadRecordingSegment(url);
-    setPlaying(source);
-    void new Audio(source).play();
+  /** Запись целиком весит мегабайты, поэтому кнопка ждёт вместе с загрузкой. */
+  const play = async (url: string, wholeCall = false) => {
+    setLoadingWholeCall(wholeCall);
+
+    try {
+      setPlaying(await loadRecordingSegment(url));
+    } finally {
+      setLoadingWholeCall(false);
+    }
   };
 
   const segmentFor = (offsetMs: number | null) =>
@@ -217,6 +223,7 @@ function Timeline({
     );
 
   const conversation = conversationOf(debrief.timeline);
+  const wholeCall = debrief.recordingUrl;
 
   return (
     <Card size="2" variant="classic" className="lg:row-span-2">
@@ -237,10 +244,16 @@ function Timeline({
             Все события
           </Button>
         </Flex>
-        {debrief.recording.length > 0 && (
-          <Text size="1" color="gray">
-            запись: {debrief.recording.length} фрагментов
-          </Text>
+        {wholeCall !== null && (
+          <Button
+            size="1"
+            variant="soft"
+            disabled={loadingWholeCall}
+            onClick={() => void play(wholeCall, true)}
+          >
+            <Play size={13} />
+            {loadingWholeCall ? "Загружаю запись…" : "Разговор целиком"}
+          </Button>
         )}
       </Flex>
 
@@ -315,7 +328,7 @@ function Timeline({
       )}
 
       {playing && (
-        <audio className="mt-3 w-full" controls src={playing}>
+        <audio className="mt-3 w-full" controls autoPlay src={playing}>
           <track kind="captions" />
         </audio>
       )}
