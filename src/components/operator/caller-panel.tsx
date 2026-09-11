@@ -7,13 +7,14 @@ import {
   Flex,
   IconButton,
   PhoneField,
+  ScrollArea,
   Select,
   Text,
   TextArea,
   TextField,
 } from "@bolid-ui/themes";
 import { LocateFixed, Phone, Plus, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { CallSnapshot } from "../../hooks/use-call";
 
@@ -44,7 +45,25 @@ export function CallerPanel({
   const [editedPhone, setEditedPhone] = useState<string | null>(null);
   const nextVictimId = useRef(2);
   const [victims, setVictims] = useState<VictimDraft[]>([createVictim(1)]);
+  const victimsListRef = useRef<HTMLDivElement>(null);
+  const previousVictimsCount = useRef(victims.length);
   const applicantPhone = editedPhone ?? callerNumber?.replace(/\D/g, "") ?? "";
+
+  useEffect(() => {
+    const victimWasAdded = victims.length > previousVictimsCount.current;
+    previousVictimsCount.current = victims.length;
+
+    if (!victimWasAdded) return;
+
+    const frame = requestAnimationFrame(() => {
+      victimsListRef.current?.lastElementChild?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [victims.length]);
 
   const updateVictim = <K extends keyof Omit<VictimDraft, "id">>(
     id: number,
@@ -69,8 +88,8 @@ export function CallerPanel({
   };
 
   return (
-    <aside className="operator-caller-column grid min-h-full content-start gap-4">
-      <Section>
+    <aside className="operator-caller-column flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+      <Section className="shrink-0">
         <Flex align="center" justify="between" gap="2">
           <Text size="3" weight="bold">
             УКИО - 8921
@@ -113,7 +132,7 @@ export function CallerPanel({
         />
       </Section>
 
-      <Section>
+      <Section className="shrink-0">
         <Flex align="center" justify="between" gap="2">
           <Text size="2" weight="bold">
             Заявитель
@@ -124,12 +143,12 @@ export function CallerPanel({
             </Flex>
           </Text>
         </Flex>
-        <div className="person-name-grid mt-3 grid gap-2">
+        <div className="person-name-grid mt-3 grid gap-2 min-[1480px]:!grid-cols-3">
           <Field label="Фамилия" placeholder="Введите фамилию" />
           <Field label="Имя" placeholder="Введите имя" />
           <Field label="Отчество" placeholder="Введите отчество" />
         </div>
-        <div className="person-contact-grid mt-3 grid items-end gap-2">
+        <div className="person-contact-grid mt-3 grid items-end gap-2 min-[1480px]:!grid-cols-2">
           <FieldLabel label="Язык">
             <Select.Root defaultValue="ru" size="1">
               <Select.Trigger className="w-full" />
@@ -150,31 +169,39 @@ export function CallerPanel({
         </div>
       </Section>
 
-      <Section>
-        <Text size="2" weight="bold">
-          Пострадавшие
-        </Text>
-        <div className="grid gap-3">
-          {victims.map((victim, index) => (
-            <VictimFields
-              key={victim.id}
-              victim={victim}
-              index={index}
-              canRemove={victims.length > 1}
-              onChange={updateVictim}
-              onRemove={removeVictim}
-            />
-          ))}
+      <Section className="min-h-0 flex-1 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col gap-3">
+          <Text size="2" weight="bold">
+            Пострадавшие
+          </Text>
+          <div className="h-0 min-h-0 flex-1">
+            <ScrollArea
+              className="h-full min-h-0"
+              size="1"
+              type="auto"
+              scrollbars="vertical"
+              ref={victimsListRef}
+              tabIndex={0}
+              aria-label="Список пострадавших"
+            >
+              <div className="grid w-full min-w-0 content-start gap-3 pr-3">
+                {victims.map((victim, index) => (
+                  <VictimFields
+                    key={victim.id}
+                    victim={victim}
+                    index={index}
+                    canRemove={victims.length > 1}
+                    onChange={updateVictim}
+                    onRemove={removeVictim}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <Button type="button" size="1" variant="ghost" onClick={addVictim}>
+            <Plus size={14} /> Добавить
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="1"
-          variant="ghost"
-          mt="2"
-          onClick={addVictim}
-        >
-          <Plus size={14} /> Добавить
-        </Button>
       </Section>
     </aside>
   );
@@ -199,7 +226,7 @@ function VictimFields({
 }) {
   return (
     <section
-      className={index === 0 ? "mt-3" : "border-grayA-5 border-t pt-3"}
+      className={index === 0 ? "" : "border-grayA-5 border-t pt-3"}
       aria-label={`Пострадавший ${index + 1}`}
     >
       {(canRemove || index > 0) && (
@@ -219,7 +246,7 @@ function VictimFields({
           </IconButton>
         </Flex>
       )}
-      <div className="person-name-grid grid gap-2">
+      <div className="person-name-grid grid gap-2 min-[1480px]:!grid-cols-3">
         <Field
           label="Фамилия"
           placeholder="Введите фамилию"
@@ -239,7 +266,7 @@ function VictimFields({
           onChange={(value) => onChange(victim.id, "middleName", value)}
         />
       </div>
-      <div className="victim-meta-grid mt-3 grid gap-2">
+      <div className="victim-meta-grid mt-3 grid gap-2 min-[1480px]:!grid-cols-2">
         <FieldLabel label="Повод вызова">
           <Select.Root
             value={victim.reason}

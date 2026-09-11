@@ -40,15 +40,19 @@ const text = (max: number) =>
     .transform((value) => value || null)
     .nullable();
 
-/** В DOM число приходит строкой, а пустое поле — пустой строкой. */
-const numericInput = z.union([z.string(), z.number(), z.null()]);
-
-const count = numericInput
+/**
+ * В DOM число приходит строкой, а пустое поле — пустой строкой; backend же
+ * присылает незаполненный счётчик как `null`. Одна схема читает и то и другое:
+ * иначе разбор звонка не открывается, пока оператор не заполнил все счётчики.
+ */
+const count = z
+  .union([z.string(), z.number(), z.null()])
   .transform((value) => (value === "" || value === null ? null : Number(value)))
   .pipe(z.number().int().min(0).max(9_999).nullable());
 
 const coordinate = (limit: number) =>
-  numericInput
+  z
+    .union([z.string(), z.number(), z.null()])
     .transform((value) =>
       value === "" || value === null ? null : Number(value),
     )

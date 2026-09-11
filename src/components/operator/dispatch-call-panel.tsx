@@ -346,7 +346,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
           controls={false}
           className="dispatch-map operator-map h-full min-h-[320px]"
         />
-        <div className="absolute top-2 right-2 z-10">
+        <div className="absolute top-2 right-2 left-2 z-30 flex justify-end">
           <MapWindowButton label="Открыть в окне" />
         </div>
         {props.incident && (

@@ -6,8 +6,7 @@ import {
   type IncidentCardInput,
 } from "../contracts/incident";
 import {
-  loadIncidentCard,
-  saveIncidentCard,
+  incidentCardService
 } from "../services/incident-card.service";
 
 /**
@@ -49,7 +48,7 @@ export function useIncidentCard(
   useEffect(() => {
     if (!trainingSessionId) return;
 
-    loadIncidentCard(trainingSessionId)
+    incidentCardService.loadIncidentCard(trainingSessionId)
       .then((card) => {
         setLoaded(card as IncidentCardInput);
         setChosen(card.services);
@@ -65,7 +64,7 @@ export function useIncidentCard(
     if (!next) return;
 
     setSaving(true);
-    saveIncidentCard(sessionId, next)
+    incidentCardService.saveIncidentCard(sessionId, next)
       .then(() => setError(undefined))
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : String(reason)),

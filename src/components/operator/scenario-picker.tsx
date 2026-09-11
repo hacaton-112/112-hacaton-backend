@@ -2,11 +2,14 @@ import { Button, Flex, Select, Text } from "@bolid-ui/themes";
 import { PhoneIncoming } from "lucide-react";
 import { useState } from "react";
 
+import type { ScenarioSummary } from "../../contracts/call";
 import { useScenarios } from "../../hooks/use-scenarios";
 
 interface ScenarioPickerProps {
   disabled: boolean;
-  onStart: (scenarioVersionId: string) => void;
+  onStart: (
+    scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">,
+  ) => void;
 }
 
 const DIFFICULTY_LABELS = [
@@ -57,8 +60,8 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
 
       <Button
         variant="soft"
-        disabled={disabled || !current}
-        onClick={() => current && onStart(current)}
+        disabled={disabled || !chosen}
+        onClick={() => chosen && onStart(chosen)}
       >
         <PhoneIncoming size={15} /> Принять учебный вызов
       </Button>
