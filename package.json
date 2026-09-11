@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test": "bun test",
     "preview": "vite preview",
     "tauri": "tauri"
   },

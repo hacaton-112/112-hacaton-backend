@@ -41,14 +41,14 @@ const text = (max: number) =>
     .nullable();
 
 /** В DOM число приходит строкой, а пустое поле — пустой строкой. */
-const count = z
-  .union([z.string(), z.number()])
+const numericInput = z.union([z.string(), z.number(), z.null()]);
+
+const count = numericInput
   .transform((value) => (value === "" || value === null ? null : Number(value)))
   .pipe(z.number().int().min(0).max(9_999).nullable());
 
 const coordinate = (limit: number) =>
-  z
-    .union([z.string(), z.number()])
+  numericInput
     .transform((value) =>
       value === "" || value === null ? null : Number(value),
     )
