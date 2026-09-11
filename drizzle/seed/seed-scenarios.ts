@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import { type Database, db, pool } from "@/core/database/drizzle.client";
@@ -26,16 +27,44 @@ import {
  *   bun run db:seed
  *
  * Файл — исходник версии, а не формат исполнения: движок читает только базу.
- * Повторный запуск пересоздаёт сценарий целиком, поэтому правка JSON и
- * повторный сид дают тот же результат, что и чистая установка.
+ * Изменённый файл публикуется новой версией, а не заменяет старую: на
+ * прошлые версии ссылаются проведённые звонки, и история занятия важнее
+ * удобства загрузчика. Неизменившийся файл не делает ничего.
  */
 // Путь от корня проекта: сборка идёт в CommonJS, где import.meta недоступен.
 const SCENARIOS_DIR = join(process.cwd(), "drizzle", "seed", "scenarios");
+
+/**
+ * Отпечаток сценария считается по разобранному значению, а не по тексту файла:
+ * иначе новая версия рождалась бы от переставленного пробуна.
+ */
+const fingerprint = (seed: ScenarioSeed): string =>
+  createHash("sha256").update(stableJson(seed)).digest("hex");
+
+const stableJson = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  }
+
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`;
+  }
+
+  return JSON.stringify(value) ?? "null";
+};
 
 const seedScenario = async (
   database: Database,
   seed: ScenarioSeed,
 ): Promise<void> => {
+  const seedHash = fingerprint(seed);
+
   await database.transaction(async (tx) => {
     const [existing] = await tx
       .select({ id: scenarios.id })
@@ -43,11 +72,22 @@ const seedScenario = async (
       .where(eq(scenarios.code, seed.code))
       .limit(1);
 
-    if (existing) {
-      // Версии и факты уходят каскадом; звонок, который уже ссылается на
-      // версию, удалить не даст внешний ключ — и это правильно, история
-      // тренировок важнее удобства сида.
-      await tx.delete(scenarios).where(eq(scenarios.id, existing.id));
+    const [latest] = existing
+      ? await tx
+          .select({
+            version: scenarioVersions.version,
+            seedHash: scenarioVersions.seedHash,
+          })
+          .from(scenarioVersions)
+          .where(eq(scenarioVersions.scenarioId, existing.id))
+          .orderBy(desc(scenarioVersions.version))
+          .limit(1)
+      : [];
+
+    if (latest && latest.seedHash === seedHash) {
+      console.log(`${seed.code} · без изменений, версия ${latest.version}`);
+
+      return;
     }
 
     const [persona] = await tx
@@ -77,24 +117,40 @@ const seedScenario = async (
       })
       .returning({ id: callerPersonas.id });
 
-    const scenarioId = generateId();
+    const scenarioId = existing?.id ?? generateId();
     const versionId = generateId();
+    const version = (latest?.version ?? 0) + 1;
     const now = new Date();
 
-    await tx.insert(scenarios).values({
-      id: scenarioId,
-      code: seed.code,
-      title: seed.title,
-      category: seed.category,
-      difficulty: seed.difficulty,
-      summary: seed.summary,
-      status: "published",
-    });
+    if (existing) {
+      // Код остаётся тем же сценарием: меняется его описание, а не личность.
+      await tx
+        .update(scenarios)
+        .set({
+          title: seed.title,
+          category: seed.category,
+          difficulty: seed.difficulty,
+          summary: seed.summary,
+          status: "published",
+          updatedAt: now,
+        })
+        .where(eq(scenarios.id, scenarioId));
+    } else {
+      await tx.insert(scenarios).values({
+        id: scenarioId,
+        code: seed.code,
+        title: seed.title,
+        category: seed.category,
+        difficulty: seed.difficulty,
+        summary: seed.summary,
+        status: "published",
+      });
+    }
 
     await tx.insert(scenarioVersions).values({
       id: versionId,
       scenarioId,
-      version: 1,
+      version,
       personaId: persona.id,
       panicFloor: seed.version.panicFloor,
       panicCeiling: seed.version.panicCeiling,
@@ -108,6 +164,7 @@ const seedScenario = async (
       openingLine: seed.version.openingLine,
       fallbackLine: seed.version.fallbackLine,
       authoringSource: "manual",
+      seedHash,
       publishedAt: now,
       reviewedAt: now,
     });
@@ -186,7 +243,9 @@ const seedScenario = async (
     }
 
     console.log(
-      `${seed.code} · ${seed.title} — версия ${versionId}, фактов ${seed.facts.length}`,
+      existing
+        ? `${seed.code} · ${seed.title} — опубликована версия ${version}, фактов ${seed.facts.length}; прошлые версии остались за проведёнными звонками`
+        : `${seed.code} · ${seed.title} — версия ${version}, фактов ${seed.facts.length}`,
     );
   });
 };

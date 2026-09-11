@@ -1,0 +1,326 @@
+{
+  "code": "S-034",
+  "title": "Мужчина без сознания в квартире",
+  "category": "medical",
+  "difficulty": 3,
+  "summary": "Пожилой мужчина упал на кухне и не приходит в себя; звонит жена, дверь заперта изнутри на цепочку.",
+  "persona": {
+    "code": "elderly-wife",
+    "displayName": "Женщина, 68 лет",
+    "gender": "female",
+    "ageYears": 68,
+    "condition": "Растеряна, на грани слёз, плохо слышит",
+    "speechStyle": "Говорит медленно и негромко, часто переспрашивает, отвечает не сразу. Длинные вопросы понимает плохо, простые — хорошо.",
+    "backgroundSounds": "Тихая квартира, работает телевизор",
+    "voiceId": "ono_anna",
+    "baselinePanicLevel": 2,
+    "baseSpeechRate": 0.92
+  },
+  "version": {
+    "panicFloor": 1,
+    "panicCeiling": 4,
+    "maxInterruptions": 2,
+    "initiativeCooldownSeconds": 14,
+    "answerNormSeconds": 240,
+    "expectedDurationSeconds": 330,
+    "passThreshold": 75,
+    "expectedServices": ["ambulance"],
+    "referenceNotes": "Мужчина 72 лет без сознания, дышит хрипло, был инфаркт два года назад. Дверь на цепочке, жена одна дома.",
+    "openingLine": "Помогите, муж упал и не отвечает мне!",
+    "fallbackLine": "Простите, я не расслышала, повторите."
+  },
+  "location": {
+    "terrain": "city_block",
+    "exactAddress": {
+      "street": "Юных Ленинцев",
+      "house": "83",
+      "corpus": "2",
+      "entrance": "1",
+      "floor": "9",
+      "apartment": "112"
+    },
+    "exactPoint": [55.6903, 37.7712],
+    "locatorCenter": [55.6885, 37.7748],
+    "locatorRadiusMeters": 450,
+    "locatorLabel": "Мобильный · базовая станция ЮВАО, Кузьминки",
+    "locatorAccuracy": "identified",
+    "callerNumber": "+7 916 330-12-08",
+    "previouslyCalled": true
+  },
+  "escalation": [
+    {
+      "trigger": "operator_silence",
+      "direction": "up",
+      "cooldownSeconds": 12,
+      "params": {
+        "seconds": 9
+      }
+    },
+    {
+      "trigger": "heavy_fact_revealed",
+      "direction": "up",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "forbidden_phrase",
+      "direction": "up",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": ["успокойтесь", "не кричите", "прекратите", "перестаньте"]
+      }
+    },
+    {
+      "trigger": "calming_phrase",
+      "direction": "down",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": [
+          "помощь уже",
+          "я вас слышу",
+          "бригада выехала",
+          "делайте как я говорю"
+        ]
+      }
+    },
+    {
+      "trigger": "instruction_followed",
+      "direction": "down",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "services_confirmed",
+      "direction": "down",
+      "cooldownSeconds": 0
+    }
+  ],
+  "facts": [
+    {
+      "key": "incident_type",
+      "promptValue": "Муж упал на кухне и не приходит в себя.",
+      "displayLabel": "Что случилось",
+      "severity": "normal",
+      "cardField": "category",
+      "cardValue": "medical",
+      "contentKeywords": ["упал", "не отвечает", "без сознан", "не приходит"],
+      "disclosure": {
+        "type": "immediate"
+      },
+      "priority": 9
+    },
+    {
+      "key": "address_street",
+      "promptValue": "Улица Юных Ленинцев, дом восемьдесят три, корпус два.",
+      "displayLabel": "Улица и дом",
+      "severity": "normal",
+      "cardField": "street",
+      "cardValue": "Юных Ленинцев, 83к2",
+      "contentKeywords": ["юных ленинцев", "восемьдесят три", "корпус"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["адрес", "улиц", "где", "дом", "куда ехать"]
+      },
+      "priority": 9
+    },
+    {
+      "key": "address_apartment",
+      "promptValue": "Первый подъезд, девятый этаж, квартира сто двенадцать.",
+      "displayLabel": "Подъезд и квартира",
+      "severity": "normal",
+      "cardField": "apartment",
+      "cardValue": "112",
+      "contentKeywords": ["сто двенадцат", "девятый этаж", "первый подъезд"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["квартир", "подъезд", "этаж"]
+      },
+      "priority": 8
+    },
+    {
+      "key": "victim_age",
+      "promptValue": "Мужу семьдесят два года.",
+      "displayLabel": "Возраст пострадавшего",
+      "severity": "normal",
+      "cardField": "victims_total",
+      "cardValue": "1",
+      "contentKeywords": ["семьдесят два", "72", "возраст"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "возраст",
+          "сколько лет",
+          "кто пострадал",
+          "мужчина",
+          "пострадав"
+        ]
+      },
+      "priority": 7
+    },
+    {
+      "key": "breathing",
+      "promptValue": "Дышит, но тяжело и с хрипом, лицо серое.",
+      "displayLabel": "Дыхание",
+      "severity": "heavy",
+      "cardField": "victims_condition",
+      "cardValue": "Дышит с хрипом, без сознания",
+      "contentKeywords": ["дышит", "хрип", "серое", "тяжело"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["дышит", "дыхан", "сознан", "пульс", "состояни"]
+      },
+      "priority": 9
+    },
+    {
+      "key": "heart_history",
+      "promptValue": "Два года назад был инфаркт, пьёт таблетки от сердца.",
+      "displayLabel": "Хронические болезни",
+      "severity": "normal",
+      "cardField": "clarification",
+      "cardValue": "Инфаркт в анамнезе",
+      "contentKeywords": ["инфаркт", "сердц", "таблетк", "давлени"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["болел", "хроничес", "лекарств", "сердц", "диагноз"]
+      },
+      "priority": 6
+    },
+    {
+      "key": "door_chain",
+      "promptValue": "Дверь заперта на цепочку, соседей дома нет.",
+      "displayLabel": "Доступ в квартиру",
+      "severity": "normal",
+      "cardField": "landmarks",
+      "cardValue": "Дверь на цепочке",
+      "contentKeywords": ["цепочк", "дверь", "заперт", "откро"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["дверь", "откро", "попасть", "доступ", "домофон"]
+      },
+      "priority": 5
+    },
+    {
+      "key": "caller_alone",
+      "promptValue": "Заявительница дома одна, поднять мужа не может.",
+      "displayLabel": "Кто рядом",
+      "severity": "normal",
+      "cardField": "caller_type",
+      "cardValue": "Жена, одна дома",
+      "contentKeywords": ["одна", "не могу поднять", "никого"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["кто рядом", "одна", "помочь", "есть кто"]
+      },
+      "priority": 4
+    },
+    {
+      "key": "last_meal",
+      "promptValue": "Когда муж ел в последний раз, заявительница не помнит.",
+      "displayLabel": "Когда ел",
+      "severity": "normal",
+      "cardField": null,
+      "cardValue": null,
+      "contentKeywords": ["ел"],
+      "disclosure": {
+        "type": "never"
+      },
+      "priority": 0
+    }
+  ],
+  "mandatoryQuestions": [
+    {
+      "text": "Точный адрес: улица, дом, корпус",
+      "satisfiedByFactKeys": ["address_street"],
+      "isCritical": true
+    },
+    {
+      "text": "Подъезд, этаж и квартира",
+      "satisfiedByFactKeys": ["address_apartment"],
+      "isCritical": true
+    },
+    {
+      "text": "Дышит ли пострадавший и в сознании ли он",
+      "satisfiedByFactKeys": ["breathing"],
+      "isCritical": true
+    },
+    {
+      "text": "Возраст пострадавшего",
+      "satisfiedByFactKeys": ["victim_age"],
+      "isCritical": true
+    },
+    {
+      "text": "Хронические болезни и лекарства",
+      "satisfiedByFactKeys": ["heart_history"],
+      "isCritical": false
+    },
+    {
+      "text": "Как бригада попадёт в квартиру",
+      "satisfiedByFactKeys": ["door_chain"],
+      "isCritical": false
+    },
+    {
+      "text": "Кто рядом с заявителем",
+      "satisfiedByFactKeys": ["caller_alone"],
+      "isCritical": false
+    }
+  ],
+  "referenceCard": {
+    "fields": [
+      {
+        "field": "street",
+        "expectedValue": "Юных Ленинцев",
+        "acceptableValues": ["юных ленинцев"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_street"
+      },
+      {
+        "field": "house",
+        "expectedValue": "83",
+        "acceptableValues": ["83к2", "восемьдесят три"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_street"
+      },
+      {
+        "field": "apartment",
+        "expectedValue": "112",
+        "acceptableValues": ["сто двенадцать"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_apartment"
+      },
+      {
+        "field": "category",
+        "expectedValue": "без сознания",
+        "acceptableValues": ["медицин", "упал", "medical"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "incident_type"
+      },
+      {
+        "field": "victims_total",
+        "expectedValue": "1",
+        "acceptableValues": ["один"],
+        "comparison": "numeric_range",
+        "isRequired": true,
+        "sourceFactKey": "victim_age"
+      },
+      {
+        "field": "victims_condition",
+        "expectedValue": "дышит",
+        "acceptableValues": ["хрип", "без сознания"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "breathing"
+      },
+      {
+        "field": "landmarks",
+        "expectedValue": "цепочка",
+        "acceptableValues": ["дверь на цепочке"],
+        "comparison": "contains",
+        "isRequired": false,
+        "sourceFactKey": "door_chain"
+      }
+    ],
+    "notes": "Нужна скорая. Дверь на цепочке — бригаде понадобится помощь, чтобы попасть в квартиру."
+  }
+}
