@@ -118,6 +118,34 @@ describe(
       expect(result.success).toBe(false);
     });
 
+    it("rejects a focused fact outside this turn's allowed facts", () => {
+      const result = GenerateCallerReplyRequestSchema.safeParse({
+        ...validRequest,
+        context: {
+          ...validRequest.context,
+          turnPlan: {
+            reactionAct: "answer",
+            focusFactIds: ["hidden_fact"],
+            minimumResponseDelayMs: 320,
+          },
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects a fallback that reveals a fact outside the turn", () => {
+      const result = GenerateCallerReplyRequestSchema.safeParse({
+        ...validRequest,
+        fallbackReply: {
+          ...validReply,
+          revealedFactIds: ["hidden_fact"],
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
     it("rejects contexts exceeding the fact limit", () => {
       const allowedFacts = Array.from(
         { length: MAX_ALLOWED_FACTS + 1 },

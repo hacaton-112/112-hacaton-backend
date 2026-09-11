@@ -2,9 +2,13 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { generateId } from "@/common/utils/id";
 import {
+  CallerReplySchema,
+  MAX_CALLER_REPLY_LENGTH,
   MAX_RECENT_TURNS,
   type CallerEmotion,
   type CallerReply,
+  type CallerTurnPlan,
+  type DialogueGenerationResult,
   type GenerationContext,
 } from "@/contracts";
 import type {
@@ -19,6 +23,7 @@ import {
   type ScenarioFact,
 } from "../domain/disclosure";
 import {
+  isExplicitRepeatRequest,
   planCallerTurn,
   planOpeningDelayMs,
   type CallerTurnTone,
@@ -90,7 +95,7 @@ export interface EngineGenerationContext {
    * ступень паники — силу и темп речи. Модель пишет только слова.
    */
   readonly voice: EngineCallerVoice;
-  readonly fallbackLine: string;
+  readonly fallbackReply: CallerReply;
 }
 
 export type CallDirective =
@@ -316,6 +321,13 @@ export class ScenarioEngineService {
     // Что оператор только что сделал не так или, наоборот, правильно: заявитель
     // обязан это заметить словами, а не только ступенью паники.
     const tone = this.operatorTone(version, matchedText);
+    const focusCandidates = this.focusFacts(
+      state,
+      allowed.facts,
+      allowed.fresh,
+      matchedText,
+      input.initiative === true,
+    );
     const turnPlan = planCallerTurn({
       rngSeed: state.rngSeed,
       callerTurns: state.callerTurns,
@@ -323,15 +335,27 @@ export class ScenarioEngineService {
       panicLevel: state.panicLevel,
       tone,
       initiative: input.initiative === true,
-      freshFactIds: allowed.fresh,
-      allowedFactIds: allowed.facts.map((fact) => fact.key),
-      recentTurns,
+      freshFactIds: focusCandidates
+        .filter((fact) => allowed.fresh.includes(fact.key))
+        .map((fact) => fact.key),
+      focusFactIds: focusCandidates.map((fact) => fact.key),
     });
+    const focusFactIds = new Set(turnPlan.focusFactIds ?? []);
+    const turnFacts = allowed.facts.filter((fact) =>
+      focusFactIds.has(fact.key),
+    );
+    const voice = this.callerVoice(state, version);
 
     return {
       scenarioVersionId: version.id,
-      voice: this.callerVoice(state, version),
-      fallbackLine: version.fallbackLine,
+      voice,
+      fallbackReply: this.fallbackReply(
+        version,
+        voice,
+        turnPlan,
+        turnFacts,
+        input.initiative === true,
+      ),
       context: {
         persona: {
           id: version.scenarioCode,
@@ -349,7 +373,10 @@ export class ScenarioEngineService {
               ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
               : ""),
         },
-        allowedFacts: allowed.facts.map((fact) => ({
+        // На конкретный ход модель получает не весь уже известный рассказ, а
+        // только ответ на текущий вопрос. Полный набор повторно проверяется в
+        // applyCallerReply, поэтому авторитет Scenario Engine сохраняется.
+        allowedFacts: turnFacts.map((fact) => ({
           id: fact.key,
           value: fact.promptValue,
         })),
@@ -373,6 +400,7 @@ export class ScenarioEngineService {
     eventId: string;
     operatorText: string;
     reply: CallerReply;
+    generation?: Pick<DialogueGenerationResult, "source" | "attempts">;
     initiative?: boolean;
     now?: Date;
   }): Promise<CallSnapshot> {
@@ -438,6 +466,9 @@ export class ScenarioEngineService {
           text: input.reply.text,
           emotion: input.reply.emotion,
           intensity: input.reply.intensity,
+          ...(input.generation === undefined
+            ? {}
+            : { generation: input.generation }),
         },
       },
       ...revealedNow.map((key): NewCallEvent => ({
@@ -690,6 +721,108 @@ export class ScenarioEngineService {
       },
       panicProfile(state.panicLevel).factBudget,
     );
+  }
+
+  /** Выбирает содержание одного ответа, а не всю накопленную память звонка. */
+  private focusFacts(
+    state: CallStateSnapshot,
+    allowedFacts: readonly ScenarioFact[],
+    freshFactIds: readonly string[],
+    operatorText: string,
+    initiative: boolean,
+  ): readonly ScenarioFact[] {
+    if (initiative) {
+      return [];
+    }
+
+    const directAnswers = allowedFacts.filter(
+      (fact) =>
+        fact.disclosure.type === "on_question" &&
+        matchesKeywords(operatorText, fact.disclosure.keywords),
+    );
+
+    if (directAnswers.length > 0) {
+      return directAnswers;
+    }
+
+    const freshFacts = allowedFacts.filter((fact) =>
+      freshFactIds.includes(fact.key),
+    );
+
+    if (freshFacts.length > 0) {
+      return freshFacts;
+    }
+
+    if (!isExplicitRepeatRequest(operatorText)) {
+      return [];
+    }
+
+    const lastRevealedKey = [...state.revealedFactKeys]
+      .reverse()
+      .find((key) => allowedFacts.some((fact) => fact.key === key));
+
+    return lastRevealedKey === undefined
+      ? []
+      : allowedFacts.filter((fact) => fact.key === lastRevealedKey);
+  }
+
+  /**
+   * После двух ошибок модели разговор продолжает Scenario Engine. Реплика
+   * зависит от плана хода и, когда возможно, отвечает разрешённым фактом.
+   */
+  private fallbackReply(
+    version: ScenarioVersionSnapshot,
+    voice: EngineCallerVoice,
+    turnPlan: CallerTurnPlan,
+    focusFacts: readonly ScenarioFact[],
+    initiative: boolean,
+  ): CallerReply {
+    const candidateFocusFact = focusFacts[0];
+    const factPrefix =
+      turnPlan.reactionAct === "acknowledge" ? "Хорошо. " : "";
+    const factualText =
+      candidateFocusFact === undefined
+        ? null
+        : `${factPrefix}${candidateFocusFact.promptValue}`;
+    // Не отмечаем факт раскрытым, если его пришлось бы оборвать лимитом
+    // контракта: журнал должен соответствовать реально произнесённым словам.
+    const focusFact =
+      factualText !== null && factualText.length <= MAX_CALLER_REPLY_LENGTH
+        ? candidateFocusFact
+        : undefined;
+    let text: string;
+
+    if (focusFact !== undefined) {
+      text = factualText ?? focusFact.promptValue;
+    } else {
+      switch (turnPlan.reactionAct) {
+        case "acknowledge":
+          text = "Хорошо, я вас слышу.";
+          break;
+        case "emotional-reaction":
+          text = initiative
+            ? "Алло? Ответьте мне, пожалуйста!"
+            : "Не говорите так, пожалуйста! Помогите мне.";
+          break;
+        case "panic-refusal":
+          text = "Я не успеваю понять. Говорите короче!";
+          break;
+        case "clarify":
+          text = "Спросите, пожалуйста, конкретнее.";
+          break;
+        default:
+          text = version.fallbackLine;
+      }
+    }
+
+    return CallerReplySchema.parse({
+      text,
+      emotion: voice.emotion,
+      intensity: voice.intensity,
+      speechRate: voice.speechRate,
+      revealedFactIds: focusFact === undefined ? [] : [focusFact.key],
+      endCall: false,
+    });
   }
 
   /**

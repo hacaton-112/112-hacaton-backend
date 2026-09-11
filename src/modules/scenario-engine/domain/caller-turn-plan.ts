@@ -1,10 +1,10 @@
 import type {
   CallerReactionAct,
   CallerTurnPlan,
-  DialogueTurn,
 } from "@/contracts";
 
 import type { PanicLevel } from "./panic-scale";
+import { normalizeForMatching } from "./disclosure";
 
 export type CallerTurnTone = "neutral" | "calming" | "forbidden";
 
@@ -16,8 +16,7 @@ interface PlanCallerTurnInput {
   readonly tone: CallerTurnTone;
   readonly initiative: boolean;
   readonly freshFactIds: readonly string[];
-  readonly allowedFactIds: readonly string[];
-  readonly recentTurns: readonly DialogueTurn[];
+  readonly focusFactIds: readonly string[];
 }
 
 const BASE_DELAY_MS: Record<CallerReactionAct, number> = {
@@ -47,8 +46,56 @@ const stableHash = (value: string): number => {
   return hash >>> 0;
 };
 
-const hasPreviousCallerTurn = (turns: readonly DialogueTurn[]): boolean =>
-  turns.some((turn) => turn.role === "caller");
+const REPEAT_WORD_STEMS = ["повтор", "снова", "расслыш"] as const;
+const REPEAT_PHRASES = [
+  "еще раз",
+  "плохо слыш",
+  "что вы сказали",
+] as const;
+
+const QUESTION_WORD_STEMS = [
+  "кто",
+  "что",
+  "где",
+  "куда",
+  "откуда",
+  "когда",
+  "почему",
+  "зачем",
+  "как",
+  "како",
+  "сколько",
+  "назов",
+  "скаж",
+  "уточн",
+] as const;
+
+const normalizedWords = (text: string): readonly string[] =>
+  normalizeForMatching(text).split(" ").filter(Boolean);
+
+export const isExplicitRepeatRequest = (operatorText: string): boolean => {
+  const normalized = normalizeForMatching(operatorText);
+  const words = normalizedWords(operatorText);
+
+  return (
+    REPEAT_PHRASES.some((phrase) => normalized.includes(phrase)) ||
+    words.some((word) =>
+      REPEAT_WORD_STEMS.some((stem) => word.startsWith(stem)),
+    )
+  );
+};
+
+const isQuestionOrRequest = (operatorText: string): boolean => {
+  const normalized = normalizeForMatching(operatorText);
+
+  return (
+    operatorText.includes("?") ||
+    normalized.includes("есть ли") ||
+    normalizedWords(operatorText).some((word) =>
+      QUESTION_WORD_STEMS.some((stem) => word.startsWith(stem)),
+    )
+  );
+};
 
 const selectReactionAct = (
   input: PlanCallerTurnInput,
@@ -63,9 +110,7 @@ const selectReactionAct = (
   }
 
   if (input.initiative) {
-    return hasPreviousCallerTurn(input.recentTurns)
-      ? "repeat"
-      : "emotional-reaction";
+    return "emotional-reaction";
   }
 
   const wordCount = input.operatorText.trim().split(/\s+/u).length;
@@ -74,7 +119,11 @@ const selectReactionAct = (
     return "panic-refusal";
   }
 
-  if (input.freshFactIds.length > 0) {
+  if (isExplicitRepeatRequest(input.operatorText)) {
+    return "repeat";
+  }
+
+  if (input.freshFactIds.length > 0 || input.focusFactIds.length > 0) {
     if (input.callerTurns > 1 && variation % 11 === 0) {
       return "self-correct";
     }
@@ -86,8 +135,14 @@ const selectReactionAct = (
     return "answer";
   }
 
-  return input.allowedFactIds.length > 0 ? "repeat" : "clarify";
+  return isQuestionOrRequest(input.operatorText) ? "clarify" : "acknowledge";
 };
+
+const actsWithoutFacts = new Set<CallerReactionAct>([
+  "clarify",
+  "emotional-reaction",
+  "panic-refusal",
+]);
 
 /**
  * Строит план следующего хода без участия LLM. Один и тот же снимок звонка и
@@ -108,7 +163,13 @@ export const planCallerTurn = (input: PlanCallerTurnInput): CallerTurnPlan => {
     MAXIMUM_DELAY_MS,
   );
 
-  return { reactionAct, minimumResponseDelayMs };
+  return {
+    reactionAct,
+    focusFactIds: actsWithoutFacts.has(reactionAct)
+      ? []
+      : [...input.focusFactIds],
+    minimumResponseDelayMs,
+  };
 };
 
 /** После снятия трубки паникующий заявитель начинает говорить чуть быстрее. */

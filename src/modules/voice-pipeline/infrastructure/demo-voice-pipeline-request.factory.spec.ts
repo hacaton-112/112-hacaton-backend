@@ -44,7 +44,7 @@ describe("createDemoVoicePipelineRequest", () => {
       },
       voice: {
         voiceId: "Vivian",
-        gender: "male",
+        gender: "female",
         emotion: "panic",
         intensity: 0.75,
         speechRate: 1.15,

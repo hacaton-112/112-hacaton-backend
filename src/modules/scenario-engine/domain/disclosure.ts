@@ -165,11 +165,24 @@ export const selectAllowedFacts = (
         !context.revealedKeys.includes(fact.key) &&
         isFactAvailable(fact.disclosure, context),
     )
-    // Приоритет решает, кого назвать первым, когда условие выполнено сразу у
-    // нескольких: без явного порядка выбор зависел бы от порядка строк в базе.
+    // Прямой ответ на текущий вопрос важнее фонового immediate-факта. Иначе
+    // при малом бюджете паники вопрос об адресе снова получал описание пожара.
+    // Приоритет и порядок остаются стабильным tie-breaker.
     .sort(
-      (left, right) =>
-        right.priority - left.priority || left.orderIndex - right.orderIndex,
+      (left, right) => {
+        const leftAnswersQuestion =
+          left.disclosure.type === "on_question" &&
+          matchesKeywords(context.operatorText, left.disclosure.keywords);
+        const rightAnswersQuestion =
+          right.disclosure.type === "on_question" &&
+          matchesKeywords(context.operatorText, right.disclosure.keywords);
+
+        return (
+          Number(rightAnswersQuestion) - Number(leftAnswersQuestion) ||
+          right.priority - left.priority ||
+          left.orderIndex - right.orderIndex
+        );
+      },
     )
     .slice(0, Math.max(budget, 0));
 

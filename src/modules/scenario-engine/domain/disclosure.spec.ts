@@ -180,6 +180,24 @@ describe("selectAllowedFacts", () => {
     expect(allowed.fresh).toEqual(["address_street", "smoke"]);
   });
 
+  it("prefers a direct answer over a higher-priority background fact", () => {
+    const allowed = selectAllowedFacts(
+      [
+        fact({ key: "incident_type", priority: 10, orderIndex: 0 }),
+        fact({
+          key: "address_street",
+          priority: 1,
+          orderIndex: 1,
+          disclosure: { type: "on_question", keywords: ["адрес"] },
+        }),
+      ],
+      context({ operatorText: "Назовите адрес" }),
+      1,
+    );
+
+    expect(allowed.fresh).toEqual(["address_street"]);
+  });
+
   it("always keeps already revealed facts available for repetition", () => {
     // On the upper steps the caller mostly repeats himself; the model may only
     // do that if those facts stay in the allowed set.

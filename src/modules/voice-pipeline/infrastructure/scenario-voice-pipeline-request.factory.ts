@@ -44,6 +44,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         scenarioVersionId: built.scenarioVersionId,
         operatorText: command.operatorText,
         context: built.context,
+        fallbackReply: built.fallbackReply,
       },
       // Звучание задаёт сценарий; клиент может подменить только сам голос и
       // только осознанно, для отладки.
@@ -59,6 +60,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     sessionId,
     operatorText,
     reply,
+    generation,
     initiative,
   }: RecordCallerReplyOptions): Promise<void> {
     await this.engine.applyCallerReply({
@@ -69,6 +71,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       eventId: requestId,
       operatorText,
       reply,
+      generation,
     });
   }
 }

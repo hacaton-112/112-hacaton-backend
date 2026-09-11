@@ -77,6 +77,18 @@ export const CallerTurnPlanSchema = z
   .object({
     reactionAct: CallerReactionActSchema,
     /**
+     * Факты, на которых должна быть сосредоточена именно эта реплика. Поле
+     * опционально для старых диагностических клиентов; Scenario Engine всегда
+     * передаёт его явно.
+     */
+    focusFactIds: z
+      .array(FactIdSchema)
+      .max(MAX_ALLOWED_FACTS)
+      .refine((factIds) => uniqueBy(factIds, (factId) => factId), {
+        message: "Focused fact IDs must be unique",
+      })
+      .optional(),
+    /**
      * Минимальная пауза от конца реплики оператора до запуска TTS. Если LLM
      * уже думала дольше, искусственная задержка не добавляется.
      */
@@ -106,32 +118,6 @@ export const CallerPersonaSchema = z
   })
   .strict();
 
-export const GenerationContextSchema = z
-  .object({
-    persona: CallerPersonaSchema,
-    allowedFacts: z
-      .array(ScenarioFactSchema)
-      .max(MAX_ALLOWED_FACTS)
-      .refine((facts) => uniqueBy(facts, ({ id }) => id), {
-        message: "Fact IDs must be unique",
-      }),
-    recentTurns: z.array(DialogueTurnSchema).max(MAX_RECENT_TURNS),
-    // Поле опционально для совместимости с диагностическими клиентами старой
-    // версии. Настоящий Scenario Engine всегда его заполняет.
-    turnPlan: CallerTurnPlanSchema.optional(),
-  })
-  .strict();
-
-export const GenerateCallerReplyRequestSchema = z
-  .object({
-    requestId: AiIdentifierSchema,
-    sessionId: AiIdentifierSchema,
-    scenarioVersionId: AiIdentifierSchema,
-    operatorText: z.string().trim().min(1).max(MAX_OPERATOR_TEXT_LENGTH),
-    context: GenerationContextSchema,
-  })
-  .strict();
-
 export const CallerReplySchema = z
   .object({
     text: CallerReplyTextSchema,
@@ -147,6 +133,62 @@ export const CallerReplySchema = z
     endCall: z.boolean(),
   })
   .strict();
+
+export const GenerationContextSchema = z
+  .object({
+    persona: CallerPersonaSchema,
+    allowedFacts: z
+      .array(ScenarioFactSchema)
+      .max(MAX_ALLOWED_FACTS)
+      .refine((facts) => uniqueBy(facts, ({ id }) => id), {
+        message: "Fact IDs must be unique",
+      }),
+    recentTurns: z.array(DialogueTurnSchema).max(MAX_RECENT_TURNS),
+    // Поле опционально для совместимости с диагностическими клиентами старой
+    // версии. Настоящий Scenario Engine всегда его заполняет.
+    turnPlan: CallerTurnPlanSchema.optional(),
+  })
+  .strict()
+  .superRefine((context, refinement) => {
+    const allowedFactIds = new Set(context.allowedFacts.map(({ id }) => id));
+
+    for (const factId of context.turnPlan?.focusFactIds ?? []) {
+      if (!allowedFactIds.has(factId)) {
+        refinement.addIssue({
+          code: "custom",
+          path: ["turnPlan", "focusFactIds"],
+          message: `Focused fact is not allowed on this turn: ${factId}`,
+        });
+      }
+    }
+  });
+
+export const GenerateCallerReplyRequestSchema = z
+  .object({
+    requestId: AiIdentifierSchema,
+    sessionId: AiIdentifierSchema,
+    scenarioVersionId: AiIdentifierSchema,
+    operatorText: z.string().trim().min(1).max(MAX_OPERATOR_TEXT_LENGTH),
+    context: GenerationContextSchema,
+    /** Безопасная реплика от Scenario Engine на случай двух ошибок модели. */
+    fallbackReply: CallerReplySchema.optional(),
+  })
+  .strict()
+  .superRefine((request, refinement) => {
+    const allowedFactIds = new Set(
+      request.context.allowedFacts.map(({ id }) => id),
+    );
+
+    for (const factId of request.fallbackReply?.revealedFactIds ?? []) {
+      if (!allowedFactIds.has(factId)) {
+        refinement.addIssue({
+          code: "custom",
+          path: ["fallbackReply", "revealedFactIds"],
+          message: `Fallback fact is not allowed on this turn: ${factId}`,
+        });
+      }
+    }
+  });
 
 export const LlmStreamEventSchema = z.discriminatedUnion("type", [
   z

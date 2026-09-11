@@ -55,7 +55,9 @@ export const createDemoVoicePipelineRequest = (
     },
     voice: {
       voiceId: command.voiceId ?? DEFAULT_DEMO_VOICE_ID,
-      gender: "male",
+      // Vivian — женский CustomVoice; противоречивый gender в инструкции
+      // провоцировал модель менять голос между репликами демо-звонка.
+      gender: "female",
       emotion: "panic",
       intensity: 0.75,
       speechRate: 1.15,

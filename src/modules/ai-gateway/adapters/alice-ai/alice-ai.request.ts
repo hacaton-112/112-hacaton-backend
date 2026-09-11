@@ -20,8 +20,9 @@ export const ALICE_AI_SYSTEM_PROMPT = [
   // Иначе заявитель продолжает свой рассказ, не замечая ни вопроса, ни того,
   // что оператор ему только что сказал.
   "Сначала ответь на последнюю реплику оператора и только потом добавь не больше одной новой подробности.",
+  "allowedFacts уже отобраны Scenario Engine именно для текущего хода. Не пересказывай другие известные подробности и не повторяй недавнюю реплику, если turnPlan не требует repeat.",
   "Поле turnPlan задаёт обязательный тип реакции на этот ход; следуй его instruction, но не произноси название типа вслух.",
-  "Говори так, как описано в persona: длина фразы, повторы и обрывки — часть роли, а не небрежность.",
+  "Говори так, как описано в persona: допустимы обрывки и повторы отдельных слов внутри новой реплики. Полностью повторяй недавнюю реплику только при reactionAct repeat.",
 ].join(" ");
 
 export const REACTION_ACT_INSTRUCTIONS: Record<CallerReactionAct, string> = {
@@ -138,6 +139,7 @@ export const buildAliceAiRequest = (
       : {
           turnPlan: {
             reactionAct: turnPlan.reactionAct,
+            focusFactIds: turnPlan.focusFactIds ?? [],
             instruction: REACTION_ACT_INSTRUCTIONS[turnPlan.reactionAct],
           },
         }),

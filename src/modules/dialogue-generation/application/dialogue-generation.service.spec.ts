@@ -135,6 +135,26 @@ describe(DialogueGenerationService.name, () => {
     });
   });
 
+  it("uses the situational fallback supplied by Scenario Engine", async () => {
+    const llmPort = new FakeLlmPort([
+      () => replyStream("{"),
+      () => replyStream("{"),
+    ]);
+    const fallbackReply = {
+      ...validReply,
+      text: "Улица Учебная, дом 12.",
+      revealedFactIds: ["fire_location"],
+    };
+
+    const result = await createService(llmPort).generate(
+      { ...validRequest, fallbackReply },
+      new AbortController().signal,
+    );
+
+    expect(result.reply).toEqual(fallbackReply);
+    expect(result.source).toBe("fallback");
+  });
+
   it("returns the fallback after two provider errors", async () => {
     const llmPort = new FakeLlmPort([failedStream, failedStream]);
 

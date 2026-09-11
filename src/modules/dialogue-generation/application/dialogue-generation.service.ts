@@ -105,7 +105,7 @@ export class DialogueGenerationService {
     }
 
     return DialogueGenerationResultSchema.parse({
-      reply: DEFAULT_FALLBACK_CALLER_REPLY,
+      reply: request.fallbackReply ?? DEFAULT_FALLBACK_CALLER_REPLY,
       source: "fallback",
       attempts,
     });

@@ -6,7 +6,10 @@ import type {
   ScenarioStore,
   ScenarioVersionSnapshot,
 } from "../ports/scenario-store.port";
-import { ScenarioEngineService } from "./scenario-engine.service";
+import {
+  INITIATIVE_OPERATOR_TEXT,
+  ScenarioEngineService,
+} from "./scenario-engine.service";
 
 const NOW = new Date("2026-09-08T10:00:00.000Z");
 const secondsAfter = (seconds: number): Date =>
@@ -364,7 +367,9 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
       operatorText: "Назовите адрес",
     });
 
-    expect(built.context.allowedFacts).toHaveLength(1);
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "address_street",
+    ]);
   });
 
   it("describes the state in words rather than as a number", async () => {
@@ -394,8 +399,98 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     expect(first.context.turnPlan).toEqual(repeated.context.turnPlan);
     expect(first.context.turnPlan).toMatchObject({
       reactionAct: expect.any(String),
+      focusFactIds: ["address_street"],
       minimumResponseDelayMs: expect.any(Number),
     });
+  });
+
+  it("answers a repeated address question without retelling the incident", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 4,
+          revealedFactKeys: [
+            "incident_type",
+            "trapped_children",
+            "address_street",
+          ],
+        }),
+      ),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Повторите адрес, пожалуйста.",
+    });
+
+    expect(built.context.turnPlan).toMatchObject({
+      reactionAct: "repeat",
+      focusFactIds: ["address_street"],
+    });
+    expect(built.context.allowedFacts).toEqual([
+      { id: "address_street", value: "Улица Учебная, дом 12." },
+    ]);
+    expect(built.fallbackReply).toMatchObject({
+      text: "Улица Учебная, дом 12.",
+      revealedFactIds: ["address_street"],
+    });
+  });
+
+  it("clarifies an unknown question without repeating revealed facts", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 4,
+          revealedFactKeys: [
+            "incident_type",
+            "trapped_children",
+            "address_street",
+          ],
+        }),
+      ),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Как зовут пострадавшего?",
+    });
+
+    expect(built.context.turnPlan).toMatchObject({
+      reactionAct: "clarify",
+      focusFactIds: [],
+    });
+    expect(built.context.allowedFacts).toEqual([]);
+    expect(built.fallbackReply.text).toBe(
+      "Спросите, пожалуйста, конкретнее.",
+    );
+  });
+
+  it("uses a silence-specific initiative instead of repeating the last fact", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 4,
+          revealedFactKeys: [
+            "incident_type",
+            "trapped_children",
+            "address_street",
+          ],
+        }),
+      ),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: INITIATIVE_OPERATOR_TEXT,
+      initiative: true,
+    });
+
+    expect(built.context.turnPlan).toMatchObject({
+      reactionAct: "emotional-reaction",
+      focusFactIds: [],
+    });
+    expect(built.context.allowedFacts).toEqual([]);
+    expect(built.fallbackReply.text).toBe("Алло? Ответьте мне, пожалуйста!");
   });
 });
 
@@ -419,6 +514,39 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
     expect(snapshot.revealedFactKeys).toEqual(["incident_type"]);
     expect(snapshot.checklistTotal).toBe(2);
     expect(snapshot.checklistSatisfied).toBe(0);
+  });
+
+  it("records model or fallback provenance in the call journal", async () => {
+    const { engine, store } = createEngine();
+
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Что случилось?",
+      reply: reply({ revealedFactIds: ["incident_type"] }),
+      generation: {
+        source: "fallback",
+        attempts: [
+          {
+            attempt: 1,
+            timeToFirstTokenMs: null,
+            durationMs: 20,
+            outcome: "provider-error",
+          },
+        ],
+      },
+      now: NOW,
+    });
+
+    const events = store.appendTurn.mock.calls[0]?.[2] as {
+      type: string;
+      payload?: Record<string, unknown>;
+    }[];
+    expect(events.find(({ type }) => type === "caller.reply")?.payload).toEqual(
+      expect.objectContaining({
+        generation: expect.objectContaining({ source: "fallback" }),
+      }),
+    );
   });
 
   it("rejects a reply that reveals a fact the scenario did not allow", async () => {
