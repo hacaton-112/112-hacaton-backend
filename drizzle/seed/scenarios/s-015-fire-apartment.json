@@ -286,9 +286,9 @@
       },
       {
         "field": "category",
-        "expectedValue": "fire",
-        "acceptableValues": ["пожар"],
-        "comparison": "exact",
+        "expectedValue": "пожар",
+        "acceptableValues": ["возгорание", "задымление", "fire"],
+        "comparison": "contains",
         "isRequired": true,
         "sourceFactKey": "incident_type"
       },
