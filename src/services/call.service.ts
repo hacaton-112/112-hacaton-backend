@@ -7,6 +7,10 @@ import {
   type CallServerEvent,
 } from "../contracts/call";
 import { ipc } from "../lib/ipc";
+import {
+  CallerAudioJitterBuffer,
+  type ScheduledCallerAudio,
+} from "./caller-audio-jitter-buffer";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
@@ -30,8 +34,8 @@ export interface CallStream {
  */
 class NativeCallStream implements CallStream {
   private readonly callbacks: CallStreamCallbacks;
+  private readonly callerAudio: CallerAudioJitterBuffer;
   private audioContext?: AudioContext;
-  private nextStartTime = 0;
   private sampleRate = 24_000;
   private connection: string | null = null;
   private disposed = false;
@@ -40,6 +44,13 @@ class NativeCallStream implements CallStream {
 
   constructor(callbacks: CallStreamCallbacks) {
     this.callbacks = callbacks;
+    this.callerAudio = new CallerAudioJitterBuffer({
+      scheduler: {
+        currentTime: () => this.ensureAudioContext().currentTime,
+        schedule: (pcm, sampleRate, startAt) =>
+          this.schedulePcmChunk(pcm, sampleRate, startAt),
+      },
+    });
   }
 
   async connect(token: string): Promise<void> {
@@ -47,7 +58,7 @@ class NativeCallStream implements CallStream {
     events.onmessage = (payload) => this.handleEvent(payload);
 
     const audio = new Channel<ArrayBuffer>();
-    audio.onmessage = (chunk) => this.playPcmChunk(chunk);
+    audio.onmessage = (chunk) => this.callerAudio.push(chunk);
 
     try {
       this.connection = await ipc.call.connect({
@@ -128,6 +139,7 @@ class NativeCallStream implements CallStream {
       }
     }).catch(() => undefined);
 
+    this.callerAudio.reset();
     await this.audioContext?.close().catch(() => undefined);
     this.audioContext = undefined;
   }
@@ -166,7 +178,16 @@ class NativeCallStream implements CallStream {
 
     if (parsed.data.type === "audio.start") {
       this.sampleRate = parsed.data.sampleRate;
-      this.nextStartTime = this.ensureAudioContext().currentTime;
+      this.callerAudio.begin(this.sampleRate);
+    } else if (parsed.data.type === "audio.done") {
+      this.callerAudio.finish();
+    } else if (
+      parsed.data.type === "request.cancelled" ||
+      parsed.data.type === "call.ended" ||
+      parsed.data.type === "socket.closed" ||
+      parsed.data.type === "socket.error"
+    ) {
+      this.callerAudio.reset();
     }
 
     this.callbacks.onEvent(parsed.data);
@@ -177,15 +198,13 @@ class NativeCallStream implements CallStream {
     return this.audioContext;
   }
 
-  private playPcmChunk(buffer: ArrayBuffer): void {
-    if (this.disposed) return;
-
+  private schedulePcmChunk(
+    pcm16: Int16Array,
+    sampleRate: number,
+    startAt: number,
+  ): ScheduledCallerAudio {
     const context = this.ensureAudioContext();
-    const pcm16 = new Int16Array(buffer);
-
-    if (pcm16.length === 0) return;
-
-    const audioBuffer = context.createBuffer(1, pcm16.length, this.sampleRate);
+    const audioBuffer = context.createBuffer(1, pcm16.length, sampleRate);
     const channel = audioBuffer.getChannelData(0);
 
     for (let index = 0; index < pcm16.length; index += 1) {
@@ -195,10 +214,11 @@ class NativeCallStream implements CallStream {
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(context.destination);
-
-    const startAt = Math.max(this.nextStartTime, context.currentTime);
     source.start(startAt);
-    this.nextStartTime = startAt + audioBuffer.duration;
+
+    return {
+      stop: () => source.stop(),
+    };
   }
 
   private toError = (reason: unknown): Error =>
