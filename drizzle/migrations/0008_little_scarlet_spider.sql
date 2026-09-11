@@ -1,0 +1,1 @@
+ALTER TABLE "scenario_facts" ADD COLUMN "content_keywords" text[] DEFAULT '{}' NOT NULL;

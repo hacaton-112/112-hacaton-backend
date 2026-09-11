@@ -299,6 +299,14 @@ export const scenarioFacts = pgTable(
     severity: factSeverity("severity").notNull().default("normal"),
     cardField: incidentCardField("card_field"),
     cardValue: text("card_value"),
+    /**
+     * Слова, по которым слышно, что факт прозвучал.
+     *
+     * Модель называет раскрытые факты сама, но регулярно забывает это сделать,
+     * и тогда сказанное вслух не попадает в журнал. Ключевые слова пишет автор
+     * сценария, поэтому проверка остаётся детерминированной.
+     */
+    contentKeywords: text("content_keywords").array().notNull().default([]),
     /** Размеченный union условия раскрытия. */
     disclosure: jsonb("disclosure").$type<Record<string, unknown>>().notNull(),
     /** Кого выбрать, когда условий выполнено больше, чем бюджет хода. */
