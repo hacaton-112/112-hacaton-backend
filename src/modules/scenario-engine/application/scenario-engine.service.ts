@@ -336,6 +336,7 @@ export class ScenarioEngineService {
     const tone = this.operatorTone(version, matchedText);
     const focusCandidates = this.focusFacts(
       state,
+      version,
       allowed.facts,
       allowed.fresh,
       matchedText,
@@ -771,6 +772,7 @@ export class ScenarioEngineService {
   /** Выбирает содержание одного ответа, а не всю накопленную память звонка. */
   private focusFacts(
     state: CallStateSnapshot,
+    version: ScenarioVersionSnapshot,
     allowedFacts: readonly ScenarioFact[],
     freshFactIds: readonly string[],
     operatorText: string,
@@ -780,20 +782,36 @@ export class ScenarioEngineService {
       return [];
     }
 
-    // Отвечает ли факт на заданный вопрос: либо по словам, которыми автор
-    // сценария открыл его для вопроса, либо по словам, которыми он описан.
-    // Второе важно для фактов без `on_question`: код домофона и состояние
-    // детей открываются по другим условиям, но спрашивают о них словами
-    // «домофон» и «дышат», и без этого они не находились никогда.
-    const directAnswers = allowedFacts.filter(
-      (fact) =>
-        (fact.disclosure.type === "on_question" &&
-          matchesKeywords(operatorText, fact.disclosure.keywords)) ||
-        carriesFactContent(operatorText, fact.contentKeywords),
+    // О чём вопрос: слова факта описывают его содержание, поэтому по ним
+    // вопрос узнаётся точнее, чем по списку, который автор привязал к
+    // раскрытию. «Они дышат?» находит состояние детей, хотя оно открывается
+    // не вопросом, а другим фактом.
+    const aboutQuestion = version.facts.filter((fact) =>
+      carriesFactContent(operatorText, fact.contentKeywords),
+    );
+    const answersQuestion = aboutQuestion.filter((fact) =>
+      allowedFacts.includes(fact),
     );
 
-    if (directAnswers.length > 0) {
-      return directAnswers;
+    if (answersQuestion.length > 0) {
+      return answersQuestion;
+    }
+
+    // Спросили ровно о том, что сценарий пока держит закрытым. Подставить
+    // вместо этого другой факт — худший из ответов: на «код домофона какой?»
+    // заявитель сообщал номер дома, потому что «дом» нашлось в «домофона».
+    if (aboutQuestion.length > 0) {
+      return [];
+    }
+
+    const askedFor = allowedFacts.filter(
+      (fact) =>
+        fact.disclosure.type === "on_question" &&
+        matchesKeywords(operatorText, fact.disclosure.keywords),
+    );
+
+    if (askedFor.length > 0) {
+      return askedFor;
     }
 
     // Прямого ответа у сценария нет. Факт, только что ставший доступным, — это
@@ -801,7 +819,9 @@ export class ScenarioEngineService {
     // рассказывал про состояние детей, потому что тот факт открылся этим
     // ходом. На точный вопрос свежесть отвечать не вправе — а на открытый
     // «что случилось?» заявитель, наоборот, выкладывает главное.
-    if (isQuestionOrRequest(operatorText) && !isOpenQuestion(operatorText)) {
+    const openQuestion = isOpenQuestion(operatorText);
+
+    if (isQuestionOrRequest(operatorText) && !openQuestion) {
       return [];
     }
 
@@ -813,17 +833,37 @@ export class ScenarioEngineService {
       return freshFacts;
     }
 
-    if (!isExplicitRepeatRequest(operatorText)) {
+    // «Что случилось?» после того, как заявитель это уже прокричал в первой
+    // реплике: нового у него нет, но и молчать о главном он не станет —
+    // повторяет самое важное из уже сказанного.
+    if (!openQuestion && !isExplicitRepeatRequest(operatorText)) {
       return [];
+    }
+
+    const revealed = allowedFacts.filter((fact) =>
+      state.revealedFactKeys.includes(fact.key),
+    );
+
+    if (revealed.length === 0) {
+      return [];
+    }
+
+    if (openQuestion) {
+      const mostImportant = [...revealed].sort(
+        (left, right) =>
+          right.priority - left.priority || left.orderIndex - right.orderIndex,
+      )[0];
+
+      return mostImportant === undefined ? [] : [mostImportant];
     }
 
     const lastRevealedKey = [...state.revealedFactKeys]
       .reverse()
-      .find((key) => allowedFacts.some((fact) => fact.key === key));
+      .find((key) => revealed.some((fact) => fact.key === key));
 
     return lastRevealedKey === undefined
       ? []
-      : allowedFacts.filter((fact) => fact.key === lastRevealedKey);
+      : revealed.filter((fact) => fact.key === lastRevealedKey);
   }
 
   /**

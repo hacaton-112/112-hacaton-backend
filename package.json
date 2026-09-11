@@ -31,6 +31,7 @@
     "tts:cuda:stop": "docker compose --profile tts-cuda stop qwen-tts",
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
+    "audit:dialogue": "bun --env-file=.env test/manual/dialogue-audit.ts",
     "smoke:auth-refresh": "bun --env-file=.env test/manual/refresh-rotation.smoke.ts",
     "load:calls": "bun --env-file=.env test/manual/call-load.runner.ts",
     "user:create": "bun --env-file=.env test/manual/create-user.ts",

@@ -376,6 +376,67 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("says nothing rather than substituting another fact for the one asked about", async () => {
+    const { engine } = createEngine({
+      loadVersion: jest.fn().mockResolvedValue(
+        version({
+          facts: [
+            {
+              key: "address_house",
+              promptValue: "Дом двенадцать.",
+              severity: "normal",
+              disclosure: { type: "on_question", keywords: ["дом"] },
+              contentKeywords: ["двенадцат"],
+              priority: 5,
+              orderIndex: 0,
+            },
+            {
+              key: "door_code",
+              promptValue: "Код домофона один-К-сорок пять.",
+              severity: "normal",
+              disclosure: { type: "below_panic", level: 1 },
+              contentKeywords: ["домофон", "код"],
+              priority: 1,
+              orderIndex: 1,
+            },
+          ],
+        }),
+      ),
+    });
+
+    // «дом» is found inside «домофона», so the caller used to answer the
+    // intercom question with a house number. The scenario is holding the code
+    // back at this step of panic, and no answer beats the wrong one.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Код домофона какой?",
+    });
+
+    expect(built.context.allowedFacts).toEqual([]);
+  });
+
+  it("returns to the main news when the operator asks openly", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 4,
+          // Everything the scenario opens so far has been told, so nothing is
+          // fresh and the caller has to return to what matters most.
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Служба 112, что случилось?",
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "incident_type",
+    ]);
+  });
+
   it("tells the model what the caller has already said", async () => {
     const { engine } = createEngine({
       loadCall: jest.fn().mockResolvedValue(
