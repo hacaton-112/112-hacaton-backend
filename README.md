@@ -300,6 +300,76 @@ QWEN_TTS_REFERENCE_VOICES_PATH=/tmp/system112-dylan/reference-voices.json
 перезапуска backend тот же `Dylan` в сценарии становится ключом синтетического
 ICL-профиля, а не именем встроенного диктора.
 
+### Серверный запуск с NVIDIA CUDA
+
+Целевой серверный runtime — официальный образ
+`vllm/vllm-omni:v0.28.0` с моделью `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
+Сервис находится в опциональном Compose-профиле `tts-cuda`, резервирует одну
+NVIDIA GPU, использует CUDA внутри контейнера и сохраняет скачанные веса в
+именованном Docker volume. Обычный `docker compose up` этот профиль не запускает.
+
+На сервере нужны Linux, NVIDIA driver, Docker Engine с Compose и NVIDIA
+Container Toolkit. Сначала проверьте, что `nvidia-smi` работает на хосте, затем:
+
+```bash
+bun run tts:cuda:config
+bun run tts:cuda:up
+bun run tts:cuda:gpu
+docker compose --profile tts-cuda ps qwen-tts
+```
+
+Первый запуск скачивает модель и может занимать несколько минут. До окончания
+загрузки healthcheck показывает `starting`; прогресс доступен через
+`bun run tts:cuda:logs`. Готовность API проверяется без генерации аудио:
+
+```bash
+curl --fail http://127.0.0.1:8091/health
+```
+
+Backend на том же сервере настраивается так:
+
+```dotenv
+QWEN_TTS_PROVIDER=vllm-omni
+QWEN_TTS_MODE=base-icl
+QWEN_TTS_BASE_URL=http://127.0.0.1:8091
+QWEN_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-Base
+QWEN_TTS_REFERENCE_VOICES_PATH=/absolute/path/to/reference-voices.json
+```
+
+Если синтетического референса ещё нет, его можно один раз подготовить на том же
+CUDA-сервере. Сначала временно задайте в `.env`:
+
+```dotenv
+QWEN_TTS_CUDA_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+QWEN_TTS_PROVIDER=vllm-omni
+QWEN_TTS_MODE=custom-voice
+QWEN_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+QWEN_TTS_BASE_URL=http://127.0.0.1:8091
+```
+
+Пересоздайте контейнер и сгенерируйте референс:
+
+```bash
+docker compose --profile tts-cuda up -d --force-recreate qwen-tts
+bun run prepare:tts-reference -- \
+  --output=var/tts-reference/dylan \
+  --voice=Dylan \
+  --gender=male
+```
+
+Прослушайте созданный WAV. Затем верните обе настройки модели на
+`Qwen/Qwen3-TTS-12Hz-1.7B-Base`, включите `base-icl`, укажите абсолютный путь к
+`var/tts-reference/dylan/reference-voices.json` и ещё раз пересоздайте контейнер.
+Каталог референсов исключён из Git.
+
+После перезапуска backend выполните `bun run diagnose:tts`. Манифест диагностики
+фиксирует provider, режим и SHA-256 референса, но не копирует reference audio.
+
+API vLLM-Omni не имеет авторизации проекта и по умолчанию привязан только к
+`127.0.0.1`. Если GPU runtime и backend находятся на разных хостах, задайте
+`QWEN_TTS_CUDA_BIND_ADDRESS` адресом приватной сети и ограничьте порт 8091
+сетевым firewall; публиковать его напрямую в интернет нельзя.
+
 ## Структура
 
 ```text

@@ -1,4 +1,53 @@
 services:
+  # Серверный Qwen3-TTS runtime. Профиль не включается обычным `compose up`,
+  # потому что требует Linux, NVIDIA Container Toolkit и доступную CUDA GPU.
+  qwen-tts:
+    profiles: ["tts-cuda"]
+    image: ${QWEN_TTS_CUDA_IMAGE:-vllm/vllm-omni:v0.28.0}
+    container_name: system-112-training-qwen-tts
+    restart: unless-stopped
+    init: true
+    ipc: host
+    command:
+      - vllm
+      - serve
+      - ${QWEN_TTS_CUDA_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-Base}
+      - --deploy-config
+      - /app/vllm-omni/vllm_omni/deploy/qwen3_tts.yaml
+      - --omni
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8091"
+      - --trust-remote-code
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    ports:
+      # Speech API не имеет прикладной авторизации: наружу его по умолчанию
+      # не публикуем. Для отдельного GPU-хоста задайте адрес приватной сети.
+      - "${QWEN_TTS_CUDA_BIND_ADDRESS:-127.0.0.1}:${QWEN_TTS_CUDA_PORT:-8091}:8091"
+    volumes:
+      - qwen_tts_hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=5)
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 20m
+    stop_grace_period: 2m
+
   postgres:
     image: postgres:17-alpine
     container_name: system-112-training-postgres
@@ -73,6 +122,7 @@ services:
       postgres:
         condition: service_healthy
 volumes:
+  qwen_tts_hf_cache:
   postgres_data:
   pgadmin-data:
   minio_data:
