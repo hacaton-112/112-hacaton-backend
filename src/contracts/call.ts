@@ -26,6 +26,8 @@ export const CallLocatorSchema = z.object({
 });
 
 const SnapshotShape = {
+  /** Учебная сессия звонка: по ней адресуются карточка и разбор. */
+  sessionId: z.string(),
   stage: CallStageSchema,
   panicLevel: PanicLevelSchema,
   checklistTotal: z.number().int(),

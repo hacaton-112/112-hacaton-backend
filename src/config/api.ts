@@ -12,5 +12,12 @@ export const API_CONFIG = {
   getLogoutUrl: () => `${API_BASE_URL}/auth/logout`,
   getCurrentUserUrl: () => `${API_BASE_URL}/auth/me`,
   getScenariosUrl: () => `${API_BASE_URL}/scenarios`,
+  getCallsUrl: () => `${API_BASE_URL}/calls`,
+  getIncidentCardUrl: (trainingSessionId: string) =>
+    `${API_BASE_URL}/calls/${trainingSessionId}/incident-card`,
+  getDebriefUrl: (trainingSessionId: string) =>
+    `${API_BASE_URL}/calls/${trainingSessionId}/debrief`,
+  getRecordingUrl: (trainingSessionId: string, index: number) =>
+    `${API_BASE_URL}/calls/${trainingSessionId}/recording/${index}`,
   getVoicePipelineStreamUrl: () => `${API_WS_BASE_URL}/voice-pipeline/stream`,
 } as const;
