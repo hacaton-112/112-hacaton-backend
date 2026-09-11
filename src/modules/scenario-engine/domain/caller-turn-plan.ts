@@ -85,7 +85,33 @@ export const isExplicitRepeatRequest = (operatorText: string): boolean => {
   );
 };
 
-const isQuestionOrRequest = (operatorText: string): boolean => {
+const OPEN_QUESTION_PHRASES = [
+  "что случилось",
+  "что произошло",
+  "что у вас",
+  "что там",
+  "чем помочь",
+  "слушаю вас",
+  "говорите",
+  "расскажите",
+] as const;
+
+/**
+ * Открытый вопрос — приглашение рассказать, а не спрос о конкретном.
+ *
+ * «Служба 112, что случилось?» звучит в начале каждого звонка, и заявитель
+ * обязан на него выложить главное. Отличать его от точного вопроса нужно
+ * именно потому, что на точный вопрос отвечают точным фактом, а не тем, что
+ * подвернулось.
+ */
+export const isOpenQuestion = (operatorText: string): boolean => {
+  const normalized = normalizeForMatching(operatorText);
+
+  return OPEN_QUESTION_PHRASES.some((phrase) => normalized.includes(phrase));
+};
+
+/** Спросил ли оператор о чём-то, или просто сообщил и поддержал разговор. */
+export const isQuestionOrRequest = (operatorText: string): boolean => {
   const normalized = normalizeForMatching(operatorText);
 
   return (

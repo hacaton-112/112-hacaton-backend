@@ -376,6 +376,46 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("does not answer a specific question with the fact that just opened", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          callerTurns: 3,
+          revealedFactKeys: ["incident_type"],
+        }),
+      ),
+    });
+
+    // Nothing in the scenario says whether the caller himself is safe, and the
+    // children's fact is a different subject: freshness must not hijack a
+    // question that was actually asked.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Вы сейчас в безопасности?",
+    });
+
+    expect(built.context.allowedFacts).toEqual([]);
+  });
+
+  it("answers a question aimed at a fact the scenario opened by another rule", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({ callerTurns: 3, revealedFactKeys: [] }),
+      ),
+    });
+
+    // trapped_children is gated by a question about people, but the operator
+    // asked about children by name; the fact's own words carry the answer.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Дети дома?",
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "trapped_children",
+    ]);
+  });
+
   it("opens a question fact once the operator asks for it", async () => {
     const { engine } = createEngine();
 

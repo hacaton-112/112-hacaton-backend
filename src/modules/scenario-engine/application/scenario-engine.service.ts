@@ -18,6 +18,7 @@ import type {
 } from "@/drizzle/schema";
 
 import {
+  carriesFactContent,
   factsCarriedBy,
   isFactAvailable,
   matchesKeywords,
@@ -26,6 +27,8 @@ import {
 } from "../domain/disclosure";
 import {
   isExplicitRepeatRequest,
+  isOpenQuestion,
+  isQuestionOrRequest,
   planCallerTurn,
   planOpeningDelayMs,
   type CallerTurnTone,
@@ -780,14 +783,29 @@ export class ScenarioEngineService {
       return [];
     }
 
+    // Отвечает ли факт на заданный вопрос: либо по словам, которыми автор
+    // сценария открыл его для вопроса, либо по словам, которыми он описан.
+    // Второе важно для фактов без `on_question`: код домофона и состояние
+    // детей открываются по другим условиям, но спрашивают о них словами
+    // «домофон» и «дышат», и без этого они не находились никогда.
     const directAnswers = allowedFacts.filter(
       (fact) =>
-        fact.disclosure.type === "on_question" &&
-        matchesKeywords(operatorText, fact.disclosure.keywords),
+        (fact.disclosure.type === "on_question" &&
+          matchesKeywords(operatorText, fact.disclosure.keywords)) ||
+        carriesFactContent(operatorText, fact.contentKeywords),
     );
 
     if (directAnswers.length > 0) {
       return directAnswers;
+    }
+
+    // Прямого ответа у сценария нет. Факт, только что ставший доступным, — это
+    // не ответ, а другая тема: на «вы сейчас в безопасности?» заявитель
+    // рассказывал про состояние детей, потому что тот факт открылся этим
+    // ходом. На точный вопрос свежесть отвечать не вправе — а на открытый
+    // «что случилось?» заявитель, наоборот, выкладывает главное.
+    if (isQuestionOrRequest(operatorText) && !isOpenQuestion(operatorText)) {
+      return [];
     }
 
     const freshFacts = allowedFacts.filter((fact) =>
