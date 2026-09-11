@@ -115,6 +115,8 @@ export const DebriefSchema = z
         answerSeconds: z.number().int().nullable(),
         answerNormSeconds: z.number().int(),
         durationSeconds: z.number().int().nullable(),
+        /** Сколько на такой вызов отводит сценарий. */
+        expectedDurationSeconds: z.number().int(),
       })
       .strict(),
     finalPanicLevel: z.number().int().min(0).max(4),

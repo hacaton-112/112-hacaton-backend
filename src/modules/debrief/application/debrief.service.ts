@@ -106,6 +106,7 @@ export class DebriefService {
         answerSeconds: this.answerSeconds(call),
         answerNormSeconds: call.answerNormSeconds,
         durationSeconds: call.durationSeconds,
+        expectedDurationSeconds: call.expectedDurationSeconds,
       },
       finalPanicLevel: call.panicLevel,
       timeline: this.toTimeline(journal, facts, call),

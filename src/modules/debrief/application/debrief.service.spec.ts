@@ -142,6 +142,7 @@ describe(DebriefService.name, () => {
       answerSeconds: 9,
       answerNormSeconds: 240,
       durationSeconds: 240,
+      expectedDurationSeconds: 372,
     });
   });
 
