@@ -1,7 +1,9 @@
 import {
+  carriesFactContent,
   type DisclosureContext,
   type DisclosureRule,
   DisclosureRuleSchema,
+  factsCarriedBy,
   isFactAvailable,
   matchesKeywords,
   normalizeForMatching,
@@ -25,6 +27,7 @@ const fact = (overrides: Partial<ScenarioFact> = {}): ScenarioFact => ({
   promptValue: "Улица Учебная, дом 12.",
   severity: "normal",
   disclosure: { type: "immediate" },
+  contentKeywords: [],
   priority: 0,
   orderIndex: 0,
   ...overrides,
@@ -217,5 +220,60 @@ describe("selectAllowedFacts", () => {
 
     expect(panicking.fresh).not.toContain("door_code");
     expect(calm.fresh).toContain("door_code");
+  });
+});
+
+describe("carriesFactContent", () => {
+  it("counts a word the caller inflected", () => {
+    expect(carriesFactContent("Там двое детей!", ["дет"])).toBe(true);
+  });
+
+  it("does not count a keyword buried inside another word", () => {
+    // «видеть» contains «дет», and counting it would mark the children as
+    // reported by a caller who only said he cannot see anything.
+    expect(carriesFactContent("Я ничего не могу видеть", ["дет"])).toBe(false);
+  });
+
+  it("ignores case, punctuation and the ё distinction", () => {
+    expect(carriesFactContent("ГОРИТ, всё в дыму!", ["горит"])).toBe(true);
+    expect(carriesFactContent("Подъезд — всё в дыму!", ["все в дыму"])).toBe(
+      true,
+    );
+  });
+
+  it("matches a phrase of several words", () => {
+    expect(
+      carriesFactContent("Квартира тридцать четыре", ["тридцать четыр"]),
+    ).toBe(true);
+    expect(carriesFactContent("Тридцать шесть", ["тридцать четыр"])).toBe(
+      false,
+    );
+  });
+
+  it("counts nothing for a fact without authored words", () => {
+    expect(carriesFactContent("Горит квартира", [])).toBe(false);
+  });
+
+  it("counts nothing in an empty reply", () => {
+    expect(carriesFactContent("   ", ["горит"])).toBe(false);
+  });
+});
+
+describe("factsCarriedBy", () => {
+  const spoken: ScenarioFact[] = [
+    fact({ key: "incident_type", contentKeywords: ["горит", "пожар"] }),
+    fact({ key: "trapped_children", contentKeywords: ["дет"] }),
+    fact({ key: "door_code", contentKeywords: ["домофон"] }),
+  ];
+
+  it("returns every fact the reply carries", () => {
+    expect(factsCarriedBy("Горит квартира, там дети!", spoken)).toEqual([
+      "incident_type",
+      "trapped_children",
+    ]);
+  });
+
+  it("returns nothing when the reply carries none of them", () => {
+    expect(factsCarriedBy("Приезжайте скорее!", spoken)).toEqual([]);
   });
 });
