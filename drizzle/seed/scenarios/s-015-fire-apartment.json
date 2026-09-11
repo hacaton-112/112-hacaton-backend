@@ -98,6 +98,14 @@
       "severity": "normal",
       "cardField": "category",
       "cardValue": "fire",
+      "contentKeywords": [
+        "горит",
+        "горел",
+        "пожар",
+        "огонь",
+        "загорел",
+        "возгоран"
+      ],
       "disclosure": {
         "type": "immediate"
       },
@@ -110,6 +118,7 @@
       "severity": "normal",
       "cardField": "street",
       "cardValue": "Учебная",
+      "contentKeywords": ["учебн"],
       "disclosure": {
         "type": "on_question",
         "keywords": ["адрес", "улиц", "где ", "куда ехать"]
@@ -123,6 +132,7 @@
       "severity": "normal",
       "cardField": "house",
       "cardValue": "12",
+      "contentKeywords": ["двенадцат", "дом 12"],
       "disclosure": {
         "type": "on_question",
         "keywords": ["дом", "номер дом", "какой дом", "строен"]
@@ -136,6 +146,7 @@
       "severity": "normal",
       "cardField": "floor",
       "cardValue": "5",
+      "contentKeywords": ["тридцать четыр", "квартира 34"],
       "disclosure": {
         "type": "on_question",
         "keywords": ["этаж", "подъезд", "квартир"]
@@ -149,6 +160,7 @@
       "severity": "heavy",
       "cardField": "children_count",
       "cardValue": "2",
+      "contentKeywords": ["дет", "ребен", "ребят", "двое"],
       "disclosure": {
         "type": "on_question",
         "keywords": ["люди", "внутри", "кто", "дет"]
@@ -162,6 +174,7 @@
       "severity": "heavy",
       "cardField": "victims_condition",
       "cardValue": "В сознании, дым, выход отрезан",
+      "contentKeywords": ["дышат", "дальней комнат", "дверь в коридор"],
       "disclosure": {
         "type": "after_fact",
         "factKeys": ["trapped_children"]
@@ -175,6 +188,7 @@
       "severity": "normal",
       "cardField": "landmarks",
       "cardValue": "Домофон 1К45",
+      "contentKeywords": ["домофон", "код"],
       "disclosure": {
         "type": "below_panic",
         "level": 2
@@ -188,6 +202,7 @@
       "severity": "normal",
       "cardField": "caller_type",
       "cardValue": "Свидетель",
+      "contentKeywords": ["во дворе", "детской площадк", "вижу окна"],
       "disclosure": {
         "type": "on_question",
         "keywords": ["вы где", "сами", "снаружи", "рядом"]
