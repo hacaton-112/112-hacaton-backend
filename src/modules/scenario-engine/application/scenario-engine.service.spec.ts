@@ -50,6 +50,7 @@ const version = (
       promptValue: "Горит квартира на пятом этаже.",
       severity: "normal",
       disclosure: { type: "immediate" },
+      contentKeywords: ["горит", "пожар"],
       priority: 5,
       orderIndex: 0,
     },
@@ -58,6 +59,7 @@ const version = (
       promptValue: "Улица Учебная, дом 12.",
       severity: "normal",
       disclosure: { type: "on_question", keywords: ["адрес", "улиц"] },
+      contentKeywords: ["учебн"],
       priority: 3,
       orderIndex: 1,
     },
@@ -66,6 +68,7 @@ const version = (
       promptValue: "В квартире двое детей.",
       severity: "heavy",
       disclosure: { type: "immediate" },
+      contentKeywords: ["дет"],
       priority: 1,
       orderIndex: 2,
     },
@@ -291,10 +294,39 @@ describe(`${ScenarioEngineService.name} stage transitions`, () => {
       "call.accepted",
       "stage.changed",
       "caller.reply",
+      // Первая фраза уже сказала, что горит: журнал обязан это отразить.
+      "fact.revealed",
     ]);
     expect(patchOf(store)).toMatchObject({
       operatorSilenceSince: null,
       callerTurns: 1,
+    });
+  });
+
+  it("counts what the opening line already told the operator", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ stage: "offered" })),
+      loadVersion: jest.fn().mockResolvedValue(
+        version({
+          openingLine: "Горит квартира на Учебной, там дети!",
+        }),
+      ),
+    });
+
+    const snapshot = await engine.acceptCall({
+      trainingSessionId: "session-1",
+      eventId: "event-2",
+      now: NOW,
+    });
+
+    // The street is answered on a question, and nobody has asked one yet: the
+    // scripted line does not become a way around the disclosure rules either.
+    expect(snapshot.revealedFactKeys).toEqual([
+      "incident_type",
+      "trapped_children",
+    ]);
+    expect(patchOf(store)).toMatchObject({
+      revealedFactKeys: ["incident_type", "trapped_children"],
     });
   });
 
@@ -516,6 +548,70 @@ describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
     expect(snapshot.checklistSatisfied).toBe(0);
   });
 
+  it("counts a fact the caller told without the model declaring it", async () => {
+    const { engine, store } = createEngine();
+
+    // The model answered the question and forgot to list the fact — before,
+    // the mandatory question about people inside stayed open for the rest of
+    // the call even though the caller had shouted the answer.
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Есть ли кто-то в квартире?",
+      reply: reply({ text: "Там дети, двое!", revealedFactIds: [] }),
+      now: NOW,
+    });
+
+    expect(snapshot.revealedFactKeys).toEqual(["trapped_children"]);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.revealed",
+      // A heavy fact spoken out loud moves the caller up the scale, whether or
+      // not the model remembered to declare it.
+      "panic.changed",
+    ]);
+  });
+
+  it("journals a fact once when the model declares what the words already carry", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Что случилось?",
+      reply: reply({
+        text: "Горит квартира!",
+        revealedFactIds: ["incident_type"],
+      }),
+      now: NOW,
+    });
+
+    expect(snapshot.revealedFactKeys).toEqual(["incident_type"]);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.revealed",
+    ]);
+  });
+
+  it("does not count a fact the scenario still holds back", async () => {
+    const { engine, store } = createEngine();
+
+    // Nobody asked for the address, so the street stays closed: words must not
+    // become a way around the disclosure rules.
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-3",
+      operatorText: "Вы сами где?",
+      reply: reply({ text: "Улица Учебная, дом 12!", revealedFactIds: [] }),
+      now: NOW,
+    });
+
+    expect(snapshot.revealedFactKeys).toEqual([]);
+    expect(eventTypes(store)).toEqual(["operator.utterance", "caller.reply"]);
+  });
+
   it("records model or fallback provenance in the call journal", async () => {
     const { engine, store } = createEngine();
 
@@ -650,7 +746,11 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
     });
 
     // Реплики оператора не было — записать её значило бы соврать в расшифровке.
-    expect(eventTypes(store)).toEqual(["caller.initiative", "caller.reply"]);
+    expect(eventTypes(store)).toEqual([
+      "caller.initiative",
+      "caller.reply",
+      "fact.revealed",
+    ]);
   });
 
   it("holds the silence timer while the initiative is spoken", async () => {
