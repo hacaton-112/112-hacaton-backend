@@ -1,0 +1,337 @@
+{
+  "code": "S-047",
+  "title": "Запах газа в подъезде",
+  "category": "gas_leak",
+  "difficulty": 4,
+  "summary": "Резкий запах газа на лестничной площадке пятиэтажки; в квартире напротив никто не открывает, жильцы выходят на улицу.",
+  "persona": {
+    "code": "neighbour-man",
+    "displayName": "Мужчина, 29 лет",
+    "gender": "male",
+    "ageYears": 29,
+    "condition": "Собран, но торопится и злится на промедление",
+    "speechStyle": "Говорит коротко и по делу, требует действий, перебивает длинные вопросы. Слушает, если ему отвечают так же коротко.",
+    "backgroundSounds": "Подъезд, голоса соседей, хлопают двери",
+    "voiceId": "eric",
+    "baselinePanicLevel": 2,
+    "baseSpeechRate": 1.08
+  },
+  "version": {
+    "panicFloor": 1,
+    "panicCeiling": 4,
+    "maxInterruptions": 4,
+    "initiativeCooldownSeconds": 10,
+    "answerNormSeconds": 240,
+    "expectedDurationSeconds": 360,
+    "passThreshold": 80,
+    "expectedServices": ["gas", "fire"],
+    "referenceNotes": "Запах на площадке третьего этажа, сильнее у квартиры 27. Там живёт пожилая женщина, дверь не открывают. Жильцов выводят на улицу.",
+    "openingLine": "У нас в подъезде газом воняет, сильно! Третий этаж!",
+    "fallbackLine": "Не слышу вас, тут люди кричат. Повторите."
+  },
+  "location": {
+    "terrain": "city_block",
+    "exactAddress": {
+      "street": "Полярная",
+      "house": "7",
+      "entrance": "3",
+      "floor": "3",
+      "apartment": "27"
+    },
+    "exactPoint": [55.8809, 37.6312],
+    "locatorCenter": [55.8841, 37.6266],
+    "locatorRadiusMeters": 500,
+    "locatorLabel": "Мобильный · базовая станция СВАО, Южное Медведково",
+    "locatorAccuracy": "identified",
+    "callerNumber": "+7 925 774-60-31",
+    "previouslyCalled": false
+  },
+  "escalation": [
+    {
+      "trigger": "operator_silence",
+      "direction": "up",
+      "cooldownSeconds": 10,
+      "params": {
+        "seconds": 7
+      }
+    },
+    {
+      "trigger": "heavy_fact_revealed",
+      "direction": "up",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "question_repeated",
+      "direction": "up",
+      "cooldownSeconds": 15,
+      "params": {
+        "times": 2
+      }
+    },
+    {
+      "trigger": "forbidden_phrase",
+      "direction": "up",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": ["успокойтесь", "не кричите", "подождите на линии"]
+      }
+    },
+    {
+      "trigger": "calming_phrase",
+      "direction": "down",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": [
+          "аварийная выехала",
+          "я вас слышу",
+          "бригада выехала",
+          "выводите людей"
+        ]
+      }
+    },
+    {
+      "trigger": "instruction_followed",
+      "direction": "down",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "services_confirmed",
+      "direction": "down",
+      "cooldownSeconds": 0
+    }
+  ],
+  "facts": [
+    {
+      "key": "incident_type",
+      "promptValue": "На лестнице сильно пахнет газом, глаза щиплет.",
+      "displayLabel": "Что случилось",
+      "severity": "normal",
+      "cardField": "category",
+      "cardValue": "gas_leak",
+      "contentKeywords": ["газ", "воняет", "пахнет", "запах"],
+      "disclosure": {
+        "type": "immediate"
+      },
+      "priority": 9
+    },
+    {
+      "key": "address_street",
+      "promptValue": "Полярная улица, дом семь.",
+      "displayLabel": "Улица и дом",
+      "severity": "normal",
+      "cardField": "street",
+      "cardValue": "Полярная, 7",
+      "contentKeywords": ["полярн", "дом семь", "дом 7"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["адрес", "улиц", "где", "дом", "куда ехать"]
+      },
+      "priority": 9
+    },
+    {
+      "key": "address_entrance",
+      "promptValue": "Третий подъезд, третий этаж, запах сильнее всего у двадцать седьмой квартиры.",
+      "displayLabel": "Подъезд и квартира",
+      "severity": "normal",
+      "cardField": "apartment",
+      "cardValue": "27",
+      "contentKeywords": [
+        "двадцать седьм",
+        "третий подъезд",
+        "третий этаж",
+        "27"
+      ],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "подъезд",
+          "этаж",
+          "квартир",
+          "откуда пахнет",
+          "где сильнее"
+        ]
+      },
+      "priority": 9
+    },
+    {
+      "key": "closed_flat",
+      "promptValue": "В двадцать седьмой живёт пожилая женщина, дверь никто не открывает.",
+      "displayLabel": "Закрытая квартира",
+      "severity": "heavy",
+      "cardField": "victims_total",
+      "cardValue": "1",
+      "contentKeywords": ["не открыва", "пожилая", "бабушк", "стучал"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": [
+          "кто живет",
+          "открыл",
+          "люди",
+          "внутри",
+          "жильц",
+          "пострадав"
+        ]
+      },
+      "priority": 9
+    },
+    {
+      "key": "evacuation",
+      "promptValue": "Соседи уже выходят во двор, с детьми, подъезд пустеет.",
+      "displayLabel": "Эвакуация",
+      "severity": "normal",
+      "cardField": "dispatcher_notes",
+      "cardValue": "Жильцов выводят во двор",
+      "contentKeywords": ["выход", "во двор", "выводим", "эвакуир"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["люди", "вывели", "эвакуац", "жильц", "соседи"]
+      },
+      "priority": 6
+    },
+    {
+      "key": "no_fire_yet",
+      "promptValue": "Огня и дыма нет, только запах.",
+      "displayLabel": "Огонь и дым",
+      "severity": "normal",
+      "cardField": "clarification",
+      "cardValue": "Огня нет",
+      "contentKeywords": ["огня нет", "дыма нет", "не горит", "только запах"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["горит", "дым", "огон", "пламя"]
+      },
+      "priority": 7
+    },
+    {
+      "key": "electricity_untouched",
+      "promptValue": "Свет в подъезде никто не трогал, выключатели не щёлкали.",
+      "displayLabel": "Электричество",
+      "severity": "normal",
+      "cardField": "dispatcher_notes",
+      "cardValue": "Свет не трогали",
+      "contentKeywords": ["свет", "выключател", "электрич", "щелкал"],
+      "disclosure": {
+        "type": "below_panic",
+        "level": 2
+      },
+      "priority": 4
+    },
+    {
+      "key": "entry_code",
+      "promptValue": "Код подъезда четыре-два-семь, дверь можно открыть снаружи.",
+      "displayLabel": "Код подъезда",
+      "severity": "normal",
+      "cardField": "landmarks",
+      "cardValue": "Код 427",
+      "contentKeywords": ["код", "домофон", "четыре два семь", "427"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["код", "домофон", "попасть", "войти", "открыть подъезд"]
+      },
+      "priority": 5
+    },
+    {
+      "key": "gas_company_called",
+      "promptValue": "В аварийную газовую службу заявитель не звонил.",
+      "displayLabel": "Звонили ли в газовую",
+      "severity": "normal",
+      "cardField": null,
+      "cardValue": null,
+      "contentKeywords": ["не звонил"],
+      "disclosure": {
+        "type": "never"
+      },
+      "priority": 0
+    }
+  ],
+  "mandatoryQuestions": [
+    {
+      "text": "Точный адрес: улица и дом",
+      "satisfiedByFactKeys": ["address_street"],
+      "isCritical": true
+    },
+    {
+      "text": "Подъезд, этаж и где запах сильнее",
+      "satisfiedByFactKeys": ["address_entrance"],
+      "isCritical": true
+    },
+    {
+      "text": "Есть ли люди в квартире, откуда идёт запах",
+      "satisfiedByFactKeys": ["closed_flat"],
+      "isCritical": true
+    },
+    {
+      "text": "Есть ли огонь или задымление",
+      "satisfiedByFactKeys": ["no_fire_yet"],
+      "isCritical": true
+    },
+    {
+      "text": "Выводят ли жильцов из подъезда",
+      "satisfiedByFactKeys": ["evacuation"],
+      "isCritical": true
+    },
+    {
+      "text": "Код подъезда для бригады",
+      "satisfiedByFactKeys": ["entry_code"],
+      "isCritical": false
+    },
+    {
+      "text": "Трогали ли электричество",
+      "satisfiedByFactKeys": ["electricity_untouched"],
+      "isCritical": false
+    }
+  ],
+  "referenceCard": {
+    "fields": [
+      {
+        "field": "street",
+        "expectedValue": "Полярная",
+        "acceptableValues": ["полярная улица"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_street"
+      },
+      {
+        "field": "house",
+        "expectedValue": "7",
+        "acceptableValues": ["дом 7", "семь"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_street"
+      },
+      {
+        "field": "apartment",
+        "expectedValue": "27",
+        "acceptableValues": ["двадцать семь"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "address_entrance"
+      },
+      {
+        "field": "category",
+        "expectedValue": "газ",
+        "acceptableValues": ["утечка газа", "запах газа", "gas_leak"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "incident_type"
+      },
+      {
+        "field": "victims_total",
+        "expectedValue": "1",
+        "acceptableValues": ["один"],
+        "comparison": "numeric_range",
+        "isRequired": true,
+        "sourceFactKey": "closed_flat"
+      },
+      {
+        "field": "landmarks",
+        "expectedValue": "427",
+        "acceptableValues": ["код подъезда"],
+        "comparison": "contains",
+        "isRequired": false,
+        "sourceFactKey": "entry_code"
+      }
+    ],
+    "notes": "Нужны аварийная газовая служба и пожарные. Порог выше обычного: при утечке газа пропущенный вопрос стоит дороже."
+  }
+}

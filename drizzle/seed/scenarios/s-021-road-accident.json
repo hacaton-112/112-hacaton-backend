@@ -1,0 +1,316 @@
+{
+  "code": "S-021",
+  "title": "ДТП на шоссе с пострадавшими",
+  "category": "road_accident",
+  "difficulty": 4,
+  "summary": "Лобовое столкновение на Калужском шоссе: двое зажаты в машине, вытекает топливо, движение стоит.",
+  "persona": {
+    "code": "roadside-witness",
+    "displayName": "Женщина, 41 год",
+    "gender": "female",
+    "ageYears": 41,
+    "condition": "Только что остановилась рядом, руки трясутся",
+    "speechStyle": "Говорит быстро и сбивчиво, перескакивает между тем, что видит перед собой, и тем, что уже сказала. Пытается описывать подробно, но теряет мысль.",
+    "backgroundSounds": "Шоссе, гудки, ветер",
+    "voiceId": "serena",
+    "baselinePanicLevel": 3,
+    "baseSpeechRate": 1.1
+  },
+  "version": {
+    "panicFloor": 2,
+    "panicCeiling": 4,
+    "maxInterruptions": 3,
+    "initiativeCooldownSeconds": 10,
+    "answerNormSeconds": 240,
+    "expectedDurationSeconds": 420,
+    "passThreshold": 75,
+    "expectedServices": ["ambulance", "police", "fire"],
+    "referenceNotes": "Двое зажаты в легковой машине, из-под неё течёт топливо, вторая машина — фура. 34-й километр Калужского шоссе.",
+    "openingLine": "Тут авария! Машина всмятку, люди внутри не выходят!",
+    "fallbackLine": "Повторите, пожалуйста, здесь очень шумно."
+  },
+  "location": {
+    "terrain": "highway",
+    "exactAddress": {
+      "road": "Калужское шоссе",
+      "kilometre": "34",
+      "direction": "из Москвы"
+    },
+    "exactPoint": [55.487, 37.401],
+    "locatorCenter": [55.4931, 37.3902],
+    "locatorRadiusMeters": 1200,
+    "locatorLabel": "Мобильный · базовая станция вдоль шоссе, Сосенское",
+    "locatorAccuracy": "approximate",
+    "callerNumber": "+7 903 118-45-90",
+    "previouslyCalled": false
+  },
+  "escalation": [
+    {
+      "trigger": "operator_silence",
+      "direction": "up",
+      "cooldownSeconds": 12,
+      "params": {
+        "seconds": 8
+      }
+    },
+    {
+      "trigger": "heavy_fact_revealed",
+      "direction": "up",
+      "cooldownSeconds": 0
+    },
+    {
+      "trigger": "forbidden_phrase",
+      "direction": "up",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": [
+          "успокойтесь",
+          "не кричите",
+          "прекратите",
+          "женщина",
+          "мужчина"
+        ]
+      }
+    },
+    {
+      "trigger": "calming_phrase",
+      "direction": "down",
+      "cooldownSeconds": 0,
+      "params": {
+        "keywords": [
+          "помощь уже",
+          "я вас слышу",
+          "бригада выехала",
+          "оставайтесь на линии"
+        ]
+      }
+    },
+    {
+      "trigger": "services_confirmed",
+      "direction": "down",
+      "cooldownSeconds": 0
+    }
+  ],
+  "facts": [
+    {
+      "key": "incident_type",
+      "promptValue": "Лобом столкнулись легковая и фура, легковую смяло.",
+      "displayLabel": "Что случилось",
+      "severity": "normal",
+      "cardField": "category",
+      "cardValue": "road_accident",
+      "contentKeywords": ["авари", "столкн", "врезал", "дтп", "смял"],
+      "disclosure": {
+        "type": "immediate"
+      },
+      "priority": 9
+    },
+    {
+      "key": "road_kilometre",
+      "promptValue": "Калужское шоссе, тридцать четвёртый километр, из Москвы.",
+      "displayLabel": "Шоссе и километр",
+      "severity": "normal",
+      "cardField": "street",
+      "cardValue": "Калужское шоссе, 34 км",
+      "contentKeywords": [
+        "калужск",
+        "шоссе",
+        "тридцать четвертый километр",
+        "34 км"
+      ],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["где", "адрес", "километр", "шоссе", "куда ехать"]
+      },
+      "priority": 9
+    },
+    {
+      "key": "road_landmark",
+      "promptValue": "Сразу за заправкой, у синего указателя на Ватутинки.",
+      "displayLabel": "Ориентир",
+      "severity": "normal",
+      "cardField": "landmarks",
+      "cardValue": "За заправкой, указатель на Ватутинки",
+      "contentKeywords": ["заправк", "указател", "ватутинк"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["ориентир", "рядом", "видно", "приметы", "что вокруг"]
+      },
+      "priority": 6
+    },
+    {
+      "key": "trapped_people",
+      "promptValue": "В легковой двое, водитель и женщина рядом, сами выйти не могут.",
+      "displayLabel": "Пострадавшие",
+      "severity": "heavy",
+      "cardField": "victims_total",
+      "cardValue": "2",
+      "contentKeywords": ["двое", "зажат", "не мог", "водител", "пассажир"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["пострадав", "люди", "сколько", "кто", "внутри"]
+      },
+      "priority": 9
+    },
+    {
+      "key": "victims_condition",
+      "promptValue": "Водитель в сознании, стонет, женщина рядом не отвечает совсем.",
+      "displayLabel": "Состояние",
+      "severity": "heavy",
+      "cardField": "victims_condition",
+      "cardValue": "Один в сознании, вторая без сознания",
+      "contentKeywords": [
+        "в сознании",
+        "не отвечает",
+        "стонет",
+        "без сознан",
+        "дышит"
+      ],
+      "disclosure": {
+        "type": "after_fact",
+        "factKeys": ["trapped_people"]
+      },
+      "priority": 8
+    },
+    {
+      "key": "fuel_leak",
+      "promptValue": "Из-под машины течёт, пахнет бензином, лужа растёт.",
+      "displayLabel": "Утечка топлива",
+      "severity": "heavy",
+      "cardField": "clarification",
+      "cardValue": "Утечка топлива",
+      "contentKeywords": ["бензин", "течет", "топлив", "лужа", "пахнет"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["дым", "горит", "запах", "течет", "опасн"]
+      },
+      "priority": 7
+    },
+    {
+      "key": "traffic_blocked",
+      "promptValue": "Обе полосы перекрыты, сзади уже собралась пробка.",
+      "displayLabel": "Движение",
+      "severity": "normal",
+      "cardField": "dispatcher_notes",
+      "cardValue": "Полосы перекрыты, пробка",
+      "contentKeywords": ["полос", "пробк", "перекры", "машины стоят"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["движен", "полос", "проезд", "пробк"]
+      },
+      "priority": 4
+    },
+    {
+      "key": "caller_position",
+      "promptValue": "Заявительница стоит на обочине метрах в двадцати, вышла из своей машины.",
+      "displayLabel": "Где заявитель",
+      "severity": "normal",
+      "cardField": "caller_type",
+      "cardValue": "Свидетель",
+      "contentKeywords": ["на обочине", "я вышла", "своей машин", "в двадцати"],
+      "disclosure": {
+        "type": "on_question",
+        "keywords": ["вы где", "сами", "рядом", "безопасн"]
+      },
+      "priority": 3
+    },
+    {
+      "key": "plate_number",
+      "promptValue": "Номер легковой не разобрать, задняя часть смята.",
+      "displayLabel": "Номер машины",
+      "severity": "normal",
+      "cardField": null,
+      "cardValue": null,
+      "contentKeywords": ["номер"],
+      "disclosure": {
+        "type": "never"
+      },
+      "priority": 0
+    }
+  ],
+  "mandatoryQuestions": [
+    {
+      "text": "Где именно произошло: шоссе, километр, направление",
+      "satisfiedByFactKeys": ["road_kilometre"],
+      "isCritical": true
+    },
+    {
+      "text": "Сколько пострадавших и могут ли они выйти",
+      "satisfiedByFactKeys": ["trapped_people"],
+      "isCritical": true
+    },
+    {
+      "text": "Состояние пострадавших",
+      "satisfiedByFactKeys": ["victims_condition"],
+      "isCritical": true
+    },
+    {
+      "text": "Есть ли утечка топлива или задымление",
+      "satisfiedByFactKeys": ["fuel_leak"],
+      "isCritical": true
+    },
+    {
+      "text": "Перекрыто ли движение",
+      "satisfiedByFactKeys": ["traffic_blocked"],
+      "isCritical": false
+    },
+    {
+      "text": "Ориентир для бригад",
+      "satisfiedByFactKeys": ["road_landmark"],
+      "isCritical": false
+    }
+  ],
+  "referenceCard": {
+    "fields": [
+      {
+        "field": "street",
+        "expectedValue": "Калужское шоссе",
+        "acceptableValues": ["калужское"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "road_kilometre"
+      },
+      {
+        "field": "house",
+        "expectedValue": "34",
+        "acceptableValues": ["34 км", "тридцать четвертый"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "road_kilometre"
+      },
+      {
+        "field": "category",
+        "expectedValue": "дтп",
+        "acceptableValues": ["авария", "столкновение", "road_accident"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "incident_type"
+      },
+      {
+        "field": "victims_total",
+        "expectedValue": "2",
+        "acceptableValues": ["двое"],
+        "comparison": "numeric_range",
+        "isRequired": true,
+        "sourceFactKey": "trapped_people"
+      },
+      {
+        "field": "victims_condition",
+        "expectedValue": "без сознания",
+        "acceptableValues": ["не отвечает", "в сознании"],
+        "comparison": "contains",
+        "isRequired": true,
+        "sourceFactKey": "victims_condition"
+      },
+      {
+        "field": "landmarks",
+        "expectedValue": "заправка",
+        "acceptableValues": ["ватутинки", "указатель"],
+        "comparison": "contains",
+        "isRequired": false,
+        "sourceFactKey": "road_landmark"
+      }
+    ],
+    "notes": "Нужны все три службы: скорая по пострадавшим, ГИБДД по перекрытому движению, пожарные по утечке топлива."
+  }
+}
