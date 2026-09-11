@@ -135,7 +135,14 @@ const selectReactionAct = (
     return "answer";
   }
 
-  return isQuestionOrRequest(input.operatorText) ? "clarify" : "acknowledge";
+  if (!isQuestionOrRequest(input.operatorText)) {
+    return "acknowledge";
+  }
+
+  // Фактов на этот вопрос у сценария нет. Спокойный заявитель переспрашивает,
+  // а тот, кто в панике, отвечает чувством: просить формулировать точнее —
+  // манера оператора, а не человека, у которого горит квартира.
+  return input.panicLevel >= 3 ? "emotional-reaction" : "clarify";
 };
 
 const actsWithoutFacts = new Set<CallerReactionAct>([

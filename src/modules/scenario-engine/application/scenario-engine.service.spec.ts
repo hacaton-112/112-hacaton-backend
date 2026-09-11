@@ -492,8 +492,33 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
       focusFactIds: [],
     });
     expect(built.context.allowedFacts).toEqual([]);
+    expect(built.fallbackReply.text).toBe("Что? Я вас не понимаю, повторите!");
+  });
+
+  it("answers with feeling rather than clerical wording when panic is high", async () => {
+    const { engine } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(
+        callState({
+          panicLevel: 4,
+          callerTurns: 4,
+          revealedFactKeys: ["incident_type", "trapped_children"],
+        }),
+      ),
+    });
+
+    // The scenario holds no answer to this, and a man whose flat is burning
+    // does not ask the dispatcher to phrase the question more precisely.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Как зовут пострадавшего?",
+    });
+
+    expect(built.context.turnPlan).toMatchObject({
+      reactionAct: "emotional-reaction",
+      focusFactIds: [],
+    });
     expect(built.fallbackReply.text).toBe(
-      "Спросите, пожалуйста, конкретнее.",
+      "Я не знаю! Пожалуйста, пусть быстрее едут!",
     );
   });
 
