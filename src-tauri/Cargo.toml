@@ -27,7 +27,7 @@ futures-util = { version = "0.3", default-features = false, features = ["sink"] 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
-rodio = { version = "0.21", default-features = false, features = ["playback"] }
+rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
 # WS-клиент в Rust не подпадает под App Transport Security, который блокирует
 # ws:// на внешний хост внутри webview. rustls — под будущий wss:// за прокси.
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }

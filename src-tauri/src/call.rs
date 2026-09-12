@@ -6,6 +6,7 @@
 
 use std::{
     collections::VecDeque,
+    num::{NonZeroU16, NonZeroU32},
     sync::{
         atomic::{AtomicU64, Ordering},
         Mutex,
@@ -14,7 +15,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
-use rodio::{buffer::SamplesBuffer, source::Source, OutputStream, OutputStreamBuilder, Sink};
+use rodio::{buffer::SamplesBuffer, source::Source, DeviceSinkBuilder, MixerDeviceSink, Player};
 use serde_json::{json, Value};
 use tauri::{
     ipc::{Channel, InvokeResponseBody},
@@ -187,7 +188,7 @@ impl TelephoneAudioProcessor {
 struct TtsAudioStream {
     sample_rate: u32,
     processor: TelephoneAudioProcessor,
-    sink: std::sync::Arc<Sink>,
+    sink: std::sync::Arc<Player>,
     pending_byte: Option<u8>,
     buffered_samples: usize,
     started: bool,
@@ -198,11 +199,11 @@ struct TtsAudioStream {
 impl TtsAudioStream {
     fn new(
         sample_rate: u32,
-        output: &OutputStream,
+        output: &MixerDeviceSink,
         level_tx: mpsc::UnboundedSender<(u64, f32)>,
         generation: u64,
     ) -> Self {
-        let sink = std::sync::Arc::new(Sink::connect_new(output.mixer()));
+        let sink = std::sync::Arc::new(Player::connect_new(output.mixer()));
         sink.pause();
         Self {
             sample_rate,
@@ -240,7 +241,12 @@ impl TtsAudioStream {
         if !samples.is_empty() {
             self.buffered_samples += samples.len();
             self.sink.append(PlaybackLevelSource::new(
-                SamplesBuffer::new(1, self.sample_rate, samples),
+                SamplesBuffer::new(
+                    NonZeroU16::new(1).expect("the mono channel count is non-zero"),
+                    NonZeroU32::new(self.sample_rate)
+                        .expect("the validated sample rate is non-zero"),
+                    samples,
+                ),
                 self.sample_rate,
                 self.generation,
                 self.level_tx.clone(),
@@ -255,7 +261,7 @@ impl TtsAudioStream {
         }
     }
 
-    fn finish(mut self) -> std::sync::Arc<Sink> {
+    fn finish(mut self) -> std::sync::Arc<Player> {
         if !self.started {
             self.started = true;
             self.sink.play();
@@ -340,11 +346,11 @@ where
         self.inner.current_span_len()
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> NonZeroU16 {
         self.inner.channels()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> NonZeroU32 {
         self.inner.sample_rate()
     }
 
@@ -398,7 +404,7 @@ impl Call {
         let (socket, _) = connect_async(request)
             .await
             .map_err(|error| format!("could not connect to the backend: {error}"))?;
-        let mut output = OutputStreamBuilder::open_default_stream()
+        let mut output = DeviceSinkBuilder::open_default_sink()
             .map_err(|error| format!("could not open the audio output: {error}"))?;
         output.log_on_drop(false);
 
@@ -742,13 +748,13 @@ async fn pump(
     socket: Socket,
     mut outgoing_rx: mpsc::Receiver<Outgoing>,
     on_event: Channel<Value>,
-    output: OutputStream,
+    output: MixerDeviceSink,
 ) {
     let (mut writer, mut reader) = socket.split();
     let mut listening = false;
     let mut pending: VecDeque<Vec<u8>> = VecDeque::new();
     let mut tts_audio: Option<TtsAudioStream> = None;
-    let mut playback_sink: Option<std::sync::Arc<Sink>> = None;
+    let mut playback_sink: Option<std::sync::Arc<Player>> = None;
     let mut deferred_audio_done: Option<Value> = None;
     let mut playback_generation = 0_u64;
     let (playback_done_tx, mut playback_done_rx) = mpsc::unbounded_channel::<u64>();
