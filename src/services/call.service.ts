@@ -11,6 +11,7 @@ import {
   TelephoneAudioProcessor,
   resolveScenarioAmbience,
 } from "./telephone-audio-processor";
+import { CallerAudioJitterBuffer, type ScheduledCallerAudio } from "./caller-audio-jitter-buffer";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
@@ -186,7 +187,6 @@ class NativeCallStream implements CallStream {
 
     if (parsed.data.type === "audio.start") {
       this.sampleRate = parsed.data.sampleRate;
-      this.nextStartTime = this.ensureAudioContext().currentTime;
       this.audioProcessor?.reset();
       this.audioProcessor = new TelephoneAudioProcessor({
         sampleRate: this.sampleRate,
@@ -244,7 +244,6 @@ class NativeCallStream implements CallStream {
   private resetAudioProcessing(): void {
     this.audioProcessor?.reset();
     this.audioProcessor = undefined;
-    this.nextStartTime = 0;
   }
 
   private toError = (reason: unknown): Error =>
