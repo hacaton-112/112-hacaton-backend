@@ -1,136 +1,162 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  EMPTY_INCIDENT_CARD,
   type IncidentCard,
-  type IncidentCardInput,
+  type IncidentCardPatch,
 } from "../contracts/incident";
 import {
-  incidentCardService
-} from "../services/incident-card.service";
+  IncidentCardDraft,
+  type IncidentCardLocationDefaults,
+} from "../services/incident-card-draft";
+import { incidentCardService } from "../services/incident-card.service";
 
-/**
- * Пауза перед отправкой. Оператор печатает адрес по буквам, и слать карточку
- * на каждый нажатый символ незачем; полторы секунды — это и не поток запросов,
- * и не потеря работы, если окно закроется.
- */
-const SAVE_DELAY_MS = 1_500;
+interface UseIncidentCardOptions {
+  trainingSessionId?: string;
+  isCallOver: boolean;
+  locationDefaults?: IncidentCardLocationDefaults;
+}
 
 export interface IncidentCardState {
-  /** Карточка с сервера: подставляется в форму при открытии звонка. */
-  card?: IncidentCardInput;
+  card?: IncidentCard;
   services: IncidentCard["services"];
   isSaving: boolean;
   error?: string;
-  change: (card: IncidentCard) => void;
+  update: (patch: IncidentCardPatch) => void;
   toggleService: (service: IncidentCard["services"][number]) => void;
+  flush: () => Promise<void>;
 }
 
 /**
  * Карточка происшествия одного звонка.
  *
- * Карточка разбросана по окну — место и происшествие в форме, службы в правой
- * колонке, — поэтому её состоянием владеет одно место, а не каждый компонент
- * по отдельности. Кнопки «сохранить» в АРМ нет: карточка уходит на сервер по
- * ходу разговора, а закрывает её конец звонка.
+ * Заявитель, место, происшествие, пострадавшие и выбранные службы используют
+ * один черновик. Благодаря этому изменение в одной колонке не возвращает
+ * устаревшие данные из другой.
  */
-export function useIncidentCard(
-  trainingSessionId: string | undefined,
-  isCallOver: boolean,
-): IncidentCardState {
-  const [loaded, setLoaded] = useState<IncidentCardInput>();
-  const [chosen, setChosen] = useState<IncidentCard["services"]>([]);
-  const [isSaving, setSaving] = useState(false);
-  const [error, setError] = useState<string>();
-  const pending = useRef<IncidentCard>(null);
-  const timer = useRef<number>(null);
+export function useIncidentCard({
+  trainingSessionId,
+  isCallOver,
+  locationDefaults,
+}: UseIncidentCardOptions): IncidentCardState {
+  const [card, setCard] = useState<IncidentCard>();
+  const [loadedSessionId, setLoadedSessionId] = useState<string>();
+  const [savingSessionId, setSavingSessionId] = useState<string>();
+  const [failure, setFailure] = useState<{
+    sessionId: string;
+    message: string;
+  }>();
+  const draft = useRef<IncidentCardDraft | null>(null);
+  const terminalSessionId = useRef<string | null>(null);
+  const defaultsRef = useRef(locationDefaults);
 
   useEffect(() => {
-    if (!trainingSessionId) return;
+    if (isCallOver && trainingSessionId) {
+      terminalSessionId.current = trainingSessionId;
+    }
+  }, [isCallOver, trainingSessionId]);
 
-    incidentCardService.loadIncidentCard(trainingSessionId)
-      .then((card) => {
-        setLoaded(card as IncidentCardInput);
-        setChosen(card.services);
+  useEffect(() => {
+    defaultsRef.current = locationDefaults;
+  }, [locationDefaults]);
+
+  useEffect(() => {
+    if (!trainingSessionId) {
+      draft.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    const nextDraft = new IncidentCardDraft({
+      save: (next) =>
+        incidentCardService.saveIncidentCard(trainingSessionId, next),
+      onSavingChange: (isSaving) =>
+        setSavingSessionId((current) =>
+          isSaving
+            ? trainingSessionId
+            : current === trainingSessionId
+              ? undefined
+              : current,
+        ),
+      onSaved: () =>
+        setFailure((current) =>
+          current?.sessionId === trainingSessionId ? undefined : current,
+        ),
+      onError: (reason) =>
+        setFailure({
+          sessionId: trainingSessionId,
+          message: reason instanceof Error ? reason.message : String(reason),
+        }),
+    });
+    draft.current = nextDraft;
+
+    void incidentCardService
+      .loadIncidentCard(trainingSessionId)
+      .then((loaded) => {
+        if (cancelled || draft.current !== nextDraft) return;
+
+        setCard(nextDraft.load(loaded, defaultsRef.current));
+        setLoadedSessionId(trainingSessionId);
       })
-      // Карточки может ещё не быть — это не ошибка, а пустой бланк.
-      .catch(() => setLoaded(EMPTY_INCIDENT_CARD));
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+
+        setFailure({
+          sessionId: trainingSessionId,
+          message: reason instanceof Error ? reason.message : String(reason),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      if (draft.current === nextDraft) draft.current = null;
+      nextDraft.dispose(terminalSessionId.current !== trainingSessionId);
+    };
   }, [trainingSessionId]);
 
-  const flush = useCallback((sessionId: string) => {
-    const next = pending.current;
-    pending.current = null;
+  const update = useCallback(
+    (patch: IncidentCardPatch) => {
+      if (isCallOver) return;
 
-    if (!next) return;
-
-    setSaving(true);
-    incidentCardService.saveIncidentCard(sessionId, next)
-      .then(() => setError(undefined))
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      )
-      .finally(() => setSaving(false));
-  }, []);
-
-  const schedule = useCallback(
-    (next: IncidentCard) => {
-      // Законченный звонок карточку уже не принимает: backend отвечает отказом,
-      // и молотиться в него бессмысленно.
-      if (!trainingSessionId || isCallOver) return;
-
-      pending.current = next;
-
-      if (timer.current !== null) window.clearTimeout(timer.current);
-
-      timer.current = window.setTimeout(() => {
-        timer.current = null;
-        flush(trainingSessionId);
-      }, SAVE_DELAY_MS);
+      const next = draft.current?.update(patch);
+      if (next) setCard(next);
     },
-    [trainingSessionId, isCallOver, flush],
-  );
-
-  // Незаписанное при закрытии окна теряется, поэтому таймер снимается вместе
-  // с отправкой того, что уже набрано.
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      if (trainingSessionId && !isCallOver) flush(trainingSessionId);
-    },
-    [trainingSessionId, isCallOver, flush],
-  );
-
-  const change = useCallback(
-    (next: IncidentCard) => {
-      setChosen(next.services);
-      schedule(next);
-    },
-    [schedule],
+    [isCallOver],
   );
 
   const toggleService = useCallback(
     (service: IncidentCard["services"][number]) => {
-      setChosen((current) => {
-        const next = current.includes(service)
-          ? current.filter((item) => item !== service)
-          : [...current, service];
+      const current = draft.current?.getSnapshot();
+      if (!current || isCallOver) return;
 
-        const base = pending.current;
-        if (base) schedule({ ...base, services: next });
-
-        return next;
+      update({
+        services: current.services.includes(service)
+          ? current.services.filter((item) => item !== service)
+          : [...current.services, service],
       });
     },
-    [schedule],
+    [isCallOver, update],
   );
 
-  // Без звонка карточки нет: состояние прошлого звонка сюда не протекает.
+  const flush = useCallback(async () => {
+    if (!draft.current || isCallOver) return;
+
+    await draft.current.flush();
+  }, [isCallOver]);
+
+  const belongsToCurrentSession =
+    Boolean(trainingSessionId) && loadedSessionId === trainingSessionId;
+
   return {
-    card: trainingSessionId ? loaded : undefined,
-    services: trainingSessionId ? chosen : [],
-    isSaving,
-    error,
-    change,
+    card: belongsToCurrentSession ? card : undefined,
+    services: belongsToCurrentSession ? (card?.services ?? []) : [],
+    isSaving:
+      Boolean(trainingSessionId) && savingSessionId === trainingSessionId,
+    error:
+      failure && failure.sessionId === trainingSessionId
+        ? failure.message
+        : undefined,
+    update,
     toggleService,
+    flush,
   };
 }

@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   Checkbox,
@@ -13,41 +12,60 @@ import {
   TextArea,
   TextField,
 } from "@bolid-ui/themes";
-import { LocateFixed, Phone, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
-import type { CallSnapshot } from "../../hooks/use-call";
+import type {
+  IncidentCard,
+  IncidentCardPatch,
+  IncidentCardVictim,
+} from "../../contracts/incident";
 
-interface VictimDraft {
-  id: number;
-  lastName: string;
-  firstName: string;
-  middleName: string;
-  reason: string;
-  birthDate: Date | null;
-  details: string;
+interface CallerPanelProps {
+  trainingSessionId?: string;
+  callerNumber?: string;
+  startedAt?: Date;
+  operatorName: string;
+  card?: IncidentCard;
+  disabled: boolean;
+  onChange: (patch: IncidentCardPatch) => void;
 }
 
-const createVictim = (id: number): VictimDraft => ({
-  id,
-  lastName: "",
-  firstName: "",
-  middleName: "",
-  reason: "none",
-  birthDate: null,
-  details: "",
-});
+const emptyVictim: IncidentCardVictim = {};
+
+const toDate = (value?: string | null): Date | null => {
+  if (!value) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+};
+
+const toDateOnly = (
+  value: Date | { year: number; month: number; day: number } | null,
+): string | null => {
+  if (!value) return null;
+
+  const year = value instanceof Date ? value.getFullYear() : value.year;
+  const month = value instanceof Date ? value.getMonth() + 1 : value.month;
+  const day = value instanceof Date ? value.getDate() : value.day;
+
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
 
 export function CallerPanel({
+  trainingSessionId,
   callerNumber,
   startedAt,
-}: Pick<CallSnapshot, "callerNumber" | "startedAt">) {
-  const [editedPhone, setEditedPhone] = useState<string | null>(null);
-  const nextVictimId = useRef(2);
-  const [victims, setVictims] = useState<VictimDraft[]>([createVictim(1)]);
+  operatorName,
+  card,
+  disabled,
+  onChange,
+}: CallerPanelProps) {
+  const victims = card?.victims.length ? card.victims : [emptyVictim];
   const victimsListRef = useRef<HTMLDivElement>(null);
   const previousVictimsCount = useRef(victims.length);
-  const applicantPhone = editedPhone ?? callerNumber?.replace(/\D/g, "") ?? "";
 
   useEffect(() => {
     const victimWasAdded = victims.length > previousVictimsCount.current;
@@ -65,71 +83,52 @@ export function CallerPanel({
     return () => cancelAnimationFrame(frame);
   }, [victims.length]);
 
-  const updateVictim = <K extends keyof Omit<VictimDraft, "id">>(
-    id: number,
+  const updateVictim = <K extends keyof IncidentCardVictim>(
+    index: number,
     field: K,
-    value: VictimDraft[K],
+    value: IncidentCardVictim[K],
   ) => {
-    setVictims((current) =>
-      current.map((victim) =>
-        victim.id === id ? { ...victim, [field]: value } : victim,
-      ),
-    );
+    const current = card?.victims ?? [];
+    const next = [...current];
+    next[index] = { ...(next[index] ?? emptyVictim), [field]: value };
+    onChange({ victims: next });
   };
 
   const addVictim = () => {
-    const id = nextVictimId.current;
-    nextVictimId.current += 1;
-    setVictims((current) => [...current, createVictim(id)]);
+    onChange({ victims: [...(card?.victims ?? []), {}] });
   };
 
-  const removeVictim = (id: number) => {
-    setVictims((current) => current.filter((victim) => victim.id !== id));
+  const removeVictim = (index: number) => {
+    onChange({
+      victims: (card?.victims ?? []).filter(
+        (_victim, victimIndex) => victimIndex !== index,
+      ),
+    });
   };
+
+  const sessionLabel = trainingSessionId
+    ? `Сессия · ${trainingSessionId.slice(-8).toUpperCase()}`
+    : "Ожидание вызова";
 
   return (
     <aside className="operator-caller-column flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <Section className="shrink-0">
         <Flex align="center" justify="between" gap="2">
           <Text size="3" weight="bold">
-            УКИО - 8921
+            {sessionLabel}
           </Text>
           <Text size="1" color="gray" className="tabular-nums">
-            {startedAt?.toLocaleString("ru-RU") ?? "Ожидание вызова"}
+            {startedAt?.toLocaleString("ru-RU") ?? "Нет активного вызова"}
           </Text>
-        </Flex>
-        <Flex align="center" gap="1" mt="2" wrap="wrap">
-          <Badge color="amber" variant="soft">
-            Подключение ДДС
-          </Badge>
-          <Badge color="orange" variant="soft">
-            Связанное обращение
-          </Badge>
         </Flex>
         <Info label="Источник" value="Телефонный звонок" />
-        <Info label="Взял в работу" value="580208  Манаев Е.Л." />
-        <Info label="Работает с УКИО" value="580208  Манаев Е.Л." />
+        <Info label="Взял в работу" value={operatorName} />
         <div className="bg-grayA-4 my-3 h-px" />
-        <Flex align="center" justify="between">
-          <Text size="2" weight="bold">
-            Абонент
-          </Text>
-          <Flex gap="1">
-            <MiniButton label="Показать на карте">
-              <LocateFixed size={14} />
-            </MiniButton>
-            <MiniButton label="Позвонить абоненту">
-              <Phone size={14} />
-            </MiniButton>
-          </Flex>
-        </Flex>
-        <Info label="ФИО" value="Максутов Александр Петрович" />
-        <Info label="Телефон" value={callerNumber ?? "+7 (916) 204-31-77"} />
-        <Info label="Дата рождения" value="00.00.0000" />
-        <Info
-          label="Регистрация"
-          value="РБ, г. Уфа, ул. 8 Марта, д. 8, кв. 306"
-        />
+        <Text size="2" weight="bold">
+          Абонент
+        </Text>
+        <Info label="Телефон" value={callerNumber ?? "Не определён"} />
+        <Info label="ФИО" value="Нет данных" />
       </Section>
 
       <Section className="shrink-0">
@@ -139,21 +138,55 @@ export function CallerPanel({
           </Text>
           <Text as="label" size="1" color="gray">
             <Flex align="center" gap="1">
-              <Checkbox size="1" /> Анонимный заявитель
+              <Checkbox
+                size="1"
+                checked={card?.callerAnonymous ?? false}
+                disabled={disabled || !card}
+                onCheckedChange={(checked) =>
+                  onChange({ callerAnonymous: checked === true })
+                }
+              />
+              Анонимный заявитель
             </Flex>
           </Text>
         </Flex>
         <div className="person-name-grid mt-3 grid gap-2 min-[1480px]:!grid-cols-3">
-          <Field label="Фамилия" placeholder="Введите фамилию" />
-          <Field label="Имя" placeholder="Введите имя" />
-          <Field label="Отчество" placeholder="Введите отчество" />
+          <Field
+            label="Фамилия"
+            placeholder="Введите фамилию"
+            value={card?.callerLastName ?? ""}
+            disabled={disabled || !card}
+            onChange={(value) => onChange({ callerLastName: value })}
+          />
+          <Field
+            label="Имя"
+            placeholder="Введите имя"
+            value={card?.callerFirstName ?? ""}
+            disabled={disabled || !card}
+            onChange={(value) => onChange({ callerFirstName: value })}
+          />
+          <Field
+            label="Отчество"
+            placeholder="Введите отчество"
+            value={card?.callerMiddleName ?? ""}
+            disabled={disabled || !card}
+            onChange={(value) => onChange({ callerMiddleName: value })}
+          />
         </div>
         <div className="person-contact-grid mt-3 grid items-end gap-2 min-[1480px]:!grid-cols-2">
           <FieldLabel label="Язык">
-            <Select.Root defaultValue="ru" size="1">
-              <Select.Trigger className="w-full" />
+            <Select.Root
+              value={card?.callerLanguage ?? ""}
+              size="1"
+              disabled={disabled || !card}
+              onValueChange={(value) => onChange({ callerLanguage: value })}
+            >
+              <Select.Trigger className="w-full" placeholder="Выберите язык" />
               <Select.Content>
-                <Select.Item value="ru">Русский</Select.Item>
+                <Select.Item value="Русский">Русский</Select.Item>
+                <Select.Item value="Азербайджанский">
+                  Азербайджанский
+                </Select.Item>
               </Select.Content>
             </Select.Root>
           </FieldLabel>
@@ -161,8 +194,9 @@ export function CallerPanel({
             <PhoneField.Root
               size="1"
               country="ru"
-              value={applicantPhone}
-              onChange={(value) => setEditedPhone(value)}
+              value={card?.callerPhone ?? ""}
+              disabled={disabled || !card}
+              onChange={(value) => onChange({ callerPhone: value })}
               preferredCountries={["ru", "az"]}
             />
           </FieldLabel>
@@ -187,10 +221,11 @@ export function CallerPanel({
               <div className="grid w-full min-w-0 content-start gap-3 pr-3">
                 {victims.map((victim, index) => (
                   <VictimFields
-                    key={victim.id}
+                    key={index}
                     victim={victim}
                     index={index}
-                    canRemove={victims.length > 1}
+                    canRemove={(card?.victims.length ?? 0) > 0}
+                    disabled={disabled || !card}
                     onChange={updateVictim}
                     onRemove={removeVictim}
                   />
@@ -198,7 +233,13 @@ export function CallerPanel({
               </div>
             </ScrollArea>
           </div>
-          <Button type="button" size="1" variant="ghost" onClick={addVictim}>
+          <Button
+            type="button"
+            size="1"
+            variant="ghost"
+            disabled={disabled || !card || card.victims.length >= 20}
+            onClick={addVictim}
+          >
             <Plus size={14} /> Добавить
           </Button>
         </div>
@@ -211,25 +252,27 @@ function VictimFields({
   victim,
   index,
   canRemove,
+  disabled,
   onChange,
   onRemove,
 }: {
-  victim: VictimDraft;
+  victim: IncidentCardVictim;
   index: number;
   canRemove: boolean;
-  onChange: <K extends keyof Omit<VictimDraft, "id">>(
-    id: number,
+  disabled: boolean;
+  onChange: <K extends keyof IncidentCardVictim>(
+    index: number,
     field: K,
-    value: VictimDraft[K],
+    value: IncidentCardVictim[K],
   ) => void;
-  onRemove: (id: number) => void;
+  onRemove: (index: number) => void;
 }) {
   return (
     <section
       className={index === 0 ? "" : "border-grayA-5 border-t pt-3"}
       aria-label={`Пострадавший ${index + 1}`}
     >
-      {(canRemove || index > 0) && (
+      {canRemove && (
         <Flex align="center" justify="between" mb="2">
           <Text size="1" color="gray" weight="medium">
             Пострадавший {index + 1}
@@ -239,8 +282,9 @@ function VictimFields({
             size="1"
             variant="ghost"
             color="red"
+            disabled={disabled}
             aria-label={`Удалить пострадавшего ${index + 1}`}
-            onClick={() => onRemove(victim.id)}
+            onClick={() => onRemove(index)}
           >
             <Trash2 size={14} />
           </IconButton>
@@ -250,34 +294,38 @@ function VictimFields({
         <Field
           label="Фамилия"
           placeholder="Введите фамилию"
-          value={victim.lastName}
-          onChange={(value) => onChange(victim.id, "lastName", value)}
+          value={victim.lastName ?? ""}
+          disabled={disabled}
+          onChange={(value) => onChange(index, "lastName", value)}
         />
         <Field
           label="Имя"
           placeholder="Введите имя"
-          value={victim.firstName}
-          onChange={(value) => onChange(victim.id, "firstName", value)}
+          value={victim.firstName ?? ""}
+          disabled={disabled}
+          onChange={(value) => onChange(index, "firstName", value)}
         />
         <Field
           label="Отчество"
           placeholder="Введите отчество"
-          value={victim.middleName}
-          onChange={(value) => onChange(victim.id, "middleName", value)}
+          value={victim.middleName ?? ""}
+          disabled={disabled}
+          onChange={(value) => onChange(index, "middleName", value)}
         />
       </div>
       <div className="victim-meta-grid mt-3 grid gap-2 min-[1480px]:!grid-cols-2">
         <FieldLabel label="Повод вызова">
           <Select.Root
-            value={victim.reason}
-            onValueChange={(value) => onChange(victim.id, "reason", value)}
+            value={victim.reason ?? ""}
+            onValueChange={(value) => onChange(index, "reason", value)}
             size="1"
+            disabled={disabled}
           >
-            <Select.Trigger className="w-full" />
+            <Select.Trigger className="w-full" placeholder="Выберите" />
             <Select.Content>
-              <Select.Item value="none">Выберите</Select.Item>
-              <Select.Item value="injury">Травма</Select.Item>
-              <Select.Item value="danger">Угроза жизни</Select.Item>
+              <Select.Item value="Травма">Травма</Select.Item>
+              <Select.Item value="Угроза жизни">Угроза жизни</Select.Item>
+              <Select.Item value="Другое">Другое</Select.Item>
             </Select.Content>
           </Select.Root>
         </FieldLabel>
@@ -285,16 +333,11 @@ function VictimFields({
           <DatePicker
             size="1"
             placeholder="дд.мм.гггг"
-            value={victim.birthDate}
-            onChange={(value) => {
-              const birthDate =
-                value instanceof Date
-                  ? value
-                  : value
-                    ? new Date(value.year, value.month - 1, value.day)
-                    : null;
-              onChange(victim.id, "birthDate", birthDate);
-            }}
+            value={toDate(victim.birthDate)}
+            disabled={disabled}
+            onChange={(value) =>
+              onChange(index, "birthDate", toDateOnly(value))
+            }
           />
         </FieldLabel>
       </div>
@@ -303,9 +346,10 @@ function VictimFields({
           size="1"
           rows={3}
           placeholder="Напишите…"
-          value={victim.details}
+          value={victim.notes ?? ""}
+          disabled={disabled}
           onChange={(event) =>
-            onChange(victim.id, "details", event.currentTarget.value)
+            onChange(index, "notes", event.currentTarget.value)
           }
         />
       </FieldLabel>
@@ -342,12 +386,14 @@ function Field({
   label,
   placeholder,
   value,
+  disabled,
   onChange,
 }: {
   label: string;
   placeholder?: string;
-  value?: string;
-  onChange?: (value: string) => void;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
 }) {
   return (
     <FieldLabel label={label}>
@@ -356,9 +402,8 @@ function Field({
         className="w-full"
         placeholder={placeholder}
         value={value}
-        onChange={
-          onChange ? (event) => onChange(event.currentTarget.value) : undefined
-        }
+        disabled={disabled}
+        onChange={(event) => onChange(event.currentTarget.value)}
       />
     </FieldLabel>
   );
@@ -378,27 +423,5 @@ function FieldLabel({
       {label}
       {children}
     </label>
-  );
-}
-
-function MiniButton({
-  children,
-  label,
-}: {
-  children: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <IconButton
-      type="button"
-      title={label}
-      aria-label={label}
-      size="1"
-      radius="full"
-      color="gray"
-      variant="soft"
-    >
-      {children}
-    </IconButton>
   );
 }

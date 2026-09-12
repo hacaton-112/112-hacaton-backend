@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   Flex,
@@ -16,7 +15,6 @@ import {
   Pause,
   Phone,
   PhoneOff,
-  Play,
   Plus,
   ClipboardList,
   RotateCcw,
@@ -46,7 +44,14 @@ interface ServicesProps {
   onToggleService: (service: DispatchService) => void;
 }
 
-type DispatchCallPanelProps = CallSnapshot & CallControls & ServicesProps;
+type DispatchCallPanelProps = Omit<CallSnapshot & CallControls, "end"> &
+  ServicesProps & {
+    operatorName: string;
+    callerName: string;
+    isCardReady: boolean;
+    isEnding: boolean;
+    onEnd: () => void;
+  };
 
 const STATE_LABELS: Record<CallState, string> = {
   idle: "Оператор свободен",
@@ -54,16 +59,6 @@ const STATE_LABELS: Record<CallState, string> = {
   active: "Разговор",
   ended: "Вызов завершён",
 };
-
-const PANIC_LABELS = ["спокоен", "встревожен", "испуган", "паника", "истерика"];
-
-const PANIC_COLORS: ("green" | "amber" | "orange" | "red")[] = [
-  "green",
-  "green",
-  "amber",
-  "orange",
-  "red",
-];
 
 const formatDuration = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -79,14 +74,9 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         aria-labelledby="services-title"
         className="dispatch-services-card h-[210px] overflow-y-auto min-[1480px]:h-[210px] md:h-[263px]"
       >
-        <Flex align="center" justify="between">
-          <Text id="services-title" size="2" weight="bold">
-            ДДС / Службы
-          </Text>
-          <Button type="button" size="1" variant="ghost">
-            Изменить
-          </Button>
-        </Flex>
+        <Text id="services-title" size="2" weight="bold">
+          ДДС / Службы
+        </Text>
 
         <div className="mt-2 flex flex-wrap gap-1.5">
           {DISPATCH_SERVICES.map((service) => {
@@ -101,7 +91,11 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
                 variant={chosen ? "solid" : "soft"}
                 // Службы выбираются только пока идёт разговор: закончившийся
                 // звонок карточку уже не принимает.
-                disabled={props.state !== "active"}
+                disabled={
+                  props.state !== "active" ||
+                  !props.isCardReady ||
+                  props.isEnding
+                }
                 onClick={() => props.onToggleService(service)}
               >
                 {DISPATCH_SERVICE_LABELS[service]}
@@ -112,8 +106,15 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
 
         <div className="bg-grayA-4 my-3 h-px" />
         <div className="grid gap-2">
-          <Unit name="ДДС-03" time="16:35" />
-          <Unit name="ДДС-01" time="16:35" />
+          {props.services.length > 0 ? (
+            props.services.map((service) => (
+              <Unit key={service} name={DISPATCH_SERVICE_LABELS[service]} />
+            ))
+          ) : (
+            <Text size="1" color="gray">
+              Службы ещё не выбраны.
+            </Text>
+          )}
         </div>
       </Card>
 
@@ -130,7 +131,9 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             <Tabs.Trigger value="call">Звонок</Tabs.Trigger>
             <Tabs.Trigger value="record">Запись</Tabs.Trigger>
             <Tabs.Trigger value="applicant-chat">Чат с заявителем</Tabs.Trigger>
-            <Tabs.Trigger value="service-chat">Служебный чат</Tabs.Trigger>
+            <Tabs.Trigger value="service-chat" disabled>
+              Служебный чат
+            </Tabs.Trigger>
           </Tabs.List>
 
           <Tabs.Content
@@ -139,7 +142,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
           >
             <Flex align="start" justify="between" gap="2">
               <Text size="1" color="gray">
-                2 участника
+                {props.state === "idle" ? "Нет участников" : "2 участника"}
               </Text>
               <div className="text-right">
                 <Text size="1" color="gray" as="div">
@@ -156,31 +159,19 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
               </div>
             </Flex>
 
-            <div className="mt-2 grid gap-2">
-              <Participant
-                color="green"
-                name="operator2537"
-                caption={props.isListening ? "Говорит" : "Это вы"}
-              />
-              <Participant
-                color="blue"
-                name={props.scenarioTitle ?? "Иванов И.И."}
-                caption={props.isCallerSpeaking ? "Говорит" : "Заявитель"}
-              />
-            </div>
-
             {props.state !== "idle" && (
-              <Flex align="center" gap="1" mt="2" wrap="wrap">
-                <Badge
-                  color={PANIC_COLORS[props.panicLevel] ?? "gray"}
-                  variant="soft"
-                >
-                  Паника: {PANIC_LABELS[props.panicLevel] ?? props.panicLevel}
-                </Badge>
-                <Badge color="gray" variant="soft">
-                  Чек-лист: {props.checklistSatisfied}/{props.checklistTotal}
-                </Badge>
-              </Flex>
+              <div className="mt-2 grid gap-2">
+                <Participant
+                  color="green"
+                  name={props.operatorName}
+                  caption={props.isListening ? "Говорит" : "Это вы"}
+                />
+                <Participant
+                  color="blue"
+                  name={props.callerName}
+                  caption={props.isCallerSpeaking ? "Говорит" : "Заявитель"}
+                />
+              </div>
             )}
 
             {props.state === "ringing" && (
@@ -264,7 +255,11 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             className="min-h-0 overflow-y-auto px-4 py-4"
           >
             <Text size="1" color="gray">
-              Запись разговора появится после начала вызова.
+              {props.state === "ended"
+                ? "Запись разговора доступна в разборе завершённого вызова."
+                : props.state === "idle"
+                  ? "Нет активного вызова."
+                  : "Запись ведётся и будет доступна после завершения вызова."}
             </Text>
           </Tabs.Content>
 
@@ -293,7 +288,10 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             gap="2"
             className="border-grayA-4 shrink-0 border-t px-4 py-2"
           >
-            <ControlButton label="Добавить участника">
+            <ControlButton
+              label="Добавление участника недоступно в учебном звонке"
+              disabled
+            >
               <Plus size={15} />
             </ControlButton>
             <IconButton
@@ -310,23 +308,28 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             <IconButton
               size="2"
               radius="full"
-              variant={props.isOnHold ? "solid" : "soft"}
+              variant="soft"
               color="gray"
-              onClick={props.toggleHold}
-              disabled={props.state !== "active"}
-              aria-label="Удержание"
+              disabled
+              title="Удержание недоступно в учебном звонке"
+              aria-label="Удержание недоступно в учебном звонке"
             >
-              {props.isOnHold ? <Play size={15} /> : <Pause size={15} />}
+              <Pause size={15} />
             </IconButton>
-            <ControlButton label="Динамик">
+            <ControlButton
+              label="Управление динамиком недоступно в учебном звонке"
+              disabled
+            >
               <Volume2 size={15} />
             </ControlButton>
             <IconButton
               size="2"
               radius="full"
               color="red"
-              onClick={props.end}
-              disabled={props.state !== "active"}
+              onClick={props.onEnd}
+              disabled={
+                props.state !== "active" || !props.isCardReady || props.isEnding
+              }
               aria-label="Завершить вызов"
             >
               <PhoneOff size={15} />
@@ -401,7 +404,7 @@ function DialogueList({
   );
 }
 
-function Unit({ name, time }: { name: string; time: string }) {
+function Unit({ name }: { name: string }) {
   return (
     <Flex align="center" gap="2">
       <span className="bg-green-9 size-2 shrink-0 rounded-full" />
@@ -409,11 +412,8 @@ function Unit({ name, time }: { name: string; time: string }) {
         {name}
       </Text>
       <Text size="1" color="gray">
-        Создание {time}
+        Выбрано оператором
       </Text>
-      <IconButton size="1" variant="ghost" aria-label={`Позвонить ${name}`}>
-        <Phone size={13} />
-      </IconButton>
     </Flex>
   );
 }
@@ -449,9 +449,11 @@ function Participant({
 function ControlButton({
   children,
   label,
+  disabled = false,
 }: {
   children: React.ReactNode;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <IconButton
@@ -459,6 +461,8 @@ function ControlButton({
       radius="full"
       variant="soft"
       color="gray"
+      disabled={disabled}
+      title={label}
       aria-label={label}
     >
       {children}

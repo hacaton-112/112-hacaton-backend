@@ -4,6 +4,12 @@ import { IncidentCardSchema } from "../src/contracts/incident";
 
 const emptyBackendCard = {
   trainingSessionId: "session-1",
+  callerAnonymous: false,
+  callerLastName: null,
+  callerFirstName: null,
+  callerMiddleName: null,
+  callerLanguage: null,
+  callerPhone: null,
   addressText: null,
   district: null,
   objectType: null,
@@ -16,6 +22,7 @@ const emptyBackendCard = {
   placeNotes: null,
   incidentType: null,
   categories: [],
+  startedAt: null,
   victimsTotal: null,
   victimsChildren: null,
   deathsTotal: null,
@@ -35,6 +42,8 @@ describe("IncidentCardSchema", () => {
     expect(card.longitude).toBeNull();
     expect(card.victimsTotal).toBeNull();
     expect(card.deathsTotal).toBeNull();
+    expect(card.callerFirstName).toBeNull();
+    expect(card.victims).toEqual([]);
   });
 
   it("still validates and normalizes non-empty numeric values", () => {
@@ -57,5 +66,34 @@ describe("IncidentCardSchema", () => {
         latitude: 91,
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps applicant and victim fields from the backend contract", () => {
+    const card = IncidentCardSchema.parse({
+      ...emptyBackendCard,
+      callerFirstName: "  Анна  ",
+      callerPhone: "79991234567",
+      startedAt: "2026-09-10T09:30:00.000Z",
+      victims: [
+        {
+          firstName: "Илья",
+          reason: "Травма",
+          birthDate: "2012-04-03",
+          notes: "В сознании",
+        },
+      ],
+    });
+
+    expect(card.callerFirstName).toBe("Анна");
+    expect(card.callerPhone).toBe("79991234567");
+    expect(card.startedAt).toBe("2026-09-10T09:30:00.000Z");
+    expect(card.victims).toEqual([
+      {
+        firstName: "Илья",
+        reason: "Травма",
+        birthDate: "2012-04-03",
+        notes: "В сознании",
+      },
+    ]);
   });
 });

@@ -8,7 +8,10 @@ import { useScenarios } from "../../hooks/use-scenarios";
 interface ScenarioPickerProps {
   disabled: boolean;
   onStart: (
-    scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">,
+    scenario: Pick<
+      ScenarioSummary,
+      "scenarioVersionId" | "category" | "title" | "difficulty"
+    >,
   ) => void;
 }
 

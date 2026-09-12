@@ -2,6 +2,7 @@ import {
   Button,
   Card,
   Checkbox,
+  DatePicker,
   Flex,
   NumberField,
   Select,
@@ -10,7 +11,7 @@ import {
   TextField,
 } from "@bolid-ui/themes";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   Controller,
   useForm,
@@ -26,6 +27,7 @@ import {
   INCIDENT_TYPE_OPTIONS,
   type IncidentCard,
   type IncidentCardInput,
+  type IncidentCardPatch,
   IncidentCardSchema,
 } from "../../contracts/incident";
 import { FormField } from "../auth/form-field";
@@ -35,26 +37,21 @@ import { DuplicateSuspicion } from "./duplicate-suspicion";
 type CardControl = Control<IncidentCardInput, unknown, IncidentCard>;
 
 interface IncidentFormProps {
-  /** Адрес, определённый по вызову: подставляется в поле, но остаётся редактируемым. */
-  resolvedAddress?: string;
-  resolvedLatitude?: number;
-  resolvedLongitude?: number;
+  sessionId?: string;
   disabled?: boolean;
   /** Карточка звонка: приходит с backend и переживает перезагрузку окна. */
-  card?: IncidentCardInput;
+  card?: IncidentCard;
   /** Вызывается на каждое изменение: карточка пишется по ходу разговора. */
-  onChange?: (card: IncidentCard) => void;
+  onChange?: (patch: IncidentCardPatch) => void;
 }
 
 export function IncidentForm({
-  resolvedAddress,
-  resolvedLatitude,
-  resolvedLongitude,
+  sessionId,
   disabled = false,
   card,
   onChange,
 }: IncidentFormProps) {
-  const { control, register, reset, setValue, getValues } = useForm<
+  const { control, register, reset, getValues } = useForm<
     IncidentCardInput,
     unknown,
     IncidentCard
@@ -62,34 +59,35 @@ export function IncidentForm({
     resolver: zodResolver(IncidentCardSchema),
     defaultValues: EMPTY_INCIDENT_CARD,
   });
+  const initializedSession = useRef<string | undefined>(undefined);
 
   // Карточку присылает backend: она могла заполняться до перезагрузки окна.
   useEffect(() => {
-    if (card) reset(card);
-  }, [card, reset]);
-
-  useEffect(() => {
-    if (resolvedAddress) setValue("addressText", resolvedAddress);
-  }, [resolvedAddress, setValue]);
-
-  useEffect(() => {
-    if (resolvedLatitude !== undefined) {
-      setValue("latitude", resolvedLatitude.toFixed(6));
-      setValue("longitude", (resolvedLongitude ?? 0).toFixed(6));
+    if (!sessionId) {
+      initializedSession.current = undefined;
+      reset(EMPTY_INCIDENT_CARD);
+      return;
     }
-  }, [resolvedLatitude, resolvedLongitude, setValue]);
+
+    if (card && initializedSession.current !== sessionId) {
+      initializedSession.current = sessionId;
+      reset(card);
+    }
+  }, [card, reset, sessionId]);
 
   // Кнопки «сохранить» в АРМ нет: карточка уходит на сервер по ходу разговора,
   // а закрывает её конец звонка.
   const values = useWatch({ control });
 
   useEffect(() => {
+    if (!sessionId || initializedSession.current !== sessionId) return;
+
     const parsed = IncidentCardSchema.safeParse(getValues());
 
     if (parsed.success) {
-      onChange?.(parsed.data);
+      onChange?.(pickIncidentDetails(parsed.data));
     }
-  }, [values, getValues, onChange]);
+  }, [values, getValues, onChange, sessionId]);
 
   return (
     <form className="grid content-start gap-4" noValidate>
@@ -264,6 +262,22 @@ export function IncidentForm({
               )}
             />
           </div>
+          <FormField label="Дата происшествия" htmlFor="startedAt">
+            <Controller
+              control={control}
+              name="startedAt"
+              render={({ field }) => (
+                <DatePicker
+                  id="startedAt"
+                  size="1"
+                  placeholder="дд.мм.гггг"
+                  value={field.value ? new Date(field.value) : null}
+                  disabled={disabled}
+                  onChange={(value) => field.onChange(toIsoDate(value))}
+                />
+              )}
+            />
+          </FormField>
         </div>
 
         <div className="incident-counts-grid mt-3 grid gap-3">
@@ -309,6 +323,39 @@ export function IncidentForm({
     </form>
   );
 }
+
+const pickIncidentDetails = (card: IncidentCard): IncidentCardPatch => ({
+  addressText: card.addressText,
+  district: card.district,
+  objectType: card.objectType,
+  entrance: card.entrance,
+  floor: card.floor,
+  intercom: card.intercom,
+  latitude: card.latitude,
+  longitude: card.longitude,
+  nearby: card.nearby,
+  placeNotes: card.placeNotes,
+  incidentType: card.incidentType,
+  categories: card.categories,
+  startedAt: card.startedAt,
+  victimsTotal: card.victimsTotal,
+  victimsChildren: card.victimsChildren,
+  deathsTotal: card.deathsTotal,
+  deathsChildren: card.deathsChildren,
+  description: card.description,
+});
+
+const toIsoDate = (
+  value: Date | { year: number; month: number; day: number } | null,
+): string | null => {
+  if (!value) return null;
+
+  const year = value instanceof Date ? value.getFullYear() : value.year;
+  const month = value instanceof Date ? value.getMonth() : value.month - 1;
+  const day = value instanceof Date ? value.getDate() : value.day;
+
+  return new Date(year, month, day, 12).toISOString();
+};
 
 type TextFieldName =
   | "district"
@@ -370,7 +417,11 @@ function CountField({
             size="1"
             className="w-full"
             placeholder="Введите кол-во"
-            value={field.value === "" ? undefined : Number(field.value)}
+            value={
+              field.value === "" || field.value === null
+                ? undefined
+                : Number(field.value)
+            }
             onChange={field.onChange}
             onBlur={field.onBlur}
             minValue={0}

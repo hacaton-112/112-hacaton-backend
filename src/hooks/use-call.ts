@@ -28,13 +28,13 @@ export interface CallSnapshot {
   callerNumber?: string;
   incident?: IncidentLocation;
   isResolvingAddress: boolean;
-  isOnHold: boolean;
   isMuted: boolean;
   /** Микрофон открыт, и речь уходит на распознавание. */
   isListening: boolean;
   /** Заявитель отвечает: реплика уже сгенерирована или звучит. */
   isCallerSpeaking: boolean;
   scenarioTitle?: string;
+  scenarioDifficulty?: number;
   panicLevel: number;
   checklistSatisfied: number;
   checklistTotal: number;
@@ -48,14 +48,16 @@ export interface CallSnapshot {
 
 export interface CallControls {
   startScenario: (
-    scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">,
+    scenario: Pick<
+      ScenarioSummary,
+      "scenarioVersionId" | "category" | "title" | "difficulty"
+    >,
   ) => void;
   accept: () => void;
   reject: () => void;
-  end: () => void;
+  end: () => Promise<void>;
   holdFloor: () => void;
   releaseFloor: () => void;
-  toggleHold: () => void;
   toggleMute: () => void;
   reset: () => void;
 }
@@ -101,6 +103,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [trainingSessionId, setTrainingSessionId] = useState<string>();
   const [locator, setLocator] = useState<CallLocator | null>(null);
   const [scenarioTitle, setScenarioTitle] = useState<string>();
+  const [scenarioDifficulty, setScenarioDifficulty] = useState<number>();
   const [panicLevel, setPanicLevel] = useState(0);
   const [checklistSatisfied, setChecklistSatisfied] = useState(0);
   const [checklistTotal, setChecklistTotal] = useState(0);
@@ -108,7 +111,6 @@ export function useCall(): CallSnapshot & CallControls {
   const [dialogue, setDialogue] = useState<DialogueTurn[]>([]);
   const [isListening, setListening] = useState(false);
   const [isCallerSpeaking, setCallerSpeaking] = useState(false);
-  const [isOnHold, setOnHold] = useState(false);
   const [isMuted, setMuted] = useState(false);
   const [error, setError] = useState<string>();
   const [startedAt, setStartedAt] = useState<Date>();
@@ -266,16 +268,30 @@ export function useCall(): CallSnapshot & CallControls {
     });
   }, [state, incident]);
 
-  const command = useCallback(
-    (run: (stream: CallStream) => Promise<void>) => () => {
+  const runCommand = useCallback(
+    async (run: (stream: CallStream) => Promise<void>) => {
       const stream = streamRef.current;
-      if (!stream) return;
+      if (!stream) {
+        const reason = new Error("Нет соединения с сервером звонка");
+        setError(reason.message);
+        throw reason;
+      }
 
-      run(stream).catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      );
+      try {
+        await run(stream);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        throw reason;
+      }
     },
     [],
+  );
+
+  const command = useCallback(
+    (run: (stream: CallStream) => Promise<void>) => () => {
+      void runCommand(run).catch(() => undefined);
+    },
+    [runCommand],
   );
 
   const reset = useCallback(() => {
@@ -283,13 +299,13 @@ export function useCall(): CallSnapshot & CallControls {
     setTrainingSessionId(undefined);
     setLocator(null);
     setScenarioTitle(undefined);
+    setScenarioDifficulty(undefined);
     setPanicLevel(0);
     setChecklistSatisfied(0);
     setChecklistTotal(0);
     setDialogue([]);
     setListening(false);
     setCallerSpeaking(false);
-    setOnHold(false);
     setMuted(false);
     setError(undefined);
     setStartedAt(undefined);
@@ -298,14 +314,36 @@ export function useCall(): CallSnapshot & CallControls {
   }, []);
 
   const startScenario = useCallback(
-    (scenario: Pick<ScenarioSummary, "scenarioVersionId" | "category">) => {
+    (
+      scenario: Pick<
+        ScenarioSummary,
+        "scenarioVersionId" | "category" | "title" | "difficulty"
+      >,
+    ) => {
       reset();
+      setScenarioTitle(scenario.title);
+      setScenarioDifficulty(scenario.difficulty);
       command((stream) =>
         stream.start(scenario.scenarioVersionId, scenario.category),
       )();
     },
     [command, reset],
   );
+
+  const end = useCallback(
+    () => runCommand((stream) => stream.end()),
+    [runCommand],
+  );
+
+  const toggleMute = useCallback(() => {
+    setMuted((current) => {
+      const next = !current;
+      if (next && isListening) {
+        command((stream) => stream.releaseFloor())();
+      }
+      return next;
+    });
+  }, [command, isListening]);
 
   return {
     state,
@@ -314,11 +352,11 @@ export function useCall(): CallSnapshot & CallControls {
     callerNumber: locator?.callerNumber,
     incident,
     isResolvingAddress: state !== "idle" && !incident,
-    isOnHold,
     isMuted,
     isListening,
     isCallerSpeaking,
     scenarioTitle,
+    scenarioDifficulty,
     panicLevel,
     checklistSatisfied,
     checklistTotal,
@@ -331,11 +369,10 @@ export function useCall(): CallSnapshot & CallControls {
     startScenario,
     accept: command((stream) => stream.accept()),
     reject: command((stream) => stream.decline()),
-    end: command((stream) => stream.end()),
+    end,
     holdFloor: command((stream) => stream.holdFloor()),
     releaseFloor: command((stream) => stream.releaseFloor()),
-    toggleHold: () => setOnHold((value) => !value),
-    toggleMute: () => setMuted((value) => !value),
+    toggleMute,
     reset,
   };
 }

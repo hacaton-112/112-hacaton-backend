@@ -389,9 +389,7 @@ body,
 
 @container incident-column (min-width: 520px) {
   .incident-meta-grid {
-    grid-template-columns:
-      minmax(260px, 1.5fr) minmax(110px, 0.65fr)
-      minmax(120px, 0.7fr);
+    grid-template-columns: minmax(260px, 1fr) minmax(140px, 180px);
   }
 
   .incident-counts-grid {
@@ -457,7 +455,7 @@ body,
    * Задаём высоту явно — тогда grid-rows-1 (minmax(0, 1fr)) держит колонки в окне.
    */
   .operator-workspace {
-    height: var(--app-viewport-height) !important;
+    height: calc(var(--app-viewport-height) - 38px) !important;
   }
 
   .operator-column-scroll {

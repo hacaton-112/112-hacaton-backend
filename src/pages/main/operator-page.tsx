@@ -1,18 +1,67 @@
 import { ScrollArea, toast } from "@bolid-ui/themes";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { CallerPanel } from "../../components/operator/caller-panel";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
 import { IncidentForm } from "../../components/operator/incident-form";
+import { OperatorHeader } from "../../components/operator/operator-header";
 import { useCall } from "../../hooks/use-call";
 import { useIncidentCard } from "../../hooks/use-incident-card";
+import { useAuthStore } from "../../stores/auth.store";
 
 export default function OperatorPage() {
   const call = useCall();
-  const incidentCard = useIncidentCard(
-    call.trainingSessionId,
-    call.state === "ended",
-  );
+  const operatorName =
+    useAuthStore((state) => state.user?.fullName) ?? "Оператор";
+  const [isEnding, setEnding] = useState(false);
+  const incidentCard = useIncidentCard({
+    trainingSessionId: call.trainingSessionId,
+    isCallOver: call.state === "ended",
+    locationDefaults: call.incident
+      ? {
+          addressText: call.incident.address,
+          latitude: call.incident.latitude,
+          longitude: call.incident.longitude,
+        }
+      : undefined,
+  });
+
+  const handleEnd = async () => {
+    setEnding(true);
+
+    try {
+      // Backend закрывает карточку вместе со звонком, поэтому debounce должен
+      // завершиться раньше команды end.
+      await incidentCard.flush();
+      await call.end();
+    } catch {
+      // Оба hook уже показали пользователю предметную ошибку. Звонок остаётся
+      // активным, чтобы оператор мог повторить сохранение и завершение.
+    } finally {
+      setEnding(false);
+    }
+  };
+
+  const callerName = (() => {
+    if (incidentCard.card?.callerAnonymous) return "Анонимный заявитель";
+
+    const fullName = [
+      incidentCard.card?.callerLastName,
+      incidentCard.card?.callerFirstName,
+      incidentCard.card?.callerMiddleName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return (
+      fullName ||
+      incidentCard.card?.callerPhone ||
+      call.callerNumber ||
+      "Заявитель"
+    );
+  })();
+  const isCardEditable =
+    call.state === "active" && Boolean(incidentCard.card) && !isEnding;
 
   useEffect(() => {
     if (!call.error) return;
@@ -35,17 +84,28 @@ export default function OperatorPage() {
   }, [incidentCard.error]);
 
   return (
-    <div className="bg-gray-2 h-full min-h-0 overflow-hidden">
+    <div className="bg-gray-2 flex h-full min-h-0 flex-col overflow-hidden">
+      <OperatorHeader
+        state={call.state}
+        scenarioTitle={call.scenarioTitle}
+        scenarioDifficulty={call.scenarioDifficulty}
+        operatorName={operatorName}
+      />
       <ScrollArea
-        className="operator-page-scroll h-full min-h-0"
+        className="operator-page-scroll min-h-0 flex-1"
         scrollbars="vertical"
         type="auto"
       >
         <div className="operator-workspace grid min-h-full grid-cols-1 gap-4 p-4 min-[1480px]:h-full min-[1480px]:min-h-0 min-[1480px]:grid-cols-[minmax(360px,0.92fr)_minmax(650px,1.95fr)_minmax(380px,1fr)] min-[1480px]:grid-rows-1 md:grid-cols-[minmax(340px,0.47fr)_minmax(560px,1fr)]">
-          <div className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden">
+          <div className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_38px_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden">
             <CallerPanel
+              trainingSessionId={call.trainingSessionId}
               callerNumber={call.callerNumber}
               startedAt={call.startedAt}
+              operatorName={operatorName}
+              card={incidentCard.card}
+              disabled={!isCardEditable}
+              onChange={incidentCard.update}
             />
           </div>
           <ScrollArea
@@ -58,18 +118,12 @@ export default function OperatorPage() {
               aria-label="Карточка происшествия"
             >
               <IncidentForm
-                resolvedAddress={call.incident?.address}
-                resolvedLatitude={call.incident?.latitude}
-                resolvedLongitude={call.incident?.longitude}
+                sessionId={call.trainingSessionId}
                 card={incidentCard.card}
                 // До приёма вызова заполнять нечего, после завершения карточку
                 // закрывает backend: дописанное после разговора не оценивается.
-                disabled={
-                  call.state === "idle" ||
-                  call.state === "ringing" ||
-                  call.state === "ended"
-                }
-                onChange={incidentCard.change}
+                disabled={!isCardEditable}
+                onChange={incidentCard.update}
               />
             </main>
           </ScrollArea>
@@ -82,6 +136,11 @@ export default function OperatorPage() {
               {...call}
               services={incidentCard.services}
               onToggleService={incidentCard.toggleService}
+              operatorName={operatorName}
+              callerName={callerName}
+              isCardReady={Boolean(incidentCard.card)}
+              isEnding={isEnding}
+              onEnd={() => void handleEnd()}
             />
           </ScrollArea>
         </div>

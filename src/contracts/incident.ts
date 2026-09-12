@@ -58,6 +58,18 @@ const coordinate = (limit: number) =>
     )
     .pipe(z.number().min(-limit).max(limit).nullable());
 
+export const IncidentCardVictimSchema = z
+  .object({
+    lastName: text(120),
+    firstName: text(120),
+    middleName: text(120),
+    reason: text(200),
+    birthDate: text(20),
+    notes: text(2_000),
+  })
+  .partial()
+  .strict();
+
 /**
  * Карточка происшествия — то же, что хранит backend.
  *
@@ -66,6 +78,13 @@ const coordinate = (limit: number) =>
  * Разбирать её на части будет эталонная анкета сценария.
  */
 export const IncidentCardSchema = z.object({
+  callerAnonymous: z.boolean(),
+  callerLastName: text(120),
+  callerFirstName: text(120),
+  callerMiddleName: text(120),
+  callerLanguage: text(64),
+  callerPhone: text(32),
+
   addressText: text(2_000),
   district: text(200),
   objectType: text(200),
@@ -79,6 +98,7 @@ export const IncidentCardSchema = z.object({
 
   incidentType: text(200),
   categories: z.array(IncidentCategorySchema).max(4),
+  startedAt: z.iso.datetime().nullable(),
   victimsTotal: count,
   victimsChildren: count,
   deathsTotal: count,
@@ -86,15 +106,24 @@ export const IncidentCardSchema = z.object({
   description: text(2_000),
 
   services: z.array(DispatchServiceSchema).max(DISPATCH_SERVICES.length),
+  victims: z.array(IncidentCardVictimSchema).max(20),
 });
 
 export type DispatchService = z.infer<typeof DispatchServiceSchema>;
 export type IncidentCategory = z.infer<typeof IncidentCategorySchema>;
+export type IncidentCardVictim = z.infer<typeof IncidentCardVictimSchema>;
 export type IncidentCard = z.infer<typeof IncidentCardSchema>;
 /** Значения полей до валидации: в DOM всё приходит строками. */
 export type IncidentCardInput = z.input<typeof IncidentCardSchema>;
+export type IncidentCardPatch = Partial<IncidentCardInput>;
 
 export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
+  callerAnonymous: false,
+  callerLastName: "",
+  callerFirstName: "",
+  callerMiddleName: "",
+  callerLanguage: "",
+  callerPhone: "",
   addressText: "",
   district: "",
   objectType: "",
@@ -107,12 +136,14 @@ export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
   placeNotes: "",
   incidentType: "",
   categories: [],
+  startedAt: null,
   victimsTotal: "",
   victimsChildren: "",
   deathsTotal: "",
   deathsChildren: "",
   description: "",
   services: [],
+  victims: [],
 };
 
 export const INCIDENT_CATEGORY_LABELS: Record<IncidentCategory, string> = {
