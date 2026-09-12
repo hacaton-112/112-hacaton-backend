@@ -215,12 +215,48 @@ export class VoicePipelineGateway
         clearInterval(state.heartbeat);
         state.heartbeat = null;
       }
+
+      // Оператор закрыл окно или потерял сеть — для звонка это конец, а не
+      // пауза. Без этого звонок навсегда оставался в разговоре: без
+      // длительности, без оценки и с открытой на запись карточкой.
+      void this.endAbandonedCall(state);
     }
 
     state?.activeRequest?.controller.abort(
       new DOMException("WebSocket disconnected", "AbortError"),
     );
     this.connections.delete(client);
+  }
+
+  /** Тот же путь, что и команда `end`, только причина другая. */
+  private async endAbandonedCall(state: ConnectionState): Promise<void> {
+    if (!state.callStarted) {
+      return;
+    }
+
+    try {
+      await this.engine.endCall({
+        trainingSessionId: state.sessionId,
+        eventId: generateId(),
+        reason: "disconnected",
+      });
+      await this.incidentCards.close(state.sessionId);
+    } catch (error) {
+      // Сокет обрывается и сразу после обычного завершения: звонок уже
+      // закончен, и это нормальный ход событий, а не сбой.
+      if (
+        error instanceof ScenarioEngineError &&
+        error.code === "call-stage-forbidden"
+      ) {
+        return;
+      }
+
+      this.logger.warn(
+        `Could not end the abandoned call ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
   }
 
   /**

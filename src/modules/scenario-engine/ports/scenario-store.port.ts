@@ -115,6 +115,12 @@ export type AppendOutcome = "applied" | "duplicate";
  * SQL, и стаб на билдер запросов проверял бы стаб. Идемпотентность живёт здесь
  * же, потому что она обеспечивается уникальным индексом, а не кодом сервиса.
  */
+export interface AbandonedCall {
+  readonly trainingSessionId: string;
+  /** Когда звонок подавал признаки жизни в последний раз. */
+  readonly lastActivityAt: Date;
+}
+
 export interface ScenarioStore {
   loadVersion(
     scenarioVersionId: string,
@@ -152,4 +158,15 @@ export interface ScenarioStore {
     trainingSessionId: string,
     limit: number,
   ): Promise<readonly DialogueTurn[]>;
+
+  /**
+   * Звонки, которые давно никто не ведёт.
+   *
+   * Оборвавшееся соединение завершает звонок само, но процесс backend может
+   * упасть между репликами, и тогда закрыть звонок будет некому.
+   */
+  listAbandonedCalls(
+    idleSince: Date,
+    limit: number,
+  ): Promise<readonly AbandonedCall[]>;
 }

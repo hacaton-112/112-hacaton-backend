@@ -1203,6 +1203,57 @@ describe(VoicePipelineGateway.name, () => {
 
     expect(runtime.asr.abort).toHaveBeenCalledTimes(1);
   });
+
+  it("ends the call when the operator's connection drops", async () => {
+    const engine = createEngine();
+    const cards = createCards();
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      engine,
+      createAsr(),
+      createRecorder(),
+      cards,
+    );
+
+    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Закрытое окно — это конец звонка, а не пауза: иначе он навсегда
+    // остаётся в разговоре, без длительности и без оценки.
+    expect(engine.endCall).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "disconnected" }),
+    );
+    expect(cards.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing when the socket drops right after a normal end", async () => {
+    const engine = createEngine({
+      endCall: jest
+        .fn()
+        .mockRejectedValue(
+          new ScenarioEngineError("call-stage-forbidden", "already ended"),
+        ),
+    });
+    const warn = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      engine,
+    );
+
+    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
   it("records the operator's voice as well as recognising it", async () => {
     const runtime = await createRuntime();
     const frame = Buffer.from([1, 2, 3, 4]);
