@@ -176,8 +176,8 @@
       "cardValue": "В сознании, дым, выход отрезан",
       "contentKeywords": ["дышат", "дальней комнат", "дверь в коридор"],
       "disclosure": {
-        "type": "after_fact",
-        "factKeys": ["trapped_children"]
+        "type": "on_question",
+        "keywords": ["состояни", "сознан", "дышат", "выйти", "ожог", "как они"]
       },
       "priority": 5
     },

@@ -68,7 +68,6 @@ describe("DisclosureRuleSchema", () => {
     const rules = [
       { type: "immediate" },
       { type: "on_question", keywords: ["адрес"] },
-      { type: "after_fact", factKeys: ["address_street"] },
       { type: "after_turns", turns: 3 },
       { type: "below_panic", level: 2 },
       { type: "after_stage", stage: "wrap_up" },
@@ -78,6 +77,17 @@ describe("DisclosureRuleSchema", () => {
     for (const rule of rules) {
       expect(DisclosureRuleSchema.safeParse(rule).success).toBe(true);
     }
+  });
+
+  it("no longer knows the rule that chained one fact to another", () => {
+    // Порядок опроса больше не задаётся данными: снято намеренно, и сценарий с
+    // таким условием обязан не загрузиться, а не открыть факт молча.
+    expect(
+      DisclosureRuleSchema.safeParse({
+        type: "after_fact",
+        factKeys: ["trapped_children"],
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects an unknown variant and a malformed one", () => {
@@ -107,22 +117,6 @@ describe("isFactAvailable", () => {
     expect(isFactAvailable(fact({ disclosure: rule }), context())).toBe(false);
     expect(
       isFactAvailable(fact({ disclosure: rule }), context({ operatorText: "Какой адрес?" })),
-    ).toBe(true);
-  });
-
-  it("waits for every prerequisite fact", () => {
-    const rule: DisclosureRule = {
-      type: "after_fact",
-      factKeys: ["address_street", "address_house"],
-    };
-
-    expect(
-      isFactAvailable(fact({ disclosure: rule }), context({ revealedKeys: ["address_street"] })),
-    ).toBe(false);
-    expect(
-      isFactAvailable(fact({ disclosure: rule }),
-        context({ revealedKeys: ["address_street", "address_house"] }),
-      ),
     ).toBe(true);
   });
 
