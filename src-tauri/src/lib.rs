@@ -30,6 +30,7 @@ pub fn run() {
         .manage(Call::default())
         .invoke_handler(tauri::generate_handler![
             call::call_connect,
+            call::call_start,
             call::call_send,
             call::call_attach_microphone_channel,
             call::call_listen_start,

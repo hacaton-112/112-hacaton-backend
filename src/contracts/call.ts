@@ -115,8 +115,7 @@ export const ScenarioListSchema = z.object({
 
 /** Commands initiated by the webview and sent through the native call transport. */
 export type CallClientCommand =
-  | { type: "start"; scenarioVersionId: string }
-  | { type: "accept" | "decline" | "end" };
+  { type: "accept" | "decline" | "end" };
 
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;

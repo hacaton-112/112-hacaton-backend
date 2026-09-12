@@ -14,9 +14,10 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
+use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamBuilder, Sink};
 use serde_json::{json, Value};
 use tauri::{
-    ipc::{Channel, InvokeResponseBody, Response},
+    ipc::{Channel, InvokeResponseBody},
     State,
 };
 use tokio::sync::mpsc;
@@ -35,10 +36,219 @@ const PCM_SAMPLE_RATE: u64 = 16_000;
 const PCM_CHANNELS: u64 = 1;
 const PCM_CHUNK_BYTES: usize = PCM_SAMPLE_RATE as usize / 10 * 2;
 const LISTEN_STOP: &str = r#"{"type":"listen.stop"}"#;
+const TTS_STARTUP_BUFFER_MS: usize = 160;
+const TELEPHONE_HIGH_PASS_HZ: f32 = 320.0;
+const TELEPHONE_LOW_PASS_HZ: f32 = 1_800.0;
+const COMPRESSOR_THRESHOLD: f32 = 0.10;
+const COMPRESSOR_RATIO: f32 = 0.45;
+const TELEPHONE_DRIVE: f32 = 1.2;
+const OUTPUT_GAIN: f32 = 0.88;
+const TELEPHONE_OUTPUT_LIMIT: f32 = 0.92;
+const INTERFERENCE_NOISE_LEVEL: f32 = 0.045;
+const INTERFERENCE_CRACKLE_LEVEL: f32 = 0.10;
 
 enum Outgoing {
     Command(String),
+    Start { scenario_version_id: String },
     Pcm(Vec<u8>),
+}
+
+struct TelephoneAudioProcessor {
+    sample_rate: u32,
+    high_pass_alpha: f32,
+    low_pass_alpha: f32,
+    previous_input: f32,
+    high_pass_state: f32,
+    previous_high_pass: f32,
+    high_pass_state_2: f32,
+    low_pass_state: f32,
+    low_pass_state_2: f32,
+    noise_state: u32,
+    interference_wait: usize,
+    interference_remaining: usize,
+    interference_previous_input: f32,
+    interference_high_pass_state: f32,
+    interference_low_pass_state: f32,
+}
+
+impl TelephoneAudioProcessor {
+    fn new(sample_rate: u32) -> Self {
+        let sample_interval = 1.0 / sample_rate as f32;
+        let high_pass_rc = 1.0 / (2.0 * std::f32::consts::PI * TELEPHONE_HIGH_PASS_HZ);
+        let low_pass_rc = 1.0 / (2.0 * std::f32::consts::PI * TELEPHONE_LOW_PASS_HZ);
+        let time_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.subsec_nanos())
+            .unwrap_or(0x6d2b79f5);
+        let noise_seed = time_seed ^ sample_rate ^ 0x9e3779b9;
+
+        Self {
+            sample_rate,
+            high_pass_alpha: high_pass_rc / (high_pass_rc + sample_interval),
+            low_pass_alpha: sample_interval / (low_pass_rc + sample_interval),
+            previous_input: 0.0,
+            high_pass_state: 0.0,
+            previous_high_pass: 0.0,
+            high_pass_state_2: 0.0,
+            low_pass_state: 0.0,
+            low_pass_state_2: 0.0,
+            noise_state: if noise_seed == 0 {
+                0x6d2b79f5
+            } else {
+                noise_seed
+            },
+            interference_wait: sample_rate as usize / 2,
+            interference_remaining: 0,
+            interference_previous_input: 0.0,
+            interference_high_pass_state: 0.0,
+            interference_low_pass_state: 0.0,
+        }
+    }
+
+    fn process(&mut self, sample: i16) -> f32 {
+        let input = sample as f32 / 32_768.0;
+        let high_passed =
+            self.high_pass_alpha * (self.high_pass_state + input - self.previous_input);
+        self.previous_input = input;
+        self.high_pass_state = high_passed;
+        let high_passed_2 =
+            self.high_pass_alpha * (self.high_pass_state_2 + high_passed - self.previous_high_pass);
+        self.previous_high_pass = high_passed;
+        self.high_pass_state_2 = high_passed_2;
+        self.low_pass_state += self.low_pass_alpha * (high_passed_2 - self.low_pass_state);
+        self.low_pass_state_2 +=
+            self.low_pass_alpha * (self.low_pass_state - self.low_pass_state_2);
+
+        let magnitude = self.low_pass_state_2.abs();
+        let compressed_magnitude = if magnitude <= COMPRESSOR_THRESHOLD {
+            magnitude
+        } else {
+            COMPRESSOR_THRESHOLD + (magnitude - COMPRESSOR_THRESHOLD) * COMPRESSOR_RATIO
+        };
+        let compressed = self.low_pass_state_2.signum() * compressed_magnitude;
+        let saturated = (compressed * TELEPHONE_DRIVE).tanh() / TELEPHONE_DRIVE.tanh();
+        (saturated * OUTPUT_GAIN + self.next_interference())
+            .clamp(-TELEPHONE_OUTPUT_LIMIT, TELEPHONE_OUTPUT_LIMIT)
+    }
+
+    fn next_interference(&mut self) -> f32 {
+        if self.interference_remaining > 0 {
+            self.interference_remaining -= 1;
+            let static_noise = self.random_signed() * INTERFERENCE_NOISE_LEVEL;
+            let crackle = if self.next_random() % 41 == 0 {
+                self.random_signed().signum() * INTERFERENCE_CRACKLE_LEVEL
+            } else {
+                0.0
+            };
+            return self.filter_interference(static_noise + crackle);
+        }
+
+        if self.interference_wait > 0 {
+            self.interference_wait -= 1;
+            return 0.0;
+        }
+
+        let duration_roll = self.next_random();
+        let duration_ms = if duration_roll % 5 == 0 {
+            450 + self.next_random() as usize % 1_051
+        } else {
+            45 + self.next_random() as usize % 256
+        };
+        let pause_ms = 800 + self.next_random() as usize % 2_400;
+        self.interference_remaining = self.sample_rate as usize * duration_ms / 1_000;
+        self.interference_wait = self.sample_rate as usize * pause_ms / 1_000;
+        self.next_interference()
+    }
+
+    fn filter_interference(&mut self, input: f32) -> f32 {
+        let high_passed = self.high_pass_alpha
+            * (self.interference_high_pass_state + input - self.interference_previous_input);
+        self.interference_previous_input = input;
+        self.interference_high_pass_state = high_passed;
+        self.interference_low_pass_state +=
+            self.low_pass_alpha * (high_passed - self.interference_low_pass_state);
+        self.interference_low_pass_state.clamp(-0.12, 0.12)
+    }
+
+    fn random_signed(&mut self) -> f32 {
+        (self.next_random() as f32 / u32::MAX as f32) * 2.0 - 1.0
+    }
+
+    fn next_random(&mut self) -> u32 {
+        let mut state = self.noise_state;
+        state ^= state.wrapping_shl(13);
+        state ^= state.wrapping_shr(17);
+        state ^= state.wrapping_shl(5);
+        self.noise_state = state;
+        state
+    }
+}
+
+struct TtsAudioStream {
+    sample_rate: u32,
+    processor: TelephoneAudioProcessor,
+    sink: std::sync::Arc<Sink>,
+    pending_byte: Option<u8>,
+    buffered_samples: usize,
+    started: bool,
+}
+
+impl TtsAudioStream {
+    fn new(sample_rate: u32, output: &OutputStream) -> Self {
+        let sink = std::sync::Arc::new(Sink::connect_new(output.mixer()));
+        sink.pause();
+        Self {
+            sample_rate,
+            processor: TelephoneAudioProcessor::new(sample_rate),
+            sink,
+            pending_byte: None,
+            buffered_samples: 0,
+            started: false,
+        }
+    }
+
+    fn push_pcm16_le(&mut self, bytes: &[u8]) {
+        let mut samples =
+            Vec::with_capacity((bytes.len() + usize::from(self.pending_byte.is_some())) / 2);
+        let mut offset = 0;
+        if let (Some(low), Some(&high)) = (self.pending_byte.take(), bytes.first()) {
+            samples.push(self.processor.process(i16::from_le_bytes([low, high])));
+            offset = 1;
+        }
+
+        for pair in bytes[offset..].chunks_exact(2) {
+            samples.push(
+                self.processor
+                    .process(i16::from_le_bytes([pair[0], pair[1]])),
+            );
+            offset += 2;
+        }
+
+        if offset < bytes.len() {
+            self.pending_byte = Some(bytes[offset]);
+        }
+
+        if !samples.is_empty() {
+            self.buffered_samples += samples.len();
+            self.sink
+                .append(SamplesBuffer::new(1, self.sample_rate, samples));
+        }
+
+        if !self.started
+            && self.buffered_samples * 1_000 >= self.sample_rate as usize * TTS_STARTUP_BUFFER_MS
+        {
+            self.started = true;
+            self.sink.play();
+        }
+    }
+
+    fn finish(mut self) -> std::sync::Arc<Sink> {
+        if !self.started {
+            self.started = true;
+            self.sink.play();
+        }
+        self.sink
+    }
 }
 
 struct ActiveCall {
@@ -65,7 +275,6 @@ impl Call {
         url: String,
         token: String,
         on_event: Channel<Value>,
-        on_audio: Channel<Response>,
     ) -> Result<String, String> {
         if !url.starts_with("ws://") && !url.starts_with("wss://") {
             return Err(format!("unsupported WebSocket URL: {url}"));
@@ -87,9 +296,12 @@ impl Call {
         let (socket, _) = connect_async(request)
             .await
             .map_err(|error| format!("could not connect to the backend: {error}"))?;
+        let mut output = OutputStreamBuilder::open_default_stream()
+            .map_err(|error| format!("could not open the audio output: {error}"))?;
+        output.log_on_drop(false);
 
         let (outgoing, outgoing_rx) = mpsc::channel::<Outgoing>(OUTGOING_CAPACITY);
-        tauri::async_runtime::spawn(pump(socket, outgoing_rx, on_event.clone(), on_audio));
+        tauri::async_runtime::spawn(pump(socket, outgoing_rx, on_event.clone(), output));
 
         let id = generation.to_string();
         let mut active = self.active.lock().map_err(lock_error)?;
@@ -115,6 +327,21 @@ impl Call {
 
         outgoing
             .send(Outgoing::Command(command.to_string()))
+            .await
+            .map_err(|_| "the call socket is closed".to_owned())
+    }
+
+    async fn start(
+        &self,
+        connection: &str,
+        scenario_version_id: String,
+        _scenario_category: String,
+    ) -> Result<(), String> {
+        let outgoing = self.sender(connection)?;
+        outgoing
+            .send(Outgoing::Start {
+                scenario_version_id,
+            })
             .await
             .map_err(|_| "the call socket is closed".to_owned())
     }
@@ -358,9 +585,19 @@ pub async fn call_connect(
     url: String,
     token: String,
     on_event: Channel<Value>,
-    on_audio: Channel<Response>,
 ) -> Result<String, String> {
-    call.connect(url, token, on_event, on_audio).await
+    call.connect(url, token, on_event).await
+}
+
+#[tauri::command]
+pub async fn call_start(
+    call: State<'_, Call>,
+    connection: String,
+    scenario_version_id: String,
+    scenario_category: String,
+) -> Result<(), String> {
+    call.start(&connection, scenario_version_id, scenario_category)
+        .await
 }
 
 #[tauri::command]
@@ -403,11 +640,16 @@ async fn pump(
     socket: Socket,
     mut outgoing_rx: mpsc::Receiver<Outgoing>,
     on_event: Channel<Value>,
-    on_audio: Channel<Response>,
+    output: OutputStream,
 ) {
     let (mut writer, mut reader) = socket.split();
     let mut listening = false;
     let mut pending: VecDeque<Vec<u8>> = VecDeque::new();
+    let mut tts_audio: Option<TtsAudioStream> = None;
+    let mut playback_sink: Option<std::sync::Arc<Sink>> = None;
+    let mut deferred_audio_done: Option<Value> = None;
+    let mut playback_generation = 0_u64;
+    let (playback_done_tx, mut playback_done_rx) = mpsc::unbounded_channel::<u64>();
 
     loop {
         tokio::select! {
@@ -416,6 +658,25 @@ async fn pump(
 
                 let message = match outgoing {
                     Outgoing::Command(text) => Message::text(text),
+                    Outgoing::Start {
+                        scenario_version_id: version_id,
+                    } => {
+                        if let Some(audio) = tts_audio.take() {
+                            audio.sink.stop();
+                        }
+                        if let Some(sink) = playback_sink.take() {
+                            sink.stop();
+                        }
+                        playback_generation = playback_generation.wrapping_add(1);
+                        deferred_audio_done = None;
+                        Message::text(
+                            json!({
+                                "type": "start",
+                                "scenarioVersionId": version_id,
+                            })
+                            .to_string(),
+                        )
+                    }
                     Outgoing::Pcm(chunk) => {
                         if !listening {
                             if pending.len() == PENDING_CHUNKS {
@@ -434,6 +695,16 @@ async fn pump(
                     break;
                 }
             }
+            Some(generation) = playback_done_rx.recv() => {
+                if generation == playback_generation {
+                    playback_sink = None;
+                    if let Some(event) = deferred_audio_done.take() {
+                        if on_event.send(event).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
             incoming = reader.next() => {
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
@@ -441,6 +712,7 @@ async fn pump(
                             emit_error(&on_event, "unexpected message from the backend".to_owned());
                             continue;
                         };
+                        let mut forward_event = true;
 
                         match event.get("type").and_then(Value::as_str) {
                             Some("listen.started") => {
@@ -452,20 +724,81 @@ async fn pump(
                                     }
                                 }
                             }
-                            Some("listen.stopped") | Some("error") => {
+                            Some("listen.stopped") => {
                                 listening = false;
                                 pending.clear();
+                            }
+                            Some("error") => {
+                                listening = false;
+                                pending.clear();
+                                if let Some(audio) = tts_audio.take() {
+                                    audio.sink.stop();
+                                }
+                                if let Some(sink) = playback_sink.take() {
+                                    sink.stop();
+                                }
+                                playback_generation = playback_generation.wrapping_add(1);
+                                deferred_audio_done = None;
+                            }
+                            Some("audio.start") => {
+                                if let Some(audio) = tts_audio.take() {
+                                    audio.sink.stop();
+                                }
+                                if let Some(sink) = playback_sink.take() {
+                                    sink.stop();
+                                }
+                                playback_generation = playback_generation.wrapping_add(1);
+                                deferred_audio_done = None;
+                                let sample_rate = event
+                                    .get("sampleRate")
+                                    .and_then(Value::as_u64)
+                                    .and_then(|rate| u32::try_from(rate).ok());
+                                if event.get("streamId").and_then(Value::as_str).is_some() {
+                                    if let Some(sample_rate) = sample_rate {
+                                        if (8_000..=192_000).contains(&sample_rate) {
+                                            tts_audio = Some(TtsAudioStream::new(sample_rate, &output));
+                                        } else {
+                                            emit_error(&on_event, format!(
+                                                "unsupported TTS sample rate: {sample_rate} Hz"
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                            Some("audio.done") => {
+                                if let Some(audio) = tts_audio.take() {
+                                    let sink = audio.finish();
+                                    playback_sink = Some(sink.clone());
+                                    let generation = playback_generation;
+                                    let done_tx = playback_done_tx.clone();
+                                    deferred_audio_done = Some(event.clone());
+                                    forward_event = false;
+                                    tauri::async_runtime::spawn_blocking(move || {
+                                        sink.sleep_until_end();
+                                        let _ = done_tx.send(generation);
+                                    });
+                                }
+                            }
+                            Some("request.cancelled") | Some("call.ended") => {
+                                if let Some(audio) = tts_audio.take() {
+                                    audio.sink.stop();
+                                }
+                                if let Some(sink) = playback_sink.take() {
+                                    sink.stop();
+                                }
+                                playback_generation = playback_generation.wrapping_add(1);
+                                deferred_audio_done = None;
                             }
                             _ => {}
                         }
 
-                        if on_event.send(event).is_err() {
+                        if forward_event && on_event.send(event).is_err() {
                             break;
                         }
                     }
                     Some(Ok(Message::Binary(audio))) => {
-                        if on_audio.send(Response::new(audio.to_vec())).is_err() {
-                            break;
+                        if let Some(stream) = tts_audio.as_mut() {
+                            stream.push_pcm16_le(&audio);
                         }
                     }
                     Some(Ok(Message::Ping(payload))) => {
@@ -484,6 +817,12 @@ async fn pump(
         }
     }
 
+    if let Some(audio) = tts_audio {
+        audio.sink.stop();
+    }
+    if let Some(sink) = playback_sink {
+        sink.stop();
+    }
     let _ = writer.close().await;
     let _ = on_event.send(json!({ "type": "socket.closed" }));
 }
@@ -556,7 +895,9 @@ mod tests {
                 assert_eq!(chunk.len(), PCM_CHUNK_BYTES);
                 assert!(chunk.iter().all(|byte| *byte == 0x5a));
             }
-            Outgoing::Command(_) => panic!("expected PCM"),
+            Outgoing::Command(_) | Outgoing::Start { .. } => {
+                panic!("expected PCM")
+            }
         }
         assert!(receiver.try_recv().is_err());
     }
@@ -568,5 +909,52 @@ mod tests {
         state.disconnect("stale").expect("disconnect succeeds");
 
         assert!(state.active.lock().expect("state lock").is_some());
+    }
+
+    #[test]
+    fn telephone_processor_band_limits_and_colours_the_voice() {
+        let mut processor = TelephoneAudioProcessor::new(24_000);
+        let processed: Vec<f32> = (0..2_000).map(|_| processor.process(16_000)).collect();
+
+        assert!(processed
+            .iter()
+            .all(|sample| sample.abs() <= TELEPHONE_OUTPUT_LIMIT));
+        assert!(processed[0].abs() > processed[1_999].abs());
+        assert!(processed.iter().any(|sample| *sample != 0.0));
+    }
+
+    #[test]
+    fn telephone_processor_adds_short_interference_bursts() {
+        let mut processor = TelephoneAudioProcessor::new(24_000);
+        processor.noise_state = 0x12345678;
+        processor.interference_wait = 0;
+
+        let samples: Vec<f32> = (0..2_000).map(|_| processor.process(0)).collect();
+
+        assert!(samples.iter().any(|sample| sample.abs() > 0.01));
+        assert!(samples.iter().all(|sample| sample.abs() <= 0.12));
+    }
+
+    #[test]
+    fn telephone_processor_focuses_energy_on_the_reference_voice_band() {
+        fn filtered_rms(frequency: f32) -> f32 {
+            let sample_rate = 24_000;
+            let mut processor = TelephoneAudioProcessor::new(sample_rate);
+            processor.interference_wait = usize::MAX;
+            let samples: Vec<f32> = (0..4_800)
+                .map(|index| {
+                    let phase =
+                        2.0 * std::f32::consts::PI * frequency * index as f32 / sample_rate as f32;
+                    processor.process((phase.sin() * 16_000.0) as i16)
+                })
+                .skip(1_000)
+                .collect();
+            (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32)
+                .sqrt()
+        }
+
+        let voice = filtered_rms(900.0);
+        assert!(voice > filtered_rms(100.0) * 4.0);
+        assert!(voice > filtered_rms(4_000.0) * 3.0);
     }
 }

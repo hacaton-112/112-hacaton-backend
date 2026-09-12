@@ -7,7 +7,6 @@ interface CallConnectOptions extends Record<string, unknown> {
   url: string;
   token: string;
   onEvent: Channel<unknown>;
-  onAudio: Channel<ArrayBuffer>;
 }
 
 interface SystemAudioCaptureOptions {
@@ -27,6 +26,18 @@ export const ipc = {
 
     send(connection: string, command: CallClientCommand): Promise<void> {
       return invoke(IPC_CONFIG.getCallSendHandler(), { connection, command });
+    },
+
+    start(
+      connection: string,
+      scenarioVersionId: string,
+      scenarioCategory: string,
+    ): Promise<void> {
+      return invoke(IPC_CONFIG.getCallStartHandler(), {
+        connection,
+        scenarioVersionId,
+        scenarioCategory,
+      });
     },
 
     attachMicrophoneChannel(

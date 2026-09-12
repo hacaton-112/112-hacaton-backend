@@ -7,11 +7,6 @@ import {
   type CallServerEvent,
 } from "../contracts/call";
 import { ipc } from "../lib/ipc";
-import {
-  TelephoneAudioProcessor,
-  resolveScenarioAmbience,
-} from "./telephone-audio-processor";
-import { CallerAudioJitterBuffer, type ScheduledCallerAudio } from "./caller-audio-jitter-buffer";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
@@ -30,17 +25,11 @@ export interface CallStream {
 }
 
 /**
- * WebSocket и PCM остаются в Rust. Webview управляет жизненным циклом звонка
- * и проигрывает голос заявителя, полученный по бинарному Tauri Channel.
+ * WebSocket, обработка PCM, буфер и воспроизведение остаются в Rust.
+ * Webview управляет только жизненным циклом звонка.
  */
 class NativeCallStream implements CallStream {
   private readonly callbacks: CallStreamCallbacks;
-  private readonly callerAudio: CallerAudioJitterBuffer;
-  private audioContext?: AudioContext;
-  private sampleRate = 24_000;
-  private scenarioCategory = "other";
-  private scenarioVersionId = "unselected";
-  private audioProcessor?: TelephoneAudioProcessor;
   private connection: string | null = null;
   private disposed = false;
   /** Не даёт новому нажатию обогнать остановку и отправку хвоста предыдущего. */
@@ -48,28 +37,17 @@ class NativeCallStream implements CallStream {
 
   constructor(callbacks: CallStreamCallbacks) {
     this.callbacks = callbacks;
-    this.callerAudio = new CallerAudioJitterBuffer({
-      scheduler: {
-        currentTime: () => this.ensureAudioContext().currentTime,
-        schedule: (pcm, sampleRate, startAt) =>
-          this.schedulePcmChunk(pcm, sampleRate, startAt),
-      },
-    });
   }
 
   async connect(token: string): Promise<void> {
     const events = new Channel<unknown>();
     events.onmessage = (payload) => this.handleEvent(payload);
 
-    const audio = new Channel<ArrayBuffer>();
-    audio.onmessage = (chunk) => this.callerAudio.push(chunk);
-
     try {
       this.connection = await ipc.call.connect({
         url: API_CONFIG.getVoicePipelineStreamUrl(),
         token,
         onEvent: events,
-        onAudio: audio,
       });
     } catch (reason) {
       throw this.toError(reason);
@@ -81,11 +59,11 @@ class NativeCallStream implements CallStream {
   }
 
   start(scenarioVersionId: string, scenarioCategory: string): Promise<void> {
-    this.resetAudioProcessing();
-    this.scenarioVersionId = scenarioVersionId;
-    this.scenarioCategory = scenarioCategory;
-
-    return this.send({ type: "start", scenarioVersionId });
+    return ipc.call
+      .start(this.requireConnection(), scenarioVersionId, scenarioCategory)
+      .catch((reason: unknown) => {
+        throw this.toError(reason);
+      });
   }
 
   accept(): Promise<void> {
@@ -147,10 +125,6 @@ class NativeCallStream implements CallStream {
       }
     }).catch(() => undefined);
 
-    this.callerAudio.reset();
-    await this.audioContext?.close().catch(() => undefined);
-    this.audioContext = undefined;
-    this.resetAudioProcessing();
   }
 
   private async send(command: CallClientCommand): Promise<void> {
@@ -185,65 +159,7 @@ class NativeCallStream implements CallStream {
       return;
     }
 
-    if (parsed.data.type === "audio.start") {
-      this.sampleRate = parsed.data.sampleRate;
-      this.audioProcessor?.reset();
-      this.audioProcessor = new TelephoneAudioProcessor({
-        sampleRate: this.sampleRate,
-        ambience: resolveScenarioAmbience(this.scenarioCategory),
-        seed: `${this.scenarioVersionId}:${parsed.data.streamId}`,
-      });
-    } else if (
-      parsed.data.type === "request.cancelled" ||
-      parsed.data.type === "call.ended" ||
-      parsed.data.type === "socket.closed" ||
-      parsed.data.type === "socket.error"
-    ) {
-      this.resetAudioProcessing();
-    }
-
     this.callbacks.onEvent(parsed.data);
-  }
-
-  private ensureAudioContext(): AudioContext {
-    this.audioContext ??= new AudioContext({ sampleRate: this.sampleRate });
-    return this.audioContext;
-  }
-
-  private schedulePcmChunk(
-    pcm16: Int16Array,
-    sampleRate: number,
-    startAt: number,
-  ): ScheduledCallerAudio {
-    const context = this.ensureAudioContext();
-    const audioBuffer = context.createBuffer(1, pcm16.length, sampleRate);
-    const channel = audioBuffer.getChannelData(0);
-    const processed = this.ensureAudioProcessor().process(pcm16);
-    channel.set(processed);
-
-    const source = context.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(context.destination);
-    source.start(startAt);
-
-    return {
-      stop: () => source.stop(),
-    };
-  }
-
-  private ensureAudioProcessor(): TelephoneAudioProcessor {
-    this.audioProcessor ??= new TelephoneAudioProcessor({
-      sampleRate: this.sampleRate,
-      ambience: resolveScenarioAmbience(this.scenarioCategory),
-      seed: this.scenarioVersionId,
-    });
-
-    return this.audioProcessor;
-  }
-
-  private resetAudioProcessing(): void {
-    this.audioProcessor?.reset();
-    this.audioProcessor = undefined;
   }
 
   private toError = (reason: unknown): Error =>
