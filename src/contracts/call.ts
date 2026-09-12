@@ -87,6 +87,11 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     sampleRate: z.number().int().positive(),
   }),
   z.object({ type: z.literal("audio.done") }),
+  /** RMS обработанного TTS из Rust; используется только индикатором громкости. */
+  z.object({
+    type: z.literal("audio.level"),
+    level: z.number().min(0).max(1),
+  }),
   z.object({ type: z.literal("request.cancelled") }),
   z.object({
     type: z.literal("error"),
@@ -114,8 +119,7 @@ export const ScenarioListSchema = z.object({
 });
 
 /** Commands initiated by the webview and sent through the native call transport. */
-export type CallClientCommand =
-  { type: "accept" | "decline" | "end" };
+export type CallClientCommand = { type: "accept" | "decline" | "end" };
 
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;

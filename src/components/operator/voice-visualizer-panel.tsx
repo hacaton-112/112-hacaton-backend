@@ -3,7 +3,7 @@ import { MicOff } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { VoiceVisualizer, useVoiceVisualizer } from "react-voice-visualizer";
 
-const VISUALIZER_HEIGHT = 56;
+const VISUALIZER_HEIGHT = 32;
 
 interface VoiceVisualizerPanelProps {
   /** Запись идёт только во время разговора и при включённом микрофоне. */
@@ -12,7 +12,10 @@ interface VoiceVisualizerPanelProps {
 
 /** Цвета берём из темы: canvas понимает только вычисленные значения, не var(). */
 function useThemeColors(elementRef: React.RefObject<HTMLElement | null>) {
-  const [colors, setColors] = useState({ main: "#e5484d", secondary: "#3f3f46" });
+  const [colors, setColors] = useState({
+    main: "#e5484d",
+    secondary: "#3f3f46",
+  });
 
   useEffect(() => {
     if (!elementRef.current) return;
@@ -49,9 +52,9 @@ function VoiceVisualizerPanelImpl({ isListening }: VoiceVisualizerPanelProps) {
   }, [isListening, startRecording, stopRecording]);
 
   return (
-    <div ref={containerRef} className="min-h-14">
+    <div ref={containerRef} className="h-8">
       {error ? (
-        <Flex align="center" justify="center" gap="2" className="h-14">
+        <Flex align="center" justify="center" gap="2" className="h-8">
           <MicOff size={14} aria-hidden />
           <Text size="1" color="gray">
             Микрофон недоступен
@@ -62,9 +65,10 @@ function VoiceVisualizerPanelImpl({ isListening }: VoiceVisualizerPanelProps) {
           controls={controls}
           height={VISUALIZER_HEIGHT}
           width="100%"
-          barWidth={3}
-          gap={2}
-          rounded={3}
+          speed={1}
+          barWidth={1}
+          gap={1}
+          rounded={5}
           backgroundColor="transparent"
           mainBarColor={colors.main}
           secondaryBarColor={colors.secondary}
@@ -73,6 +77,8 @@ function VoiceVisualizerPanelImpl({ isListening }: VoiceVisualizerPanelProps) {
           isDefaultUIShown={false}
           isProgressIndicatorShown={false}
           isProgressIndicatorTimeShown={false}
+          mainContainerClassName="h-full w-full"
+          canvasContainerClassName="m-0! w-full!"
           onlyRecording
         />
       )}

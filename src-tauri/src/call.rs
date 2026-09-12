@@ -14,7 +14,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
-use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamBuilder, Sink};
+use rodio::{buffer::SamplesBuffer, source::Source, OutputStream, OutputStreamBuilder, Sink};
 use serde_json::{json, Value};
 use tauri::{
     ipc::{Channel, InvokeResponseBody},
@@ -191,10 +191,17 @@ struct TtsAudioStream {
     pending_byte: Option<u8>,
     buffered_samples: usize,
     started: bool,
+    level_tx: mpsc::UnboundedSender<(u64, f32)>,
+    generation: u64,
 }
 
 impl TtsAudioStream {
-    fn new(sample_rate: u32, output: &OutputStream) -> Self {
+    fn new(
+        sample_rate: u32,
+        output: &OutputStream,
+        level_tx: mpsc::UnboundedSender<(u64, f32)>,
+        generation: u64,
+    ) -> Self {
         let sink = std::sync::Arc::new(Sink::connect_new(output.mixer()));
         sink.pause();
         Self {
@@ -204,6 +211,8 @@ impl TtsAudioStream {
             pending_byte: None,
             buffered_samples: 0,
             started: false,
+            level_tx,
+            generation,
         }
     }
 
@@ -230,8 +239,12 @@ impl TtsAudioStream {
 
         if !samples.is_empty() {
             self.buffered_samples += samples.len();
-            self.sink
-                .append(SamplesBuffer::new(1, self.sample_rate, samples));
+            self.sink.append(PlaybackLevelSource::new(
+                SamplesBuffer::new(1, self.sample_rate, samples),
+                self.sample_rate,
+                self.generation,
+                self.level_tx.clone(),
+            ));
         }
 
         if !self.started
@@ -248,6 +261,95 @@ impl TtsAudioStream {
             self.sink.play();
         }
         self.sink
+    }
+}
+
+/// Считает RMS в момент, когда rodio действительно забирает семплы на
+/// воспроизведение. Благодаря этому UI-индикатор не обгоняет Rust-буфер TTS.
+struct PlaybackLevelSource<S> {
+    inner: S,
+    level_tx: mpsc::UnboundedSender<(u64, f32)>,
+    generation: u64,
+    square_sum: f32,
+    sample_count: usize,
+    samples_per_update: usize,
+    finished: bool,
+}
+
+impl<S> PlaybackLevelSource<S> {
+    fn new(
+        inner: S,
+        sample_rate: u32,
+        generation: u64,
+        level_tx: mpsc::UnboundedSender<(u64, f32)>,
+    ) -> Self {
+        Self {
+            inner,
+            level_tx,
+            generation,
+            square_sum: 0.0,
+            sample_count: 0,
+            samples_per_update: (sample_rate as usize / 30).max(1),
+            finished: false,
+        }
+    }
+
+    fn emit_level(&mut self) {
+        if self.sample_count == 0 {
+            return;
+        }
+
+        let rms = (self.square_sum / self.sample_count as f32).sqrt();
+        let level = (rms * 5.5).clamp(0.0, 1.0);
+        let _ = self.level_tx.send((self.generation, level));
+        self.square_sum = 0.0;
+        self.sample_count = 0;
+    }
+}
+
+impl<S> Iterator for PlaybackLevelSource<S>
+where
+    S: Iterator<Item = f32>,
+{
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(sample) = self.inner.next() else {
+            if !self.finished {
+                self.finished = true;
+                self.emit_level();
+            }
+            return None;
+        };
+        self.square_sum += sample * sample;
+        self.sample_count += 1;
+
+        if self.sample_count >= self.samples_per_update {
+            self.emit_level();
+        }
+
+        Some(sample)
+    }
+}
+
+impl<S> Source for PlaybackLevelSource<S>
+where
+    S: Source<Item = f32>,
+{
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+
+    fn channels(&self) -> u16 {
+        self.inner.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        self.inner.total_duration()
     }
 }
 
@@ -650,6 +752,7 @@ async fn pump(
     let mut deferred_audio_done: Option<Value> = None;
     let mut playback_generation = 0_u64;
     let (playback_done_tx, mut playback_done_rx) = mpsc::unbounded_channel::<u64>();
+    let (playback_level_tx, mut playback_level_rx) = mpsc::unbounded_channel::<(u64, f32)>();
 
     loop {
         tokio::select! {
@@ -705,6 +808,15 @@ async fn pump(
                     }
                 }
             }
+            Some((generation, level)) = playback_level_rx.recv() => {
+                if generation == playback_generation
+                    && on_event
+                        .send(json!({ "type": "audio.level", "level": level }))
+                        .is_err()
+                {
+                    break;
+                }
+            }
             incoming = reader.next() => {
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
@@ -756,7 +868,12 @@ async fn pump(
                                 if event.get("streamId").and_then(Value::as_str).is_some() {
                                     if let Some(sample_rate) = sample_rate {
                                         if (8_000..=192_000).contains(&sample_rate) {
-                                            tts_audio = Some(TtsAudioStream::new(sample_rate, &output));
+                                            tts_audio = Some(TtsAudioStream::new(
+                                                sample_rate,
+                                                &output,
+                                                playback_level_tx.clone(),
+                                                playback_generation,
+                                            ));
                                         } else {
                                             emit_error(&on_event, format!(
                                                 "unsupported TTS sample rate: {sample_rate} Hz"

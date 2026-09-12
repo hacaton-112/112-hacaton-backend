@@ -2,6 +2,7 @@ import { ScrollArea, toast } from "@bolid-ui/themes";
 import { useEffect, useState } from "react";
 
 import { CallerPanel } from "../../components/operator/caller-panel";
+import { CallControlDock } from "../../components/operator/call-control-dock";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
 import { IncidentForm } from "../../components/operator/incident-form";
 import { OperatorHeader } from "../../components/operator/operator-header";
@@ -84,7 +85,7 @@ export default function OperatorPage() {
   }, [incidentCard.error]);
 
   return (
-    <div className="bg-gray-2 flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="bg-gray-2 relative flex h-full min-h-0 flex-col overflow-hidden">
       <OperatorHeader
         state={call.state}
         scenarioTitle={call.scenarioTitle}
@@ -136,15 +137,19 @@ export default function OperatorPage() {
               {...call}
               services={incidentCard.services}
               onToggleService={incidentCard.toggleService}
-              operatorName={operatorName}
               callerName={callerName}
               isCardReady={Boolean(incidentCard.card)}
               isEnding={isEnding}
-              onEnd={() => void handleEnd()}
             />
           </ScrollArea>
         </div>
       </ScrollArea>
+      <CallControlDock
+        {...call}
+        isCardReady={Boolean(incidentCard.card)}
+        isEnding={isEnding}
+        onEnd={() => void handleEnd()}
+      />
     </div>
   );
 }

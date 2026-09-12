@@ -1,4 +1,4 @@
-import { Button, Flex, Select, Text } from "@bolid-ui/themes";
+import { Button, Select } from "@bolid-ui/themes";
 import { PhoneIncoming } from "lucide-react";
 import { useState } from "react";
 
@@ -15,15 +15,6 @@ interface ScenarioPickerProps {
   ) => void;
 }
 
-const DIFFICULTY_LABELS = [
-  "",
-  "очень просто",
-  "просто",
-  "средне",
-  "сложно",
-  "очень сложно",
-];
-
 /** Выбор учебного вызова: список приходит из backend, а не из клиента. */
 export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   const [selected, setSelected] = useState<string>();
@@ -36,13 +27,16 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   );
 
   return (
-    <Flex direction="column" gap="2" mt="5">
+    <div className="flex min-w-0 items-center gap-2">
       <Select.Root
         value={current ?? ""}
         onValueChange={setSelected}
         disabled={isPending || scenarios.length === 0}
       >
-        <Select.Trigger placeholder="Сценарий вызова" />
+        <Select.Trigger
+          placeholder="Сценарий вызова"
+          className="min-w-0 flex-1 sm:min-w-52"
+        />
         <Select.Content>
           {scenarios.map((scenario) => (
             <Select.Item
@@ -55,19 +49,18 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
         </Select.Content>
       </Select.Root>
 
-      {chosen && (
-        <Text size="1" color="gray">
-          {chosen.summary} Сложность: {DIFFICULTY_LABELS[chosen.difficulty]}.
-        </Text>
-      )}
-
       <Button
-        variant="soft"
+        color="green"
+        radius="full"
         disabled={disabled || !chosen}
         onClick={() => chosen && onStart(chosen)}
+        aria-label="Запустить выбранный сценарий"
+        title="Запустить выбранный сценарий"
+        className="shrink-0"
       >
-        <PhoneIncoming size={15} /> Принять учебный вызов
+        <PhoneIncoming size={17} />
+        <span className="hidden xl:inline">Начать звонок</span>
       </Button>
-    </Flex>
+    </div>
   );
 }

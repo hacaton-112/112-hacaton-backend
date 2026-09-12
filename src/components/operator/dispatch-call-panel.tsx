@@ -1,42 +1,15 @@
-import {
-  Button,
-  Card,
-  Flex,
-  IconButton,
-  ScrollArea,
-  Tabs,
-  Text,
-} from "@bolid-ui/themes";
-import {
-  CircleUserRound,
-  MapPin,
-  Mic,
-  MicOff,
-  Pause,
-  Phone,
-  PhoneOff,
-  Plus,
-  ClipboardList,
-  RotateCcw,
-  Volume2,
-} from "lucide-react";
+import { Button, Card, Flex, ScrollArea, Text } from "@bolid-ui/themes";
 
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
 import { MOSCOW } from "../../config/map";
-import { useNavigate } from "react-router";
 
 import {
   DISPATCH_SERVICE_LABELS,
   DISPATCH_SERVICES,
   type DispatchService,
 } from "../../contracts/incident";
-import type {
-  CallControls,
-  CallSnapshot,
-  CallState,
-} from "../../hooks/use-call";
-import { ScenarioPicker } from "./scenario-picker";
+import type { CallSnapshot } from "../../hooks/use-call";
 
 interface ServicesProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
@@ -44,28 +17,14 @@ interface ServicesProps {
   onToggleService: (service: DispatchService) => void;
 }
 
-type DispatchCallPanelProps = Omit<CallSnapshot & CallControls, "end"> &
+type DispatchCallPanelProps = CallSnapshot &
   ServicesProps & {
-    operatorName: string;
     callerName: string;
     isCardReady: boolean;
     isEnding: boolean;
-    onEnd: () => void;
   };
 
-const STATE_LABELS: Record<CallState, string> = {
-  idle: "Оператор свободен",
-  ringing: "Входящий вызов",
-  active: "Разговор",
-  ended: "Вызов завершён",
-};
-
-const formatDuration = (seconds: number) =>
-  `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
-  const navigate = useNavigate();
-
   return (
     <aside className="dispatch-panel grid min-h-full grid-rows-[210px_263px_minmax(320px,418px)] content-start gap-4 min-[1480px]:h-full min-[1480px]:grid-cols-1 min-[1480px]:grid-rows-[210px_263px_minmax(418px,1fr)] md:grid-cols-2 md:grid-rows-[263px_minmax(320px,418px)]">
       <Card
@@ -121,221 +80,32 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
       <Card
         size="1"
         variant="classic"
-        className="dispatch-call-card h-[263px] overflow-hidden p-0!"
+        className="dispatch-chat-card h-[263px] overflow-hidden p-0!"
       >
-        <Tabs.Root
-          defaultValue="call"
-          className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]"
-        >
-          <Tabs.List size="1" justify="center" className="dispatch-tabs px-4">
-            <Tabs.Trigger value="call">Звонок</Tabs.Trigger>
-            <Tabs.Trigger value="record">Запись</Tabs.Trigger>
-            <Tabs.Trigger value="applicant-chat">Чат с заявителем</Tabs.Trigger>
-            <Tabs.Trigger value="service-chat" disabled>
-              Служебный чат
-            </Tabs.Trigger>
-          </Tabs.List>
-
-          <Tabs.Content
-            value="call"
-            className="min-h-0 overflow-y-auto px-4 pt-2"
-          >
-            <Flex align="start" justify="between" gap="2">
-              <Text size="1" color="gray">
-                {props.state === "idle" ? "Нет участников" : "2 участника"}
+        <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+          <div className="border-grayA-4 flex items-center justify-between border-b px-4 py-3">
+            <div className="min-w-0">
+              <Text size="2" weight="bold" className="block">
+                Чат с заявителем
               </Text>
-              <div className="text-right">
-                <Text size="1" color="gray" as="div">
-                  {STATE_LABELS[props.state]}
-                </Text>
-                <Text
-                  size="2"
-                  color={props.state === "active" ? "red" : "gray"}
-                  weight="bold"
-                  className="tabular-nums"
-                >
-                  {formatDuration(props.elapsedSeconds)}
-                </Text>
-              </div>
-            </Flex>
-
-            {props.state !== "idle" && (
-              <div className="mt-2 grid gap-2">
-                <Participant
-                  color="green"
-                  name={props.operatorName}
-                  caption={props.isListening ? "Говорит" : "Это вы"}
-                />
-                <Participant
-                  color="blue"
-                  name={props.callerName}
-                  caption={props.isCallerSpeaking ? "Говорит" : "Заявитель"}
-                />
-              </div>
-            )}
-
-            {props.state === "ringing" && (
-              <Flex gap="2" mt="3">
-                <Button
-                  size="1"
-                  color="green"
-                  onClick={props.accept}
-                  className="flex-1"
-                >
-                  <Phone size={14} /> Принять
-                </Button>
-                <Button
-                  size="1"
-                  color="red"
-                  variant="soft"
-                  onClick={props.reject}
-                  className="flex-1"
-                >
-                  <PhoneOff size={14} /> Отклонить
-                </Button>
-              </Flex>
-            )}
-
-            {props.state === "idle" && (
-              <ScenarioPicker
-                disabled={!props.isConnected}
-                onStart={props.startScenario}
-              />
-            )}
-
-            {props.state === "active" && (
-              <Button
-                mt="3"
-                size="1"
-                variant={props.isListening ? "solid" : "soft"}
-                color={props.isListening ? "red" : undefined}
-                disabled={props.isMuted}
-                onPointerDown={props.holdFloor}
-                onPointerUp={props.releaseFloor}
-                onPointerLeave={props.releaseFloor}
-                onPointerCancel={props.releaseFloor}
-                className="w-full"
-              >
-                <Mic size={14} />
-                {props.isListening
-                  ? "Отпустите, чтобы ответил заявитель"
-                  : "Нажмите и говорите"}
-              </Button>
-            )}
-
-            {props.state === "ended" && (
-              <Flex gap="2" mt="3">
-                {props.trainingSessionId && (
-                  <Button
-                    size="1"
-                    variant="soft"
-                    onClick={() =>
-                      navigate(`/debrief/${props.trainingSessionId}`)
-                    }
-                    className="flex-1"
-                  >
-                    <ClipboardList size={14} /> Разбор вызова
-                  </Button>
-                )}
-                <Button
-                  size="1"
-                  variant="soft"
-                  color="gray"
-                  onClick={props.reset}
-                  className="flex-1"
-                >
-                  <RotateCcw size={14} /> К следующему вызову
-                </Button>
-              </Flex>
-            )}
-          </Tabs.Content>
-
-          <Tabs.Content
-            value="record"
-            className="min-h-0 overflow-y-auto px-4 py-4"
-          >
-            <Text size="1" color="gray">
-              {props.state === "ended"
-                ? "Запись разговора доступна в разборе завершённого вызова."
-                : props.state === "idle"
-                  ? "Нет активного вызова."
-                  : "Запись ведётся и будет доступна после завершения вызова."}
-            </Text>
-          </Tabs.Content>
-
-          <Tabs.Content
-            value="applicant-chat"
-            className="min-h-0 overflow-y-auto px-4 py-3"
-          >
+              <Text size="1" color="gray" className="block truncate">
+                {props.state === "idle"
+                  ? "Нет активного вызова"
+                  : props.callerName}
+              </Text>
+            </div>
+            <span
+              className={`size-2 shrink-0 rounded-full ${props.state === "active" ? "bg-green-9" : "bg-gray-7"}`}
+              aria-hidden
+            />
+          </div>
+          <div className="min-h-0 px-4 py-3">
             <DialogueList
               props={props}
               empty="Сообщений с заявителем пока нет"
             />
-          </Tabs.Content>
-
-          <Tabs.Content
-            value="service-chat"
-            className="min-h-0 overflow-y-auto px-4 py-4"
-          >
-            <Text size="1" color="gray">
-              Служебных сообщений пока нет.
-            </Text>
-          </Tabs.Content>
-
-          <Flex
-            align="center"
-            justify="between"
-            gap="2"
-            className="border-grayA-4 shrink-0 border-t px-4 py-2"
-          >
-            <ControlButton
-              label="Добавление участника недоступно в учебном звонке"
-              disabled
-            >
-              <Plus size={15} />
-            </ControlButton>
-            <IconButton
-              size="2"
-              radius="full"
-              variant={props.isMuted ? "solid" : "soft"}
-              color={props.isMuted ? "red" : "gray"}
-              onClick={props.toggleMute}
-              disabled={props.state !== "active"}
-              aria-label="Микрофон"
-            >
-              {props.isMuted ? <MicOff size={15} /> : <Mic size={15} />}
-            </IconButton>
-            <IconButton
-              size="2"
-              radius="full"
-              variant="soft"
-              color="gray"
-              disabled
-              title="Удержание недоступно в учебном звонке"
-              aria-label="Удержание недоступно в учебном звонке"
-            >
-              <Pause size={15} />
-            </IconButton>
-            <ControlButton
-              label="Управление динамиком недоступно в учебном звонке"
-              disabled
-            >
-              <Volume2 size={15} />
-            </ControlButton>
-            <IconButton
-              size="2"
-              radius="full"
-              color="red"
-              onClick={props.onEnd}
-              disabled={
-                props.state !== "active" || !props.isCardReady || props.isEnding
-              }
-              aria-label="Завершить вызов"
-            >
-              <PhoneOff size={15} />
-            </IconButton>
-          </Flex>
-        </Tabs.Root>
+          </div>
+        </div>
       </Card>
 
       <Card
@@ -352,13 +122,6 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         <div className="absolute top-2 right-2 left-2 z-30 flex justify-end">
           <MapWindowButton label="Открыть в окне" />
         </div>
-        {props.incident && (
-          <MapPin
-            size={26}
-            className="text-red-9 pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-full fill-white"
-            aria-hidden
-          />
-        )}
       </Card>
     </aside>
   );
@@ -380,8 +143,8 @@ function DialogueList({
   }
 
   return (
-    <ScrollArea type="auto" scrollbars="vertical" className="max-h-44">
-      <div className="grid gap-2 pr-2">
+    <ScrollArea type="auto" scrollbars="vertical" className="h-full pr-1">
+      <div className="grid gap-2 pr-3">
         {props.dialogue.map((turn) => (
           <div
             key={turn.id}
@@ -415,57 +178,5 @@ function Unit({ name }: { name: string }) {
         Выбрано оператором
       </Text>
     </Flex>
-  );
-}
-
-function Participant({
-  color,
-  name,
-  caption,
-}: {
-  color: "green" | "blue";
-  name: string;
-  caption: string;
-}) {
-  return (
-    <Flex align="center" gap="2">
-      <div
-        className={`grid size-8 place-items-center rounded-full text-white ${color === "green" ? "bg-green-9" : "bg-blue-9"}`}
-      >
-        <CircleUserRound size={18} />
-      </div>
-      <div className="min-w-0">
-        <Text size="2" weight="medium" className="block truncate">
-          {name}
-        </Text>
-        <Text size="1" color={caption === "Говорит" ? "green" : "gray"}>
-          {caption}
-        </Text>
-      </div>
-    </Flex>
-  );
-}
-
-function ControlButton({
-  children,
-  label,
-  disabled = false,
-}: {
-  children: React.ReactNode;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <IconButton
-      size="2"
-      radius="full"
-      variant="soft"
-      color="gray"
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-    >
-      {children}
-    </IconButton>
   );
 }

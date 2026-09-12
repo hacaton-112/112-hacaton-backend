@@ -33,6 +33,8 @@ export interface CallSnapshot {
   isListening: boolean;
   /** Заявитель отвечает: реплика уже сгенерирована или звучит. */
   isCallerSpeaking: boolean;
+  /** Уровень уже обработанного и воспроизводимого Rust TTS, от 0 до 1. */
+  callerAudioLevel: number;
   scenarioTitle?: string;
   scenarioDifficulty?: number;
   panicLevel: number;
@@ -111,6 +113,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [dialogue, setDialogue] = useState<DialogueTurn[]>([]);
   const [isListening, setListening] = useState(false);
   const [isCallerSpeaking, setCallerSpeaking] = useState(false);
+  const [callerAudioLevel, setCallerAudioLevel] = useState(0);
   const [isMuted, setMuted] = useState(false);
   const [error, setError] = useState<string>();
   const [startedAt, setStartedAt] = useState<Date>();
@@ -134,6 +137,7 @@ export function useCall(): CallSnapshot & CallControls {
         setState("active");
         setAcceptedAt(new Date());
         setPanicLevel(event.panicLevel);
+        setCallerSpeaking(true);
         // Первая реплика задана сценарием, а не сгенерирована.
         setDialogue([
           { id: turnId(), role: "caller", text: event.openingLine },
@@ -148,6 +152,7 @@ export function useCall(): CallSnapshot & CallControls {
         setState("ended");
         setListening(false);
         setCallerSpeaking(false);
+        setCallerAudioLevel(0);
         break;
       case "listen.started":
         setListening(true);
@@ -160,7 +165,6 @@ export function useCall(): CallSnapshot & CallControls {
             ...turns,
             { id: turnId(), role: "operator", text: event.transcript },
           ]);
-          setCallerSpeaking(true);
         }
         break;
       case "reply.text":
@@ -168,13 +172,24 @@ export function useCall(): CallSnapshot & CallControls {
           ...turns,
           { id: turnId(), role: "caller", text: event.text },
         ]);
+        setCallerSpeaking(true);
+        break;
+      case "audio.start":
+        setCallerSpeaking(true);
+        setCallerAudioLevel(0);
+        break;
+      case "audio.level":
+        setCallerSpeaking(true);
+        setCallerAudioLevel(event.level);
         break;
       case "audio.done":
       case "request.cancelled":
         setCallerSpeaking(false);
+        setCallerAudioLevel(0);
         break;
       case "error":
         setCallerSpeaking(false);
+        setCallerAudioLevel(0);
         setListening(false);
         setError(ERROR_MESSAGES[event.code] ?? event.message);
         break;
@@ -189,6 +204,7 @@ export function useCall(): CallSnapshot & CallControls {
         setState((current) => (current === "idle" ? current : "ended"));
         setListening(false);
         setCallerSpeaking(false);
+        setCallerAudioLevel(0);
         setError("Соединение с сервером потеряно, переподключаюсь…");
         window.setTimeout(
           () => setAttempt((value) => value + 1),
@@ -306,6 +322,7 @@ export function useCall(): CallSnapshot & CallControls {
     setDialogue([]);
     setListening(false);
     setCallerSpeaking(false);
+    setCallerAudioLevel(0);
     setMuted(false);
     setError(undefined);
     setStartedAt(undefined);
@@ -355,6 +372,7 @@ export function useCall(): CallSnapshot & CallControls {
     isMuted,
     isListening,
     isCallerSpeaking,
+    callerAudioLevel,
     scenarioTitle,
     scenarioDifficulty,
     panicLevel,
