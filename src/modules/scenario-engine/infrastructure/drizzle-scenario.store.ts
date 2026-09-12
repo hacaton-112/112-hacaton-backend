@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, max, sql } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import type { DialogueTurn } from "@/contracts";
@@ -18,6 +18,7 @@ import {
 } from "@/drizzle/schema";
 
 import { DisclosureRuleSchema, type ScenarioFact } from "../domain/disclosure";
+import type { AbandonedCall } from "../ports/scenario-store.port";
 import { EscalationParamsSchema } from "../domain/escalation-params";
 import { clampPanicLevel, type PanicLevel } from "../domain/panic-scale";
 import type {
@@ -252,6 +253,34 @@ export class DrizzleScenarioStore implements ScenarioStore {
         text: String(row.payload?.text ?? ""),
       }))
       .filter((turn) => turn.text.length > 0);
+  }
+
+  async listAbandonedCalls(
+    idleSince: Date,
+    limit: number,
+  ): Promise<readonly AbandonedCall[]> {
+    // Давность считается по последнему событию журнала, а не по времени
+    // предложения вызова: разговор, который шёл полчаса, брошенным не был.
+    const lastActivityAt = sql<Date>`coalesce(${max(callEvents.occurredAt)}, ${callStates.offeredAt})`;
+    const rows = await this.db
+      .select({
+        trainingSessionId: callStates.trainingSessionId,
+        lastActivityAt,
+      })
+      .from(callStates)
+      .leftJoin(
+        callEvents,
+        eq(callEvents.trainingSessionId, callStates.trainingSessionId),
+      )
+      .where(inArray(callStates.stage, ["offered", "conversation"]))
+      .groupBy(callStates.trainingSessionId, callStates.offeredAt)
+      .having(lt(lastActivityAt, idleSince))
+      .limit(limit);
+
+    return rows.map((row) => ({
+      trainingSessionId: row.trainingSessionId,
+      lastActivityAt: new Date(row.lastActivityAt),
+    }));
   }
 
   async appendTurn(
