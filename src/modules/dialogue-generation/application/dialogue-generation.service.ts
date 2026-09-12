@@ -6,12 +6,14 @@ import {
   GenerateCallerReplyRequestSchema,
   type CallerReply,
   type DialogueGenerationResult,
+  type GenerateCallerReplyRequest,
   type GenerationAttemptMetrics,
 } from "@/contracts";
 import { LLM_PORT, type LlmPort } from "@/modules/ai-gateway";
 
 import { CallerReplyValidationError } from "../domain/caller-reply-validation.error";
 import { LlmReplyCollectionError } from "../domain/llm-reply-collection.error";
+import { isNearRepetition } from "../domain/repetition";
 import { LlmReplyStreamCollector } from "./llm-reply-stream.collector";
 
 export const MAX_GENERATION_ATTEMPTS = 2;
@@ -66,6 +68,20 @@ export class DialogueGenerationService {
           signal,
         );
 
+        // Пересказ предыдущей реплики стоит одной попытки: модель сама себя
+        // не слышит, и без этой проверки заявитель по пять ходов подряд
+        // говорит «дети в комнате, дверь горит». На последней попытке реплика
+        // принимается: оставить оператора без ответа хуже, чем с повтором.
+        if (
+          attempt < MAX_GENERATION_ATTEMPTS &&
+          this.repeatsPreviousReply(request, collectedReply.reply.text)
+        ) {
+          throw new CallerReplyValidationError(
+            "repeats-previous",
+            "The generated caller reply retells the previous one",
+          );
+        }
+
         attempts.push({
           attempt,
           timeToFirstTokenMs: collectedReply.timeToFirstTokenMs,
@@ -109,6 +125,22 @@ export class DialogueGenerationService {
       source: "fallback",
       attempts,
     });
+  }
+
+  /** Оператор попросил повторить — тогда повтор и есть требуемый ответ. */
+  private repeatsPreviousReply(
+    request: GenerateCallerReplyRequest,
+    text: string,
+  ): boolean {
+    if (request.context.turnPlan?.reactionAct === "repeat") {
+      return false;
+    }
+
+    const previous = [...request.context.recentTurns]
+      .reverse()
+      .find((turn) => turn.role === "caller");
+
+    return previous !== undefined && isNearRepetition(text, previous.text);
   }
 
   private classifyFailure(error: unknown): GenerationAttemptMetrics["outcome"] {
