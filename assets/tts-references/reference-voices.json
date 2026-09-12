@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "defaults": {
+    "male": "dylan"
+  },
+  "voices": [
+    {
+      "id": "dylan",
+      "gender": "male",
+      "source": "synthetic",
+      "audioPath": "./dylan.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "2a4b37fa1a3383a97f7a171a26ec73cce986bedf2f4670a6adeee5363be469f5"
+    }
+  ]
+}
