@@ -1,16 +1,81 @@
 {
   "version": 1,
   "defaults": {
-    "male": "dylan"
+    "male": "dylan",
+    "female": "ono_anna"
   },
   "voices": [
+    {
+      "id": "aiden",
+      "gender": "male",
+      "source": "synthetic",
+      "audioPath": "./aiden.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "5699596708c41741049f41cc67d5b79a3ac3582cd45e1ce3bb05387f66c0ca02"
+    },
     {
       "id": "dylan",
       "gender": "male",
       "source": "synthetic",
       "audioPath": "./dylan.wav",
       "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
-      "sha256": "2a4b37fa1a3383a97f7a171a26ec73cce986bedf2f4670a6adeee5363be469f5"
+      "sha256": "6352315e4b08c097ea32c480b28efc69b38d53dce49a00d3a34a700519798213"
+    },
+    {
+      "id": "eric",
+      "gender": "male",
+      "source": "synthetic",
+      "audioPath": "./eric.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "7cd336682d12fdafb6a0f2121ad80505f88b39771efc6ebad95d086a85fef77c"
+    },
+    {
+      "id": "ono_anna",
+      "gender": "female",
+      "source": "synthetic",
+      "audioPath": "./ono_anna.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "253e20bbb7cecbef54ef15d287c109ad054ef12a582bddc8674a6940c0fe6477"
+    },
+    {
+      "id": "ryan",
+      "gender": "male",
+      "source": "synthetic",
+      "audioPath": "./ryan.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "4b6bd333c4d1f276bef0ed854164c8cab1f0c03f95eaeeb1394c0f3a65952d87"
+    },
+    {
+      "id": "serena",
+      "gender": "female",
+      "source": "synthetic",
+      "audioPath": "./serena.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "5cd316ca1c2e1f30deab3cf6353d455ca91158ee8ea5ed52074293a2cca94486"
+    },
+    {
+      "id": "sohee",
+      "gender": "female",
+      "source": "synthetic",
+      "audioPath": "./sohee.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "0443caab648c8551844f2042eb7374a9ac27e0d5665864b9fdac00c140c51568"
+    },
+    {
+      "id": "uncle_fu",
+      "gender": "male",
+      "source": "synthetic",
+      "audioPath": "./uncle_fu.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "62a88d8c46e48586666bff46b04afac59f755f1a1393df1173b05aa29d80024d"
+    },
+    {
+      "id": "vivian",
+      "gender": "female",
+      "source": "synthetic",
+      "audioPath": "./vivian.wav",
+      "refText": "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.",
+      "sha256": "b0be8fd19d0648fa7f0a8091a4577ae3b7be072735b484314feda31edce38416"
     }
   ]
 }
