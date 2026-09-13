@@ -8,6 +8,7 @@ import {
   PhoneField,
   ScrollArea,
   Select,
+  Separator,
   Text,
   TextArea,
   TextField,
@@ -123,7 +124,7 @@ export function CallerPanel({
         </Flex>
         <Info label="Источник" value="Телефонный звонок" />
         <Info label="Взял в работу" value={operatorName} />
-        <div className="bg-grayA-4 my-3 h-px" />
+        <Separator className="my-3" size="4" />
         <Text size="2" weight="bold">
           Абонент
         </Text>
@@ -268,10 +269,8 @@ function VictimFields({
   onRemove: (index: number) => void;
 }) {
   return (
-    <section
-      className={index === 0 ? "" : "border-grayA-5 border-t pt-3"}
-      aria-label={`Пострадавший ${index + 1}`}
-    >
+    <section aria-label={`Пострадавший ${index + 1}`}>
+      {index > 0 && <Separator className="mb-3" size="4" />}
       {canRemove && (
         <Flex align="center" justify="between" mb="2">
           <Text size="1" color="gray" weight="medium">

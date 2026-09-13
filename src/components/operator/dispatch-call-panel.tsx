@@ -1,4 +1,11 @@
-import { Button, Card, Flex, ScrollArea, Text } from "@bolid-ui/themes";
+import {
+  Button,
+  Card,
+  Flex,
+  ScrollArea,
+  Separator,
+  Text,
+} from "@bolid-ui/themes";
 
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
@@ -63,7 +70,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
           })}
         </div>
 
-        <div className="bg-grayA-4 my-3 h-px" />
+        <Separator className="my-3" size="4" />
         <div className="grid gap-2">
           {props.services.length > 0 ? (
             props.services.map((service) => (
@@ -83,21 +90,24 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         className="dispatch-chat-card h-[263px] overflow-hidden p-0!"
       >
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-          <div className="border-grayA-4 flex items-center justify-between border-b px-4 py-3">
-            <div className="min-w-0">
-              <Text size="2" weight="bold" className="block">
-                Чат с заявителем
-              </Text>
-              <Text size="1" color="gray" className="block truncate">
-                {props.state === "idle"
-                  ? "Нет активного вызова"
-                  : props.callerName}
-              </Text>
+          <div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <Text size="2" weight="bold" className="block">
+                  Чат с заявителем
+                </Text>
+                <Text size="1" color="gray" className="block truncate">
+                  {props.state === "idle"
+                    ? "Нет активного вызова"
+                    : props.callerName}
+                </Text>
+              </div>
+              <span
+                className={`size-2 shrink-0 rounded-full ${props.state === "active" ? "bg-green-9" : "bg-gray-7"}`}
+                aria-hidden
+              />
             </div>
-            <span
-              className={`size-2 shrink-0 rounded-full ${props.state === "active" ? "bg-green-9" : "bg-gray-7"}`}
-              aria-hidden
-            />
+            <Separator size="4" />
           </div>
           <div className="min-h-0 px-4 py-3">
             <DialogueList

@@ -1,4 +1,4 @@
-import { Button, IconButton, Text } from "@bolid-ui/themes";
+import { Button, Card, IconButton, Text } from "@bolid-ui/themes";
 import {
   ClipboardList,
   Mic,
@@ -28,13 +28,15 @@ export function CallControlDock(props: CallControlDockProps) {
   const isCallRunning = props.state === "active";
 
   return (
-    <section
-      className="border-grayA-6 rounded-5 text-gray-12 bg-panel-solid shadow-6 absolute bottom-3 left-1/2 z-50 w-[calc(100%_-_2rem)] max-w-5xl -translate-x-1/2 border px-3 py-1"
+    <Card
+      size="1"
+      variant="classic"
+      className="absolute bottom-3 left-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2"
       aria-label="Управление звонком"
     >
-      <div className="grid grid-cols-[5rem_minmax(12rem,1fr)_auto] items-center gap-2">
+      <div className="grid grid-cols-[4rem_minmax(12rem,1fr)_auto] items-center gap-2">
         <div className="flex min-w-0 items-center">
-          <Text size="4" weight="bold" className="tabular-nums">
+          <Text size="3" weight="bold" className="tabular-nums">
             {formatDuration(props.elapsedSeconds)}
           </Text>
         </div>
@@ -70,22 +72,22 @@ export function CallControlDock(props: CallControlDockProps) {
           {props.state === "ringing" && (
             <>
               <IconButton
-                size="3"
+                size="2"
                 radius="full"
                 color="green"
                 onClick={props.accept}
                 aria-label="Принять вызов"
               >
-                <Phone size={20} />
+                <Phone size={17} />
               </IconButton>
               <IconButton
-                size="3"
+                size="2"
                 radius="full"
                 color="red"
                 onClick={props.reject}
                 aria-label="Отклонить вызов"
               >
-                <PhoneOff size={20} />
+                <PhoneOff size={17} />
               </IconButton>
             </>
           )}
@@ -93,7 +95,7 @@ export function CallControlDock(props: CallControlDockProps) {
           {props.state === "active" && (
             <>
               <IconButton
-                size="3"
+                size="2"
                 radius="full"
                 variant={props.isMuted ? "solid" : "soft"}
                 color={props.isMuted ? "red" : "gray"}
@@ -102,10 +104,10 @@ export function CallControlDock(props: CallControlDockProps) {
                   props.isMuted ? "Включить микрофон" : "Выключить микрофон"
                 }
               >
-                {props.isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                {props.isMuted ? <MicOff size={17} /> : <Mic size={17} />}
               </IconButton>
               <Button
-                size="3"
+                size="2"
                 radius="full"
                 variant={props.isListening ? "solid" : "soft"}
                 color={props.isListening ? "red" : "green"}
@@ -114,20 +116,20 @@ export function CallControlDock(props: CallControlDockProps) {
                 onPointerUp={props.releaseFloor}
                 onPointerLeave={props.releaseFloor}
                 onPointerCancel={props.releaseFloor}
-                className="min-w-44 touch-none select-none"
+                className="min-w-40 touch-none select-none"
               >
-                <Mic size={20} />
+                <Mic size={17} />
                 {props.isListening ? "Отпустите" : "Говорить"}
               </Button>
               <IconButton
-                size="3"
+                size="2"
                 radius="full"
                 color="red"
                 onClick={props.onEnd}
                 disabled={!props.isCardReady || props.isEnding}
                 aria-label="Завершить вызов"
               >
-                <PhoneOff size={20} />
+                <PhoneOff size={17} />
               </IconButton>
             </>
           )}
@@ -159,14 +161,14 @@ export function CallControlDock(props: CallControlDockProps) {
           )}
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
 
 function AudioMonitor({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-12 min-w-0 items-center justify-center overflow-hidden">
-      <div className="h-8 w-full">{children}</div>
+    <div className="flex h-8 min-w-0 items-center justify-center overflow-hidden">
+      <div className="h-6 w-full">{children}</div>
     </div>
   );
 }
@@ -200,13 +202,13 @@ function TtsLevelWave({ level, active }: { level: number; active: boolean }) {
   });
 
   return (
-    <div className="flex h-8 items-center justify-center gap-px" aria-hidden>
+    <div className="flex h-6 items-center justify-center gap-px" aria-hidden>
       {bars.map((bar, index) => (
         <span
           key={index}
           className="bg-blue-9 block min-w-px flex-1 rounded-full transition-[height,opacity] duration-75"
           style={{
-            height: `${Math.max(2, bar * 28)}px`,
+            height: `${Math.max(2, bar * 22)}px`,
             opacity: active && bar > 0 ? 1 : 0,
           }}
         />

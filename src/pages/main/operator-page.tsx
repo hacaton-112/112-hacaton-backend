@@ -5,7 +5,6 @@ import { CallerPanel } from "../../components/operator/caller-panel";
 import { CallControlDock } from "../../components/operator/call-control-dock";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
 import { IncidentForm } from "../../components/operator/incident-form";
-import { OperatorHeader } from "../../components/operator/operator-header";
 import { useCall } from "../../hooks/use-call";
 import { useIncidentCard } from "../../hooks/use-incident-card";
 import { useAuthStore } from "../../stores/auth.store";
@@ -86,19 +85,13 @@ export default function OperatorPage() {
 
   return (
     <div className="bg-gray-2 relative flex h-full min-h-0 flex-col overflow-hidden">
-      <OperatorHeader
-        state={call.state}
-        scenarioTitle={call.scenarioTitle}
-        scenarioDifficulty={call.scenarioDifficulty}
-        operatorName={operatorName}
-      />
       <ScrollArea
         className="operator-page-scroll min-h-0 flex-1"
         scrollbars="vertical"
         type="auto"
       >
         <div className="operator-workspace grid min-h-full grid-cols-1 gap-4 p-4 min-[1480px]:h-full min-[1480px]:min-h-0 min-[1480px]:grid-cols-[minmax(360px,0.92fr)_minmax(650px,1.95fr)_minmax(380px,1fr)] min-[1480px]:grid-rows-1 md:grid-cols-[minmax(340px,0.47fr)_minmax(560px,1fr)]">
-          <div className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_38px_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden">
+          <div className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden">
             <CallerPanel
               trainingSessionId={call.trainingSessionId}
               callerNumber={call.callerNumber}

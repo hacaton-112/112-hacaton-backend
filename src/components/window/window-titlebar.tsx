@@ -1,7 +1,15 @@
 import { Box, Flex, IconButton, Text, Tooltip } from "@bolid-ui/themes";
 import { isTauri } from "@tauri-apps/api/core";
 import { type Window, getCurrentWindow } from "@tauri-apps/api/window";
-import { Copy, Minus, RadioTower, Square, X } from "lucide-react";
+import {
+  Copy,
+  Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RadioTower,
+  Square,
+  X,
+} from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 const APP_NAME = "Учебный симулятор службы 112";
@@ -15,9 +23,13 @@ function runWindowAction(window: Window | null, action: WindowAction) {
 
 export function WindowTitlebar({
   closeBehavior = "close",
+  onToggleSidebar,
+  sidebarOpen,
   title = APP_NAME,
 }: {
   closeBehavior?: "close" | "hide";
+  onToggleSidebar?: () => void;
+  sidebarOpen?: boolean;
   title?: string;
 }) {
   // Вне Tauri (обычный `bun run dev` в браузере) окна нет — шапка остаётся
@@ -74,6 +86,18 @@ export function WindowTitlebar({
         toggleMaximize();
       }}
     >
+      {onToggleSidebar && (
+        <TitlebarButton
+          label={sidebarOpen ? "Свернуть меню" : "Развернуть меню"}
+          onClick={onToggleSidebar}
+        >
+          {sidebarOpen ? (
+            <PanelLeftClose aria-hidden="true" size={14} strokeWidth={1.5} />
+          ) : (
+            <PanelLeftOpen aria-hidden="true" size={14} strokeWidth={1.5} />
+          )}
+        </TitlebarButton>
+      )}
       <Flex
         align="center"
         gap="2"

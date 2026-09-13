@@ -39,7 +39,7 @@ export function CallCard({
   startedAt,
 }: CallCardProps) {
   return (
-    <Card size="2" className="min-w-0 flex-1">
+    <Card size="2" variant="classic" className="min-w-0 flex-1">
       <Flex direction="column" gap="3">
         <Flex align="center" gap="2">
           <Heading size="3">Данные вызова</Heading>
