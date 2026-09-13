@@ -7,12 +7,25 @@ interface CallConnectOptions extends Record<string, unknown> {
   url: string;
   token: string;
   onEvent: Channel<unknown>;
+  outputDevice?: string | null;
 }
 
 interface SystemAudioCaptureOptions {
   loopback?: boolean;
   processing?: boolean;
   levelOnly?: boolean;
+  inputDevice?: string | null;
+}
+
+export interface AudioDeviceInfo {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export interface AudioDeviceCatalog {
+  inputs: AudioDeviceInfo[];
+  outputs: AudioDeviceInfo[];
 }
 
 export type MicrophonePermissionStatus = "allowed" | "denied" | "unknown";
@@ -80,6 +93,12 @@ export const ipc = {
 
     permissionStatus(): Promise<MicrophonePermissionStatus> {
       return invoke(IPC_CONFIG.getSystemAudioPermissionStatusHandler());
+    },
+  },
+
+  audio: {
+    devices(): Promise<AudioDeviceCatalog> {
+      return invoke(IPC_CONFIG.getAudioDevicesHandler());
     },
   },
 } as const;

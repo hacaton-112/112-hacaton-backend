@@ -15,7 +15,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
-use rodio::{buffer::SamplesBuffer, source::Source, DeviceSinkBuilder, MixerDeviceSink, Player};
+use rodio::{buffer::SamplesBuffer, source::Source, MixerDeviceSink, Player};
 use serde_json::{json, Value};
 use tauri::{
     ipc::{Channel, InvokeResponseBody},
@@ -383,6 +383,7 @@ impl Call {
         url: String,
         token: String,
         on_event: Channel<Value>,
+        output_device: Option<String>,
     ) -> Result<String, String> {
         if !url.starts_with("ws://") && !url.starts_with("wss://") {
             return Err(format!("unsupported WebSocket URL: {url}"));
@@ -404,8 +405,7 @@ impl Call {
         let (socket, _) = connect_async(request)
             .await
             .map_err(|error| format!("could not connect to the backend: {error}"))?;
-        let mut output = DeviceSinkBuilder::open_default_sink()
-            .map_err(|error| format!("could not open the audio output: {error}"))?;
+        let mut output = crate::audio::open_output(output_device.as_deref())?;
         output.log_on_drop(false);
 
         let (outgoing, outgoing_rx) = mpsc::channel::<Outgoing>(OUTGOING_CAPACITY);
@@ -693,8 +693,9 @@ pub async fn call_connect(
     url: String,
     token: String,
     on_event: Channel<Value>,
+    output_device: Option<String>,
 ) -> Result<String, String> {
-    call.connect(url, token, on_event).await
+    call.connect(url, token, on_event, output_device).await
 }
 
 #[tauri::command]

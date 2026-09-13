@@ -3,6 +3,7 @@ import {
   FilePlus2,
   Headphones,
   LogOut,
+  Settings,
   UserRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -59,7 +60,7 @@ function SidebarNavItem({
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -127,6 +128,13 @@ export function AppSidebar() {
       <SidebarSeparator />
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarNavItem
+            icon={Settings}
+            label="Настройки"
+            onClick={onOpenSettings}
+          >
+            Настройки
+          </SidebarNavItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
