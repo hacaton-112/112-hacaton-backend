@@ -64,6 +64,16 @@ const OPERATOR_SAMPLE_RATE = 16_000;
  * обрезается по началу: вопрос стоит там, а не в конце.
  */
 const MAX_UTTERANCE_CHARACTERS = 1_000;
+/**
+ * Граница расшифровки в контракте события.
+ *
+ * Одно нажатие теперь приносит всю речь до отпускания кнопки, сшитую из фраз, а
+ * распознавание на шуме умеет выдумывать текст километрами. Отправка разбирает
+ * событие схемой, которая бросает, а не обрезает: без этой границы длинная
+ * реплика осталась бы не только неотправленной, но и без хода — исключение
+ * улетело бы из необработанного промиса.
+ */
+const MAX_TRANSCRIPT_CHARACTERS = 4_000;
 /** Application-level close code mirroring HTTP 401. */
 const UNAUTHORIZED_CLOSE_CODE = 4401;
 const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
@@ -608,7 +618,7 @@ export class VoicePipelineGateway
     await this.sendEvent(client, state, {
       type: "listen.stopped",
       streamId: listening.streamId,
-      transcript: transcript.transcript,
+      transcript: transcript.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS),
       audioMs: transcript.audioMs,
       processingMs: transcript.processingMs,
     });

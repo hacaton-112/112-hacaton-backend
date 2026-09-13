@@ -1254,6 +1254,42 @@ describe(VoicePipelineGateway.name, () => {
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
+  it("keeps a very long utterance inside the contract", async () => {
+    const longUtterance = "а".repeat(5_000);
+    const runtime = await createRuntime(
+      successfulStream,
+      jest.fn().mockResolvedValue(authenticatedUser),
+      jest.fn().mockResolvedValue(undefined),
+      createEngine(),
+      createAsr(
+        jest.fn().mockResolvedValue({
+          transcript: longUtterance,
+          audioMs: 90_000,
+          processingMs: 4_000,
+        }),
+      ),
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.stop" }),
+      false,
+    );
+
+    // Событие разбирается схемой, которая бросает: без обрезки оператор
+    // остался бы и без расшифровки, и без ответа заявителя.
+    const stopped = textEvents(runtime.socket).find(
+      (event) => event.type === "listen.stopped",
+    );
+
+    expect(stopped).toMatchObject({ transcript: longUtterance.slice(0, 4_000) });
+  });
+
   it("records the operator's voice as well as recognising it", async () => {
     const runtime = await createRuntime();
     const frame = Buffer.from([1, 2, 3, 4]);
