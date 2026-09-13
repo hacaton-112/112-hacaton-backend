@@ -33,6 +33,8 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   SCENARIO_ASSISTANT_UNAVAILABLE: "AI-помощник временно недоступен",
   SCENARIO_ASSISTANT_INVALID_DRAFT:
     "AI-помощник не смог сформировать корректный черновик",
+  GEOCODING_ADDRESS_NOT_FOUND: "Для выбранной точки адрес не найден",
+  GEOCODING_UNAVAILABLE: "Сервис определения адреса временно недоступен",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 

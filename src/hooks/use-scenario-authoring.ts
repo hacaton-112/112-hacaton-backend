@@ -8,6 +8,9 @@ import {
 
 export function useScenarioAuthoring() {
   const queryClient = useQueryClient();
+  const reverseGeocoding = useMutation({
+    mutationFn: scenarioAuthoringService.reverseGeocode,
+  });
   const draft = useMutation({
     mutationFn: scenarioAuthoringService.generateDraft,
   });
@@ -20,5 +23,5 @@ export function useScenarioAuthoring() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
   });
 
-  return { draft, publication };
+  return { draft, publication, reverseGeocoding };
 }

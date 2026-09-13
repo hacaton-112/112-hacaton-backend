@@ -544,6 +544,16 @@ export const PublishedScenarioSchema = z
   })
   .strict();
 
+export const ReverseGeocodedAddressSchema = z
+  .object({
+    city: z.string().trim().min(1).max(200).optional(),
+    street: z.string().trim().min(1).max(300).optional(),
+    house: z.string().trim().min(1).max(100).optional(),
+    displayName: z.string().trim().min(1).max(4_000),
+    attribution: z.literal("© OpenStreetMap contributors"),
+  })
+  .strict();
+
 export type ScenarioSeed = z.infer<typeof ScenarioSeedSchema>;
 export type ScenarioAssistantDraft = z.infer<
   typeof ScenarioAssistantDraftSchema
@@ -558,6 +568,9 @@ export type GenerateScenarioDraftResponse = z.infer<
   typeof GenerateScenarioDraftResponseSchema
 >;
 export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
+export type ReverseGeocodedAddress = z.infer<
+  typeof ReverseGeocodedAddressSchema
+>;
 
 export const createEmptyScenario = (): ScenarioSeed => ({
   code: "",

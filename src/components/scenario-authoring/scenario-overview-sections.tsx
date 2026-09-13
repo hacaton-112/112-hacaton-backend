@@ -21,7 +21,10 @@ import {
   TextInput,
 } from "./scenario-form-fields";
 import { ScenarioLocationMap } from "./scenario-location-map";
-import { hasSelectedCoordinates } from "./scenario-location-values";
+import {
+  hasSelectedCoordinates,
+  type ScenarioCoordinates,
+} from "./scenario-location-values";
 
 interface ScenarioSectionProps {
   scenario: ScenarioSeed;
@@ -359,7 +362,14 @@ export function ScenarioCallSection({
 export function ScenarioLocationSection({
   scenario,
   onChange,
-}: ScenarioSectionProps) {
+  onIncidentPointSelected,
+  geocodingStatus,
+  geocodingMessage,
+}: ScenarioSectionProps & {
+  onIncidentPointSelected: (coordinates: ScenarioCoordinates) => void;
+  geocodingStatus: "idle" | "loading" | "success" | "error";
+  geocodingMessage?: string;
+}) {
   const updateLocation = (patch: Partial<ScenarioSeed["location"]>) =>
     onChange({ ...scenario, location: { ...scenario.location, ...patch } });
   const updateAddress = (key: string, value: string) =>
@@ -384,6 +394,7 @@ export function ScenarioLocationSection({
                 ? { locatorCenter: coordinates }
                 : {}),
             });
+            onIncidentPointSelected(coordinates);
             return;
           }
 
@@ -476,9 +487,25 @@ export function ScenarioLocationSection({
       </div>
 
       <div className="border-grayA-5 mt-5 border-t pt-4">
-        <div className="text-gray-11 mb-3 text-xs">
-          Текст адреса вводится вручную. Без reverse-geocoder координаты нельзя
-          достоверно преобразовать в улицу и номер дома.
+        <div
+          className={
+            geocodingStatus === "error"
+              ? "text-red-11 mb-3 text-xs"
+              : geocodingStatus === "success"
+                ? "text-green-11 mb-3 text-xs"
+                : "text-gray-11 mb-3 text-xs"
+          }
+          role="status"
+          aria-live="polite"
+        >
+          {geocodingStatus === "loading"
+            ? "Определяем город и улицу по координатам…"
+            : geocodingStatus === "success"
+              ? `Адрес определён по карте: ${geocodingMessage ?? "проверьте заполненные поля"}`
+              : geocodingStatus === "error"
+                ? (geocodingMessage ??
+                  "Не удалось определить адрес. Введите город и улицу вручную.")
+                : "После выбора точки город и улица определятся автоматически. Поля останутся редактируемыми."}
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <TextInput
@@ -511,6 +538,19 @@ export function ScenarioLocationSection({
             onChange={(locatorLabel) => updateLocation({ locatorLabel })}
           />
         </div>
+        {(geocodingStatus === "success" || geocodingStatus === "loading") && (
+          <div className="text-gray-9 mt-3 text-[11px]">
+            Адресные данные:{" "}
+            <a
+              className="underline"
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+            >
+              © OpenStreetMap contributors
+            </a>
+          </div>
+        )}
       </div>
       <div className="mt-4">
         <BooleanInput
