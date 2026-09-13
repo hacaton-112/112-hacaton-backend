@@ -1,12 +1,5 @@
 import { Button, Card, IconButton, Text } from "@bolid-ui/themes";
-import {
-  ClipboardList,
-  Mic,
-  MicOff,
-  Phone,
-  PhoneOff,
-  RotateCcw,
-} from "lucide-react";
+import { ClipboardList, Mic, MicOff, PhoneOff, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -69,29 +62,6 @@ export function CallControlDock(props: CallControlDockProps) {
             />
           )}
 
-          {props.state === "ringing" && (
-            <>
-              <IconButton
-                size="2"
-                radius="full"
-                color="green"
-                onClick={props.accept}
-                aria-label="Принять вызов"
-              >
-                <Phone size={17} />
-              </IconButton>
-              <IconButton
-                size="2"
-                radius="full"
-                color="red"
-                onClick={props.reject}
-                aria-label="Отклонить вызов"
-              >
-                <PhoneOff size={17} />
-              </IconButton>
-            </>
-          )}
-
           {props.state === "active" && (
             <>
               <IconButton
@@ -106,21 +76,6 @@ export function CallControlDock(props: CallControlDockProps) {
               >
                 {props.isMuted ? <MicOff size={17} /> : <Mic size={17} />}
               </IconButton>
-              <Button
-                size="2"
-                radius="full"
-                variant={props.isListening ? "solid" : "soft"}
-                color={props.isListening ? "red" : "green"}
-                disabled={props.isMuted}
-                onPointerDown={props.holdFloor}
-                onPointerUp={props.releaseFloor}
-                onPointerLeave={props.releaseFloor}
-                onPointerCancel={props.releaseFloor}
-                className="min-w-40 touch-none select-none"
-              >
-                <Mic size={17} />
-                {props.isListening ? "Отпустите" : "Говорить"}
-              </Button>
               <IconButton
                 size="2"
                 radius="full"

@@ -6,7 +6,7 @@ import { VoiceVisualizer, useVoiceVisualizer } from "react-voice-visualizer";
 const VISUALIZER_HEIGHT = 32;
 
 interface VoiceVisualizerPanelProps {
-  /** Запись идёт только во время разговора и при включённом микрофоне. */
+  /** Во время разговора поток постоянный; false означает ручное отключение. */
   isListening: boolean;
 }
 

@@ -21,6 +21,7 @@ export interface CallStream {
   end(): Promise<void>;
   holdFloor(): Promise<void>;
   releaseFloor(): Promise<void>;
+  stopCapture(): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -124,7 +125,6 @@ class NativeCallStream implements CallStream {
         await ipc.call.disconnect(connection).catch(() => undefined);
       }
     }).catch(() => undefined);
-
   }
 
   private async send(command: CallClientCommand): Promise<void> {
@@ -160,6 +160,10 @@ class NativeCallStream implements CallStream {
     }
 
     this.callbacks.onEvent(parsed.data);
+  }
+
+  async stopCapture(): Promise<void> {
+    await ipc.systemAudio.stop().catch(() => undefined);
   }
 
   private toError = (reason: unknown): Error =>
