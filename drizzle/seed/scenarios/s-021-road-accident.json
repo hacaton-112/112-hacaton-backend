@@ -167,8 +167,8 @@
         "дышит"
       ],
       "disclosure": {
-        "type": "after_fact",
-        "factKeys": ["trapped_people"]
+        "type": "on_question",
+        "keywords": ["состояни", "сознан", "дышат", "живы", "как они", "ранен"]
       },
       "priority": 8
     },
