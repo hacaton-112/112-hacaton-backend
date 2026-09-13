@@ -1,8 +1,9 @@
-import { Badge, Card, Flex, Text } from "@bolid-ui/themes";
+import { Badge, Box, Flex, Grid, Table, Text } from "@bolid-ui/themes";
 import { Check, X } from "lucide-react";
 
 import type { Debrief, DebriefEvaluation } from "../../contracts/debrief";
 import { formatOffset, questionRows } from "./debrief-formatters";
+import { DebriefSection } from "./debrief-primitives";
 
 const REFERENCE_FIELD_LABELS: Record<string, string> = {
   city: "Город",
@@ -26,87 +27,84 @@ const REFERENCE_FIELD_LABELS: Record<string, string> = {
 };
 
 /** Детализация по вопросам: что получено против того, что ждал сценарий. */
-export function QuestionsCard({ debrief }: { debrief: Debrief }) {
+export function QuestionsTable({ debrief }: { debrief: Debrief }) {
   const rows = questionRows(debrief);
 
-  return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Детализация по вопросам
+  if (rows.length === 0) {
+    return (
+      <Text size="2" color="gray">
+        Обязательных вопросов в сценарии нет.
       </Text>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-left">
-          <thead>
-            <tr className="border-grayA-5 border-b">
-              {["№", "Вопрос", "Получено", "Ожидалось", "Статус", "Время"].map(
-                (title, index) => (
-                  <th key={title} className="py-2 pr-3 font-normal">
-                    <Text
-                      size="1"
-                      color="gray"
-                      align={index >= 4 ? "right" : "left"}
-                      as="div"
-                    >
-                      {title}
-                    </Text>
-                  </th>
-                ),
+    );
+  }
+
+  return (
+    <Table.Root size="1" variant="ghost">
+      <Table.Header>
+        <Table.Row>
+          <Table.ColumnHeaderCell width="40px">№</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell width="30%">Вопрос</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>Получено</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell>Ожидалось</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell width="72px" justify="end">
+            Статус
+          </Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell width="72px" justify="end">
+            Время
+          </Table.ColumnHeaderCell>
+        </Table.Row>
+      </Table.Header>
+      <Table.Body>
+        {rows.map((row, index) => (
+          <Table.Row key={row.text} align="start">
+            <Table.Cell>
+              <Text size="2" color="gray">
+                {index + 1}
+              </Text>
+            </Table.Cell>
+            <Table.Cell>
+              <Flex align="center" gap="2" wrap="wrap">
+                <Text size="2">{row.text}</Text>
+                {row.isCritical && (
+                  <Badge color="red" variant="soft">
+                    критично
+                  </Badge>
+                )}
+              </Flex>
+            </Table.Cell>
+            <Table.Cell>
+              <Text size="2" color={row.satisfied ? "green" : "red"}>
+                {row.obtained.length === 0
+                  ? "Не получено"
+                  : row.obtained.join(", ")}
+              </Text>
+            </Table.Cell>
+            <Table.Cell>
+              <Text size="2" color="gray">
+                {row.expected.join(", ")}
+              </Text>
+            </Table.Cell>
+            <Table.Cell justify="end">
+              {row.satisfied ? (
+                <Check size={15} className="text-green-9" />
+              ) : (
+                <X size={15} className="text-red-9" />
               )}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={row.text} className="border-grayA-3 border-b">
-                <td className="py-2 pr-3 align-top">
-                  <Text size="2" color="gray">
-                    {index + 1}
-                  </Text>
-                </td>
-                <td className="w-[38%] py-2 pr-3 align-top">
-                  <Text size="2">{row.text}</Text>
-                  {row.isCritical && (
-                    <Badge color="red" variant="soft" radius="full" ml="2">
-                      критично
-                    </Badge>
-                  )}
-                </td>
-                <td className="py-2 pr-3 align-top">
-                  <Text size="2" color={row.satisfied ? "green" : "red"}>
-                    {row.obtained.length === 0
-                      ? "Не получено"
-                      : row.obtained.join(", ")}
-                  </Text>
-                </td>
-                <td className="py-2 pr-3 align-top">
-                  <Text size="2" color="gray">
-                    {row.expected.join(", ")}
-                  </Text>
-                </td>
-                <td className="py-2 pr-3 text-right align-top">
-                  {row.satisfied ? (
-                    <Check size={15} className="text-green-9 inline" />
-                  ) : (
-                    <X size={15} className="text-red-9 inline" />
-                  )}
-                </td>
-                <td className="py-2 text-right align-top">
-                  <Text size="2" color="gray">
-                    {row.closedAtMs === null
-                      ? "—"
-                      : formatOffset(row.closedAtMs)}
-                  </Text>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+            </Table.Cell>
+            <Table.Cell justify="end">
+              <Text size="2" color="gray" className="tabular-nums">
+                {row.closedAtMs === null ? "—" : formatOffset(row.closedAtMs)}
+              </Text>
+            </Table.Cell>
+          </Table.Row>
+        ))}
+      </Table.Body>
+    </Table.Root>
   );
 }
 
 /** Карточка происшествия против эталонной анкеты, поле за полем. */
-export function ReferenceCard({
+export function ReferenceSection({
   evaluation,
 }: {
   evaluation: DebriefEvaluation;
@@ -116,61 +114,63 @@ export function ReferenceCard({
   }
 
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Карточка против эталона
-      </Text>
-      <div className="mt-3 grid gap-2">
+    <DebriefSection title="Карточка против эталона">
+      <Grid gap="2">
         {evaluation.fields.map((field) => (
           <Flex key={field.field} align="start" gap="2">
-            {field.matched ? (
-              <Check size={15} className="text-green-9 mt-0.5 shrink-0" />
-            ) : (
-              <X size={15} className="text-red-9 mt-0.5 shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
-              <Text size="1" color="gray" as="div">
+            <Box flexShrink="0" mt="1">
+              {field.matched ? (
+                <Check size={15} className="text-green-9" />
+              ) : (
+                <X size={15} className="text-red-9" />
+              )}
+            </Box>
+            <Grid gap="1" flexGrow="1" className="min-w-0">
+              <Text size="1" color="gray">
                 {REFERENCE_FIELD_LABELS[field.field] ?? field.field}
                 {field.isRequired ? "" : " · необязательное"}
               </Text>
-              <Text size="2" as="div">
-                {field.actual ?? "не заполнено"}
-              </Text>
+              <Text size="2">{field.actual ?? "не заполнено"}</Text>
               {!field.matched && (
-                <Text size="1" color="gray" as="div">
+                <Text size="1" color="gray">
                   ожидалось: {field.expected}
                 </Text>
               )}
-            </div>
+            </Grid>
           </Flex>
         ))}
-      </div>
-    </Card>
+      </Grid>
+    </DebriefSection>
   );
 }
 
-export function RecommendationsCard({
+export function RecommendationsSection({
   evaluation,
 }: {
   evaluation: DebriefEvaluation;
 }) {
+  if (evaluation.recommendations.length === 0) {
+    return null;
+  }
+
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Рекомендации по улучшению
-      </Text>
-      <div className="mt-3 grid gap-2">
-        {evaluation.recommendations.map((line) => (
-          <Flex key={line} align="start" gap="2">
-            <Text size="2" weight="bold" color="orange">
-              •
-            </Text>
-            <Text size="2" color="gray">
-              {line}
-            </Text>
-          </Flex>
-        ))}
-      </div>
-    </Card>
+    <DebriefSection title="Рекомендации по улучшению">
+      <Grid gap="2" asChild>
+        <ul className="list-none">
+          {evaluation.recommendations.map((line) => (
+            <Flex key={line} align="start" gap="2" asChild>
+              <li>
+                <Text size="2" weight="bold" color="orange">
+                  •
+                </Text>
+                <Text size="2" color="gray">
+                  {line}
+                </Text>
+              </li>
+            </Flex>
+          ))}
+        </ul>
+      </Grid>
+    </DebriefSection>
   );
 }

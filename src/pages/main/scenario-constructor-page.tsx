@@ -1,26 +1,23 @@
 import {
-  Badge,
+  Box,
   Button,
   Callout,
   Card,
   Flex,
+  Grid,
   Spinner,
   Text,
-  TextArea,
   toast,
 } from "@bolid-ui/themes";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Bot,
-  CheckCircle2,
-  FilePlus2,
-  RotateCcw,
-  Sparkles,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router";
 
+import {
+  BRIEF_MIN_LENGTH,
+  ScenarioAiHelper,
+  SupportIcon,
+} from "../../components/scenario-authoring/scenario-ai-helper";
+import { ScenarioFormSkeleton } from "../../components/scenario-authoring/scenario-form-skeleton";
 import {
   ScenarioBasicsSection,
   ScenarioCallSection,
@@ -94,10 +91,11 @@ const formatIssue = (issue: {
 };
 
 export default function ScenarioConstructorPage() {
-  const navigate = useNavigate();
   const { draft, publication, reverseGeocoding } = useScenarioAuthoring();
   const [scenario, setScenario] = useState(createEmptyScenario);
   const [brief, setBrief] = useState("");
+  const [helperOpen, setHelperOpen] = useState(false);
+  const [helperError, setHelperError] = useState<string>();
   const [authoringSource, setAuthoringSource] =
     useState<ScenarioAuthoringSource>("manual");
   const [authoringPrompt, setAuthoringPrompt] = useState<string>();
@@ -171,17 +169,22 @@ export default function ScenarioConstructorPage() {
     }
   };
 
+  // Панель закрывается сразу после отправки: пока черновик собирается, форма
+  // показывает скелетон. Ошибку показываем в самой панели — она открывается
+  // снова вместе с набранным описанием, чтобы его можно было поправить.
   const generate = async () => {
     const normalizedBrief = brief.trim();
-    if (normalizedBrief.length < 20) {
-      setValidationErrors([
-        "Описание для помощника должно содержать не менее 20 символов.",
-      ]);
+    if (normalizedBrief.length < BRIEF_MIN_LENGTH) {
+      setHelperError(
+        `Описание для помощника должно содержать не менее ${BRIEF_MIN_LENGTH} символов.`,
+      );
       return;
     }
 
+    setHelperError(undefined);
     setValidationErrors([]);
     setPublished(undefined);
+    setHelperOpen(false);
 
     try {
       const result = await draft.mutateAsync(normalizedBrief);
@@ -195,7 +198,8 @@ export default function ScenarioConstructorPage() {
           "Проверьте факты, условия раскрытия и эталон перед публикацией.",
       });
     } catch (error) {
-      setValidationErrors([messageFrom(error)]);
+      setHelperError(messageFrom(error));
+      setHelperOpen(true);
     }
   };
 
@@ -238,56 +242,137 @@ export default function ScenarioConstructorPage() {
     setGeocodingFeedback({ status: "idle" });
   };
 
-  return (
-    <div className="bg-gray-2 min-h-full">
-      <header className="border-grayA-5 bg-panel sticky top-0 z-20 border-b px-5 py-3 shadow-sm">
-        <Flex align="center" justify="between" gap="4" wrap="wrap">
-          <Flex align="center" gap="3" className="min-w-0">
-            <Button
-              type="button"
-              variant="ghost"
-              color="gray"
-              aria-label="Назад к рабочему месту"
-              onClick={() => navigate("/")}
-            >
-              <ArrowLeft size={17} />
-            </Button>
-            <div className="min-w-0">
-              <Flex align="center" gap="2">
-                <FilePlus2 size={19} />
-                <Text size="4" weight="bold">
-                  Конструктор сценария
-                </Text>
-                <Badge
-                  color={authoringSource === "assistant" ? "violet" : "gray"}
-                >
-                  {authoringSource === "assistant"
-                    ? "Черновик AI"
-                    : "Ручной ввод"}
-                </Badge>
-              </Flex>
-              <Text as="p" size="1" color="gray" mt="1">
-                Новая публикация создаёт неизменяемую версию 1
-              </Text>
-            </div>
-          </Flex>
+  const busy = draft.isPending || publication.isPending;
 
-          <Flex align="center" gap="2">
+  return (
+    <Box p="4" className="min-h-full">
+      <Grid
+        ref={feedbackRef}
+        gap="4"
+        className="min-w-0 scroll-mt-4 content-start"
+      >
+        {published && (
+          <Callout.Root color="green" size="2" role="status">
+            <Callout.Icon>
+              <CheckCircle2 size={18} />
+            </Callout.Icon>
+            <Callout.Text>
+              <strong>{published.code}</strong> опубликован как версия{" "}
+              {published.version}. Он уже доступен в списке тренировок.
+            </Callout.Text>
+          </Callout.Root>
+        )}
+
+        {validationErrors.length > 0 && (
+          <Callout.Root color="red" size="2" role="alert">
+            <Callout.Icon>
+              <AlertTriangle size={18} />
+            </Callout.Icon>
+            <div>
+              <Text as="div" size="2" weight="bold" mb="1">
+                Сценарий требует исправлений
+              </Text>
+              <ul className="list-disc space-y-1 pl-4">
+                {validationErrors.map((error, index) => (
+                  <li key={`${index}-${error}`}>
+                    <Text size="2">{error}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Callout.Root>
+        )}
+
+        {draft.isPending ? (
+          <ScenarioFormSkeleton />
+        ) : (
+          <>
+            <ScenarioBasicsSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioPersonaSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioCallSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioLocationSection
+              scenario={scenario}
+              onChange={updateScenario}
+              onIncidentPointSelected={(coordinates) =>
+                void determineAddress(coordinates)
+              }
+              geocodingStatus={geocodingFeedback.status}
+              geocodingMessage={geocodingFeedback.message}
+            />
+            <ScenarioFactsSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioQuestionsSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioEscalationSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+            <ScenarioReferenceSection
+              scenario={scenario}
+              onChange={updateScenario}
+            />
+          </>
+        )}
+      </Grid>
+
+      {/*
+       * Шапки в макете нет, а без действий форму не опубликовать: кнопки
+       * плавают над формой в правом нижнем углу и всегда под рукой, сколько бы
+       * ни было фактов и правил.
+       *
+       * Отступ снизу у sticky — зазор до края окна; без него панель липла
+       * вплотную к нижней кромке. Обёртка прозрачна для кликов, чтобы пустое
+       * место слева от панели не перекрывало поля под ней.
+       *
+       * Фон панели сплошной: панели темы по умолчанию полупрозрачные, и поля
+       * формы просвечивали бы сквозь кнопки.
+       */}
+      <Flex
+        justify="end"
+        className="pointer-events-none sticky bottom-4 z-10 mt-4"
+      >
+        <Card
+          size="1"
+          variant="classic"
+          className="shadow-5 pointer-events-auto [--card-background-color:var(--color-panel-solid)]"
+        >
+          <Flex align="center" gap="2" wrap="wrap">
             <Button
               type="button"
+              size="2"
+              variant="soft"
+              onClick={() => setHelperOpen(true)}
+            >
+              <SupportIcon width={18} height={18} />
+              Помощь ИИ
+            </Button>
+            <Button
+              type="button"
+              size="2"
               variant="soft"
               color="gray"
-              disabled={draft.isPending || publication.isPending}
+              disabled={busy}
               onClick={resetManual}
             >
-              <RotateCcw size={15} /> Очистить
+              <RotateCcw size={16} /> Очистить
             </Button>
             <Button
               type="button"
-              color="green"
-              disabled={
-                draft.isPending || publication.isPending || Boolean(published)
-              }
+              size="2"
+              disabled={busy || Boolean(published)}
               onClick={() => void publish()}
             >
               {publication.isPending ? (
@@ -300,171 +385,21 @@ export default function ScenarioConstructorPage() {
                 : "Проверить и опубликовать"}
             </Button>
           </Flex>
-        </Flex>
-      </header>
+        </Card>
+      </Flex>
 
-      <div className="mx-auto grid max-w-[1680px] gap-5 p-5 min-[900px]:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="self-start min-[900px]:sticky min-[900px]:top-[88px]">
-          <Card size="3" variant="classic">
-            <Flex align="center" gap="2" mb="2">
-              <span className="bg-violet-3 text-violet-11 grid size-9 place-items-center rounded-lg">
-                <Bot size={19} />
-              </span>
-              <div>
-                <Text as="div" size="3" weight="bold">
-                  Помощник по заполнению
-                </Text>
-                <Text as="div" size="1" color="gray">
-                  Alice AI LLM Flash
-                </Text>
-              </div>
-            </Flex>
-
-            <Text as="p" size="2" color="gray" mb="3">
-              Опишите происшествие, заявителя, скрытые сведения и ожидаемые
-              действия оператора. Точку и область задаёт преподаватель, адрес
-              определяется по координатам.
-            </Text>
-
-            <label className="text-gray-11 grid gap-1 text-xs">
-              Описание сценария
-              <TextArea
-                value={brief}
-                rows={7}
-                maxLength={4_000}
-                placeholder="Например: учебный вызов о задымлении в мастерской. Заявитель снаружи, внутри один пострадавший…"
-                onChange={(event) => setBrief(event.currentTarget.value)}
-              />
-            </label>
-            <Flex justify="between" mt="1">
-              <Text size="1" color="gray">
-                Минимум 20 символов
-              </Text>
-              <Text size="1" color="gray" className="tabular-nums">
-                {brief.length}/4000
-              </Text>
-            </Flex>
-
-            <Button
-              type="button"
-              className="mt-3 w-full"
-              color="violet"
-              disabled={
-                draft.isPending ||
-                publication.isPending ||
-                brief.trim().length < 20
-              }
-              onClick={() => void generate()}
-            >
-              {draft.isPending ? <Spinner size="1" /> : <Sparkles size={16} />}
-              {draft.isPending ? "Формируем черновик…" : "Заполнить черновик"}
-            </Button>
-
-            <Callout.Root color="amber" size="1" mt="4">
-              <Callout.Icon>
-                <AlertTriangle size={15} />
-              </Callout.Icon>
-              <Callout.Text>
-                Текст описания передаётся во внешний Alice AI. Используйте
-                только синтетические имена и телефоны. Помощник не получает и не
-                изменяет адрес или координаты и ничего не публикует.
-              </Callout.Text>
-            </Callout.Root>
-
-            <div className="border-grayA-5 mt-4 grid grid-cols-3 gap-2 border-t pt-4 text-center">
-              <Stat value={scenario.facts.length} label="фактов" />
-              <Stat
-                value={scenario.mandatoryQuestions.length}
-                label="вопросов"
-              />
-              <Stat
-                value={scenario.referenceCard.fields.length}
-                label="полей"
-              />
-            </div>
-          </Card>
-        </aside>
-
-        <main
-          ref={feedbackRef}
-          className="grid min-w-0 scroll-mt-24 content-start gap-5 pb-8"
-        >
-          {published && (
-            <Callout.Root color="green" size="2" role="status">
-              <Callout.Icon>
-                <CheckCircle2 size={18} />
-              </Callout.Icon>
-              <Callout.Text>
-                <strong>{published.code}</strong> опубликован как версия{" "}
-                {published.version}. Он уже доступен в списке тренировок.
-              </Callout.Text>
-            </Callout.Root>
-          )}
-
-          {validationErrors.length > 0 && (
-            <Callout.Root color="red" size="2" role="alert">
-              <Callout.Icon>
-                <AlertTriangle size={18} />
-              </Callout.Icon>
-              <div className="text-red-11 text-sm">
-                <Text as="div" size="2" weight="bold" mb="1">
-                  Сценарий требует исправлений
-                </Text>
-                <ul className="list-disc space-y-1 pl-4">
-                  {validationErrors.map((error, index) => (
-                    <li key={`${index}-${error}`}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            </Callout.Root>
-          )}
-
-          <ScenarioBasicsSection
-            scenario={scenario}
-            onChange={updateScenario}
-          />
-          <ScenarioPersonaSection
-            scenario={scenario}
-            onChange={updateScenario}
-          />
-          <ScenarioCallSection scenario={scenario} onChange={updateScenario} />
-          <ScenarioLocationSection
-            scenario={scenario}
-            onChange={updateScenario}
-            onIncidentPointSelected={(coordinates) =>
-              void determineAddress(coordinates)
-            }
-            geocodingStatus={geocodingFeedback.status}
-            geocodingMessage={geocodingFeedback.message}
-          />
-          <ScenarioFactsSection scenario={scenario} onChange={updateScenario} />
-          <ScenarioQuestionsSection
-            scenario={scenario}
-            onChange={updateScenario}
-          />
-          <ScenarioEscalationSection
-            scenario={scenario}
-            onChange={updateScenario}
-          />
-          <ScenarioReferenceSection
-            scenario={scenario}
-            onChange={updateScenario}
-          />
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-  return (
-    <div>
-      <Text as="div" size="4" weight="bold" className="tabular-nums">
-        {value}
-      </Text>
-      <Text as="div" size="1" color="gray">
-        {label}
-      </Text>
-    </div>
+      <ScenarioAiHelper
+        open={helperOpen}
+        onOpenChange={setHelperOpen}
+        brief={brief}
+        onBriefChange={(next) => {
+          setBrief(next);
+          setHelperError(undefined);
+        }}
+        pending={draft.isPending}
+        error={helperError}
+        onGenerate={() => void generate()}
+      />
+    </Box>
   );
 }

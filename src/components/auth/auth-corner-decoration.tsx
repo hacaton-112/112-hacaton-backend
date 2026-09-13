@@ -4,7 +4,12 @@ export function AuthCornerDecoration() {
       aria-hidden="true"
       viewBox="0 0 420 280"
       preserveAspectRatio="none"
-      className="pointer-events-none absolute right-0 bottom-0 h-[42%] min-h-52 w-full select-none"
+      // Ширина не больше колонки на десктопе: на широком мобильном экране
+      // дуги иначе растягивались бы в плоские полосы.
+      // Сдвиг на 2px за край: высота в процентах даёт дробный пиксель, и
+      // сглаженная последняя строка оставляла тонкий зазор у кромки окна.
+      // Лишнее срезает overflow-hidden колонки.
+      className="pointer-events-none absolute -right-0.5 -bottom-0.5 h-[42%] min-h-52 w-[min(100%,420px)] select-none"
     >
       <path d="M420 0V280H0C94 153 238 58 420 0Z" fill="var(--accent-a2)" />
       <path

@@ -1,4 +1,9 @@
-import type { AppAccentColor, AppTheme } from "../services/settings.service";
+import type {
+  AppAccentColor,
+  AppRadius,
+  AppScaling,
+  AppTheme,
+} from "../services/settings.service";
 
 export const THEME_PREFERENCES: AppTheme[] = ["system", "light", "dark"];
 
@@ -35,3 +40,29 @@ export const ACCENT_LABELS: Record<AppAccentColor, string> = {
   red: "Красный",
   pink: "Розовый",
 };
+
+export const RADIUS_OPTIONS: AppRadius[] = [
+  "none",
+  "small",
+  "medium",
+  "large",
+  "full",
+];
+
+export const RADIUS_LABELS: Record<AppRadius, string> = {
+  none: "Без скругления",
+  small: "Малое",
+  medium: "Среднее",
+  large: "Большое",
+  full: "Полное",
+};
+
+export const SCALING_OPTIONS: AppScaling[] = [
+  "90%",
+  "95%",
+  "100%",
+  "105%",
+  "110%",
+  "120%",
+  "130%",
+];

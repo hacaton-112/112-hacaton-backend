@@ -16,22 +16,24 @@ export default function AuthPage() {
     <Flex className="h-full min-h-0">
       {/* Промо-колонка не несёт функции ввода — на узких окнах скрываем её,
           и форма остаётся по центру страницы. */}
+      {/*
+       * Раскладка из login-redesign: текст сверху слева, иллюстрация прижата
+       * к левому нижнему углу и заходит под описание. Картинка приглушена
+       * только в светлой теме — на тёмном фоне полупрозрачность превращала
+       * её в мутное серое пятно.
+       */}
       <Flex
         direction="column"
-        align="end"
-        className="relative hidden flex-1 overflow-hidden px-10 md:flex lg:px-20"
+        align="start"
+        className="relative hidden flex-1 overflow-hidden px-10 pt-[12vh] md:flex lg:px-20"
       >
         <img
           src="/auth.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 size-full object-contain object-center opacity-60 select-none"
+          className="pointer-events-none absolute bottom-0 left-0 h-[72%] w-[min(100%,1240px)] object-contain object-bottom-left opacity-60 select-none dark:opacity-100"
         />
-        <Flex
-          direction="column"
-          gap="4"
-          className="rounded-4 relative z-10 max-w-2xl p-6"
-        >
+        <Flex direction="column" gap="4" className="relative z-10 max-w-2xl">
           <Heading size="7" weight="bold">
             Отработка приёма вызова
             <br />
@@ -45,13 +47,22 @@ export default function AuthPage() {
         </Flex>
       </Flex>
 
+      {/*
+       * На узком окне колонка занимает всю ширину, а по центру ограничена
+       * только форма: иначе декорация жила в блоке 420px посреди экрана и
+       * обрывалась ровным краем вместо угла окна.
+       */}
       <Flex
         direction="column"
         justify="center"
-        className="md:border-grayA-4 relative mx-auto w-full max-w-105 shrink-0 overflow-hidden px-10 md:mx-0 md:w-105 md:max-w-none md:border-l"
+        className="md:border-grayA-4 relative w-full shrink-0 overflow-hidden px-10 md:w-105 md:border-l"
       >
         <AuthCornerDecoration />
-        <Flex direction="column" gap="5" className="relative z-10 w-full">
+        <Flex
+          direction="column"
+          gap="5"
+          className="relative z-10 mx-auto w-full max-w-85"
+        >
           <Heading size="5">Авторизация</Heading>
           <AuthForm />
         </Flex>

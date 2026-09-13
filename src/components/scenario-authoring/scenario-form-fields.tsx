@@ -1,13 +1,29 @@
 import {
+  Badge,
+  Button,
   Card,
   Checkbox,
+  CheckboxCards,
   Flex,
+  Grid,
+  Heading,
+  IconButton,
+  Select,
   Text,
   TextArea,
   TextField,
 } from "@bolid-ui/themes";
+import { CirclePlus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { cn } from "../../lib/cn";
+
+/**
+ * Карточка раздела конструктора: заголовок, пояснение и действие справа.
+ *
+ * В макете у всех разделов одна шапка — жирный заголовок и строка пояснения
+ * под ним, а кнопка «+ Факт» прижата вправо на уровне заголовка.
+ */
 export function SectionCard({
   title,
   description,
@@ -15,23 +31,28 @@ export function SectionCard({
   children,
 }: {
   title: string;
-  description?: string;
+  description?: ReactNode;
   actions?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <Card size="3" variant="classic">
-      <Flex align="start" justify="between" gap="4" mb="4">
-        <div>
-          <Text as="div" size="4" weight="bold">
+      <Flex
+        align="start"
+        justify="between"
+        gap="4"
+        mb={children === undefined ? "0" : "4"}
+      >
+        <Grid gap="1" className="min-w-0">
+          <Heading as="h2" size="3" weight="bold">
             {title}
-          </Text>
-          {description && (
-            <Text as="p" size="2" color="gray" mt="1">
+          </Heading>
+          {description !== undefined && (
+            <Text as="div" size="2" color="gray">
               {description}
             </Text>
           )}
-        </div>
+        </Grid>
         {actions}
       </Flex>
       {children}
@@ -39,11 +60,141 @@ export function SectionCard({
   );
 }
 
+/** Кнопка «+ Факт», «+ Вопрос» в шапке раздела. */
+export function AddButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      size="2"
+      variant="soft"
+      className="shrink-0"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <CirclePlus size={16} /> {children}
+    </Button>
+  );
+}
+
+/**
+ * Элемент списка внутри раздела: факт, правило, поле эталона.
+ *
+ * Номер и название — в шапке блока, кнопка удаления — справа от неё.
+ */
+export function SectionItem({
+  index,
+  title,
+  tone = "gray",
+  onRemove,
+  removeLabel,
+  removeDisabled,
+  children,
+}: {
+  index?: number;
+  title?: string;
+  tone?: "gray" | "red";
+  onRemove?: () => void;
+  removeLabel?: string;
+  removeDisabled?: boolean;
+  children: ReactNode;
+}) {
+  const hasHeader = index !== undefined || title !== undefined;
+
+  return (
+    <Card size="2" variant="surface">
+      {(hasHeader || onRemove) && (
+        <Flex align="center" justify="between" gap="3" mb="3">
+          <Flex align="center" gap="2" className="min-w-0">
+            {index !== undefined && (
+              <Badge color={tone} variant="soft">
+                {index + 1}
+              </Badge>
+            )}
+            {title !== undefined && (
+              <Text size="3" weight="bold" truncate>
+                {title}
+              </Text>
+            )}
+          </Flex>
+          {onRemove && (
+            <RemoveButton
+              label={removeLabel}
+              disabled={removeDisabled}
+              onClick={onRemove}
+            />
+          )}
+        </Flex>
+      )}
+      {children}
+    </Card>
+  );
+}
+
+export function RemoveButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <IconButton
+      type="button"
+      variant="ghost"
+      color="gray"
+      size="3"
+      className="shrink-0"
+      aria-label={label ?? "Удалить"}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Trash2 size={20} />
+    </IconButton>
+  );
+}
+
+/**
+ * Сетка полей раздела. Колонки задаются для ширины от `md` и `lg`, а на узком
+ * экране поля всегда встают в одну колонку.
+ */
+export function FieldGrid({
+  md = "2",
+  lg,
+  children,
+  className,
+}: {
+  md?: "1" | "2";
+  lg?: "2" | "3" | "4";
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Grid
+      gap="3"
+      columns={{ initial: "1", md, lg: lg ?? md }}
+      className={className}
+    >
+      {children}
+    </Grid>
+  );
+}
+
+/** Подпись над полем, как в макете: серая строка 14px, поле сразу под ней. */
 export function FieldLabel({
   label,
   hint,
   children,
-  className = "",
+  className,
 }: {
   label: string;
   hint?: string;
@@ -51,13 +202,18 @@ export function FieldLabel({
   className?: string;
 }) {
   return (
-    <label className={`text-gray-11 grid min-w-0 gap-1 text-xs ${className}`}>
+    <Text
+      as="label"
+      size="2"
+      color="gray"
+      className={cn("grid min-w-0 gap-0.5", className)}
+    >
       <span>
         {label}
-        {hint && <span className="text-gray-9 ml-1">· {hint}</span>}
+        {hint && ` (${hint})`}
       </span>
       {children}
-    </label>
+    </Text>
   );
 }
 
@@ -100,7 +256,7 @@ export function TextAreaInput({
   onChange,
   placeholder,
   hint,
-  rows = 3,
+  rows = 2,
   maxLength,
   className,
 }: {
@@ -180,19 +336,28 @@ export function SelectInput<T extends string>({
   className?: string;
 }) {
   return (
-    <FieldLabel label={label} hint={hint} className={className}>
-      <select
-        className="border-grayA-6 bg-panel text-gray-12 focus:border-blue-8 h-9 w-full rounded-md border px-2 text-sm outline-none"
+    // Подпись не оборачивает Select: клик по <label> открывал бы список
+    // вторым событием, и он тут же закрывался.
+    <Grid className={cn("min-w-0 gap-0.5", className)}>
+      <Text size="2" color="gray">
+        {label}
+        {hint && ` (${hint})`}
+      </Text>
+      <Select.Root
+        size="2"
         value={value}
-        onChange={(event) => onChange(event.currentTarget.value as T)}
+        onValueChange={(next) => onChange(next as T)}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </FieldLabel>
+        <Select.Trigger aria-label={label} className="w-full" />
+        <Select.Content position="popper">
+          {options.map((option) => (
+            <Select.Item key={option.value} value={option.value}>
+              {option.label}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select.Root>
+    </Grid>
   );
 }
 
@@ -215,5 +380,39 @@ export function BooleanInput({
         {label}
       </Flex>
     </Text>
+  );
+}
+
+/** Набор вариантов-чипов, как «Ожидаемые службы» в макете. */
+export function ChipsInput<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: readonly T[];
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T[]) => void;
+}) {
+  return (
+    <Grid gap="2">
+      <Text size="2" color="gray">
+        {label}
+      </Text>
+      <CheckboxCards.Root
+        size="1"
+        gap="2"
+        value={[...value]}
+        onValueChange={(next) => onChange(next as T[])}
+        className="flex! flex-wrap"
+      >
+        {options.map((option) => (
+          <CheckboxCards.Item key={option.value} value={option.value}>
+            <Text size="2">{option.label}</Text>
+          </CheckboxCards.Item>
+        ))}
+      </CheckboxCards.Root>
+    </Grid>
   );
 }

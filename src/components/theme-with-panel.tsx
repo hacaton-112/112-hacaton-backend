@@ -27,7 +27,8 @@ export function ThemeWithPanel({ children }: { children: ReactNode }) {
         }
         accentColor={settings.accentColor}
         grayColor="gray"
-        radius="medium"
+        radius={settings.radius}
+        scaling={settings.scaling}
       >
         <Toaster position="top-center" duration={6_000} />
         {children}

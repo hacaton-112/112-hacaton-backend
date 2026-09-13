@@ -6,10 +6,12 @@ import {
   Settings,
   UserRound,
 } from "lucide-react";
+import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 
+import type { AuthUser } from "../contracts/auth";
 import { useAuthLogout } from "../hooks/use-auth";
 import { useAuthStore } from "../stores/auth.store";
 import {
@@ -25,6 +27,12 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "./ui/sidebar";
+
+const ROLE_LABELS: Record<AuthUser["role"], string> = {
+  operator: "Оператор",
+  instructor: "Преподаватель",
+  admin: "Администратор",
+};
 
 type NavItemProps = {
   active?: boolean;
@@ -66,6 +74,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
+  const [accountOpen, setAccountOpen] = useState(false);
   const canAuthorScenarios =
     user?.role === "instructor" || user?.role === "admin";
 
@@ -128,24 +137,58 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       <SidebarSeparator />
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarNavItem
-            icon={Settings}
-            label="Настройки"
-            onClick={onOpenSettings}
-          >
-            Настройки
-          </SidebarNavItem>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="cursor-default overflow-hidden"
-              tooltip={user?.fullName ?? "Профиль"}
-            >
-              <div>
-                <UserRound />
-                <span className="font-medium">{user?.fullName}</span>
-              </div>
-            </SidebarMenuButton>
+            <Popover.Root open={accountOpen} onOpenChange={setAccountOpen}>
+              <SidebarMenuButton
+                asChild
+                isActive={accountOpen}
+                className="overflow-hidden"
+                tooltip={user?.fullName ?? "Аккаунт"}
+              >
+                {/* Popover.Trigger в bolid всегда вешается на дочерний элемент,
+                    поэтому обработчики доходят до самой кнопки: сам
+                    SidebarMenuButton лишние пропсы не пробрасывает. */}
+                <Popover.Trigger>
+                  <button type="button" aria-label="Аккаунт">
+                    <UserRound />
+                    <span className="font-medium">{user?.fullName}</span>
+                  </button>
+                </Popover.Trigger>
+              </SidebarMenuButton>
+              <Popover.Content
+                side="right"
+                align="end"
+                sideOffset={16}
+                size="2"
+                minWidth="240px"
+              >
+                <Grid gap="3">
+                  <Grid gap="1">
+                    <Text size="2" weight="bold" truncate>
+                      {user?.fullName ?? "Пользователь"}
+                    </Text>
+                    {user?.role && (
+                      <Text size="1" color="gray">
+                        {ROLE_LABELS[user.role]}
+                      </Text>
+                    )}
+                  </Grid>
+                  <Button
+                    type="button"
+                    variant="soft"
+                    color="gray"
+                    className="justify-start"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      setOpenMobile(false);
+                      onOpenSettings();
+                    }}
+                  >
+                    <Settings size={16} /> Настройки
+                  </Button>
+                </Grid>
+              </Popover.Content>
+            </Popover.Root>
           </SidebarMenuItem>
           <SidebarNavItem
             disabled={logout.isPending}

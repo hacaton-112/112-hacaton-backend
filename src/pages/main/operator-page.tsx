@@ -84,7 +84,7 @@ export default function OperatorPage() {
   }, [incidentCard.error]);
 
   return (
-    <div className="bg-gray-2 relative flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <ScrollArea
         className="operator-page-scroll min-h-0 flex-1"
         scrollbars="vertical"

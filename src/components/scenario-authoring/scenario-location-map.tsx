@@ -5,6 +5,14 @@ import {
   NavigationControl,
   ScaleControl,
 } from "maplibre-gl";
+import {
+  Card,
+  Code,
+  Flex,
+  Grid,
+  SegmentedControl,
+  Text,
+} from "@bolid-ui/themes";
 import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
@@ -154,19 +162,20 @@ export function ScenarioLocationMap({
         });
       }
 
+      // Координаты задаются до addTo: addTo сразу пересчитывает позицию
+      // маркера, и без setLngLat maplibre падает на чтении lngLat.lng.
       if (hasLocator) {
-        if (!locatorMarkerRef.current) {
+        const lngLat: [number, number] = [locatorCenter[1], locatorCenter[0]];
+
+        if (locatorMarkerRef.current) {
+          locatorMarkerRef.current.setLngLat(lngLat);
+        } else {
           locatorMarkerRef.current = new Marker({
             color: "#1684e8",
             scale: 0.75,
           })
-            .setLngLat([locatorCenter[1], locatorCenter[0]])
+            .setLngLat(lngLat)
             .addTo(map);
-        } else {
-          locatorMarkerRef.current.setLngLat([
-            locatorCenter[1],
-            locatorCenter[0],
-          ]);
         }
       } else {
         locatorMarkerRef.current?.remove();
@@ -174,12 +183,14 @@ export function ScenarioLocationMap({
       }
 
       if (hasSelectedCoordinates(exactPoint)) {
-        if (!incidentMarkerRef.current) {
-          incidentMarkerRef.current = new Marker({ color: "#dc3f45" })
-            .setLngLat([exactPoint[1], exactPoint[0]])
-            .addTo(map);
+        const lngLat: [number, number] = [exactPoint[1], exactPoint[0]];
+
+        if (incidentMarkerRef.current) {
+          incidentMarkerRef.current.setLngLat(lngLat);
         } else {
-          incidentMarkerRef.current.setLngLat([exactPoint[1], exactPoint[0]]);
+          incidentMarkerRef.current = new Marker({ color: "#dc3f45" })
+            .setLngLat(lngLat)
+            .addTo(map);
         }
       } else {
         incidentMarkerRef.current?.remove();
@@ -196,72 +207,55 @@ export function ScenarioLocationMap({
   }, [exactPoint, locatorCenter, radiusMeters]);
 
   return (
-    <div className="grid gap-3">
-      <div
-        className="flex flex-wrap gap-2"
-        role="group"
+    <Grid gap="3">
+      <SegmentedControl.Root
+        value={target}
+        onValueChange={(next) => setTarget(next as ScenarioLocationTarget)}
         aria-label="Что отметить на карте"
+        className="justify-self-start"
       >
-        <SelectionButton
-          active={target === "incident"}
-          onClick={() => setTarget("incident")}
-        >
+        <SegmentedControl.Item value="incident">
           Точка происшествия
-        </SelectionButton>
-        <SelectionButton
-          active={target === "locator"}
-          onClick={() => setTarget("locator")}
-        >
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="locator">
           Центр области
-        </SelectionButton>
-      </div>
+        </SegmentedControl.Item>
+      </SegmentedControl.Root>
 
-      <div className="border-grayA-6 relative h-[360px] overflow-hidden rounded-lg border">
+      <Card size="1" variant="surface" className="relative h-[360px] p-0!">
         <div ref={containerRef} className="h-full w-full" />
-        <div className="bg-panel/90 text-gray-12 pointer-events-none absolute top-3 left-3 max-w-[260px] rounded-md px-3 py-2 text-xs shadow-sm backdrop-blur">
-          Клик задаёт:{" "}
-          {target === "incident" ? "точку происшествия" : "центр области"}
-        </div>
+        <Card
+          size="1"
+          className="pointer-events-none absolute! top-3 left-3 max-w-[260px] [--card-background-color:var(--color-panel-solid)]"
+        >
+          <Text size="1">
+            Клик задаёт:{" "}
+            {target === "incident" ? "точку происшествия" : "центр области"}
+          </Text>
+        </Card>
         {failed && (
-          <div className="text-1 bg-grayA-3 text-gray-11 pointer-events-none absolute inset-x-0 bottom-0 px-3 py-2 text-center">
-            Подложка карты недоступна — координаты можно ввести вручную
-          </div>
+          <Flex
+            justify="center"
+            px="3"
+            py="2"
+            className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
+          >
+            <Text size="1" color="gray">
+              Подложка карты недоступна — координаты можно ввести вручную
+            </Text>
+          </Flex>
         )}
-      </div>
+      </Card>
 
-      <div className="text-gray-11 grid gap-1 text-xs sm:grid-cols-2">
-        <span>
-          Точка: <code>{formatCoordinates(exactPoint)}</code>
-        </span>
-        <span>
-          Центр области: <code>{formatCoordinates(locatorCenter)}</code>
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function SelectionButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      className={
-        active
-          ? "bg-blue-9 rounded-md px-3 py-2 text-xs font-medium text-white"
-          : "bg-grayA-3 text-gray-11 hover:bg-grayA-4 rounded-md px-3 py-2 text-xs font-medium"
-      }
-      onClick={onClick}
-    >
-      {children}
-    </button>
+      <Grid gap="1" columns={{ initial: "1", sm: "2" }}>
+        <Text size="1" color="gray">
+          Точка: <Code variant="ghost">{formatCoordinates(exactPoint)}</Code>
+        </Text>
+        <Text size="1" color="gray">
+          Центр области:{" "}
+          <Code variant="ghost">{formatCoordinates(locatorCenter)}</Code>
+        </Text>
+      </Grid>
+    </Grid>
   );
 }

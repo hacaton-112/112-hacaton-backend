@@ -1,17 +1,33 @@
-import { Badge, Button, Card, Flex, ScrollArea, Text } from "@bolid-ui/themes";
+import {
+  Badge,
+  Button,
+  Flex,
+  Grid,
+  Heading,
+  Separator,
+  Tabs,
+  Text,
+} from "@bolid-ui/themes";
 import { useNavigate } from "react-router";
 
 import type { Debrief } from "../../contracts/debrief";
 import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
+import { useAuthStore } from "../../stores/auth.store";
 import { formatDuration, PANIC_LABELS } from "./debrief-formatters";
-import { DebriefLine, DebriefNotice } from "./debrief-primitives";
 import {
-  QuestionsCard,
-  RecommendationsCard,
-  ReferenceCard,
+  DebriefLine,
+  DebriefNotice,
+  DebriefPanel,
+  DebriefScroll,
+  DebriefSection,
+} from "./debrief-primitives";
+import {
+  QuestionsTable,
+  RecommendationsSection,
+  ReferenceSection,
 } from "./debrief-questions";
-import { AnswerStatsCard, ScoreCard, TimeCard } from "./debrief-score";
-import { GroupCard, SkillsCard } from "./debrief-skills";
+import { AnswerStatsSection, ScoreSection, TimeSection } from "./debrief-score";
+import { GroupSection, SkillsSection } from "./debrief-skills";
 import { Transcript } from "./debrief-transcript";
 
 interface DebriefDetailsProps {
@@ -21,6 +37,19 @@ interface DebriefDetailsProps {
   loadRecordingSegment: (url: string) => Promise<string>;
 }
 
+/** Фамилия с инициалами: в сравнении с группой из макета оператор подписан так. */
+const shortName = (fullName?: string) => {
+  if (fullName === undefined || fullName.trim() === "") {
+    return undefined;
+  }
+
+  const [last, ...rest] = fullName.trim().split(/\s+/);
+
+  return rest.length === 0
+    ? last
+    : `${last} ${rest.map((part) => `${part[0]}.`).join("")}`;
+};
+
 export function DebriefDetails({
   debrief,
   isPending,
@@ -28,6 +57,7 @@ export function DebriefDetails({
   loadRecordingSegment,
 }: DebriefDetailsProps) {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
 
   if (error) {
     return (
@@ -41,72 +71,150 @@ export function DebriefDetails({
 
   const evaluation = debrief.evaluation;
 
+  /*
+   * Раскладка по ширине окна:
+   * - xl: три колонки до низа окна, как в макете; каждая прокручивается сама;
+   * - lg: две колонки до низа окна — навыки уходят под итог в левую, и обе
+   *   карточки делят её высоту;
+   * - уже: одна колонка, прокручивается страница, а у разбора своя высота в
+   *   экран, чтобы вкладки и плеер не уезжали из виду вместе с историей.
+   *
+   * Прокрутку страницы на узком экране даёт SidebarInset из общей раскладки,
+   * поэтому своей обёртки со скроллом здесь нет: колонки внутри неё не смогли
+   * бы взять высоту окна.
+   */
   return (
-    <ScrollArea className="h-full" scrollbars="vertical" type="auto">
-      <div className="grid gap-4 p-5">
-        <Flex align="center" justify="between" gap="3" wrap="wrap">
-          <Flex align="center" gap="3">
-            <Text size="6" weight="bold">
-              {debrief.call.title}
-            </Text>
-            {evaluation && (
-              <Badge color="orange" variant="soft" radius="full">
-                Сложность {evaluation.difficulty}/5
-              </Badge>
-            )}
-            <Badge color="gray" variant="soft" radius="full">
-              {debrief.call.scenarioCode}
+    <Flex direction="column" gap="4" p="4" className="min-h-full lg:h-full">
+      <Flex
+        align="center"
+        justify="between"
+        gap="4"
+        wrap="wrap"
+        className="shrink-0"
+      >
+        <Flex align="center" gap="4" wrap="wrap">
+          <Heading as="h1" size="6" weight="bold" trim="both">
+            {debrief.call.title}
+          </Heading>
+          {evaluation && (
+            <Badge color="orange" variant="soft">
+              Сложность {evaluation.difficulty}/5
             </Badge>
-          </Flex>
-          <Flex gap="2">
-            <Button variant="soft" onClick={() => navigate("/")}>
-              Пройти заново
-            </Button>
-            <Button onClick={() => navigate("/debrief")}>
-              К списку вызовов
-            </Button>
-          </Flex>
+          )}
+          <Badge color="gray" variant="soft">
+            {debrief.call.scenarioCode}
+          </Badge>
+        </Flex>
+        <Flex gap="2">
+          <Button variant="soft" color="gray" onClick={() => navigate("/")}>
+            Пройти заново
+          </Button>
+          <Button onClick={() => navigate("/debrief")}>К списку вызовов</Button>
+        </Flex>
+      </Flex>
+
+      <Grid
+        gap="4"
+        columns={{
+          initial: "minmax(0, 1fr)",
+          lg: "360px minmax(0, 1fr)",
+          xl: "360px minmax(0, 1fr) 360px",
+        }}
+        rows={{ lg: "minmax(0, 1fr)" }}
+        className="shrink-0 lg:min-h-140 lg:flex-1 lg:shrink"
+      >
+        {/*
+         * На lg итог и навыки делят одну колонку; на xl обёртка исчезает
+         * (display: contents), и карточки встают в свои колонки сетки.
+         */}
+        <Flex direction="column" gap="4" className="min-h-0 xl:contents">
+          <DebriefPanel className="xl:col-start-1 xl:row-start-1">
+            {evaluation && (
+              <>
+                <ScoreSection evaluation={evaluation} />
+                <Separator size="4" />
+              </>
+            )}
+            <TimeSection debrief={debrief} />
+            <Separator size="4" />
+            <AnswerStatsSection debrief={debrief} />
+          </DebriefPanel>
+
+          {evaluation && (
+            <DebriefPanel className="lg:grow xl:col-start-3 xl:row-start-1">
+              <SkillsSection evaluation={evaluation} />
+              <Separator size="4" />
+              <GroupSection
+                evaluation={evaluation}
+                operatorName={shortName(user?.fullName)}
+              />
+            </DebriefPanel>
+          )}
         </Flex>
 
-        <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]">
-          <div className="grid content-start gap-4">
-            {evaluation && <ScoreCard evaluation={evaluation} />}
-            <TimeCard debrief={debrief} />
-            <AnswerStatsCard debrief={debrief} />
-            <CallState debrief={debrief} />
-          </div>
+        <DebriefPanel
+          scroll={false}
+          className="h-[max(480px,calc(var(--app-viewport-height)-80px))] min-w-0 lg:col-start-2 lg:row-start-1 lg:h-auto"
+        >
+          <Tabs.Root
+            defaultValue="conversation"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <Tabs.List size="2" mx="5" mt="3" className="shrink-0">
+              <Tabs.Trigger value="questions" className="flex-1">
+                Детализация по вопросам
+              </Tabs.Trigger>
+              <Tabs.Trigger value="conversation" className="flex-1">
+                Детализация по разговору
+              </Tabs.Trigger>
+            </Tabs.List>
 
-          <div className="grid content-start gap-4">
-            <QuestionsCard debrief={debrief} />
-            {evaluation && <RecommendationsCard evaluation={evaluation} />}
-            <Transcript
-              debrief={debrief}
-              loadRecordingSegment={loadRecordingSegment}
-            />
-          </div>
+            <Tabs.Content
+              value="questions"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <DebriefScroll className="px-5">
+                <DebriefSection className="px-0!">
+                  <QuestionsTable debrief={debrief} />
+                </DebriefSection>
+                {evaluation && (
+                  <>
+                    <Separator size="4" />
+                    <RecommendationsSection evaluation={evaluation} />
+                    <Separator size="4" />
+                    <ReferenceSection evaluation={evaluation} />
+                  </>
+                )}
+                <Separator size="4" />
+                <CallStateSection debrief={debrief} />
+                <Separator size="4" />
+                <IncidentCardSection debrief={debrief} />
+              </DebriefScroll>
+            </Tabs.Content>
 
-          <div className="grid content-start gap-4 lg:col-start-2 xl:col-start-auto">
-            {evaluation && <SkillsCard evaluation={evaluation} />}
-            {evaluation && <GroupCard evaluation={evaluation} />}
-            {evaluation && <ReferenceCard evaluation={evaluation} />}
-            <FilledCard debrief={debrief} />
-          </div>
-        </div>
-      </div>
-    </ScrollArea>
+            <Tabs.Content
+              value="conversation"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <Transcript
+                debrief={debrief}
+                loadRecordingSegment={loadRecordingSegment}
+              />
+            </Tabs.Content>
+          </Tabs.Root>
+        </DebriefPanel>
+      </Grid>
+    </Flex>
   );
 }
 
 /** Чем закончился звонок для заявителя, а не для оценки. */
-function CallState({ debrief }: { debrief: Debrief }) {
+function CallStateSection({ debrief }: { debrief: Debrief }) {
   const closed = debrief.questions.filter((question) => question.satisfied);
 
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Как прошёл вызов
-      </Text>
-      <div className="mt-3 grid gap-2">
+    <DebriefSection title="Как прошёл вызов" className="px-0!">
+      <Grid gap="2">
         <DebriefLine
           label="Разговор"
           value={formatDuration(debrief.timings.durationSeconds)}
@@ -121,25 +229,22 @@ function CallState({ debrief }: { debrief: Debrief }) {
           value={PANIC_LABELS[debrief.finalPanicLevel] ?? "—"}
           bad={debrief.finalPanicLevel >= 3}
         />
-      </div>
-    </Card>
+      </Grid>
+    </DebriefSection>
   );
 }
 
-function FilledCard({ debrief }: { debrief: Debrief }) {
+function IncidentCardSection({ debrief }: { debrief: Debrief }) {
   const card = debrief.incidentCard;
 
   return (
-    <Card size="2" variant="classic">
-      <Text size="2" weight="bold">
-        Карточка происшествия
-      </Text>
+    <DebriefSection title="Карточка происшествия" className="px-0!">
       {card === null ? (
-        <Text size="2" color="gray" as="p" mt="2">
+        <Text size="2" color="gray">
           Оператор ничего не записал.
         </Text>
       ) : (
-        <div className="mt-3 grid gap-2">
+        <Grid gap="2">
           <DebriefLine label="Адрес" value={card.addressText ?? "—"} />
           <DebriefLine label="Тип" value={card.incidentType ?? "—"} />
           <DebriefLine
@@ -158,8 +263,8 @@ function FilledCard({ debrief }: { debrief: Debrief }) {
             bad={card.services.length === 0}
           />
           <DebriefLine label="Описание" value={card.description ?? "—"} />
-        </div>
+        </Grid>
       )}
-    </Card>
+    </DebriefSection>
   );
 }

@@ -1,7 +1,8 @@
-import { Card, Flex, Separator, Text } from "@bolid-ui/themes";
+import { Box, Flex, Grid, Text } from "@bolid-ui/themes";
 
 import type { Debrief, DebriefEvaluation } from "../../contracts/debrief";
 import { answerStats, formatDuration } from "./debrief-formatters";
+import { DebriefSection } from "./debrief-primitives";
 
 const RING_SIZE = 140;
 const RING_STROKE = 12;
@@ -18,6 +19,12 @@ const VERDICT_LABEL = {
   excellent: "Отлично",
   passed: "Хорошо",
   failed: "Не пройдено",
+} as const;
+
+const RING_STROKE_CLASS = {
+  green: "stroke-green-9",
+  orange: "stroke-orange-9",
+  red: "stroke-red-9",
 } as const;
 
 /**
@@ -58,53 +65,52 @@ function ScoreRing({ percent, tone }: { percent: number; tone: string }) {
   );
 }
 
-export function ScoreCard({ evaluation }: { evaluation: DebriefEvaluation }) {
+export function ScoreSection({
+  evaluation,
+}: {
+  evaluation: DebriefEvaluation;
+}) {
   const color = VERDICT_COLOR[evaluation.verdict];
 
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Общий результат
-      </Text>
-      <Flex direction="column" align="center" gap="3" className="mt-4">
-        <div className="relative" style={{ height: RING_SIZE }}>
+    <DebriefSection title="Общий результат">
+      <Flex direction="column" align="center" gap="5">
+        <Box position="relative" height={`${RING_SIZE}px`}>
           <ScoreRing
             percent={evaluation.score}
-            tone={
-              color === "green"
-                ? "stroke-green-9"
-                : color === "orange"
-                  ? "stroke-orange-9"
-                  : "stroke-red-9"
-            }
+            tone={RING_STROKE_CLASS[color]}
           />
           <Flex
             direction="column"
             align="center"
-            className="absolute inset-0 justify-center"
+            justify="center"
+            position="absolute"
+            inset="0"
           >
-            <Text size="7" weight="bold">
+            <Text size="8" weight="bold">
               {evaluation.score}%
             </Text>
-            <Text size="1" color="gray">
+            <Text size="2" color="gray">
               {evaluation.score} / 100
             </Text>
           </Flex>
-        </div>
-        <Text size="4" weight="bold" color={color}>
-          {VERDICT_LABEL[evaluation.verdict]}
-        </Text>
-        <Text size="1" color="gray" align="center">
-          {evaluation.verdict === "failed"
-            ? `Порог прохождения ${evaluation.passThreshold}% не набран.`
-            : `Минимальный порог прохождения (${evaluation.passThreshold}%) преодолён.`}
-        </Text>
+        </Box>
+        <Flex direction="column" align="center" gap="1">
+          <Text size="5" weight="bold" color={color}>
+            {VERDICT_LABEL[evaluation.verdict]}
+          </Text>
+          <Text size="2" color="gray" align="center">
+            {evaluation.verdict === "failed"
+              ? `Порог прохождения ${evaluation.passThreshold}% не набран.`
+              : `Минимальный порог прохождения для дежурства (${evaluation.passThreshold}%) успешно преодолён.`}
+          </Text>
+        </Flex>
       </Flex>
-    </Card>
+    </DebriefSection>
   );
 }
 
-export function TimeCard({ debrief }: { debrief: Debrief }) {
+export function TimeSection({ debrief }: { debrief: Debrief }) {
   const {
     durationSeconds,
     expectedDurationSeconds,
@@ -114,81 +120,76 @@ export function TimeCard({ debrief }: { debrief: Debrief }) {
   const operatorTurns = debrief.timeline.filter(
     (entry) => entry.type === "operator.utterance",
   ).length;
-  const perQuestion =
+  const perReply =
     durationSeconds === null || operatorTurns === 0
       ? null
       : Math.round(durationSeconds / operatorTurns);
   const late = answerSeconds !== null && answerSeconds > answerNormSeconds;
 
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Время прохождения
-      </Text>
-      <Flex align="baseline" justify="between" className="mt-3">
+    <DebriefSection title="Время прохождения">
+      <Flex align="baseline" justify="between" gap="3" mb="4">
         <Text size="8" weight="bold">
           {formatDuration(durationSeconds)}
         </Text>
-        <Text size="1" color="gray">
+        <Text size="2" color="gray">
           ориентир: {formatDuration(expectedDurationSeconds)}
         </Text>
       </Flex>
-      <Separator size="4" className="my-3" />
-      <Flex justify="between" className="mb-2">
-        <Text size="1" color="gray">
-          Ответ на вызов
-        </Text>
-        <Text size="2" weight="bold" color={late ? "red" : undefined}>
-          {answerSeconds === null ? "—" : `${answerSeconds} с`} при нормативе{" "}
-          {answerNormSeconds} с
-        </Text>
-      </Flex>
-      <Flex justify="between">
-        <Text size="1" color="gray">
-          Ср. время на реплику
-        </Text>
-        <Text size="2" weight="bold">
-          {perQuestion === null ? "—" : formatDuration(perQuestion)}
-        </Text>
-      </Flex>
-    </Card>
+      <Grid gap="2">
+        <Flex align="baseline" justify="between" gap="3">
+          <Text size="2" color="gray">
+            Ср. время на реплику:
+          </Text>
+          <Text size="3" weight="bold">
+            {perReply === null ? "—" : formatDuration(perReply)}
+          </Text>
+        </Flex>
+        <Flex align="baseline" justify="between" gap="3">
+          <Text size="2" color="gray">
+            Ответ на вызов:
+          </Text>
+          <Text size="3" weight="bold" color={late ? "red" : undefined}>
+            {answerSeconds === null ? "—" : `${answerSeconds} с`} при норме{" "}
+            {answerNormSeconds} с
+          </Text>
+        </Flex>
+      </Grid>
+    </DebriefSection>
   );
 }
 
-export function AnswerStatsCard({ debrief }: { debrief: Debrief }) {
+export function AnswerStatsSection({ debrief }: { debrief: Debrief }) {
   const stats = answerStats(debrief);
 
   return (
-    <Card size="3" variant="classic">
-      <Text size="2" weight="bold">
-        Статистика ответов
+    <DebriefSection title="Статистика ответов">
+      <Grid gap="2">
+        <StatsRow label="Правильные" value={stats.satisfied} color="green" />
+        <StatsRow label="С ошибками" value={stats.partial} color="red" />
+        <StatsRow label="Пропущенные" value={stats.missed} color="gray" />
+      </Grid>
+    </DebriefSection>
+  );
+}
+
+function StatsRow({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: "green" | "red" | "gray";
+}) {
+  return (
+    <Flex align="center" justify="between" gap="3">
+      <Text size="3" color="gray">
+        {label}
       </Text>
-      <div className="mt-3 grid gap-2">
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Закрытые вопросы
-          </Text>
-          <Text size="2" weight="bold" color="green">
-            {stats.satisfied}
-          </Text>
-        </Flex>
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Закрытые наполовину
-          </Text>
-          <Text size="2" weight="bold" color="orange">
-            {stats.partial}
-          </Text>
-        </Flex>
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Пропущенные
-          </Text>
-          <Text size="2" weight="bold" color="red">
-            {stats.missed}
-          </Text>
-        </Flex>
-      </div>
-    </Card>
+      <Text size="3" weight="bold" color={color}>
+        {value}
+      </Text>
+    </Flex>
   );
 }

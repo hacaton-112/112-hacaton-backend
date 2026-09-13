@@ -1,4 +1,4 @@
-import { Flex } from "@bolid-ui/themes";
+import { Link, Separator, Text } from "@bolid-ui/themes";
 
 import {
   CATEGORY_LABELS,
@@ -14,6 +14,8 @@ import {
 } from "../../contracts/scenario-authoring";
 import {
   BooleanInput,
+  ChipsInput,
+  FieldGrid,
   NumberInput,
   SectionCard,
   SelectInput,
@@ -31,6 +33,9 @@ interface ScenarioSectionProps {
   onChange: (scenario: ScenarioSeed) => void;
 }
 
+/** Поле на всю ширину сетки, сколько бы в ней ни было колонок. */
+const FULL_ROW = "md:col-span-full";
+
 export function ScenarioBasicsSection({
   scenario,
   onChange,
@@ -38,9 +43,9 @@ export function ScenarioBasicsSection({
   return (
     <SectionCard
       title="Основное"
-      description="Название в каталоге и параметры сложности тренировки."
+      description="Название в каталоге и параметры сложности тренировки"
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <FieldGrid>
         <TextInput
           label="Код сценария"
           hint="уникальный, до 32 символов"
@@ -88,14 +93,14 @@ export function ScenarioBasicsSection({
           onChange={(difficulty) => onChange({ ...scenario, difficulty })}
         />
         <TextAreaInput
-          className="md:col-span-2"
+          className={FULL_ROW}
           label="Краткое описание"
           value={scenario.summary}
           placeholder="Что происходит и чему должен научиться оператор"
           maxLength={400}
           onChange={(summary) => onChange({ ...scenario, summary })}
         />
-      </div>
+      </FieldGrid>
     </SectionCard>
   );
 }
@@ -107,21 +112,21 @@ export function ScenarioPersonaSection({
   const voices = QWEN_TTS_VOICES.filter(
     (voice) => voice.gender === scenario.persona.gender,
   );
+  const updatePersona = (patch: Partial<ScenarioSeed["persona"]>) =>
+    onChange({ ...scenario, persona: { ...scenario.persona, ...patch } });
 
   return (
     <SectionCard
       title="Заявитель и голос"
-      description="Персона задаёт манеру разговора, а сценарий — уровень паники и голос TTS."
+      description="Персона задаёт манеру разговора, а сценарий — уровень паники и голос TTS"
     >
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <FieldGrid>
         <TextInput
           label="Код персоны"
           value={scenario.persona.code}
           placeholder="s-fire-03-caller"
           maxLength={64}
-          onChange={(code) =>
-            onChange({ ...scenario, persona: { ...scenario.persona, code } })
-          }
+          onChange={(code) => updatePersona({ code })}
         />
         <SelectInput
           label="Пол"
@@ -134,15 +139,25 @@ export function ScenarioPersonaSection({
             const matchingVoice = QWEN_TTS_VOICES.find(
               (voice) => voice.gender === gender,
             );
-            onChange({
-              ...scenario,
-              persona: {
-                ...scenario.persona,
-                gender,
-                voiceId: matchingVoice?.id ?? scenario.persona.voiceId,
-              },
+            updatePersona({
+              gender,
+              voiceId: matchingVoice?.id ?? scenario.persona.voiceId,
             });
           }}
+        />
+        <TextInput
+          label="Имя"
+          value={scenario.persona.displayName}
+          placeholder="Елена Учебная"
+          maxLength={120}
+          onChange={(displayName) => updatePersona({ displayName })}
+        />
+        <NumberInput
+          label="Возраст"
+          value={scenario.persona.ageYears}
+          min={1}
+          max={110}
+          onChange={(ageYears) => updatePersona({ ageYears })}
         />
         <SelectInput
           label="Голос TTS"
@@ -151,71 +166,30 @@ export function ScenarioPersonaSection({
             value: voice.id,
             label: voice.id,
           }))}
-          onChange={(voiceId) =>
-            onChange({ ...scenario, persona: { ...scenario.persona, voiceId } })
-          }
-        />
-        <TextInput
-          label="Имя"
-          value={scenario.persona.displayName}
-          placeholder="Елена Учебная"
-          maxLength={120}
-          onChange={(displayName) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, displayName },
-            })
-          }
-        />
-        <NumberInput
-          label="Возраст"
-          value={scenario.persona.ageYears}
-          min={1}
-          max={110}
-          onChange={(ageYears) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, ageYears },
-            })
-          }
+          onChange={(voiceId) => updatePersona({ voiceId })}
         />
         <TextInput
           label="Фоновый звук"
           value={scenario.persona.backgroundSounds ?? ""}
           placeholder="Сирена во дворе"
           maxLength={200}
-          onChange={(backgroundSounds) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, backgroundSounds },
-            })
-          }
+          onChange={(backgroundSounds) => updatePersona({ backgroundSounds })}
         />
         <TextInput
-          className="md:col-span-2 lg:col-span-3"
+          className={FULL_ROW}
           label="Состояние заявителя"
           value={scenario.persona.condition}
           placeholder="Напугана, находится снаружи"
           maxLength={200}
-          onChange={(condition) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, condition },
-            })
-          }
+          onChange={(condition) => updatePersona({ condition })}
         />
         <TextAreaInput
-          className="md:col-span-2 lg:col-span-3"
+          className={FULL_ROW}
           label="Манера речи"
           value={scenario.persona.speechStyle}
           placeholder="Короткие фразы, сбивается, отвечает по существу..."
           maxLength={2_000}
-          onChange={(speechStyle) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, speechStyle },
-            })
-          }
+          onChange={(speechStyle) => updatePersona({ speechStyle })}
         />
         <NumberInput
           label="Начальная паника"
@@ -224,10 +198,7 @@ export function ScenarioPersonaSection({
           min={0}
           max={4}
           onChange={(baselinePanicLevel) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, baselinePanicLevel },
-            })
+            updatePersona({ baselinePanicLevel })
           }
         />
         <NumberInput
@@ -237,14 +208,9 @@ export function ScenarioPersonaSection({
           min={0.5}
           max={2}
           step={0.05}
-          onChange={(baseSpeechRate) =>
-            onChange({
-              ...scenario,
-              persona: { ...scenario.persona, baseSpeechRate },
-            })
-          }
+          onChange={(baseSpeechRate) => updatePersona({ baseSpeechRate })}
         />
-      </div>
+      </FieldGrid>
     </SectionCard>
   );
 }
@@ -259,9 +225,9 @@ export function ScenarioCallSection({
   return (
     <SectionCard
       title="Ход звонка"
-      description="Реплики и числовые ограничения проверяются до публикации и затем становятся частью неизменяемой версии."
+      description="Реплики и числовые ограничения проверяются до публикации и затем становятся частью неизменяемой версии"
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <FieldGrid>
         <TextAreaInput
           label="Первая реплика"
           hint="воспроизводится без LLM"
@@ -276,9 +242,9 @@ export function ScenarioCallSection({
           maxLength={500}
           onChange={(fallbackLine) => updateVersion({ fallbackLine })}
         />
-      </div>
+      </FieldGrid>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <FieldGrid lg="4" className="mt-3">
         <NumberInput
           label="Паника: минимум"
           value={scenario.version.panicFloor}
@@ -301,7 +267,7 @@ export function ScenarioCallSection({
           onChange={(maxInterruptions) => updateVersion({ maxInterruptions })}
         />
         <NumberInput
-          label="Инициатива через, сек."
+          label="Инициатива через, сек"
           value={scenario.version.initiativeCooldownSeconds}
           min={1}
           max={120}
@@ -310,14 +276,14 @@ export function ScenarioCallSection({
           }
         />
         <NumberInput
-          label="Норматив, сек."
+          label="Норматив, сек"
           value={scenario.version.answerNormSeconds}
           min={30}
           max={1_800}
           onChange={(answerNormSeconds) => updateVersion({ answerNormSeconds })}
         />
         <NumberInput
-          label="Ожидаемая длительность, сек."
+          label="Ожидаемая длительность, сек"
           value={scenario.version.expectedDurationSeconds}
           min={30}
           max={3_600}
@@ -332,29 +298,19 @@ export function ScenarioCallSection({
           max={100}
           onChange={(passThreshold) => updateVersion({ passThreshold })}
         />
-      </div>
+      </FieldGrid>
 
-      <div className="border-grayA-5 mt-5 border-t pt-4">
-        <div className="text-gray-11 mb-3 text-xs">Ожидаемые службы</div>
-        <Flex gap="4" wrap="wrap">
-          {EMERGENCY_SERVICES.map((service) => (
-            <BooleanInput
-              key={service}
-              label={SERVICE_LABELS[service]}
-              checked={scenario.version.expectedServices.includes(service)}
-              onChange={(checked) =>
-                updateVersion({
-                  expectedServices: checked
-                    ? [...scenario.version.expectedServices, service]
-                    : scenario.version.expectedServices.filter(
-                        (item) => item !== service,
-                      ),
-                })
-              }
-            />
-          ))}
-        </Flex>
-      </div>
+      <Separator size="4" my="4" />
+
+      <ChipsInput
+        label="Ожидаемые службы"
+        value={scenario.version.expectedServices}
+        options={EMERGENCY_SERVICES.map((service) => ({
+          value: service,
+          label: SERVICE_LABELS[service],
+        }))}
+        onChange={(expectedServices) => updateVersion({ expectedServices })}
+      />
     </SectionCard>
   );
 }
@@ -380,7 +336,7 @@ export function ScenarioLocationSection({
   return (
     <SectionCard
       title="Место происшествия"
-      description="Этот раздел заполняет преподаватель. AI не получает и не изменяет адрес, координаты или радиус."
+      description="Этот раздел заполняет преподаватель. ИИ не получает и не изменяет адрес, координаты или радиус"
     >
       <ScenarioLocationMap
         exactPoint={scenario.location.exactPoint}
@@ -402,7 +358,7 @@ export function ScenarioLocationSection({
         }}
       />
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <FieldGrid lg="4" className="mt-3">
         <NumberInput
           label="Радиус области, м"
           value={scenario.location.locatorRadiusMeters}
@@ -433,6 +389,7 @@ export function ScenarioLocationSection({
         <TextInput
           label="Телефон заявителя"
           value={scenario.location.callerNumber}
+          placeholder="+7 (___) ___-__-__"
           maxLength={32}
           onChange={(callerNumber) => updateLocation({ callerNumber })}
         />
@@ -484,75 +441,79 @@ export function ScenarioLocationSection({
             })
           }
         />
-      </div>
+      </FieldGrid>
 
-      <div className="border-grayA-5 mt-5 border-t pt-4">
-        <div
-          className={
-            geocodingStatus === "error"
-              ? "text-red-11 mb-3 text-xs"
-              : geocodingStatus === "success"
-                ? "text-green-11 mb-3 text-xs"
-                : "text-gray-11 mb-3 text-xs"
-          }
-          role="status"
-          aria-live="polite"
-        >
-          {geocodingStatus === "loading"
-            ? "Определяем город и улицу по координатам…"
+      <Separator size="4" my="4" />
+
+      <Text
+        as="p"
+        size="2"
+        mb="3"
+        color={
+          geocodingStatus === "error"
+            ? "red"
             : geocodingStatus === "success"
-              ? `Адрес определён по карте: ${geocodingMessage ?? "проверьте заполненные поля"}`
-              : geocodingStatus === "error"
-                ? (geocodingMessage ??
-                  "Не удалось определить адрес. Введите город и улицу вручную.")
-                : "После выбора точки город и улица определятся автоматически. Поля останутся редактируемыми."}
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <TextInput
-            label="Город"
-            value={scenario.location.exactAddress.city ?? ""}
-            onChange={(value) => updateAddress("city", value)}
-          />
-          <TextInput
-            label="Улица"
-            value={scenario.location.exactAddress.street ?? ""}
-            onChange={(value) => updateAddress("street", value)}
-          />
-          <TextInput
-            label="Дом"
-            value={scenario.location.exactAddress.house ?? ""}
-            onChange={(value) => updateAddress("house", value)}
-          />
-          <TextInput
-            className="md:col-span-2 lg:col-span-4"
-            label="Дополнительные детали адреса"
-            value={scenario.location.exactAddress.details ?? ""}
-            onChange={(value) => updateAddress("details", value)}
-          />
-          <TextInput
-            className="md:col-span-2 lg:col-span-4"
-            label="Подпись области геолокации"
-            value={scenario.location.locatorLabel}
-            placeholder="Базовая станция: Учебный квартал"
-            maxLength={200}
-            onChange={(locatorLabel) => updateLocation({ locatorLabel })}
-          />
-        </div>
-        {(geocodingStatus === "success" || geocodingStatus === "loading") && (
-          <div className="text-gray-9 mt-3 text-[11px]">
-            Адресные данные:{" "}
-            <a
-              className="underline"
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noreferrer"
-            >
-              © OpenStreetMap contributors
-            </a>
-          </div>
-        )}
-      </div>
-      <div className="mt-4">
+              ? "green"
+              : "gray"
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {geocodingStatus === "loading"
+          ? "Определяем город и улицу по координатам…"
+          : geocodingStatus === "success"
+            ? `Адрес определён по карте: ${geocodingMessage ?? "проверьте заполненные поля"}`
+            : geocodingStatus === "error"
+              ? (geocodingMessage ??
+                "Не удалось определить адрес. Введите город и улицу вручную.")
+              : "После выбора точки город и улица определятся автоматически. Поля останутся редактируемыми."}
+      </Text>
+      <FieldGrid lg="4">
+        <TextInput
+          label="Город"
+          value={scenario.location.exactAddress.city ?? ""}
+          onChange={(value) => updateAddress("city", value)}
+        />
+        <TextInput
+          label="Улица"
+          value={scenario.location.exactAddress.street ?? ""}
+          onChange={(value) => updateAddress("street", value)}
+        />
+        <TextInput
+          label="Дом"
+          value={scenario.location.exactAddress.house ?? ""}
+          onChange={(value) => updateAddress("house", value)}
+        />
+        <TextInput
+          label="Дополнительные детали адреса"
+          value={scenario.location.exactAddress.details ?? ""}
+          onChange={(value) => updateAddress("details", value)}
+        />
+        <TextInput
+          className={FULL_ROW}
+          label="Подпись области геолокации"
+          value={scenario.location.locatorLabel}
+          placeholder="Базовая станция: Учебный квартал"
+          maxLength={200}
+          onChange={(locatorLabel) => updateLocation({ locatorLabel })}
+        />
+      </FieldGrid>
+      {/* Данные адреса приходят из OpenStreetMap: лицензия ODbL требует
+          указывать источник рядом с результатом. */}
+      {(geocodingStatus === "success" || geocodingStatus === "loading") && (
+        <Text as="p" size="1" color="gray" mt="3">
+          Адресные данные:{" "}
+          <Link
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+            color="gray"
+          >
+            © OpenStreetMap contributors
+          </Link>
+        </Text>
+      )}
+      <div className="mt-3">
         <BooleanInput
           label="Заявитель уже обращался по этому происшествию"
           checked={scenario.location.previouslyCalled}

@@ -13,10 +13,15 @@ export type AppAccentColor =
   | "orange"
   | "red"
   | "pink";
+export type AppRadius = "none" | "small" | "medium" | "large" | "full";
+export type AppScaling =
+  "90%" | "95%" | "100%" | "105%" | "110%" | "120%" | "130%";
 
 export interface AppSettings {
   theme: AppTheme;
   accentColor: AppAccentColor;
+  radius: AppRadius;
+  scaling: AppScaling;
   inputDevice: string | null;
   outputDevice: string | null;
 }
@@ -25,6 +30,8 @@ const STORAGE_KEY = "trainer-112-settings";
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
   accentColor: "blue",
+  radius: "medium",
+  scaling: "100%",
   inputDevice: null,
   outputDevice: null,
 };
@@ -43,6 +50,16 @@ const ACCENTS = new Set<AppAccentColor>([
   "red",
   "pink",
 ]);
+const RADII = new Set<AppRadius>(["none", "small", "medium", "large", "full"]);
+const SCALINGS = new Set<AppScaling>([
+  "90%",
+  "95%",
+  "100%",
+  "105%",
+  "110%",
+  "120%",
+  "130%",
+]);
 
 function loadSettings(): AppSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
@@ -60,6 +77,14 @@ function loadSettings(): AppSettings {
         stored?.accentColor && ACCENTS.has(stored.accentColor)
           ? stored.accentColor
           : DEFAULT_SETTINGS.accentColor,
+      radius:
+        stored?.radius && RADII.has(stored.radius)
+          ? stored.radius
+          : DEFAULT_SETTINGS.radius,
+      scaling:
+        stored?.scaling && SCALINGS.has(stored.scaling)
+          ? stored.scaling
+          : DEFAULT_SETTINGS.scaling,
       inputDevice:
         typeof stored?.inputDevice === "string" ? stored.inputDevice : null,
       outputDevice:

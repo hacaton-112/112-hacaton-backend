@@ -35,7 +35,9 @@ function SheetContent({
           >
             <SheetPrimitive.Content
               className={cn(
-                "bg-panel-solid shadow-6 relative z-1 flex min-h-0 flex-col overflow-y-auto transition-transform ease-in-out",
+                // Цвет рамки обязателен: в Tailwind v4 border без цвета берёт
+                // currentColor, и край панели становится чёрной линией.
+                "bg-panel-solid shadow-6 border-grayA-5 relative z-1 flex min-h-0 flex-col overflow-y-auto transition-transform ease-in-out",
                 side === "right" &&
                   "h-full w-3/4 border-l sm:max-w-[calc(384px*var(--scaling))]",
                 side === "left" &&

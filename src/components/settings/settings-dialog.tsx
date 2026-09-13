@@ -14,6 +14,9 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   ACCENT_COLORS,
   ACCENT_LABELS,
+  RADIUS_LABELS,
+  RADIUS_OPTIONS,
+  SCALING_OPTIONS,
   THEME_LABELS,
   THEME_PREFERENCES,
 } from "../../config/theme";
@@ -145,7 +148,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <div className="p-rx-5">
                   <Text as="p" color="gray" size="2" mb="5">
                     {page === "appearance"
-                      ? "Настройте тему и основной цвет интерфейса."
+                      ? "Настройте тему, цвет, скругление и масштаб интерфейса."
                       : "Выберите микрофон оператора и устройство воспроизведения заявителя."}
                   </Text>
                   {page === "appearance" ? (
@@ -248,6 +251,50 @@ function AppearanceSettings() {
             </Tooltip>
           ))}
         </div>
+      </SettingRow>
+
+      <SettingRow
+        title="Скругление"
+        description="Радиус углов у кнопок, полей, карточек и панелей."
+      >
+        <Select.Root
+          value={settings.radius}
+          onValueChange={(radius) =>
+            settingsService.update({ radius: radius as typeof settings.radius })
+          }
+        >
+          <Select.Trigger aria-label="Скругление" className="w-48" />
+          <Select.Content>
+            {RADIUS_OPTIONS.map((radius) => (
+              <Select.Item key={radius} value={radius}>
+                {RADIUS_LABELS[radius]}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </SettingRow>
+
+      <SettingRow
+        title="Масштаб"
+        description="Размер текста, отступов и элементов управления."
+      >
+        <Select.Root
+          value={settings.scaling}
+          onValueChange={(scaling) =>
+            settingsService.update({
+              scaling: scaling as typeof settings.scaling,
+            })
+          }
+        >
+          <Select.Trigger aria-label="Масштаб" className="w-48" />
+          <Select.Content>
+            {SCALING_OPTIONS.map((scaling) => (
+              <Select.Item key={scaling} value={scaling}>
+                {scaling}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
       </SettingRow>
     </Flex>
   );

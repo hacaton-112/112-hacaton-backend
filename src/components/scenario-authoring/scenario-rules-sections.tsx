@@ -1,12 +1,4 @@
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Flex,
-  IconButton,
-  Text,
-} from "@bolid-ui/themes";
-import { Plus, Trash2 } from "lucide-react";
+import { Flex, Grid, Text } from "@bolid-ui/themes";
 
 import {
   CARD_FIELD_LABELS,
@@ -23,8 +15,13 @@ import {
   type ScenarioSeed,
 } from "../../contracts/scenario-authoring";
 import {
+  AddButton,
+  BooleanInput,
+  FieldGrid,
   NumberInput,
+  RemoveButton,
   SectionCard,
+  SectionItem,
   SelectInput,
   TextAreaInput,
   TextInput,
@@ -34,6 +31,32 @@ import { ListInput } from "./scenario-list-input";
 interface ScenarioSectionProps {
   scenario: ScenarioSeed;
   onChange: (scenario: ScenarioSeed) => void;
+}
+
+/** Поле на всю ширину сетки, сколько бы в ней ни было колонок. */
+const FULL_ROW = "md:col-span-full";
+
+/**
+ * Строка правила с кнопкой удаления справа: поля в сетке, корзина — отдельной
+ * колонкой, выровненной по полям, а не по подписям над ними.
+ */
+function RowWithRemove({
+  children,
+  onRemove,
+  removeLabel,
+}: {
+  children: React.ReactNode;
+  onRemove: () => void;
+  removeLabel: string;
+}) {
+  return (
+    <SectionItem>
+      <Flex align="end" gap="3">
+        <div className="min-w-0 flex-1">{children}</div>
+        <RemoveButton label={removeLabel} onClick={onRemove} />
+      </Flex>
+    </SectionItem>
+  );
 }
 
 const emptyFact = (index: number): ScenarioFact => ({
@@ -81,12 +104,9 @@ export function ScenarioFactsSection({
   return (
     <SectionCard
       title="Факты происшествия"
-      description="Scenario Engine раскрывает только эти атомарные факты и только при выполнении заданного условия."
+      description="Scenario Engine раскрывает только эти атомарные факты и только при выполнении заданного условия"
       actions={
-        <Button
-          type="button"
-          size="2"
-          variant="soft"
+        <AddButton
           disabled={scenario.facts.length >= 64}
           onClick={() =>
             onChange({
@@ -95,46 +115,29 @@ export function ScenarioFactsSection({
             })
           }
         >
-          <Plus size={15} /> Факт
-        </Button>
+          Факт
+        </AddButton>
       }
     >
-      <div className="grid gap-4">
+      <Grid gap="3">
         {scenario.facts.map((fact, index) => (
-          <div
+          <SectionItem
             key={index}
-            className="border-grayA-5 bg-grayA-2 rounded-lg border p-4"
+            index={index}
+            title={fact.displayLabel || "Новый факт"}
+            tone={fact.severity === "heavy" ? "red" : "gray"}
+            removeLabel={`Удалить факт ${index + 1}`}
+            removeDisabled={scenario.facts.length === 1}
+            onRemove={() =>
+              onChange({
+                ...scenario,
+                facts: scenario.facts.filter(
+                  (_, factIndex) => factIndex !== index,
+                ),
+              })
+            }
           >
-            <Flex align="center" justify="between" gap="3" mb="3">
-              <Flex align="center" gap="2">
-                <Badge color={fact.severity === "heavy" ? "red" : "gray"}>
-                  {index + 1}
-                </Badge>
-                <Text size="2" weight="bold">
-                  {fact.displayLabel || "Новый факт"}
-                </Text>
-              </Flex>
-              <IconButton
-                type="button"
-                variant="ghost"
-                color="red"
-                size="1"
-                disabled={scenario.facts.length === 1}
-                aria-label={`Удалить факт ${index + 1}`}
-                onClick={() =>
-                  onChange({
-                    ...scenario,
-                    facts: scenario.facts.filter(
-                      (_, factIndex) => factIndex !== index,
-                    ),
-                  })
-                }
-              >
-                <Trash2 size={15} />
-              </IconButton>
-            </Flex>
-
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <FieldGrid lg="4">
               <TextInput
                 label="Ключ"
                 hint="латиницей"
@@ -163,7 +166,7 @@ export function ScenarioFactsSection({
                 onChange={(priority) => updateFact(index, { priority })}
               />
               <TextAreaInput
-                className="md:col-span-2 lg:col-span-4"
+                className={FULL_ROW}
                 label="Содержание факта для заявителя"
                 hint="одна проверяемая подробность"
                 value={fact.promptValue}
@@ -200,7 +203,7 @@ export function ScenarioFactsSection({
                 onChange={(cardValue) => updateFact(index, { cardValue })}
               />
               <ListInput
-                className="md:col-span-2"
+                className="lg:col-span-2"
                 label="Ключевые слова содержания"
                 items={fact.contentKeywords}
                 onChange={(contentKeywords) =>
@@ -222,10 +225,10 @@ export function ScenarioFactsSection({
                 disclosure={fact.disclosure}
                 onChange={(disclosure) => updateFact(index, { disclosure })}
               />
-            </div>
-          </div>
+            </FieldGrid>
+          </SectionItem>
         ))}
-      </div>
+      </Grid>
     </SectionCard>
   );
 }
@@ -241,7 +244,7 @@ function DisclosureFields({
     case "on_question":
       return (
         <ListInput
-          className="md:col-span-2 lg:col-span-3"
+          className="lg:col-span-3"
           label="Слова в вопросе оператора"
           items={disclosure.keywords}
           onChange={(keywords) => onChange({ ...disclosure, keywords })}
@@ -250,7 +253,7 @@ function DisclosureFields({
     case "after_fact":
       return (
         <ListInput
-          className="md:col-span-2 lg:col-span-3"
+          className="lg:col-span-3"
           label="Ключи предшествующих фактов"
           items={disclosure.factKeys}
           onChange={(factKeys) => onChange({ ...disclosure, factKeys })}
@@ -292,11 +295,7 @@ function DisclosureFields({
     case "immediate":
     case "never":
       return (
-        <Text
-          size="1"
-          color="gray"
-          className="self-end pb-2 md:col-span-2 lg:col-span-3"
-        >
+        <Text size="2" color="gray" className="self-end pb-2 lg:col-span-3">
           Дополнительные параметры не требуются.
         </Text>
       );
@@ -321,16 +320,25 @@ export function ScenarioQuestionsSection({
     } as MandatoryQuestion;
     onChange({ ...scenario, mandatoryQuestions });
   };
+  const empty = scenario.mandatoryQuestions.length === 0;
 
   return (
     <SectionCard
       title="Обязательные вопросы"
-      description="Вопрос считается закрытым только фактами из списка выше; оценка не зависит от LLM."
+      description={
+        <>
+          Вопрос считается закрытым только фактами из списка выше; оценка не
+          зависит от LLM
+          {empty && (
+            <>
+              <br />
+              Обязательные вопросы пока не добавлены
+            </>
+          )}
+        </>
+      }
       actions={
-        <Button
-          type="button"
-          size="2"
-          variant="soft"
+        <AddButton
           disabled={scenario.mandatoryQuestions.length >= 32}
           onClick={() =>
             onChange({
@@ -342,70 +350,60 @@ export function ScenarioQuestionsSection({
             })
           }
         >
-          <Plus size={15} /> Вопрос
-        </Button>
+          Вопрос
+        </AddButton>
       }
     >
-      {scenario.mandatoryQuestions.length === 0 ? (
-        <Text size="2" color="gray">
-          Обязательные вопросы пока не добавлены.
-        </Text>
-      ) : (
-        <div className="grid gap-3">
+      {empty ? undefined : (
+        <Grid gap="3">
           {scenario.mandatoryQuestions.map((question, index) => (
-            <div
+            <RowWithRemove
               key={index}
-              className="border-grayA-5 grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_1fr_auto]"
+              removeLabel={`Удалить вопрос ${index + 1}`}
+              onRemove={() =>
+                onChange({
+                  ...scenario,
+                  mandatoryQuestions: scenario.mandatoryQuestions.filter(
+                    (_, questionIndex) => questionIndex !== index,
+                  ),
+                })
+              }
             >
-              <TextInput
-                label={`Вопрос ${index + 1}`}
-                value={question.text}
-                placeholder="Уточнить точный адрес происшествия"
-                onChange={(text) => updateQuestion(index, { text })}
-              />
-              <ListInput
-                label="Закрывается фактами"
-                hint="ключи через запятую"
-                items={question.satisfiedByFactKeys}
-                onChange={(satisfiedByFactKeys) =>
-                  updateQuestion(index, {
-                    satisfiedByFactKeys,
-                  })
-                }
-              />
-              <Flex align="end" gap="2" pb="1">
-                <Text as="label" size="1" color="gray">
-                  <Flex align="center" gap="1">
-                    <Checkbox
-                      checked={question.isCritical}
-                      onCheckedChange={(value) =>
-                        updateQuestion(index, { isCritical: value === true })
-                      }
-                    />
-                    Критический
-                  </Flex>
-                </Text>
-                <IconButton
-                  type="button"
-                  variant="ghost"
-                  color="red"
-                  size="1"
-                  aria-label={`Удалить вопрос ${index + 1}`}
-                  onClick={() =>
-                    onChange({
-                      ...scenario,
-                      mandatoryQuestions: scenario.mandatoryQuestions.filter(
-                        (_, questionIndex) => questionIndex !== index,
-                      ),
-                    })
+              <Grid
+                gap="3"
+                align="end"
+                columns={{
+                  initial: "1",
+                  md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                }}
+              >
+                <TextInput
+                  label={`Вопрос ${index + 1}`}
+                  value={question.text}
+                  placeholder="Уточнить точный адрес происшествия"
+                  onChange={(text) => updateQuestion(index, { text })}
+                />
+                <ListInput
+                  label="Закрывается фактами"
+                  hint="ключи через запятую"
+                  items={question.satisfiedByFactKeys}
+                  onChange={(satisfiedByFactKeys) =>
+                    updateQuestion(index, { satisfiedByFactKeys })
                   }
-                >
-                  <Trash2 size={15} />
-                </IconButton>
-              </Flex>
-            </div>
+                />
+                <Flex align="center" className="h-9">
+                  <BooleanInput
+                    label="Критический"
+                    checked={question.isCritical}
+                    onChange={(isCritical) =>
+                      updateQuestion(index, { isCritical })
+                    }
+                  />
+                </Flex>
+              </Grid>
+            </RowWithRemove>
           ))}
-        </div>
+        </Grid>
       )}
     </SectionCard>
   );
@@ -448,12 +446,9 @@ export function ScenarioEscalationSection({
   return (
     <SectionCard
       title="Динамика паники"
-      description="Каждое правило двигает состояние на одну ступень и проверяется движком детерминированно."
+      description="Каждое правило двигает состояние на одну ступень и проверяется движком детерминированно"
       actions={
-        <Button
-          type="button"
-          size="2"
-          variant="soft"
+        <AddButton
           disabled={scenario.escalation.length >= 32}
           onClick={() =>
             onChange({
@@ -462,58 +457,17 @@ export function ScenarioEscalationSection({
             })
           }
         >
-          <Plus size={15} /> Правило
-        </Button>
+          Правило
+        </AddButton>
       }
     >
-      <div className="grid gap-3">
-        {scenario.escalation.map((rule, index) => (
-          <div
-            key={index}
-            className="border-grayA-5 grid items-end gap-3 rounded-lg border p-4 md:grid-cols-2 lg:grid-cols-5"
-          >
-            <SelectInput
-              label="Событие"
-              value={rule.trigger}
-              options={ESCALATION_TRIGGERS.map((value) => ({
-                value,
-                label: ESCALATION_TRIGGER_LABELS[value],
-              }))}
-              onChange={(trigger) =>
-                updateRule(index, {
-                  trigger,
-                  params: paramsForTrigger(trigger),
-                })
-              }
-            />
-            <SelectInput
-              label="Направление"
-              value={rule.direction}
-              options={[
-                { value: "up", label: "Повысить панику" },
-                { value: "down", label: "Снизить панику" },
-              ]}
-              onChange={(direction) => updateRule(index, { direction })}
-            />
-            <NumberInput
-              label="Cooldown, сек."
-              value={rule.cooldownSeconds}
-              min={0}
-              max={600}
-              onChange={(cooldownSeconds) =>
-                updateRule(index, { cooldownSeconds })
-              }
-            />
-            <EscalationParams
-              rule={rule}
-              onChange={(params) => updateRule(index, { params })}
-            />
-            <IconButton
-              type="button"
-              variant="ghost"
-              color="red"
-              aria-label={`Удалить правило ${index + 1}`}
-              onClick={() =>
+      {scenario.escalation.length > 0 && (
+        <Grid gap="3">
+          {scenario.escalation.map((rule, index) => (
+            <RowWithRemove
+              key={index}
+              removeLabel={`Удалить правило ${index + 1}`}
+              onRemove={() =>
                 onChange({
                   ...scenario,
                   escalation: scenario.escalation.filter(
@@ -522,11 +476,48 @@ export function ScenarioEscalationSection({
                 })
               }
             >
-              <Trash2 size={16} />
-            </IconButton>
-          </div>
-        ))}
-      </div>
+              <FieldGrid lg="4">
+                <SelectInput
+                  label="Событие"
+                  value={rule.trigger}
+                  options={ESCALATION_TRIGGERS.map((value) => ({
+                    value,
+                    label: ESCALATION_TRIGGER_LABELS[value],
+                  }))}
+                  onChange={(trigger) =>
+                    updateRule(index, {
+                      trigger,
+                      params: paramsForTrigger(trigger),
+                    })
+                  }
+                />
+                <SelectInput
+                  label="Направление"
+                  value={rule.direction}
+                  options={[
+                    { value: "up", label: "Повысить панику" },
+                    { value: "down", label: "Снизить панику" },
+                  ]}
+                  onChange={(direction) => updateRule(index, { direction })}
+                />
+                <NumberInput
+                  label="Cooldown, сек"
+                  value={rule.cooldownSeconds}
+                  min={0}
+                  max={600}
+                  onChange={(cooldownSeconds) =>
+                    updateRule(index, { cooldownSeconds })
+                  }
+                />
+                <EscalationParams
+                  rule={rule}
+                  onChange={(params) => updateRule(index, { params })}
+                />
+              </FieldGrid>
+            </RowWithRemove>
+          ))}
+        </Grid>
+      )}
     </SectionCard>
   );
 }
@@ -544,7 +535,7 @@ function EscalationParams({
   ) {
     return (
       <NumberInput
-        label="Порог, сек."
+        label="Порог, сек"
         value={rule.params?.seconds ?? 20}
         min={1}
         max={600}
@@ -579,7 +570,7 @@ function EscalationParams({
   }
 
   return (
-    <Text size="1" color="gray" className="pb-2">
+    <Text size="2" color="gray" className="self-end pb-2">
       Без параметров
     </Text>
   );
@@ -616,12 +607,9 @@ export function ScenarioReferenceSection({
   return (
     <SectionCard
       title="Эталон и оценивание"
-      description="Заполненная оператором карточка сравнивается с этими значениями воспроизводимыми правилами."
+      description="Заполненная оператором карточка сравнивается с этими значениями воспроизводимыми правилами"
       actions={
-        <Button
-          type="button"
-          size="2"
-          variant="soft"
+        <AddButton
           disabled={!unusedField}
           onClick={() =>
             unusedField &&
@@ -637,106 +625,95 @@ export function ScenarioReferenceSection({
             })
           }
         >
-          <Plus size={15} /> Поле
-        </Button>
+          Поле
+        </AddButton>
       }
     >
-      <div className="grid gap-3">
+      <Grid gap="3">
         {scenario.referenceCard.fields.map((field, index) => (
-          <div
+          <RowWithRemove
             key={index}
-            className="border-grayA-5 grid items-end gap-3 rounded-lg border p-4 md:grid-cols-2 lg:grid-cols-6"
+            removeLabel={`Удалить поле эталона ${index + 1}`}
+            onRemove={() =>
+              onChange({
+                ...scenario,
+                referenceCard: {
+                  ...scenario.referenceCard,
+                  fields: scenario.referenceCard.fields.filter(
+                    (_, fieldIndex) => fieldIndex !== index,
+                  ),
+                },
+              })
+            }
           >
-            <SelectInput
-              label="Поле карточки"
-              value={field.field}
-              options={INCIDENT_CARD_FIELDS.map((value) => ({
-                value,
-                label: CARD_FIELD_LABELS[value],
-              }))}
-              onChange={(nextField) => updateField(index, { field: nextField })}
-            />
-            <TextInput
-              label="Ожидаемое значение"
-              value={field.expectedValue}
-              onChange={(expectedValue) =>
-                updateField(index, { expectedValue })
-              }
-            />
-            <ListInput
-              label="Допустимые варианты"
-              items={field.acceptableValues}
-              onChange={(acceptableValues) =>
-                updateField(index, { acceptableValues })
-              }
-            />
-            <SelectInput
-              label="Сравнение"
-              value={field.comparison}
-              options={[
-                { value: "exact", label: "Точное" },
-                { value: "normalized", label: "Нормализованное" },
-                { value: "contains", label: "Содержит" },
-                { value: "numeric_range", label: "Числовой диапазон" },
-              ]}
-              onChange={(comparison) => updateField(index, { comparison })}
-            />
-            <TextInput
-              label="Источник-факт"
-              value={field.sourceFactKey ?? ""}
-              onChange={(sourceFactKey) =>
-                updateField(index, { sourceFactKey: sourceFactKey || null })
-              }
-            />
-            <Flex align="end" gap="2" pb="1">
-              <Text as="label" size="1" color="gray">
-                <Flex align="center" gap="1">
-                  <Checkbox
-                    checked={field.isRequired}
-                    onCheckedChange={(value) =>
-                      updateField(index, { isRequired: value === true })
-                    }
-                  />
-                  Обязательно
-                </Flex>
-              </Text>
-              <IconButton
-                type="button"
-                variant="ghost"
-                color="red"
-                aria-label={`Удалить поле эталона ${index + 1}`}
-                onClick={() =>
-                  onChange({
-                    ...scenario,
-                    referenceCard: {
-                      ...scenario.referenceCard,
-                      fields: scenario.referenceCard.fields.filter(
-                        (_, fieldIndex) => fieldIndex !== index,
-                      ),
-                    },
-                  })
+            <FieldGrid lg="3">
+              <SelectInput
+                label="Поле карточки"
+                value={field.field}
+                options={INCIDENT_CARD_FIELDS.map((value) => ({
+                  value,
+                  label: CARD_FIELD_LABELS[value],
+                }))}
+                onChange={(nextField) =>
+                  updateField(index, { field: nextField })
                 }
-              >
-                <Trash2 size={15} />
-              </IconButton>
-            </Flex>
-          </div>
+              />
+              <TextInput
+                label="Ожидаемое значение"
+                value={field.expectedValue}
+                onChange={(expectedValue) =>
+                  updateField(index, { expectedValue })
+                }
+              />
+              <ListInput
+                label="Допустимые варианты"
+                items={field.acceptableValues}
+                onChange={(acceptableValues) =>
+                  updateField(index, { acceptableValues })
+                }
+              />
+              <SelectInput
+                label="Сравнение"
+                value={field.comparison}
+                options={[
+                  { value: "exact", label: "Точное" },
+                  { value: "normalized", label: "Нормализованное" },
+                  { value: "contains", label: "Содержит" },
+                  { value: "numeric_range", label: "Числовой диапазон" },
+                ]}
+                onChange={(comparison) => updateField(index, { comparison })}
+              />
+              <TextInput
+                label="Источник-факт"
+                value={field.sourceFactKey ?? ""}
+                onChange={(sourceFactKey) =>
+                  updateField(index, { sourceFactKey: sourceFactKey || null })
+                }
+              />
+              <Flex align="end" className="pb-2">
+                <BooleanInput
+                  label="Обязательно"
+                  checked={field.isRequired}
+                  onChange={(isRequired) => updateField(index, { isRequired })}
+                />
+              </Flex>
+            </FieldGrid>
+          </RowWithRemove>
         ))}
-      </div>
 
-      <TextAreaInput
-        className="mt-4"
-        label="Примечания для разбора"
-        value={scenario.referenceCard.notes ?? ""}
-        maxLength={2_000}
-        onChange={(notes) =>
-          onChange({
-            ...scenario,
-            version: { ...scenario.version, referenceNotes: notes },
-            referenceCard: { ...scenario.referenceCard, notes },
-          })
-        }
-      />
+        <TextAreaInput
+          label="Примечания для разбора"
+          value={scenario.referenceCard.notes ?? ""}
+          maxLength={2_000}
+          onChange={(notes) =>
+            onChange({
+              ...scenario,
+              version: { ...scenario.version, referenceNotes: notes },
+              referenceCard: { ...scenario.referenceCard, notes },
+            })
+          }
+        />
+      </Grid>
     </SectionCard>
   );
 }

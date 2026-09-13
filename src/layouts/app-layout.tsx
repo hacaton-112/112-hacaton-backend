@@ -41,12 +41,14 @@ export function AppLayout() {
           onOpenMobileChange={setSidebarMobileOpen}
         >
           <AppSidebar onOpenSettings={() => setSettingsOpen(true)} />
-          <SidebarInset className="border-grayA-4 h-full min-w-0 overflow-auto border-l">
+          {/* Фон страниц задаётся здесь один раз: страницы свой фон не красят,
+              иначе при переходе между разделами он меняется. */}
+          <SidebarInset className="border-grayA-4 bg-gray-2 h-full min-w-0 overflow-auto border-l">
             <Outlet />
           </SidebarInset>
         </SidebarProvider>
       ) : (
-        <Box className="min-h-0 flex-1 overflow-auto" role="main">
+        <Box className="bg-gray-2 min-h-0 flex-1 overflow-auto" role="main">
           <Outlet />
         </Box>
       )}
