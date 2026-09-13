@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { LLM_PORT } from "../../ai-gateway.tokens";
+import { AliceAiStructuredOutputClient } from "./alice-ai-structured-output.client";
 import { AliceAiLlmAdapter } from "./alice-ai.adapter";
 import { type AliceAiEnvironment, parseAliceAiConfig } from "./alice-ai.config";
 import {
@@ -38,11 +39,12 @@ const createAliceAiConfig = (configService: ConfigService) =>
       useFactory: (): AliceAiFetch => globalThis.fetch.bind(globalThis),
     },
     AliceAiLlmAdapter,
+    AliceAiStructuredOutputClient,
     {
       provide: LLM_PORT,
       useExisting: AliceAiLlmAdapter,
     },
   ],
-  exports: [LLM_PORT],
+  exports: [LLM_PORT, AliceAiStructuredOutputClient],
 })
 export class AliceAiAdapterModule {}

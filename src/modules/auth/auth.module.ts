@@ -21,6 +21,7 @@ import { JwtAuthGuard } from "./jwt-auth.guard";
 import { JWT_ALGORITHM } from "./jwt.constants";
 import type { TokenSigner } from "./ports/token-signer.port";
 import type { TokenVerifier } from "./ports/token-verifier.port";
+import { RolesGuard } from "./roles.guard";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import type { TokenVerifier } from "./ports/token-verifier.port";
     AccessTokenVerifier,
     AuthSessionService,
     JwtAuthGuard,
+    RolesGuard,
     DrizzleAuthSessionStore,
     { provide: AUTH_SESSION_STORE, useExisting: DrizzleAuthSessionStore },
     // Lifetimes arrive as a value rather than being read from env inside the
@@ -68,6 +70,12 @@ import type { TokenVerifier } from "./ports/token-verifier.port";
   // TOKEN_VERIFIER travels with AccessTokenVerifier and JwtAuthGuard: a module
   // that applies the guard resolves it in its own context and would otherwise
   // fail to construct it.
-  exports: [AuthService, AccessTokenVerifier, JwtAuthGuard, TOKEN_VERIFIER],
+  exports: [
+    AuthService,
+    AccessTokenVerifier,
+    JwtAuthGuard,
+    RolesGuard,
+    TOKEN_VERIFIER,
+  ],
 })
 export class AuthModule {}
