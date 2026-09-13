@@ -21,6 +21,13 @@ export const ErrorCodes = {
   // A distinguishable reason only helps an attacker probe tokens.
   AUTH_REFRESH_TOKEN_INVALID: "AUTH_REFRESH_TOKEN_INVALID",
   AUTH_USER_NOT_FOUND: "AUTH_USER_NOT_FOUND",
+  AUTH_ROLE_FORBIDDEN: "AUTH_ROLE_FORBIDDEN",
+
+  // ── Конструктор сценариев ──────────────────────────────────
+  SCENARIO_CODE_EXISTS: "SCENARIO_CODE_EXISTS",
+  SCENARIO_PERSONA_CODE_EXISTS: "SCENARIO_PERSONA_CODE_EXISTS",
+  SCENARIO_ASSISTANT_UNAVAILABLE: "SCENARIO_ASSISTANT_UNAVAILABLE",
+  SCENARIO_ASSISTANT_INVALID_DRAFT: "SCENARIO_ASSISTANT_INVALID_DRAFT",
 
   // ── Учебный звонок ─────────────────────────────────────────
   // Чужой звонок неотличим от несуществующего: знать чужие идентификаторы

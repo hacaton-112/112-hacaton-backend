@@ -6,6 +6,7 @@ import { DialogueGenerationModule } from "@/modules/dialogue-generation/dialogue
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthesis.module";
 
 import { AliceAiAdapterModule } from "./adapters/alice-ai/alice-ai-adapter.module";
+import { AliceAiStructuredOutputClient } from "./adapters/alice-ai/alice-ai-structured-output.client";
 import { AliceAiLlmAdapter } from "./adapters/alice-ai/alice-ai.adapter";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
 import { createQwenTtsAdapter } from "./adapters/qwen-tts/qwen-tts.factory";
@@ -71,7 +72,7 @@ describe("AI provider module registration", () => {
     );
     expect(
       getModuleMetadata(MODULE_METADATA.EXPORTS, AliceAiAdapterModule),
-    ).toEqual([LLM_PORT]);
+    ).toEqual([LLM_PORT, AliceAiStructuredOutputClient]);
     expect(
       getModuleMetadata(MODULE_METADATA.EXPORTS, QwenTtsAdapterModule),
     ).toEqual([TTS_PORT]);
