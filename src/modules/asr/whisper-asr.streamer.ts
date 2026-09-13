@@ -23,14 +23,30 @@ const AsrServerEventSchema = z.discriminatedUnion("type", [
       sessionId: z.string(),
       sampleRate: z.number(),
       model: z.string(),
+      /** Пауза, по которой сервис сам заканчивает фразу. */
+      endpointSilenceMs: z.number().nonnegative().optional(),
     })
     .loose(),
   z
     .object({
-      type: z.enum(["partial", "final"]),
+      type: z.literal("partial"),
       transcript: z.string(),
       audioMs: z.number().nonnegative(),
       processingMs: z.number().nonnegative(),
+    })
+    .loose(),
+  z
+    .object({
+      type: z.literal("final"),
+      transcript: z.string(),
+      audioMs: z.number().nonnegative(),
+      processingMs: z.number().nonnegative(),
+      /**
+       * Почему сервис закончил фразу. `catch` важнее, чем кажется: незнакомая
+       * причина иначе завалила бы разбор объединения, финал ушёл бы в ветку
+       * «неожиданное событие», и `finish()` провисел бы весь таймаут.
+       */
+      reason: z.enum(["silence", "stop"]).optional().catch(undefined),
     })
     .loose(),
   z.object({ type: z.literal("pong") }).loose(),
@@ -76,12 +92,29 @@ export class WhisperAsrStreamer implements AsrStreamer {
   }
 }
 
+/**
+ * Одна реплика оператора, собранная из фраз.
+ *
+ * Сервис распознавания сам заканчивает фразу по паузе и продолжает слушать,
+ * поэтому за одно нажатие кнопки приходит несколько финалов. Реплика оператора
+ * от этого не делится: движку нужен вопрос целиком, а не его половина до
+ * вдоха.
+ */
 class WhisperAsrStream implements AsrStreamHandle {
   private ready = false;
   private closed = false;
   private failure: Error | null = null;
   private final: ((transcript: AsrTranscript) => void) | null = null;
   private fail: ((error: Error) => void) | null = null;
+  private readonly phrases: string[] = [];
+  private audioMs = 0;
+  private processingMs = 0;
+  /** Терминальный финал получен: сервису больше нечего сказать. */
+  private complete = false;
+  /** Результат или отказ уже ушёл вызывающему. */
+  private delivered = false;
+  private finalTimer: ReturnType<typeof setTimeout> | null = null;
+  private endpointSilenceMs: number | null = null;
 
   constructor(
     readonly sessionId: string,
@@ -133,37 +166,57 @@ class WhisperAsrStream implements AsrStreamHandle {
   }
 
   async finish(): Promise<AsrTranscript> {
-    // Поток мог сорваться, пока оператор ещё говорил: тогда отвечаем той же
-    // ошибкой сразу, а не ждём финала, который уже некому прислать.
-    if (this.failure) {
-      throw this.failure;
+    // Сервис уже сказал всё, что хотел: второй `stop` слать некому и незачем.
+    if (this.complete) {
+      this.deliver();
+
+      return this.result();
     }
 
-    if (this.closed) {
-      throw new Error("The ASR stream is already closed");
+    // Поток мог сорваться, пока оператор ещё говорил. Если до обрыва он успел
+    // сказать хоть фразу, она важнее ошибки: половина вопроса лучше, чем
+    // потерянный ход.
+    if (this.closed || this.failure !== null) {
+      if (this.heard()) {
+        this.logger.warn(
+          `Returning ${this.phrases.length} recognised phrases of a broken stream ${this.sessionId}: ${
+            this.failure?.message ?? "the stream is already closed"
+          }`,
+        );
+
+        return this.result();
+      }
+
+      throw this.failure ?? new Error("The ASR stream is already closed");
     }
 
     return new Promise<AsrTranscript>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      this.finalTimer = setTimeout(() => {
+        // Сервис замолчал. Услышанное до этого всё равно принадлежит оператору.
+        if (this.heard()) {
+          this.deliver();
+          resolve(this.result());
+
+          return;
+        }
+
         this.abort();
         reject(new Error("ASR did not return a final transcript in time"));
       }, FINAL_TIMEOUT_MS);
 
-      this.final = (transcript) => {
-        clearTimeout(timer);
-        this.abort();
-        resolve(transcript);
-      };
-      this.fail = (error) => {
-        clearTimeout(timer);
-        reject(error);
-      };
+      this.final = resolve;
+      this.fail = reject;
 
       this.socket.send(JSON.stringify({ type: "stop" }));
     });
   }
 
   abort(): void {
+    if (this.finalTimer !== null) {
+      clearTimeout(this.finalTimer);
+      this.finalTimer = null;
+    }
+
     if (this.closed) {
       return;
     }
@@ -172,10 +225,56 @@ class WhisperAsrStream implements AsrStreamHandle {
     this.socket.close();
   }
 
-  /** Запоминает причину обрыва и будит того, кто уже ждёт финал. */
+  /**
+   * Запоминает причину обрыва и будит того, кто уже ждёт финал.
+   *
+   * Если фразы уже собраны, обрыв стоит только той, что была в работе:
+   * отдаём собранное, а не теряем реплику целиком.
+   */
   private settle(error: Error): void {
+    if (this.delivered) {
+      return;
+    }
+
     this.failure ??= error;
-    this.fail?.(error);
+
+    if (this.fail === null) {
+      return;
+    }
+
+    if (this.heard()) {
+      const waiter = this.final;
+
+      this.deliver();
+      waiter?.(this.result());
+
+      return;
+    }
+
+    const fail = this.fail;
+
+    this.deliver();
+    fail(error);
+  }
+
+  /** Прозвучало ли хоть что-то, что стоит отдать движку. */
+  private heard(): boolean {
+    return this.phrases.some((phrase) => phrase.length > 0);
+  }
+
+  /** Реплика целиком: фразы через пробел, длительности в сумме. */
+  private result(): AsrTranscript {
+    return {
+      transcript: this.phrases.filter((phrase) => phrase.length > 0).join(" "),
+      audioMs: this.audioMs,
+      processingMs: this.processingMs,
+    };
+  }
+
+  /** Закрывает ожидание: таймер, сокет и защита от повторной выдачи. */
+  private deliver(): void {
+    this.delivered = true;
+    this.abort();
   }
 
   private handleMessage(data: unknown): void {
@@ -191,12 +290,39 @@ class WhisperAsrStream implements AsrStreamHandle {
 
     const event = parsed.data;
 
+    if (event.type === "ready") {
+      this.endpointSilenceMs = event.endpointSilenceMs ?? null;
+
+      return;
+    }
+
     if (event.type === "final") {
-      this.final?.({
-        transcript: event.transcript,
-        audioMs: event.audioMs,
-        processingMs: event.processingMs,
-      });
+      // Копится всё, включая терминальный финал: его длительность — тоже часть
+      // реплики, даже когда текст пустой.
+      this.phrases.push(event.transcript.trim());
+      this.audioMs += event.audioMs;
+      this.processingMs += event.processingMs;
+
+      // Пауза посреди фразы разговор не заканчивает: сервис слушает дальше, и
+      // мы вместе с ним.
+      if (event.reason === "silence") {
+        return;
+      }
+
+      this.complete = true;
+
+      if (this.phrases.length > 1) {
+        this.logger.debug(
+          `Stitched ${this.phrases.length} phrases for ${this.sessionId} at ${
+            this.endpointSilenceMs ?? "unknown"
+          } ms of silence`,
+        );
+      }
+
+      const waiter = this.final;
+
+      this.deliver();
+      waiter?.(this.result());
 
       return;
     }
