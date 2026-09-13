@@ -25,6 +25,7 @@ import {
   selectAllowedFacts,
   type ScenarioFact,
 } from "../domain/disclosure";
+import type { FactQuestion } from "@/contracts";
 import {
   isExplicitRepeatRequest,
   isOpenQuestion,
@@ -315,13 +316,33 @@ export class ScenarioEngineService {
     operatorText: string;
     /** Заявитель заговаривает сам: вопроса не было, значит и фактов по нему. */
     initiative?: boolean;
+    /**
+     * Разбирает вопрос оператора по каталогу фактов сценария.
+     *
+     * Передаётся снаружи, а не внедряется: движок не должен знать ни про
+     * модель, ни про сеть — ему нужно только то, о чём спросили. Без разбора
+     * или при отказе он работает по словам автора сценария, как раньше.
+     */
+    resolveAskedFacts?: (
+      facts: readonly FactQuestion[],
+    ) => Promise<readonly string[]>;
   }): Promise<EngineGenerationContext> {
     const { state, version } = await this.loadCall(input.trainingSessionId);
 
     this.requireStage(state, ["conversation"]);
 
     const matchedText = input.initiative === true ? "" : input.operatorText;
-    const allowed = this.allowedFacts(state, version, matchedText);
+    const askedFactKeys = await this.askedFacts(
+      version,
+      matchedText,
+      input.resolveAskedFacts,
+    );
+    const allowed = this.allowedFacts(
+      state,
+      version,
+      matchedText,
+      askedFactKeys,
+    );
     const profile = panicProfile(state.panicLevel);
     const recentTurns = await this.store.loadRecentTurns(
       state.trainingSessionId,
@@ -341,6 +362,7 @@ export class ScenarioEngineService {
       allowed.fresh,
       matchedText,
       input.initiative === true,
+      askedFactKeys,
     );
     const turnPlan = planCallerTurn({
       rngSeed: state.rngSeed,
@@ -737,7 +759,7 @@ export class ScenarioEngineService {
     version: ScenarioVersionSnapshot,
   ): readonly string[] {
     const available = version.facts.filter((fact) =>
-      isFactAvailable(fact.disclosure, {
+      isFactAvailable(fact, {
         revealedKeys: state.revealedFactKeys,
         operatorText: "",
         callerTurns: state.callerTurns + 1,
@@ -751,16 +773,61 @@ export class ScenarioEngineService {
     );
   }
 
+  /**
+   * Спрашивает разборщик, о чём была реплика оператора.
+   *
+   * Отказ разборщика не должен стоить заявителю голоса: без ответа движок
+   * возвращается к словам автора сценария, и звонок идёт как до появления
+   * разбора.
+   */
+  private async askedFacts(
+    version: ScenarioVersionSnapshot,
+    operatorText: string,
+    resolve?: (facts: readonly FactQuestion[]) => Promise<readonly string[]>,
+  ): Promise<readonly string[] | undefined> {
+    if (resolve === undefined || operatorText.trim().length === 0) {
+      return undefined;
+    }
+
+    const questions = new Map<string, string>();
+
+    for (const question of version.mandatoryQuestions) {
+      for (const key of question.satisfiedByFactKeys) {
+        questions.set(key, question.text);
+      }
+    }
+
+    try {
+      return await resolve(
+        version.facts.map((fact) => ({
+          id: fact.key,
+          label: fact.displayLabel,
+          question: questions.get(fact.key) ?? null,
+        })),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not parse the operator's question, falling back to keywords: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+
+      return undefined;
+    }
+  }
+
   private allowedFacts(
     state: CallStateSnapshot,
     version: ScenarioVersionSnapshot,
     operatorText: string,
+    askedFactKeys?: readonly string[],
   ): { facts: readonly ScenarioFact[]; fresh: readonly string[] } {
     return selectAllowedFacts(
       version.facts,
       {
         revealedKeys: state.revealedFactKeys,
         operatorText,
+        askedFactKeys,
         callerTurns: state.callerTurns,
         panicLevel: state.panicLevel,
         stage: state.stage,
@@ -777,6 +844,7 @@ export class ScenarioEngineService {
     freshFactIds: readonly string[],
     operatorText: string,
     initiative: boolean,
+    askedFactKeys?: readonly string[],
   ): readonly ScenarioFact[] {
     if (initiative) {
       return [];
@@ -786,8 +854,12 @@ export class ScenarioEngineService {
     // вопрос узнаётся точнее, чем по списку, который автор привязал к
     // раскрытию. «Они дышат?» находит состояние детей, хотя оно открывается
     // не вопросом, а другим фактом.
+    // О чём спросили: по разбору модели, а при его отсутствии — по словам,
+    // которыми автор описал факт.
     const aboutQuestion = version.facts.filter((fact) =>
-      carriesFactContent(operatorText, fact.contentKeywords),
+      askedFactKeys === undefined
+        ? carriesFactContent(operatorText, fact.contentKeywords)
+        : askedFactKeys.includes(fact.key),
     );
     const answersQuestion = aboutQuestion.filter((fact) =>
       allowedFacts.includes(fact),
