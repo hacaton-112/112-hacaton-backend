@@ -1,38 +1,34 @@
-import {
-  I18nProvider,
-  IconButton,
-  Theme,
-  ThemePanel,
-  Toaster,
-} from "@bolid-ui/themes";
-import { PaletteIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { I18nProvider, Theme, Toaster } from "@bolid-ui/themes";
+import { type ReactNode, useEffect, useState } from "react";
+
+import { useSettings } from "../services/settings.service";
 
 export function ThemeWithPanel({ children }: { children: ReactNode }) {
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const settings = useSettings();
+  const [systemAppearance, setSystemAppearance] = useState<"light" | "dark">(
+    () =>
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light",
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemAppearance(media.matches ? "dark" : "light");
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   return (
     <I18nProvider locale="ru-RU">
       <Theme
-        appearance="light"
-        accentColor="blue"
+        appearance={
+          settings.theme === "system" ? systemAppearance : settings.theme
+        }
+        accentColor={settings.accentColor}
         grayColor="gray"
         radius="medium"
       >
-        <IconButton
-          size="2"
-          radius="full"
-          variant="solid"
-          color="blue"
-          highContrast
-          aria-label="Настройки темы"
-          title="Настройки темы"
-          onClick={() => setIsPanelOpen((open) => !open)}
-          className="fixed right-4 bottom-4 z-[10000] shadow-lg ring-2 ring-white/80"
-        >
-          <PaletteIcon size={16} />
-        </IconButton>
-        <ThemePanel open={isPanelOpen} onOpenChange={setIsPanelOpen} />
         <Toaster position="top-center" duration={6_000} />
         {children}
       </Theme>

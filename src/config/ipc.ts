@@ -7,8 +7,9 @@ export const IPC_CONFIG = {
   getCallListenStartHandler: () => "call_listen_start",
   getCallListenStopHandler: () => "call_listen_stop",
   getCallDisconnectHandler: () => "call_disconnect",
-  getSystemAudioStartHandler: () => "plugin:system-audio|start",
-  getSystemAudioStopHandler: () => "plugin:system-audio|stop",
+  getSystemAudioStartHandler: () => "audio_capture_start",
+  getSystemAudioStopHandler: () => "audio_capture_stop",
   getSystemAudioPermissionStatusHandler: () =>
     "plugin:system-audio|permission_status",
+  getAudioDevicesHandler: () => "audio_devices",
 } as const;

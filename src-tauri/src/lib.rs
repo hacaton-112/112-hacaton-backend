@@ -1,5 +1,7 @@
+mod audio;
 mod call;
 
+use audio::AudioCapture;
 use call::Call;
 use tauri::Manager;
 
@@ -28,7 +30,11 @@ pub fn run() {
             call.intercept_microphone_channel(callback.0, body)
         })
         .manage(Call::default())
+        .manage(AudioCapture::default())
         .invoke_handler(tauri::generate_handler![
+            audio::audio_devices,
+            audio::audio_capture_start,
+            audio::audio_capture_stop,
             call::call_connect,
             call::call_start,
             call::call_send,

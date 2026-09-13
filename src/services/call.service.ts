@@ -7,6 +7,7 @@ import {
   type CallServerEvent,
 } from "../contracts/call";
 import { ipc } from "../lib/ipc";
+import { settingsService } from "./settings.service";
 
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
@@ -49,6 +50,7 @@ class NativeCallStream implements CallStream {
         url: API_CONFIG.getVoicePipelineStreamUrl(),
         token,
         onEvent: events,
+        outputDevice: settingsService.get().outputDevice,
       });
     } catch (reason) {
       throw this.toError(reason);
@@ -92,6 +94,7 @@ class NativeCallStream implements CallStream {
           loopback: false,
           processing: false,
           levelOnly: false,
+          inputDevice: settingsService.get().inputDevice,
         });
       } catch (reason) {
         await ipc.systemAudio.stop().catch(() => undefined);
