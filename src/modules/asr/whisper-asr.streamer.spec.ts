@@ -98,6 +98,62 @@ describe(WhisperAsrStreamer.name, () => {
     expect(socket.sent).toEqual([chunk]);
   });
 
+  it("emits VAD transcripts without closing the stream", async () => {
+    const { stream, socket } = await openStream();
+    const onTranscript = jest.fn();
+    stream.onTranscript(onTranscript);
+
+    socket.emitEvent({
+      type: "final",
+      transcript: "Что произошло?",
+      audioMs: 1_500,
+      processingMs: 120,
+      reason: "silence",
+    });
+
+    expect(onTranscript).toHaveBeenCalledWith({
+      transcript: "Что произошло?",
+      audioMs: 1_500,
+      processingMs: 120,
+    });
+    expect(socket.closed).toBe(false);
+
+    stream.send(new Uint8Array([1, 2]));
+    expect(socket.sent).toContainEqual(new Uint8Array([1, 2]));
+  });
+
+  it("keeps a forced segment until VAD finishes the long utterance", async () => {
+    const { stream, socket } = await openStream();
+    const onTranscript = jest.fn();
+    stream.onTranscript(onTranscript);
+
+    socket.emitEvent({
+      type: "final",
+      transcript: "Первая часть длинной реплики",
+      audioMs: 30_000,
+      processingMs: 800,
+      reason: "segmentLimit",
+    });
+
+    expect(onTranscript).not.toHaveBeenCalled();
+    expect(socket.closed).toBe(false);
+
+    socket.emitEvent({
+      type: "final",
+      transcript: "и её окончание",
+      audioMs: 2_000,
+      processingMs: 100,
+      reason: "silence",
+    });
+
+    expect(onTranscript).toHaveBeenCalledWith({
+      transcript: "Первая часть длинной реплики и её окончание",
+      audioMs: 32_000,
+      processingMs: 900,
+    });
+    expect(socket.closed).toBe(false);
+  });
+
   it("asks for the final transcript and closes the stream", async () => {
     const { stream, socket } = await openStream();
     const finishing = stream.finish();

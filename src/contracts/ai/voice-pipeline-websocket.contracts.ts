@@ -187,6 +187,18 @@ export const VoicePipelineListenStoppedEventSchema = z
   })
   .strict();
 
+/** Законченная VAD-реплика внутри продолжающего работать потока микрофона. */
+export const VoicePipelineListenTranscriptEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("listen.transcript"),
+    streamId: AiIdentifierSchema,
+    transcript: z.string().max(4_000),
+    audioMs: z.number().nonnegative(),
+    processingMs: z.number().nonnegative(),
+  })
+  .strict();
+
 export const VoicePipelineReplyTextEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
@@ -258,6 +270,7 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
   VoicePipelineCallEndedEventSchema,
   VoicePipelineListenStartedEventSchema,
   VoicePipelineListenStoppedEventSchema,
+  VoicePipelineListenTranscriptEventSchema,
   VoicePipelineReplyTextEventSchema,
   VoicePipelineAudioStartEventSchema,
   VoicePipelineAudioDoneEventSchema,
@@ -278,6 +291,9 @@ export type VoicePipelineListenStartedEvent = z.infer<
 >;
 export type VoicePipelineListenStoppedEvent = z.infer<
   typeof VoicePipelineListenStoppedEventSchema
+>;
+export type VoicePipelineListenTranscriptEvent = z.infer<
+  typeof VoicePipelineListenTranscriptEventSchema
 >;
 export type VoicePipelineCancelCommand = z.infer<
   typeof VoicePipelineCancelCommandSchema

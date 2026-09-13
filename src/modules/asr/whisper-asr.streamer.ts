@@ -46,7 +46,10 @@ const AsrServerEventSchema = z.discriminatedUnion("type", [
        * причина иначе завалила бы разбор объединения, финал ушёл бы в ветку
        * «неожиданное событие», и `finish()` провисел бы весь таймаут.
        */
-      reason: z.enum(["silence", "stop"]).optional().catch(undefined),
+      reason: z
+        .enum(["silence", "segmentLimit", "stop"])
+        .optional()
+        .catch(undefined),
     })
     .loose(),
   z.object({ type: z.literal("pong") }).loose(),
@@ -115,6 +118,8 @@ class WhisperAsrStream implements AsrStreamHandle {
   private delivered = false;
   private finalTimer: ReturnType<typeof setTimeout> | null = null;
   private endpointSilenceMs: number | null = null;
+  private transcriptListener: ((transcript: AsrTranscript) => void) | null =
+    null;
 
   constructor(
     readonly sessionId: string,
@@ -163,6 +168,10 @@ class WhisperAsrStream implements AsrStreamHandle {
     }
 
     this.socket.send(chunk);
+  }
+
+  onTranscript(listener: (transcript: AsrTranscript) => void): void {
+    this.transcriptListener = listener;
   }
 
   async finish(): Promise<AsrTranscript> {
@@ -303,9 +312,22 @@ class WhisperAsrStream implements AsrStreamHandle {
       this.audioMs += event.audioMs;
       this.processingMs += event.processingMs;
 
-      // Пауза посреди фразы разговор не заканчивает: сервис слушает дальше, и
-      // мы вместе с ним.
+      // Silero VAD нашёл конец реплики. Отдаём её сразу, но ASR-сокет не
+      // закрываем: следующие кадры относятся к следующей реплике оператора.
       if (event.reason === "silence") {
+        if (this.transcriptListener !== null) {
+          const transcript = this.result();
+          this.phrases.length = 0;
+          this.audioMs = 0;
+          this.processingMs = 0;
+          this.transcriptListener(transcript);
+        }
+        return;
+      }
+
+      // ASR принудительно режет непрерывную речь на ограниченные по размеру
+      // сегменты. Это ещё не конец реплики: ждём следующую часть и финал VAD.
+      if (event.reason === "segmentLimit") {
         return;
       }
 
