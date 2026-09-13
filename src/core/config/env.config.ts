@@ -131,6 +131,32 @@ export const env = createEnv({
       .max(30_000)
       .default(5_000),
 
+    // ── Reverse geocoding ──────────────────────────────────────
+    NOMINATIM_BASE_URL: z
+      .url()
+      .refine((url) => /^https?:\/\//.test(url), {
+        message: "NOMINATIM_BASE_URL must use the http:// or https:// scheme",
+      })
+      .default("https://nominatim.openstreetmap.org"),
+    NOMINATIM_USER_AGENT: z
+      .string()
+      .trim()
+      .min(3)
+      .max(256)
+      .default("system-112-training/0.1"),
+    NOMINATIM_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(30_000)
+      .default(5_000),
+    NOMINATIM_CACHE_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(2_592_000)
+      .default(86_400),
+
     // ── Qwen TTS ────────────────────────────────────────────────
     QWEN_TTS_PROVIDER: z.enum(["mlx-audio", "vllm-omni"]).default("mlx-audio"),
     QWEN_TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
