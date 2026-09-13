@@ -79,6 +79,7 @@ const AsrEventSchema = z.discriminatedUnion("type", [
       transcript: z.string(),
       audioMs: z.number().nonnegative(),
       processingMs: z.number().nonnegative(),
+      reason: z.enum(["silence", "stop"]).optional().catch(undefined),
     })
     .loose(),
   z.object({ type: z.literal("error"), message: z.string() }).loose(),
@@ -178,6 +179,23 @@ const recogniseGeneratedAudio = async (
       buildAsrSocketUrl(serviceUrl, session.sessionId),
     );
     let settled = false;
+    const phrases: string[] = [];
+    let audioMs = 0;
+    let processingMs = 0;
+
+    /** Реплика целиком: фразы через пробел, длительности в сумме. */
+    function collected(): TtsDiagnosticAsrResult {
+      const transcript = phrases
+        .filter((phrase) => phrase.length > 0)
+        .join(" ");
+
+      return {
+        transcript,
+        audioMs,
+        processingMs,
+        characterErrorRate: characterErrorRate(expectedText, transcript),
+      };
+    }
 
     function settle(
       error: Error | null,
@@ -225,15 +243,18 @@ const recogniseGeneratedAudio = async (
       }
 
       if (event.type === "final") {
-        settle(null, {
-          transcript: event.transcript,
-          audioMs: event.audioMs,
-          processingMs: event.processingMs,
-          characterErrorRate: characterErrorRate(
-            expectedText,
-            event.transcript,
-          ),
-        });
+        // Распознавание само режет запись на фразы по паузам, а диагностика
+        // сравнивает с эталоном всю реплику: по первой фразе синтез выглядел бы
+        // хуже, чем он есть.
+        phrases.push(event.transcript.trim());
+        audioMs += event.audioMs;
+        processingMs += event.processingMs;
+
+        if (event.reason === "silence") {
+          return;
+        }
+
+        settle(null, collected());
         return;
       }
 
@@ -244,9 +265,16 @@ const recogniseGeneratedAudio = async (
 
     socket.on("error", (error) => settle(error));
     socket.on("close", () => {
-      if (!settled) {
-        settle(new Error("ASR closed before returning a final transcript"));
+      if (settled) {
+        return;
       }
+
+      settle(
+        phrases.some((phrase) => phrase.length > 0)
+          ? null
+          : new Error("ASR closed before returning a final transcript"),
+        collected(),
+      );
     });
   });
 };
