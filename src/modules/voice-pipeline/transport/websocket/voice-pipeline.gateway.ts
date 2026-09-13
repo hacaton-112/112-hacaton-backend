@@ -20,6 +20,7 @@ import {
   ASR_STREAMER,
   type AsrStreamer,
   type AsrStreamHandle,
+  type AsrTranscript,
 } from "@/modules/asr/asr-stream.port";
 import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
 import {
@@ -67,8 +68,8 @@ const MAX_UTTERANCE_CHARACTERS = 1_000;
 /**
  * Граница расшифровки в контракте события.
  *
- * Одно нажатие теперь приносит всю речь до отпускания кнопки, сшитую из фраз, а
- * распознавание на шуме умеет выдумывать текст километрами. Отправка разбирает
+ * Одна VAD-реплика ограничена контрактом, а распознавание на шуме умеет
+ * выдумывать текст километрами. Отправка разбирает
  * событие схемой, которая бросает, а не обрезает: без этой границы длинная
  * реплика осталась бы не только неотправленной, но и без хода — исключение
  * улетело бы из необработанного промиса.
@@ -83,7 +84,7 @@ interface ActiveRequest {
   requestId: string;
 }
 
-/** Открытое окно, пока оператор говорит: одна реплика — один поток. */
+/** Постоянный поток микрофона на всё время разговора. */
 interface ListeningStream {
   streamId: string;
   stream: AsrStreamHandle;
@@ -507,9 +508,8 @@ export class VoicePipelineGateway
    * Оператор взял слово.
    *
    * Речь идёт через backend, а не напрямую в распознавание: только здесь она
-   * попадает и в ход звонка, и в запись разговора. Пока окно открыто, отсчёт
-   * молчания стоит — иначе заявитель заговорил бы поверх вопроса, которого
-   * сервер ещё не расслышал.
+   * попадает и в ход звонка, и в запись разговора. Сам открытый микрофон не
+   * считается речью; ход начинается только после VAD-финала.
    */
   private async startListening(
     client: WebSocket,
@@ -521,12 +521,8 @@ export class VoicePipelineGateway
       return;
     }
 
-    // Нажатие кнопки разговора — явный barge-in: оператор забирает слово, а
-    // ещё идущая реплика заявителя перестаёт присылать новые аудиокадры.
-    await this.cancelActiveRequest(client, state);
-
-    // Второй listen.start без stop — оператор передумал: начатую реплику
-    // бросаем, дослушивать её уже некому.
+    // Повторный старт заменяет прежний поток. Обычно клиент открывает микрофон
+    // один раз после первой реплики и держит его до завершения звонка.
     this.abortListening(state);
 
     let stream: AsrStreamHandle;
@@ -553,18 +549,20 @@ export class VoicePipelineGateway
       }),
     };
     state.listening = listening;
-
-    try {
-      await this.engine.setOperatorSpeaking({
-        trainingSessionId: state.sessionId,
-        speaking: true,
+    stream.onTranscript((transcript) => {
+      void this.handleContinuousTranscript(
+        client,
+        state,
+        listening,
+        transcript,
+      ).catch((error: unknown) => {
+        this.logger.warn(
+          `Could not handle a VAD utterance in session ${state.sessionId}: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
       });
-    } catch {
-      this.abortListening(state);
-      await this.sendError(client, state, null, "context-unavailable");
-
-      return;
-    }
+    });
 
     await this.sendEvent(client, state, {
       type: "listen.started",
@@ -573,6 +571,45 @@ export class VoicePipelineGateway
       channels: 1,
       format: "pcm_s16le",
     });
+  }
+
+  /**
+   * Silero VAD закончил реплику, но микрофон и ASR-сокет остаются открытыми.
+   * Новая реплика во время ответа заявителя становится естественным barge-in:
+   * startRequest отменит прежний TTS и начнёт ответ на свежий вопрос.
+   */
+  private async handleContinuousTranscript(
+    client: WebSocket,
+    state: ConnectionState,
+    listening: ListeningStream,
+    transcript: AsrTranscript,
+  ): Promise<void> {
+    if (state.listening !== listening || !state.callStarted) {
+      return;
+    }
+
+    await this.sendEvent(client, state, {
+      type: "listen.transcript",
+      streamId: listening.streamId,
+      transcript: transcript.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS),
+      audioMs: transcript.audioMs,
+      processingMs: transcript.processingMs,
+    });
+
+    const operatorText = transcript.transcript
+      .trim()
+      .slice(0, MAX_UTTERANCE_CHARACTERS);
+    if (operatorText.length === 0) {
+      return;
+    }
+
+    await this.startRequest(
+      client,
+      state,
+      { type: "speak", operatorText },
+      false,
+      performance.now(),
+    );
   }
 
   /**
@@ -595,8 +632,7 @@ export class VoicePipelineGateway
 
     state.listening = null;
     listening.recording.close();
-    // Естественная пауза ответа начинается, когда оператор физически отпустил
-    // кнопку, а не после того, как ASR и Scenario Engine закончили работу.
+    // Явная остановка используется при mute/end и досылает незавершённый хвост.
     const responseWaitingSince = performance.now();
 
     let transcript;

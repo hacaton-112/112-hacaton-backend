@@ -230,6 +230,7 @@ const heard: AsrTranscript = {
 interface AsrMocks {
   open: jest.Mock;
   send: jest.Mock;
+  onTranscript: jest.Mock;
   finish: jest.Mock;
   abort: jest.Mock;
 }
@@ -240,12 +241,14 @@ const createAsr = (
   const mocks: AsrMocks = {
     open: jest.fn(),
     send: jest.fn(),
+    onTranscript: jest.fn(),
     finish,
     abort: jest.fn(),
   };
   const stream: AsrStreamHandle = {
     sessionId: "asr-session-1",
     send: mocks.send,
+    onTranscript: mocks.onTranscript,
     finish: mocks.finish as unknown as AsrStreamHandle["finish"],
     abort: mocks.abort,
   };
@@ -894,7 +897,7 @@ describe(VoicePipelineGateway.name, () => {
     );
   });
 
-  it("lets push-to-talk take the floor from an active caller reply", async () => {
+  it("lets recognised speech take the floor from an active caller reply", async () => {
     let markStreamStarted!: () => void;
     const streamStarted = new Promise<void>((resolve) => {
       markStreamStarted = resolve;
@@ -911,7 +914,12 @@ describe(VoicePipelineGateway.name, () => {
         signal.throwIfAborted();
         throw new Error("unreachable");
       });
-    const runtime = await createRuntime(waitingStream);
+    let streamNumber = 0;
+    const runtime = await createRuntime((request, signal) =>
+      streamNumber++ === 0
+        ? waitingStream(request, signal)
+        : successfulStream(request, signal),
+    );
     const active = runtime.gateway.handleClientMessage(
       asSocket(runtime.socket),
       message({ type: "speak", operatorText: "Что произошло?" }),
@@ -924,11 +932,24 @@ describe(VoicePipelineGateway.name, () => {
       message({ type: "listen.start" }),
       false,
     );
-    await active;
 
     expect(textEvents(runtime.socket).map(({ type }) => type)).toEqual([
-      "request.cancelled",
       "listen.started",
+    ]);
+
+    const onTranscript = runtime.asr.onTranscript.mock.calls[0]?.[0] as
+      ((transcript: AsrTranscript) => void) | undefined;
+    onTranscript?.(heard);
+    await active;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(textEvents(runtime.socket).map(({ type }) => type)).toEqual([
+      "listen.started",
+      "listen.transcript",
+      "request.cancelled",
+      "reply.text",
+      "audio.start",
+      "audio.done",
     ]);
   });
 
@@ -1036,7 +1057,7 @@ describe(VoicePipelineGateway.name, () => {
     );
   });
 
-  it("holds the silence timer for as long as the operator has the floor", async () => {
+  it("does not pause the silence timer merely because the microphone is open", async () => {
     const engine = createEngine();
     const runtime = await createRuntime(
       successfulStream,
@@ -1052,7 +1073,7 @@ describe(VoicePipelineGateway.name, () => {
       false,
     );
 
-    expect(speaking).toHaveBeenLastCalledWith(
+    expect(speaking).not.toHaveBeenCalledWith(
       expect.objectContaining({ speaking: true }),
     );
 
@@ -1287,7 +1308,9 @@ describe(VoicePipelineGateway.name, () => {
       (event) => event.type === "listen.stopped",
     );
 
-    expect(stopped).toMatchObject({ transcript: longUtterance.slice(0, 4_000) });
+    expect(stopped).toMatchObject({
+      transcript: longUtterance.slice(0, 4_000),
+    });
   });
 
   it("records the operator's voice as well as recognising it", async () => {
