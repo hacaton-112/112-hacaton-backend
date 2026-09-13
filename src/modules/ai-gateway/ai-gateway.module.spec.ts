@@ -16,6 +16,7 @@ import {
 } from "./adapters/qwen-tts/qwen-tts.tokens";
 import { AiGatewayModule } from "./ai-gateway.module";
 import { LLM_PORT, TTS_PORT } from "./ai-gateway.tokens";
+import { QUESTION_UNDERSTANDING_PORT } from "./ports/question-understanding.port";
 
 const getModuleMetadata = (
   metadataKey: string,
@@ -70,9 +71,15 @@ describe("AI provider module registration", () => {
     expect(getModuleMetadata(MODULE_METADATA.EXPORTS, AiGatewayModule)).toEqual(
       expectedModules,
     );
+    // Разбор вопроса оператора — вторая работа того же провайдера, и порт у неё
+    // свой: играть заявителя и отвечать на служебный вопрос движка — разное.
     expect(
       getModuleMetadata(MODULE_METADATA.EXPORTS, AliceAiAdapterModule),
-    ).toEqual([LLM_PORT, AliceAiStructuredOutputClient]);
+    ).toEqual([
+      LLM_PORT,
+      AliceAiStructuredOutputClient,
+      QUESTION_UNDERSTANDING_PORT,
+    ]);
     expect(
       getModuleMetadata(MODULE_METADATA.EXPORTS, QwenTtsAdapterModule),
     ).toEqual([TTS_PORT]);

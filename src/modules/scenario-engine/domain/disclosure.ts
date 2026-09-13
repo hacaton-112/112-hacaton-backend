@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FactIdSchema, MAX_ALLOWED_FACTS } from "@/contracts";
+import { MAX_ALLOWED_FACTS } from "@/contracts";
 import type { CallStage, FactSeverity } from "@/drizzle/schema";
 
 import { PANIC_LEVELS, type PanicLevel } from "./panic-scale";
@@ -17,12 +17,6 @@ export const DisclosureRuleSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("on_question"),
       keywords: z.array(z.string().trim().min(2)).min(1).max(32),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("after_fact"),
-      factKeys: z.array(FactIdSchema).min(1).max(16),
     })
     .strict(),
   z
@@ -59,6 +53,8 @@ export type DisclosureRule = z.infer<typeof DisclosureRuleSchema>;
 export interface ScenarioFact {
   readonly key: string;
   readonly promptValue: string;
+  /** Как факт называется в разборе и в вопросе к модели: «Код двери». */
+  readonly displayLabel: string;
   readonly severity: FactSeverity;
   readonly disclosure: DisclosureRule;
   /** По каким словам слышно, что заявитель этот факт уже назвал. */
@@ -70,6 +66,14 @@ export interface ScenarioFact {
 export interface DisclosureContext {
   readonly revealedKeys: readonly string[];
   readonly operatorText: string;
+  /**
+   * О чём спросил оператор, по разбору модели.
+   *
+   * `undefined` — разбора нет: модель недоступна, ход без вопроса или сценарий
+   * читает старый клиент. Тогда работает прежнее сравнение по словам автора, и
+   * заявитель отвечает так же, как отвечал до появления разбора.
+   */
+  readonly askedFactKeys?: readonly string[];
   readonly callerTurns: number;
   readonly panicLevel: PanicLevel;
   readonly stage: CallStage;
@@ -174,16 +178,20 @@ const STAGE_ORDER: Record<CallStage, number> = {
 };
 
 export const isFactAvailable = (
-  rule: DisclosureRule,
+  fact: Pick<ScenarioFact, "key" | "disclosure">,
   context: DisclosureContext,
 ): boolean => {
+  const rule = fact.disclosure;
+
   switch (rule.type) {
     case "immediate":
       return true;
     case "on_question":
-      return matchesKeywords(context.operatorText, rule.keywords);
-    case "after_fact":
-      return rule.factKeys.every((key) => context.revealedKeys.includes(key));
+      // Разобранный вопрос главнее словаря автора: он понимает «кто дома?» там,
+      // где список слов ждал «люди» или «внутри».
+      return context.askedFactKeys === undefined
+        ? matchesKeywords(context.operatorText, rule.keywords)
+        : context.askedFactKeys.includes(fact.key);
     case "after_turns":
       return context.callerTurns >= rule.turns;
     case "below_panic":
@@ -222,7 +230,7 @@ export const selectAllowedFacts = (
     .filter(
       (fact) =>
         !context.revealedKeys.includes(fact.key) &&
-        isFactAvailable(fact.disclosure, context),
+        isFactAvailable(fact, context),
     )
     // Прямой ответ на текущий вопрос важнее фонового immediate-факта. Иначе
     // при малом бюджете паники вопрос об адресе снова получал описание пожара.

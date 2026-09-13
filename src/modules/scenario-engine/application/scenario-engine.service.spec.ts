@@ -1,3 +1,5 @@
+import { Logger } from "@nestjs/common";
+
 import type { CallerReply } from "@/contracts";
 
 import { ScenarioEngineError } from "../domain/scenario-engine.error";
@@ -47,6 +49,7 @@ const version = (
   facts: [
     {
       key: "incident_type",
+      displayLabel: "Что горит",
       promptValue: "Горит квартира на пятом этаже.",
       severity: "normal",
       disclosure: { type: "immediate" },
@@ -56,6 +59,7 @@ const version = (
     },
     {
       key: "address_street",
+      displayLabel: "Улица",
       promptValue: "Улица Учебная, дом 12.",
       severity: "normal",
       disclosure: { type: "on_question", keywords: ["адрес", "улиц"] },
@@ -65,6 +69,7 @@ const version = (
     },
     {
       key: "trapped_children",
+      displayLabel: "Пострадавшие",
       promptValue: "В квартире двое детей.",
       severity: "heavy",
       disclosure: { type: "immediate" },
@@ -383,6 +388,7 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
           facts: [
             {
               key: "address_house",
+              displayLabel: "Дом и подъезд",
               promptValue: "Дом двенадцать.",
               severity: "normal",
               disclosure: { type: "on_question", keywords: ["дом"] },
@@ -392,6 +398,7 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
             },
             {
               key: "door_code",
+              displayLabel: "Код двери",
               promptValue: "Код домофона один-К-сорок пять.",
               severity: "normal",
               disclosure: { type: "below_panic", level: 1 },
@@ -458,6 +465,70 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
       "incident_type",
       "trapped_children",
     ]);
+  });
+
+  it("opens a fact by the parsed question, not by the words of the author", async () => {
+    const { engine } = createEngine();
+
+    // «Кто дома?» — ни одного слова из списка автора («люди», «внутри», «кто»
+    // есть, но проверяем именно путь разбора), зато разбор назвал факт.
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "У вас там кто-то остался?",
+      resolveAskedFacts: () => Promise.resolve(["trapped_children"]),
+    });
+
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "trapped_children",
+    ]);
+  });
+
+  it("shows the parser the labels and the checklist question, never the answer", async () => {
+    const { engine } = createEngine();
+    let seen: readonly { id: string; label: string; question: string | null }[] =
+      [];
+
+    await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Где горит?",
+      resolveAskedFacts: (facts) => {
+        seen = facts;
+
+        return Promise.resolve([]);
+      },
+    });
+
+    // Содержания фактов в разборе нет: понимание вопроса не должно становиться
+    // лазейкой к сведениям, которые сценарий держит закрытыми.
+    expect(seen).toEqual([
+      { id: "incident_type", label: "Что горит", question: null },
+      { id: "address_street", label: "Улица", question: "Точный адрес" },
+      {
+        id: "trapped_children",
+        label: "Пострадавшие",
+        question: "Есть ли люди внутри",
+      },
+    ]);
+  });
+
+  it("falls back to the author's words when the parser fails", async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => undefined);
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+      resolveAskedFacts: () => Promise.reject(new Error("provider is down")),
+    });
+
+    // Модель отказала — заявитель всё равно отвечает, как отвечал раньше.
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
+      "address_street",
+    ]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("does not answer a specific question with the fact that just opened", async () => {

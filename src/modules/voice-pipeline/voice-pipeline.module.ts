@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
+import { AliceAiAdapterModule } from "@/modules/ai-gateway";
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { CallRecordingModule } from "@/modules/call-recording";
@@ -45,6 +46,9 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
     CallRecordingModule,
     ScenarioEngineModule,
     DialogueGenerationModule,
+    // Тот же провайдер, вторая работа: разобрать вопрос оператора по каталогу
+    // фактов сценария до того, как движок решит, что заявителю можно сказать.
+    AliceAiAdapterModule,
     IncidentCardModule,
     SpeechSynthesisModule,
   ],

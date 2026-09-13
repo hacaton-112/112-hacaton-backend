@@ -1,4 +1,5 @@
 import type { CallerReply, DialogueGenerationResult } from "@/contracts";
+import type { QuestionUnderstandingPort } from "@/modules/ai-gateway";
 import type { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
@@ -11,6 +12,13 @@ const fallbackReply: CallerReply = {
   revealedFactIds: ["address"],
   endCall: false,
 };
+
+const createQuestions = (
+  understand: jest.Mock = jest.fn().mockResolvedValue([]),
+): { port: QuestionUnderstandingPort; understand: jest.Mock } => ({
+  port: { understand } as unknown as QuestionUnderstandingPort,
+  understand,
+});
 
 const generation: Pick<DialogueGenerationResult, "source" | "attempts"> = {
   source: "fallback",
@@ -56,6 +64,7 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
     };
     const factory = new ScenarioVoicePipelineRequestFactory(
       engine as unknown as ScenarioEngineService,
+      createQuestions().port,
     );
 
     const request = await factory.create({
@@ -71,6 +80,69 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
     ]);
   });
 
+  it("asks the parser once for a question the operator repeats", async () => {
+    const engine = {
+      buildGenerationContext: jest
+        .fn()
+        .mockImplementation(
+          async ({
+            resolveAskedFacts,
+          }: {
+            resolveAskedFacts?: (
+              facts: readonly { id: string }[],
+            ) => Promise<readonly string[]>;
+          }) => {
+            await resolveAskedFacts?.([
+              { id: "address_street", label: "Улица", question: "Адрес" },
+            ] as never);
+
+            return {
+              scenarioVersionId: "scenario-version-1",
+              context: {
+                persona: {
+                  id: "caller-1",
+                  description: "Взволнованный заявитель",
+                  language: "Russian",
+                },
+                allowedFacts: [{ id: "address", value: fallbackReply.text }],
+                recentTurns: [],
+              },
+              voice: {
+                voiceId: "Vivian",
+                gender: "female",
+                emotion: "panic",
+                intensity: 0.8,
+                speechRate: 1.1,
+              },
+              fallbackReply,
+            };
+          },
+        ),
+      applyCallerReply: jest.fn(),
+    };
+    const questions = createQuestions(
+      jest.fn().mockResolvedValue(["address_street"]),
+    );
+    const factory = new ScenarioVoicePipelineRequestFactory(
+      engine as unknown as ScenarioEngineService,
+      questions.port,
+    );
+    const ask = (operatorText: string) =>
+      factory.create({
+        command: { type: "speak", operatorText },
+        requestId: "request-1",
+        sessionId: "session-1",
+        signal: new AbortController().signal,
+      });
+
+    await ask("Назовите адрес");
+    // Тот же вопрос другими знаками: занятие идёт по кругу, и платить за
+    // разбор каждый раз незачем.
+    await ask("  назовите   адрес!  ");
+
+    expect(questions.understand).toHaveBeenCalledTimes(1);
+  });
+
   it("returns generation provenance to the Scenario Engine journal", async () => {
     const engine = {
       buildGenerationContext: jest.fn(),
@@ -78,6 +150,7 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
     };
     const factory = new ScenarioVoicePipelineRequestFactory(
       engine as unknown as ScenarioEngineService,
+      createQuestions().port,
     );
 
     await factory.recordReply({

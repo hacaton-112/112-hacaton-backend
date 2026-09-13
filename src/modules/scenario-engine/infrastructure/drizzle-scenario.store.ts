@@ -114,6 +114,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
       facts: facts.map((fact): ScenarioFact => ({
         key: fact.key,
         promptValue: fact.promptValue,
+        displayLabel: fact.displayLabel,
         severity: fact.severity,
         // Условие лежит в jsonb, поэтому проверяется схемой на входе: битое
         // правило должно валить загрузку сценария, а не молча открывать факт.

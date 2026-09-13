@@ -24,6 +24,7 @@ const context = (
 
 const fact = (overrides: Partial<ScenarioFact> = {}): ScenarioFact => ({
   key: "address_street",
+  displayLabel: "address_street",
   promptValue: "Улица Учебная, дом 12.",
   severity: "normal",
   disclosure: { type: "immediate" },
@@ -67,7 +68,6 @@ describe("DisclosureRuleSchema", () => {
     const rules = [
       { type: "immediate" },
       { type: "on_question", keywords: ["адрес"] },
-      { type: "after_fact", factKeys: ["address_street"] },
       { type: "after_turns", turns: 3 },
       { type: "below_panic", level: 2 },
       { type: "after_stage", stage: "wrap_up" },
@@ -77,6 +77,17 @@ describe("DisclosureRuleSchema", () => {
     for (const rule of rules) {
       expect(DisclosureRuleSchema.safeParse(rule).success).toBe(true);
     }
+  });
+
+  it("no longer knows the rule that chained one fact to another", () => {
+    // Порядок опроса больше не задаётся данными: снято намеренно, и сценарий с
+    // таким условием обязан не загрузиться, а не открыть факт молча.
+    expect(
+      DisclosureRuleSchema.safeParse({
+        type: "after_fact",
+        factKeys: ["trapped_children"],
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects an unknown variant and a malformed one", () => {
@@ -95,63 +106,78 @@ describe("DisclosureRuleSchema", () => {
 
 describe("isFactAvailable", () => {
   it("opens an immediate fact from the first turn", () => {
-    expect(isFactAvailable({ type: "immediate" }, context())).toBe(true);
+    expect(
+      isFactAvailable(fact({ disclosure: { type: "immediate" } }), context()),
+    ).toBe(true);
   });
 
   it("opens a question fact only when the operator asks", () => {
     const rule: DisclosureRule = { type: "on_question", keywords: ["адрес"] };
 
-    expect(isFactAvailable(rule, context())).toBe(false);
+    expect(isFactAvailable(fact({ disclosure: rule }), context())).toBe(false);
     expect(
-      isFactAvailable(rule, context({ operatorText: "Какой адрес?" })),
-    ).toBe(true);
-  });
-
-  it("waits for every prerequisite fact", () => {
-    const rule: DisclosureRule = {
-      type: "after_fact",
-      factKeys: ["address_street", "address_house"],
-    };
-
-    expect(
-      isFactAvailable(rule, context({ revealedKeys: ["address_street"] })),
-    ).toBe(false);
-    expect(
-      isFactAvailable(
-        rule,
-        context({ revealedKeys: ["address_street", "address_house"] }),
-      ),
+      isFactAvailable(fact({ disclosure: rule }), context({ operatorText: "Какой адрес?" })),
     ).toBe(true);
   });
 
   it("waits for the caller to speak enough times", () => {
     const rule: DisclosureRule = { type: "after_turns", turns: 3 };
 
-    expect(isFactAvailable(rule, context({ callerTurns: 2 }))).toBe(false);
-    expect(isFactAvailable(rule, context({ callerTurns: 3 }))).toBe(true);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ callerTurns: 2 }))).toBe(false);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ callerTurns: 3 }))).toBe(true);
   });
 
   it("keeps a fact behind the panic gate until the caller calms down", () => {
     const rule: DisclosureRule = { type: "below_panic", level: 2 };
 
-    expect(isFactAvailable(rule, context({ panicLevel: 3 }))).toBe(false);
-    expect(isFactAvailable(rule, context({ panicLevel: 2 }))).toBe(true);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ panicLevel: 3 }))).toBe(false);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ panicLevel: 2 }))).toBe(true);
   });
 
   it("opens a stage fact from that stage onwards", () => {
     const rule: DisclosureRule = { type: "after_stage", stage: "wrap_up" };
 
-    expect(isFactAvailable(rule, context({ stage: "conversation" }))).toBe(
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ stage: "conversation" }))).toBe(
       false,
     );
-    expect(isFactAvailable(rule, context({ stage: "wrap_up" }))).toBe(true);
-    expect(isFactAvailable(rule, context({ stage: "ended" }))).toBe(true);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ stage: "wrap_up" }))).toBe(true);
+    expect(isFactAvailable(fact({ disclosure: rule }), context({ stage: "ended" }))).toBe(true);
+  });
+
+  it("opens a question fact by the parsed question rather than by words", () => {
+    const rule = {
+      type: "on_question" as const,
+      keywords: ["люди", "внутри"],
+    };
+
+    // Оператор спросил «кто дома?» — в словаре автора таких слов нет, но разбор
+    // вопроса назвал факт, и этого достаточно.
+    expect(
+      isFactAvailable(
+        fact({ key: "trapped_children", disclosure: rule }),
+        context({
+          operatorText: "Кто дома?",
+          askedFactKeys: ["trapped_children"],
+        }),
+      ),
+    ).toBe(true);
+
+    // И наоборот: слова совпали, но разбор сказал, что спрашивали о другом.
+    expect(
+      isFactAvailable(
+        fact({ key: "trapped_children", disclosure: rule }),
+        context({
+          operatorText: "Там люди рядом с домом стоят?",
+          askedFactKeys: ["caller_position"],
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("never opens a fact the caller does not know", () => {
     expect(
       isFactAvailable(
-        { type: "never" },
+        fact({ disclosure: { type: "never" } }),
         context({ operatorText: "Причина пожара?", callerTurns: 20 }),
       ),
     ).toBe(false);
@@ -165,6 +191,7 @@ describe("selectAllowedFacts", () => {
     fact({ key: "smoke", priority: 1, orderIndex: 2 }),
     fact({
       key: "door_code",
+      displayLabel: "door_code",
       disclosure: { type: "below_panic", level: 1 },
       orderIndex: 3,
     }),
@@ -189,6 +216,7 @@ describe("selectAllowedFacts", () => {
         fact({ key: "incident_type", priority: 10, orderIndex: 0 }),
         fact({
           key: "address_street",
+          displayLabel: "address_street",
           priority: 1,
           orderIndex: 1,
           disclosure: { type: "on_question", keywords: ["адрес"] },
