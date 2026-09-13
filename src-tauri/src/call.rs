@@ -846,6 +846,18 @@ async fn pump(
                                 listening = false;
                                 pending.clear();
                             }
+                            Some("call.ended") => {
+                                listening = false;
+                                pending.clear();
+                                if let Some(audio) = tts_audio.take() {
+                                    audio.sink.stop();
+                                }
+                                if let Some(sink) = playback_sink.take() {
+                                    sink.stop();
+                                }
+                                playback_generation = playback_generation.wrapping_add(1);
+                                deferred_audio_done = None;
+                            }
                             Some("error") => {
                                 listening = false;
                                 pending.clear();
@@ -902,7 +914,7 @@ async fn pump(
                                     });
                                 }
                             }
-                            Some("request.cancelled") | Some("call.ended") => {
+                            Some("request.cancelled") => {
                                 if let Some(audio) = tts_audio.take() {
                                     audio.sink.stop();
                                 }

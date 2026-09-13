@@ -55,11 +55,7 @@ export interface CallControls {
       "scenarioVersionId" | "category" | "title" | "difficulty"
     >,
   ) => void;
-  accept: () => void;
-  reject: () => void;
   end: () => Promise<void>;
-  holdFloor: () => void;
-  releaseFloor: () => void;
   toggleMute: () => void;
   reset: () => void;
 }
@@ -112,6 +108,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [answerNormSeconds, setAnswerNormSeconds] = useState(240);
   const [dialogue, setDialogue] = useState<DialogueTurn[]>([]);
   const [isListening, setListening] = useState(false);
+  const [hasOpenedMicrophone, setHasOpenedMicrophone] = useState(false);
   const [isCallerSpeaking, setCallerSpeaking] = useState(false);
   const [callerAudioLevel, setCallerAudioLevel] = useState(0);
   const [isMuted, setMuted] = useState(false);
@@ -151,12 +148,22 @@ export function useCall(): CallSnapshot & CallControls {
       case "call.ended":
         setState("ended");
         setListening(false);
+        void streamRef.current?.stopCapture();
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
         break;
       case "listen.started":
         setListening(true);
+        setHasOpenedMicrophone(true);
         setError(undefined);
+        break;
+      case "listen.transcript":
+        if (event.transcript.trim().length > 0) {
+          setDialogue((turns) => [
+            ...turns,
+            { id: turnId(), role: "operator", text: event.transcript },
+          ]);
+        }
         break;
       case "listen.stopped":
         setListening(false);
@@ -303,6 +310,45 @@ export function useCall(): CallSnapshot & CallControls {
     [],
   );
 
+  const acceptingRef = useRef(false);
+  useEffect(() => {
+    if (state !== "ringing" || acceptingRef.current) return;
+
+    acceptingRef.current = true;
+    void runCommand((stream) => stream.accept())
+      .catch(() => undefined)
+      .finally(() => {
+        acceptingRef.current = false;
+      });
+  }, [state, runCommand]);
+
+  const startingMicrophoneRef = useRef(false);
+  useEffect(() => {
+    if (
+      state !== "active" ||
+      isMuted ||
+      isListening ||
+      startingMicrophoneRef.current ||
+      (!hasOpenedMicrophone && isCallerSpeaking)
+    ) {
+      return;
+    }
+
+    startingMicrophoneRef.current = true;
+    void runCommand((stream) => stream.holdFloor())
+      .catch(() => undefined)
+      .finally(() => {
+        startingMicrophoneRef.current = false;
+      });
+  }, [
+    state,
+    isMuted,
+    isListening,
+    hasOpenedMicrophone,
+    isCallerSpeaking,
+    runCommand,
+  ]);
+
   const command = useCallback(
     (run: (stream: CallStream) => Promise<void>) => () => {
       void runCommand(run).catch(() => undefined);
@@ -321,6 +367,7 @@ export function useCall(): CallSnapshot & CallControls {
     setChecklistTotal(0);
     setDialogue([]);
     setListening(false);
+    setHasOpenedMicrophone(false);
     setCallerSpeaking(false);
     setCallerAudioLevel(0);
     setMuted(false);
@@ -348,8 +395,12 @@ export function useCall(): CallSnapshot & CallControls {
   );
 
   const end = useCallback(
-    () => runCommand((stream) => stream.end()),
-    [runCommand],
+    () =>
+      runCommand(async (stream) => {
+        if (isListening) await stream.releaseFloor();
+        await stream.end();
+      }),
+    [isListening, runCommand],
   );
 
   const toggleMute = useCallback(() => {
@@ -385,11 +436,7 @@ export function useCall(): CallSnapshot & CallControls {
     acceptedAt,
     elapsedSeconds,
     startScenario,
-    accept: command((stream) => stream.accept()),
-    reject: command((stream) => stream.decline()),
     end,
-    holdFloor: command((stream) => stream.holdFloor()),
-    releaseFloor: command((stream) => stream.releaseFloor()),
     toggleMute,
     reset,
   };

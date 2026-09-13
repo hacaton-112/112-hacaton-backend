@@ -75,6 +75,13 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     processingMs: z.number(),
   }),
   z.object({
+    type: z.literal("listen.transcript"),
+    streamId: z.string(),
+    transcript: z.string(),
+    audioMs: z.number(),
+    processingMs: z.number(),
+  }),
+  z.object({
     type: z.literal("reply.text"),
     text: z.string(),
     emotion: z.string(),

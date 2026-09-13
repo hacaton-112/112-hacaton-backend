@@ -455,7 +455,7 @@ body,
    * Задаём высоту явно — тогда grid-rows-1 (minmax(0, 1fr)) держит колонки в окне.
    */
   .operator-workspace {
-    height: calc(var(--app-viewport-height) - 38px) !important;
+    height: var(--app-viewport-height) !important;
   }
 
   .operator-column-scroll {
