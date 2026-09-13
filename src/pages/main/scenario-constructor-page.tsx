@@ -35,6 +35,7 @@ import {
 } from "../../components/scenario-authoring/scenario-rules-sections";
 import {
   createEmptyScenario,
+  mergeScenarioAssistantDraft,
   ScenarioSeedSchema,
   type PublishedScenario,
   type ScenarioSeed,
@@ -59,6 +60,8 @@ const FIELD_LABELS: Record<string, string> = {
   "persona.voiceId": "Голос TTS",
   "version.openingLine": "Первая реплика",
   "version.fallbackLine": "Запасная реплика",
+  "location.exactPoint": "Точка происшествия",
+  "location.locatorCenter": "Область геолокации",
   "location.locatorLabel": "Подпись области геолокации",
 };
 
@@ -129,7 +132,9 @@ export default function ScenarioConstructorPage() {
 
     try {
       const result = await draft.mutateAsync(normalizedBrief);
-      setScenario(result.scenario);
+      setScenario((current) =>
+        mergeScenarioAssistantDraft(current, result.scenario),
+      );
       setAuthoringSource("assistant");
       setAuthoringPrompt(result.authoringPrompt);
       toast.success("Черновик заполнен", {
@@ -260,8 +265,8 @@ export default function ScenarioConstructorPage() {
             </Flex>
 
             <Text as="p" size="2" color="gray" mb="3">
-              Опишите учебную ситуацию: происшествие, заявителя, место, скрытые
-              сведения и ожидаемые действия оператора.
+              Опишите происшествие, заявителя, скрытые сведения и ожидаемые
+              действия оператора. Адрес и область на карте задаются вручную.
             </Text>
 
             <label className="text-gray-11 grid gap-1 text-xs">
@@ -304,8 +309,8 @@ export default function ScenarioConstructorPage() {
               </Callout.Icon>
               <Callout.Text>
                 Текст описания передаётся во внешний Alice AI. Используйте
-                только синтетические имена, адреса и телефоны. Помощник ничего
-                не публикует.
+                только синтетические имена и телефоны. Помощник не получает и не
+                изменяет адрес или координаты и ничего не публикует.
               </Callout.Text>
             </Callout.Root>
 

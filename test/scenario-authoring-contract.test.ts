@@ -3,6 +3,8 @@ import { describe, expect, it } from "bun:test";
 import {
   createEmptyScenario,
   GenerateScenarioDraftResponseSchema,
+  mergeScenarioAssistantDraft,
+  ScenarioAssistantDraftSchema,
   ScenarioSeedSchema,
   type ScenarioSeed,
 } from "../src/contracts/scenario-authoring";
@@ -28,6 +30,8 @@ const validScenario = (): ScenarioSeed => ({
   },
   location: {
     ...createEmptyScenario().location,
+    exactPoint: [55.75, 37.61],
+    locatorCenter: [55.751, 37.611],
     locatorLabel: "Базовая станция: Учебный квартал",
   },
   facts: [
@@ -77,13 +81,30 @@ describe("ScenarioSeedSchema", () => {
     expect(ScenarioSeedSchema.safeParse(scenario).success).toBe(false);
   });
 
-  it("validates an assistant response through the same scenario schema", () => {
+  it("keeps location outside the assistant response contract", () => {
+    const { location, ...assistantDraft } = validScenario();
+
+    expect(
+      GenerateScenarioDraftResponseSchema.safeParse({
+        scenario: assistantDraft,
+        authoringPrompt:
+          "Сформируй синтетический учебный пожар в мастерской с пострадавшим.",
+      }).success,
+    ).toBe(true);
+    expect(Object.keys(ScenarioAssistantDraftSchema.shape)).not.toContain(
+      "location",
+    );
     expect(
       GenerateScenarioDraftResponseSchema.safeParse({
         scenario: validScenario(),
         authoringPrompt:
           "Сформируй синтетический учебный пожар в мастерской с пострадавшим.",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      mergeScenarioAssistantDraft(createEmptyScenario(), assistantDraft)
+        .location,
+    ).toEqual(createEmptyScenario().location);
+    expect(location.exactPoint).toEqual([55.75, 37.61]);
   });
 });
