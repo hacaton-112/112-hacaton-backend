@@ -4,6 +4,10 @@
 Старые домены шаблонного проекта удалены; сохранены только применимые к кейсу
 архитектурные паттерны и интеграция PostgreSQL через Drizzle ORM.
 
+Подробное объяснение ролей `dto`, `contracts`, `domain`, `application`, `ports`
+и `infrastructure` находится в
+[`docs/module-architecture.md`](docs/module-architecture.md).
+
 ## Что уже есть
 
 - NestJS 11 и URI-версионирование API (`/api/v1`);
