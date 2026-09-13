@@ -10,6 +10,8 @@ export const API_CONFIG = {
   getLogoutUrl: () => `/auth/logout`,
   getCurrentUserUrl: () => `/auth/me`,
   getScenariosUrl: () => `/scenarios`,
+  getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
+  getScenarioPublishUrl: () => `/scenarios`,
   getCallsUrl: () => `/calls`,
   getIncidentCardUrl: (trainingSessionId: string) =>
     `/calls/${trainingSessionId}/incident-card`,

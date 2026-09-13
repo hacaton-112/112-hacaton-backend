@@ -1,6 +1,9 @@
-import { Flex, Text } from "@bolid-ui/themes";
+import { Button, Flex, Text } from "@bolid-ui/themes";
+import { FilePlus2 } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import type { CallState } from "../../hooks/use-call";
+import { useAuthStore } from "../../stores/auth.store";
 
 interface OperatorHeaderProps {
   state: CallState;
@@ -30,6 +33,10 @@ export function OperatorHeader({
   scenarioDifficulty,
   operatorName,
 }: OperatorHeaderProps) {
+  const navigate = useNavigate();
+  const role = useAuthStore((state) => state.user?.role);
+  const canAuthorScenarios = role === "instructor" || role === "admin";
+
   return (
     <header className="border-grayA-4 bg-panel flex h-[38px] shrink-0 items-center border-b px-4">
       <Flex align="center" gap="3" className="min-w-0 flex-1">
@@ -52,6 +59,17 @@ export function OperatorHeader({
       </Text>
 
       <Flex align="center" gap="2" className="min-w-0 justify-end">
+        {canAuthorScenarios && (
+          <Button
+            type="button"
+            size="1"
+            variant="ghost"
+            onClick={() => navigate("/scenarios/new")}
+          >
+            <FilePlus2 size={14} />
+            <span className="hidden xl:inline">Конструктор</span>
+          </Button>
+        )}
         <Text size="1" color="gray" className="hidden truncate md:block">
           Стажёр: {operatorName}
         </Text>
