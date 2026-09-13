@@ -16,16 +16,6 @@ export const validAssistantSuggestion = () => ({
   openingLine: "Алло, у нас дым в мастерской!",
   fallbackLine: "Я не знаю, пожалуйста, приезжайте скорее.",
   expectedServices: ["fire", "ambulance"] as const,
-  location: {
-    terrain: "city_block" as const,
-    city: "Учебный город",
-    street: "Учебная",
-    house: "12",
-    details: "Мастерская во дворе",
-    exactPoint: { lat: 55.751244, lon: 37.618423 },
-    locatorLabel: "Базовая станция: Учебный квартал",
-    callerNumber: "+7 000 000-00-00",
-  },
   facts: [
     {
       key: "incident_type",
@@ -40,13 +30,13 @@ export const validAssistantSuggestion = () => ({
       priority: 10,
     },
     {
-      key: "address",
-      promptValue: "Адрес: Учебная улица, дом 12.",
-      displayLabel: "Адрес",
+      key: "scene",
+      promptValue: "Происшествие происходит во дворе учебной мастерской.",
+      displayLabel: "Место происшествия",
       severity: "normal" as const,
-      cardField: "street" as const,
-      cardValue: "Учебная",
-      contentKeywords: ["учебн", "дом"],
+      cardField: "object_type" as const,
+      cardValue: "двор мастерской",
+      contentKeywords: ["двор", "мастерск"],
       disclosureType: "on_question" as const,
       questionKeywords: ["адрес", "где"],
       priority: 9,
@@ -66,8 +56,8 @@ export const validAssistantSuggestion = () => ({
   ],
   mandatoryQuestions: [
     {
-      text: "Уточнить точный адрес происшествия",
-      satisfiedByFactKeys: ["address"],
+      text: "Уточнить тип места происшествия",
+      satisfiedByFactKeys: ["scene"],
       isCritical: true,
     },
     {
@@ -76,5 +66,6 @@ export const validAssistantSuggestion = () => ({
       isCritical: true,
     },
   ],
-  referenceNotes: "Проверить адрес, пострадавшего и выбор двух служб.",
+  referenceNotes:
+    "Проверить место происшествия, пострадавшего и выбор двух служб.",
 });

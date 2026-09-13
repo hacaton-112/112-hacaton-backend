@@ -14,6 +14,7 @@ import {
   TERRAIN_TYPES,
 } from "@/drizzle/schema";
 
+import { CallerUtteranceSchema } from "./caller-utterance.schema";
 import { DisclosureRuleSchema } from "./disclosure";
 import { EscalationParamsSchema } from "./escalation-params";
 import { PANIC_LEVELS } from "./panic-scale";
@@ -32,6 +33,28 @@ const CoordinatesSchema = z.tuple([
   z.number().min(-90).max(90),
   z.number().min(-180).max(180),
 ]);
+
+const isUnsetCoordinates = ([latitude, longitude]: [number, number]): boolean =>
+  latitude === 0 && longitude === 0;
+
+const distanceBetweenCoordinates = (
+  [fromLatitude, fromLongitude]: [number, number],
+  [toLatitude, toLongitude]: [number, number],
+): number => {
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(toLatitude - fromLatitude);
+  const longitudeDelta = toRadians(toLongitude - fromLongitude);
+  const fromLatitudeRadians = toRadians(fromLatitude);
+  const toLatitudeRadians = toRadians(toLatitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitudeRadians) *
+      Math.cos(toLatitudeRadians) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+};
 
 /**
  * Форма файла сценария для сида.
@@ -82,8 +105,8 @@ export const ScenarioSeedSchema = z
         passThreshold: z.number().int().min(0).max(100),
         expectedServices: z.array(z.enum(EMERGENCY_SERVICES)).max(4),
         referenceNotes: z.string().trim().max(2_000).optional(),
-        openingLine: z.string().trim().min(3).max(500),
-        fallbackLine: z.string().trim().min(3).max(500),
+        openingLine: CallerUtteranceSchema,
+        fallbackLine: CallerUtteranceSchema,
       })
       .strict()
       .refine((value) => value.panicFloor <= value.panicCeiling, {
@@ -200,6 +223,37 @@ export const ScenarioSeedSchema = z
         code: "custom",
         path: ["persona", "baselinePanicLevel"],
         message: "Baseline panic level must be inside the version panic range",
+      });
+    }
+
+    if (isUnsetCoordinates(scenario.location.exactPoint)) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "exactPoint"],
+        message: "Select the incident point on the map",
+      });
+    }
+
+    if (isUnsetCoordinates(scenario.location.locatorCenter)) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "locatorCenter"],
+        message: "Select the locator range centre on the map",
+      });
+    }
+
+    if (
+      !isUnsetCoordinates(scenario.location.exactPoint) &&
+      !isUnsetCoordinates(scenario.location.locatorCenter) &&
+      distanceBetweenCoordinates(
+        scenario.location.exactPoint,
+        scenario.location.locatorCenter,
+      ) > scenario.location.locatorRadiusMeters
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "locatorCenter"],
+        message: "The incident point must be inside the locator range",
       });
     }
 

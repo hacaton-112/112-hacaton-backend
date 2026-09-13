@@ -5,14 +5,29 @@ import {
   FACT_SEVERITIES,
   INCIDENT_CARD_FIELDS,
   SCENARIO_CATEGORIES,
-  TERRAIN_TYPES,
 } from "@/drizzle/schema";
+import { CallerUtteranceSchema } from "@/modules/scenario-engine/domain/caller-utterance.schema";
 import {
   ScenarioSeedSchema,
   type ScenarioSeed,
 } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
-const AssistantCardFieldSchema = z.enum([...INCIDENT_CARD_FIELDS, "none"]);
+const ASSISTANT_CARD_FIELDS = [
+  "object_type",
+  "landmarks",
+  "caller_name",
+  "caller_phone",
+  "caller_type",
+  "dispatcher_notes",
+  "category",
+  "clarification",
+  "started_at",
+  "victims_total",
+  "children_count",
+  "victims_condition",
+] as const satisfies readonly (typeof INCIDENT_CARD_FIELDS)[number][];
+
+const AssistantCardFieldSchema = z.enum([...ASSISTANT_CARD_FIELDS, "none"]);
 
 /**
  * A deliberately smaller model-facing shape than ScenarioSeed.
@@ -39,26 +54,9 @@ export const ScenarioAssistantSuggestionSchema = z
         baseSpeechRate: z.number().min(0.5).max(2),
       })
       .strict(),
-    openingLine: z.string().min(3).max(500),
-    fallbackLine: z.string().min(3).max(500),
+    openingLine: CallerUtteranceSchema,
+    fallbackLine: CallerUtteranceSchema,
     expectedServices: z.array(z.enum(EMERGENCY_SERVICES)).min(1).max(4),
-    location: z
-      .object({
-        terrain: z.enum(TERRAIN_TYPES),
-        city: z.string().max(120),
-        street: z.string().max(120),
-        house: z.string().max(32),
-        details: z.string().max(200),
-        exactPoint: z
-          .object({
-            lat: z.number().min(-90).max(90),
-            lon: z.number().min(-180).max(180),
-          })
-          .strict(),
-        locatorLabel: z.string().min(3).max(200),
-        callerNumber: z.string().min(3).max(32),
-      })
-      .strict(),
     facts: z
       .array(
         z
@@ -102,26 +100,102 @@ export type ScenarioAssistantSuggestion = z.infer<
   typeof ScenarioAssistantSuggestionSchema
 >;
 
-const shiftCoordinate = (value: number, maximum: number): number =>
-  Number(
-    (value > maximum - 0.002 ? value - 0.0015 : value + 0.0015).toFixed(6),
-  );
+const MANUAL_LOCATION_VALIDATION_PLACEHOLDER: ScenarioSeed["location"] = {
+  terrain: "city_block",
+  exactAddress: {},
+  exactPoint: [55.7558, 37.6173],
+  locatorCenter: [55.7558, 37.6173],
+  locatorRadiusMeters: 500,
+  locatorLabel: "Manual location selection",
+  locatorAccuracy: "approximate",
+  callerNumber: "+7 000 000-00-00",
+  previouslyCalled: false,
+};
+
+export const ScenarioAssistantDraftSchema = z
+  .object({
+    code: ScenarioSeedSchema.shape.code,
+    title: ScenarioSeedSchema.shape.title,
+    category: ScenarioSeedSchema.shape.category,
+    difficulty: ScenarioSeedSchema.shape.difficulty,
+    summary: ScenarioSeedSchema.shape.summary,
+    persona: ScenarioSeedSchema.shape.persona,
+    version: ScenarioSeedSchema.shape.version,
+    escalation: ScenarioSeedSchema.shape.escalation,
+    facts: ScenarioSeedSchema.shape.facts,
+    mandatoryQuestions: ScenarioSeedSchema.shape.mandatoryQuestions,
+    referenceCard: ScenarioSeedSchema.shape.referenceCard,
+  })
+  .strict()
+  .superRefine((draft, context) => {
+    const result = ScenarioSeedSchema.safeParse({
+      ...draft,
+      location: MANUAL_LOCATION_VALIDATION_PLACEHOLDER,
+    });
+
+    if (!result.success) {
+      result.error.issues.forEach((issue) =>
+        context.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        }),
+      );
+    }
+  });
+export type ScenarioAssistantDraft = z.infer<
+  typeof ScenarioAssistantDraftSchema
+>;
+
+type EmergencyService = (typeof EMERGENCY_SERVICES)[number];
+
+const SERVICE_ALIASES = [
+  { service: "fire", pattern: /пожарн|мчс/iu },
+  { service: "police", pattern: /полиц|гибдд|дпс/iu },
+  { service: "ambulance", pattern: /скор(?:ая|ую|ой)|медик/iu },
+  { service: "gas", pattern: /газов/iu },
+] as const satisfies readonly {
+  service: EmergencyService;
+  pattern: RegExp;
+}[];
+
+/**
+ * An explicit `Службы:` clause is an author instruction, not a model choice.
+ * Preserve its order and ignore any extra services suggested by the provider.
+ */
+export const explicitExpectedServicesFromBrief = (
+  brief: string,
+): EmergencyService[] | undefined => {
+  const section = /(?:^|[\n.!?]\s*)служб(?:а|ы)\s*:\s*([^.!?\n]+)/iu.exec(
+    brief,
+  )?.[1];
+
+  if (section === undefined) {
+    return undefined;
+  }
+
+  const matches = SERVICE_ALIASES.flatMap(({ service, pattern }) => {
+    const index = section.search(pattern);
+
+    return index < 0 ? [] : [{ service, index }];
+  }).sort((left, right) => left.index - right.index);
+
+  return matches.length === 0
+    ? undefined
+    : matches.map(({ service }) => service);
+};
 
 /** Converts descriptive AI output into the authoritative Scenario Engine seed. */
-export const buildScenarioSeedFromSuggestion = (
+export const buildScenarioDraftFromSuggestion = (
   code: string,
   rawSuggestion: unknown,
-): ScenarioSeed => {
+  authoringBrief?: string,
+): ScenarioAssistantDraft => {
   const suggestion = ScenarioAssistantSuggestionSchema.parse(rawSuggestion);
-  const exactAddress = Object.fromEntries(
-    Object.entries({
-      city: suggestion.location.city,
-      street: suggestion.location.street,
-      house: suggestion.location.house,
-      details: suggestion.location.details,
-    }).filter(([, value]) => value.trim().length > 0),
-  );
-
+  const explicitExpectedServices =
+    authoringBrief === undefined
+      ? undefined
+      : explicitExpectedServicesFromBrief(authoringBrief);
   const seenReferenceFields = new Set<string>();
   const referenceFields = suggestion.facts.flatMap((fact) => {
     if (
@@ -146,7 +220,7 @@ export const buildScenarioSeedFromSuggestion = (
     ];
   });
 
-  return ScenarioSeedSchema.parse({
+  return ScenarioAssistantDraftSchema.parse({
     code,
     title: suggestion.title,
     category: suggestion.category,
@@ -174,27 +248,10 @@ export const buildScenarioSeedFromSuggestion = (
       answerNormSeconds: 240,
       expectedDurationSeconds: 240 + suggestion.difficulty * 60,
       passThreshold: 75,
-      expectedServices: suggestion.expectedServices,
+      expectedServices: explicitExpectedServices ?? suggestion.expectedServices,
       referenceNotes: suggestion.referenceNotes,
       openingLine: suggestion.openingLine,
       fallbackLine: suggestion.fallbackLine,
-    },
-    location: {
-      terrain: suggestion.location.terrain,
-      exactAddress,
-      exactPoint: [
-        suggestion.location.exactPoint.lat,
-        suggestion.location.exactPoint.lon,
-      ],
-      locatorCenter: [
-        shiftCoordinate(suggestion.location.exactPoint.lat, 90),
-        shiftCoordinate(suggestion.location.exactPoint.lon, 180),
-      ],
-      locatorRadiusMeters: 500,
-      locatorLabel: suggestion.location.locatorLabel,
-      locatorAccuracy: "approximate",
-      callerNumber: suggestion.location.callerNumber,
-      previouslyCalled: false,
     },
     escalation: [
       {

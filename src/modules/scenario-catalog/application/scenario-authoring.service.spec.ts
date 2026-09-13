@@ -68,6 +68,24 @@ describe(ScenarioAuthoringService.name, () => {
     });
   });
 
+  it("retries a draft whose scripted line is spoken by the operator", async () => {
+    const operatorDraft = validAssistantSuggestion();
+    operatorDraft.openingLine = "Здравствуйте, служба 112, что случилось?";
+    const { service, generate } = createService([
+      operatorDraft,
+      validAssistantSuggestion(),
+    ]);
+
+    await expect(
+      service.generateDraft("Учебное ДТП во дворе с одним пострадавшим"),
+    ).resolves.toBeDefined();
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][0].validationFeedback).toContain(
+      "openingLine",
+    );
+  });
+
   it("maps a duplicate scenario code to a public conflict", async () => {
     const { service, publish } = createService([]);
     publish.mockRejectedValueOnce(
