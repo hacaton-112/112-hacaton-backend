@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FactIdSchema, MAX_ALLOWED_FACTS } from "@/contracts";
+import { MAX_ALLOWED_FACTS } from "@/contracts";
 import type { CallStage, FactSeverity } from "@/drizzle/schema";
 
 import { PANIC_LEVELS, type PanicLevel } from "./panic-scale";
@@ -17,12 +17,6 @@ export const DisclosureRuleSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("on_question"),
       keywords: z.array(z.string().trim().min(2)).min(1).max(32),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("after_fact"),
-      factKeys: z.array(FactIdSchema).min(1).max(16),
     })
     .strict(),
   z
@@ -198,8 +192,6 @@ export const isFactAvailable = (
       return context.askedFactKeys === undefined
         ? matchesKeywords(context.operatorText, rule.keywords)
         : context.askedFactKeys.includes(fact.key);
-    case "after_fact":
-      return rule.factKeys.every((key) => context.revealedKeys.includes(key));
     case "after_turns":
       return context.callerTurns >= rule.turns;
     case "below_panic":

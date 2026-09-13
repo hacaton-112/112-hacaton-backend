@@ -173,29 +173,13 @@ export const ScenarioSeedSchema = z
     const keys = new Set(scenario.facts.map((fact) => fact.key));
 
     // Ссылка на несуществующий факт превратила бы обязательный вопрос в
-    // невыполнимый, а условие раскрытия — в «никогда».
+    // невыполнимый.
     scenario.mandatoryQuestions.forEach((question, index) => {
       for (const key of question.satisfiedByFactKeys) {
         if (!keys.has(key)) {
           context.addIssue({
             code: "custom",
             path: ["mandatoryQuestions", index, "satisfiedByFactKeys"],
-            message: `Unknown fact key: ${key}`,
-          });
-        }
-      }
-    });
-
-    scenario.facts.forEach((fact, index) => {
-      if (fact.disclosure.type !== "after_fact") {
-        return;
-      }
-
-      for (const key of fact.disclosure.factKeys) {
-        if (!keys.has(key)) {
-          context.addIssue({
-            code: "custom",
-            path: ["facts", index, "disclosure", "factKeys"],
             message: `Unknown fact key: ${key}`,
           });
         }
