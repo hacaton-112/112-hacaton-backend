@@ -12,6 +12,11 @@ export const API_CONFIG = {
   getScenariosUrl: () => `/scenarios`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
   getScenarioPublishUrl: () => `/scenarios`,
+  getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,
+  getScenarioVersionUrl: (scenarioVersionId: string) =>
+    `/scenarios/versions/${scenarioVersionId}`,
+  getScenarioVersionsUrl: (scenarioId: string) =>
+    `/scenarios/${scenarioId}/versions`,
   getReverseGeocodeUrl: () => `/geocoding/reverse`,
   getCallsUrl: () => `/calls`,
   getIncidentCardUrl: (trainingSessionId: string) =>

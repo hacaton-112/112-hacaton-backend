@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { ScenarioSeed } from "../contracts/scenario-authoring";
 import {
   scenarioAuthoringService,
-  type ScenarioAuthoringSource,
+  type ScenarioPublicationInput,
+  type ScenarioVersionPublicationInput,
 } from "../services/scenario-authoring.service";
 
 export function useScenarioAuthoring() {
@@ -14,14 +14,34 @@ export function useScenarioAuthoring() {
   const draft = useMutation({
     mutationFn: scenarioAuthoringService.generateDraft,
   });
+  // Новая версия меняет и каталог, и брифинг: оба перечитываются.
+  const invalidateCatalog = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
+      queryClient.invalidateQueries({ queryKey: ["scenario-version"] }),
+    ]);
   const publication = useMutation({
-    mutationFn: (input: {
-      scenario: ScenarioSeed;
-      authoringSource: ScenarioAuthoringSource;
-      authoringPrompt?: string;
-    }) => scenarioAuthoringService.publish(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
+    mutationFn: (input: ScenarioPublicationInput) =>
+      scenarioAuthoringService.publish(input),
+    onSuccess: invalidateCatalog,
+  });
+  const versionPublication = useMutation({
+    mutationFn: (input: ScenarioVersionPublicationInput) =>
+      scenarioAuthoringService.publishVersion(input),
+    onSuccess: invalidateCatalog,
   });
 
-  return { draft, publication, reverseGeocoding };
+  const archival = useMutation({
+    mutationFn: (scenarioId: string) =>
+      scenarioAuthoringService.archive(scenarioId),
+    onSuccess: invalidateCatalog,
+  });
+
+  return {
+    draft,
+    publication,
+    versionPublication,
+    archival,
+    reverseGeocoding,
+  };
 }

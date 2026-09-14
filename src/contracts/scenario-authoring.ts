@@ -156,7 +156,6 @@ export const QWEN_TTS_VOICES = [
 export const DISCLOSURE_TYPES = [
   "immediate",
   "on_question",
-  "after_fact",
   "after_turns",
   "below_panic",
   "after_stage",
@@ -169,7 +168,6 @@ export const DISCLOSURE_LABELS: Record<
 > = {
   immediate: "Сразу",
   on_question: "После вопроса",
-  after_fact: "После других фактов",
   after_turns: "После нескольких реплик",
   below_panic: "При снижении паники",
   after_stage: "На этапе звонка",
@@ -217,12 +215,6 @@ export const DisclosureRuleSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("on_question"),
       keywords: z.array(z.string().trim().min(2)).min(1).max(32),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("after_fact"),
-      factKeys: z.array(FactIdSchema).min(1).max(16),
     })
     .strict(),
   z
@@ -446,20 +438,6 @@ export const ScenarioSeedSchema = z
       });
     });
 
-    scenario.facts.forEach((fact, index) => {
-      if (fact.disclosure.type === "after_fact") {
-        fact.disclosure.factKeys.forEach((key) => {
-          if (!factKeys.has(key)) {
-            context.addIssue({
-              code: "custom",
-              path: ["facts", index, "disclosure", "factKeys"],
-              message: `Неизвестный факт: ${key}`,
-            });
-          }
-        });
-      }
-    });
-
     const referenceFields = new Set<string>();
     scenario.referenceCard.fields.forEach((field, index) => {
       if (referenceFields.has(field.field)) {
@@ -544,6 +522,35 @@ export const PublishedScenarioSchema = z
   })
   .strict();
 
+/** Чем опубликованная версия расходится с сегодняшними правилами сценария. */
+export const ScenarioIssueSchema = z.object({
+  path: z.array(z.union([z.string(), z.number()])),
+  message: z.string(),
+});
+
+/**
+ * Опубликованная версия целиком — для брифинга и для правки.
+ *
+ * Сценарий строгой схемой здесь не проверяется: версия, опубликованная по
+ * прошлым правилам, должна открываться, чтобы её можно было исправить. Чем
+ * она расходится с сегодняшними правилами, backend перечисляет в `issues`, а
+ * публикация проверяет правку как любую другую. Внешний объект нестрогий:
+ * новое поле ответа не должно закрывать экран сценариев.
+ */
+export const EditableScenarioVersionSchema = z.object({
+  scenarioId: z.string().min(1),
+  scenarioVersionId: z.string().min(1),
+  version: z.number().int().positive(),
+  isLatest: z.boolean(),
+  publishedAt: z.iso.datetime(),
+  authoringSource: z.enum(["manual", "assistant", "imported"]),
+  scenario: z.custom<ScenarioSeed>(
+    (value) => typeof value === "object" && value !== null,
+    "Сценарий версии не пришёл",
+  ),
+  issues: z.array(ScenarioIssueSchema).default([]),
+});
+
 export const ReverseGeocodedAddressSchema = z
   .object({
     city: z.string().trim().min(1).max(200).optional(),
@@ -568,6 +575,10 @@ export type GenerateScenarioDraftResponse = z.infer<
   typeof GenerateScenarioDraftResponseSchema
 >;
 export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
+export type EditableScenarioVersion = z.infer<
+  typeof EditableScenarioVersionSchema
+>;
+export type ScenarioIssue = z.infer<typeof ScenarioIssueSchema>;
 export type ReverseGeocodedAddress = z.infer<
   typeof ReverseGeocodedAddressSchema
 >;
@@ -645,10 +656,41 @@ export const createEmptyScenario = (): ScenarioSeed => ({
   referenceCard: { fields: [], notes: "" },
 });
 
+/**
+ * Готовит опубликованную версию к правке.
+ *
+ * У версии на backend один столбец заметок, и приходит он заметкой версии.
+ * Редактор же показывает заметку к эталону и пишет её в оба поля — без этого
+ * заметка при правке выглядела бы пропавшей.
+ */
+export const scenarioForEditing = (scenario: ScenarioSeed): ScenarioSeed => ({
+  ...scenario,
+  referenceCard: {
+    ...scenario.referenceCard,
+    notes:
+      scenario.referenceCard.notes ?? scenario.version.referenceNotes ?? "",
+  },
+});
+
 export const mergeScenarioAssistantDraft = (
   current: ScenarioSeed,
   draft: ScenarioAssistantDraft,
+  {
+    keepIdentity = false,
+  }: {
+    /**
+     * При правке опубликованного сценария код сценария и код персоны остаются
+     * прежними: иначе backend примет черновик помощника за другой сценарий.
+     */
+    keepIdentity?: boolean;
+  } = {},
 ): ScenarioSeed => ({
   ...draft,
+  ...(keepIdentity
+    ? {
+        code: current.code,
+        persona: { ...draft.persona, code: current.persona.code },
+      }
+    : {}),
   location: current.location,
 });

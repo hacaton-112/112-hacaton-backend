@@ -77,8 +77,6 @@ const disclosureFor = (
   switch (type) {
     case "on_question":
       return { type, keywords: ["уточните"] };
-    case "after_fact":
-      return { type, factKeys: ["incident_type"] };
     case "after_turns":
       return { type, turns: 1 };
     case "below_panic":
@@ -248,15 +246,6 @@ function DisclosureFields({
           label="Слова в вопросе оператора"
           items={disclosure.keywords}
           onChange={(keywords) => onChange({ ...disclosure, keywords })}
-        />
-      );
-    case "after_fact":
-      return (
-        <ListInput
-          className="lg:col-span-3"
-          label="Ключи предшествующих фактов"
-          items={disclosure.factKeys}
-          onChange={(factKeys) => onChange({ ...disclosure, factKeys })}
         />
       );
     case "after_turns":

@@ -30,6 +30,7 @@ import {
   type IncidentCardPatch,
   IncidentCardSchema,
 } from "../../contracts/incident";
+import type { IncidentLocationFill } from "../../services/incident-location";
 import { FormField } from "../auth/form-field";
 import { DuplicateSuspicion } from "./duplicate-suspicion";
 
@@ -43,6 +44,8 @@ interface IncidentFormProps {
   card?: IncidentCard;
   /** Вызывается на каждое изменение: карточка пишется по ходу разговора. */
   onChange?: (patch: IncidentCardPatch) => void;
+  /** Место, отмеченное на карте: адрес и координаты подставляются в поля. */
+  locationFill?: IncidentLocationFill;
 }
 
 export function IncidentForm({
@@ -50,8 +53,9 @@ export function IncidentForm({
   disabled = false,
   card,
   onChange,
+  locationFill,
 }: IncidentFormProps) {
-  const { control, register, reset, getValues } = useForm<
+  const { control, register, reset, getValues, setValue } = useForm<
     IncidentCardInput,
     unknown,
     IncidentCard
@@ -74,6 +78,32 @@ export function IncidentForm({
       reset(card);
     }
   }, [card, reset, sessionId]);
+
+  // Точка с карты пишется через форму, а не мимо неё: форма держит свои
+  // значения и при следующем вводе вернула бы в карточку старый адрес. Поля
+  // остаются редактируемыми — подстановка лишь подсказка оператору.
+  const appliedFill = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (
+      !locationFill ||
+      disabled ||
+      !sessionId ||
+      initializedSession.current !== sessionId ||
+      appliedFill.current === locationFill.revision
+    ) {
+      return;
+    }
+
+    appliedFill.current = locationFill.revision;
+    const options = { shouldDirty: true, shouldTouch: true } as const;
+    setValue("latitude", locationFill.latitude, options);
+    setValue("longitude", locationFill.longitude, options);
+
+    if (locationFill.addressText !== undefined) {
+      setValue("addressText", locationFill.addressText, options);
+    }
+  }, [disabled, locationFill, sessionId, setValue]);
 
   // Кнопки «сохранить» в АРМ нет: карточка уходит на сервер по ходу разговора,
   // а закрывает её конец звонка.

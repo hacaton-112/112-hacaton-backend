@@ -4,8 +4,10 @@ import {
   Flex,
   ScrollArea,
   Separator,
+  Spinner,
   Text,
 } from "@bolid-ui/themes";
+import { AlertTriangle, Crosshair, MapPin } from "lucide-react";
 
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
@@ -17,6 +19,8 @@ import {
   type DispatchService,
 } from "../../contracts/incident";
 import type { CallSnapshot } from "../../hooks/use-call";
+import type { IncidentPointStatus } from "../../hooks/use-incident-point";
+import type { GeoPoint } from "../../services/incident-location";
 
 interface ServicesProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
@@ -24,8 +28,17 @@ interface ServicesProps {
   onToggleService: (service: DispatchService) => void;
 }
 
+interface IncidentPointProps {
+  /** Точка, отмеченная оператором: красный маркер поверх зоны автоопределения. */
+  selectedPoint?: GeoPoint;
+  pointStatus: IncidentPointStatus;
+  /** Есть, пока карточку можно править: тогда клик по карте отмечает место. */
+  onSelectPoint?: (point: GeoPoint) => void;
+}
+
 type DispatchCallPanelProps = CallSnapshot &
-  ServicesProps & {
+  ServicesProps &
+  IncidentPointProps & {
     callerName: string;
     isCardReady: boolean;
     isEnding: boolean;
@@ -127,13 +140,97 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
           city={MOSCOW}
           incident={props.incident}
           controls={false}
+          selectedPoint={props.selectedPoint}
+          onSelectPoint={props.onSelectPoint}
           className="dispatch-map operator-map h-full min-h-[320px]"
         />
-        <div className="absolute top-2 right-2 left-2 z-30 flex justify-end">
+        <div className="absolute top-2 right-2 left-2 z-30 flex items-start justify-between gap-2">
+          <PointHint
+            selectable={Boolean(props.onSelectPoint)}
+            hasPoint={Boolean(props.selectedPoint)}
+            status={props.pointStatus}
+          />
           <MapWindowButton label="Открыть в окне" />
         </div>
       </Card>
     </aside>
+  );
+}
+
+/**
+ * Что происходит с отмеченной точкой.
+ *
+ * Подсказка видна только пока идёт звонок: до приёма вызова и после его
+ * завершения карта лишь показывает зону автоопределения.
+ */
+function PointHint({
+  selectable,
+  hasPoint,
+  status,
+}: {
+  selectable: boolean;
+  hasPoint: boolean;
+  status: IncidentPointStatus;
+}) {
+  if (!selectable && status.state === "idle") return null;
+
+  const content = (() => {
+    switch (status.state) {
+      case "resolving":
+        return (
+          <>
+            <Spinner size="1" />
+            <span>Определяем адрес точки…</span>
+          </>
+        );
+      case "resolved":
+        return (
+          <>
+            <MapPin size={14} className="shrink-0 text-(--red-9)" aria-hidden />
+            <span className="truncate" title={status.label}>
+              {status.label}
+            </span>
+          </>
+        );
+      case "failed":
+        return (
+          <>
+            <AlertTriangle
+              size={14}
+              className="shrink-0 text-(--amber-11)"
+              aria-hidden
+            />
+            <span className="truncate" title={status.message}>
+              {status.message}. Координаты подставлены, адрес введите вручную.
+            </span>
+          </>
+        );
+      case "idle":
+        return (
+          <>
+            <Crosshair
+              size={14}
+              className="shrink-0 text-(--gray-11)"
+              aria-hidden
+            />
+            <span>
+              {hasPoint
+                ? "Кликните по карте, чтобы перенести точку"
+                : "Кликните по карте, чтобы отметить место происшествия"}
+            </span>
+          </>
+        );
+    }
+  })();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none flex max-w-[min(360px,100%)] min-w-0 items-center gap-2 rounded-(--radius-3) bg-(--color-panel-solid) px-2.5 py-1.5 text-xs text-(--gray-12) shadow-md"
+    >
+      {content}
+    </div>
   );
 }
 

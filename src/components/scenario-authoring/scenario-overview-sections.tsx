@@ -39,7 +39,11 @@ const FULL_ROW = "md:col-span-full";
 export function ScenarioBasicsSection({
   scenario,
   onChange,
-}: ScenarioSectionProps) {
+  codeLocked = false,
+}: ScenarioSectionProps & {
+  /** При правке код — личность сценария и не меняется. */
+  codeLocked?: boolean;
+}) {
   return (
     <SectionCard
       title="Основное"
@@ -48,10 +52,13 @@ export function ScenarioBasicsSection({
       <FieldGrid>
         <TextInput
           label="Код сценария"
-          hint="уникальный, до 32 символов"
+          hint={
+            codeLocked ? "не меняется при правке" : "уникальный, до 32 символов"
+          }
           value={scenario.code}
           placeholder="S-FIRE-03"
           maxLength={32}
+          disabled={codeLocked}
           onChange={(code) =>
             onChange({
               ...scenario,

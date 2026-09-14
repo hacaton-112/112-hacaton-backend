@@ -7,6 +7,7 @@ import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel
 import { IncidentForm } from "../../components/operator/incident-form";
 import { useCall } from "../../hooks/use-call";
 import { useIncidentCard } from "../../hooks/use-incident-card";
+import { useIncidentPoint } from "../../hooks/use-incident-point";
 import { useAuthStore } from "../../stores/auth.store";
 
 export default function OperatorPage() {
@@ -62,6 +63,9 @@ export default function OperatorPage() {
   })();
   const isCardEditable =
     call.state === "active" && Boolean(incidentCard.card) && !isEnding;
+  // Точку на карте оператор отмечает только в своём идущем звонке: backend
+  // определяет адрес по той же учебной сессии и чужую не примет.
+  const incidentPoint = useIncidentPoint(call.trainingSessionId);
 
   useEffect(() => {
     if (!call.error) return;
@@ -118,6 +122,7 @@ export default function OperatorPage() {
                 // закрывает backend: дописанное после разговора не оценивается.
                 disabled={!isCardEditable}
                 onChange={incidentCard.update}
+                locationFill={incidentPoint.fill}
               />
             </main>
           </ScrollArea>
@@ -128,6 +133,9 @@ export default function OperatorPage() {
           >
             <DispatchCallPanel
               {...call}
+              selectedPoint={incidentPoint.point}
+              pointStatus={incidentPoint.status}
+              onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
               services={incidentCard.services}
               onToggleService={incidentCard.toggleService}
               callerName={callerName}
