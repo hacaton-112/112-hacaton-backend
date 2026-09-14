@@ -7,13 +7,17 @@ import {
   ScrollArea,
   Skeleton,
   Text,
+  toast,
 } from "@bolid-ui/themes";
 import { AlertTriangle, Plus } from "lucide-react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ScenarioBriefingPanel } from "../../components/scenario-catalog/scenario-briefing-panel";
 import { ScenarioCatalogCard } from "../../components/scenario-catalog/scenario-catalog-card";
 import { scenarioCountLabel } from "../../components/scenario-catalog/scenario-catalog-formatters";
+import { ScenarioDeleteDialog } from "../../components/scenario-catalog/scenario-delete-dialog";
+import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
 import { useScenarios } from "../../hooks/use-scenarios";
 
@@ -33,9 +37,32 @@ export default function ScenarioCatalogPage() {
     list.find((scenario) => scenario.scenarioVersionId === requested) ??
     list[0];
   const version = useScenarioVersion(selected?.scenarioVersionId);
+  const { archival } = useScenarioAuthoring();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const select = (scenarioVersionId: string) =>
     setSearchParams({ selected: scenarioVersionId }, { replace: true });
+
+  const openDeleteDialog = () => {
+    archival.reset();
+    setDeleteOpen(true);
+  };
+
+  const deleteSelected = async () => {
+    if (!selected || !version.data) return;
+
+    try {
+      await archival.mutateAsync(version.data.scenarioId);
+      setDeleteOpen(false);
+      // Выбор сбрасывается на первый оставшийся сценарий.
+      setSearchParams({}, { replace: true });
+      toast.success("Сценарий удалён", {
+        description: `${selected.code} · ${selected.title}`,
+      });
+    } catch {
+      // Причина остаётся в диалоге: преподаватель может повторить или отменить.
+    }
+  };
 
   return (
     <div className="grid min-h-full gap-6 p-6 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(420px,600px)]">
@@ -125,6 +152,7 @@ export default function ScenarioCatalogPage() {
               `/scenarios/${encodeURIComponent(selected.scenarioVersionId)}/edit`,
             )
           }
+          onDelete={openDeleteDialog}
         />
       ) : (
         !scenarios.isPending &&
@@ -136,6 +164,17 @@ export default function ScenarioCatalogPage() {
             </Text>
           </Card>
         )
+      )}
+      {selected && (
+        <ScenarioDeleteDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          code={selected.code}
+          title={selected.title}
+          pending={archival.isPending}
+          error={archival.error?.message}
+          onConfirm={() => void deleteSelected()}
+        />
       )}
     </div>
   );

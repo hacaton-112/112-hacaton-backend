@@ -13,6 +13,7 @@ import {
   FileText,
   Pencil,
   PhoneIncoming,
+  Trash2,
   User,
   Volume2,
   type LucideIcon,
@@ -33,6 +34,7 @@ interface ScenarioBriefingPanelProps {
   onRetry: () => void;
   onStart: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 }
 
 /** Брифинг перед тренировкой: кто звонит и что оператор обязан выяснить. */
@@ -44,6 +46,7 @@ export function ScenarioBriefingPanel({
   onRetry,
   onStart,
   onEdit,
+  onDelete,
 }: ScenarioBriefingPanelProps) {
   const scenario = version?.scenario;
   const questions = scenario?.mandatoryQuestions ?? [];
@@ -204,8 +207,13 @@ export function ScenarioBriefingPanel({
         </div>
       </ScrollArea>
 
-      <footer className="grid gap-2 border-t border-(--gray-a4) p-6 sm:grid-cols-[1fr_auto]">
-        <Button size="3" radius="full" onClick={onStart}>
+      <footer className="flex flex-wrap gap-2 border-t border-(--gray-a4) p-6">
+        <Button
+          size="3"
+          radius="full"
+          className="min-w-[200px] flex-1"
+          onClick={onStart}
+        >
           <PhoneIncoming size={16} />
           Начать тренировку
         </Button>
@@ -219,6 +227,19 @@ export function ScenarioBriefingPanel({
         >
           <Pencil size={16} />
           Редактировать
+        </Button>
+        {/* Удаление нуждается в идентификаторе сценария, а он приходит вместе
+            с версией: до её загрузки кнопка недоступна. */}
+        <Button
+          size="3"
+          radius="full"
+          variant="soft"
+          color="red"
+          disabled={!version}
+          onClick={onDelete}
+        >
+          <Trash2 size={16} />
+          Удалить
         </Button>
       </footer>
     </aside>
