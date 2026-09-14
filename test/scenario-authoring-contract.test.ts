@@ -99,6 +99,18 @@ describe("ScenarioSeedSchema", () => {
     expect(ScenarioSeedSchema.parse(validScenario()).code).toBe("S-FIRE-TEST");
   });
 
+  it("no longer offers the rule that chained one fact to another", () => {
+    const scenario = validScenario();
+    // The backend dropped after_fact: a constructor that still produced it
+    // would publish a scenario the engine refuses to load.
+    (scenario.facts[0] as { disclosure: unknown }).disclosure = {
+      type: "after_fact",
+      factKeys: ["incident_type"],
+    };
+
+    expect(ScenarioSeedSchema.safeParse(scenario).success).toBe(false);
+  });
+
   it("rejects cross-references to facts that do not exist", () => {
     const scenario = validScenario();
     scenario.mandatoryQuestions[0].satisfiedByFactKeys = ["missing"];

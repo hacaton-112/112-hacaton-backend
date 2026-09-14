@@ -156,7 +156,6 @@ export const QWEN_TTS_VOICES = [
 export const DISCLOSURE_TYPES = [
   "immediate",
   "on_question",
-  "after_fact",
   "after_turns",
   "below_panic",
   "after_stage",
@@ -169,7 +168,6 @@ export const DISCLOSURE_LABELS: Record<
 > = {
   immediate: "Сразу",
   on_question: "После вопроса",
-  after_fact: "После других фактов",
   after_turns: "После нескольких реплик",
   below_panic: "При снижении паники",
   after_stage: "На этапе звонка",
@@ -217,12 +215,6 @@ export const DisclosureRuleSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("on_question"),
       keywords: z.array(z.string().trim().min(2)).min(1).max(32),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("after_fact"),
-      factKeys: z.array(FactIdSchema).min(1).max(16),
     })
     .strict(),
   z
@@ -444,20 +436,6 @@ export const ScenarioSeedSchema = z
           });
         }
       });
-    });
-
-    scenario.facts.forEach((fact, index) => {
-      if (fact.disclosure.type === "after_fact") {
-        fact.disclosure.factKeys.forEach((key) => {
-          if (!factKeys.has(key)) {
-            context.addIssue({
-              code: "custom",
-              path: ["facts", index, "disclosure", "factKeys"],
-              message: `Неизвестный факт: ${key}`,
-            });
-          }
-        });
-      }
     });
 
     const referenceFields = new Set<string>();
