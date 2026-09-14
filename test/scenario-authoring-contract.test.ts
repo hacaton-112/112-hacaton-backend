@@ -4,6 +4,7 @@ import {
   createEmptyScenario,
   GenerateScenarioDraftResponseSchema,
   mergeScenarioAssistantDraft,
+  ReverseGeocodedAddressSchema,
   ScenarioAssistantDraftSchema,
   ScenarioSeedSchema,
   type ScenarioSeed,
@@ -67,6 +68,30 @@ const validScenario = (): ScenarioSeed => ({
     ],
     notes: "Проверить классификацию происшествия.",
   },
+});
+
+describe("ReverseGeocodedAddressSchema", () => {
+  it("accepts a normalized OpenStreetMap address", () => {
+    expect(
+      ReverseGeocodedAddressSchema.parse({
+        city: "Москва",
+        street: "Красная площадь",
+        house: "1",
+        displayName: "1, Красная площадь, Москва, Россия",
+        attribution: "© OpenStreetMap contributors",
+      }),
+    ).toMatchObject({ city: "Москва", street: "Красная площадь" });
+  });
+
+  it("rejects an unattributed provider response", () => {
+    expect(
+      ReverseGeocodedAddressSchema.safeParse({
+        city: "Москва",
+        displayName: "Москва, Россия",
+        attribution: "unknown",
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("ScenarioSeedSchema", () => {

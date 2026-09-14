@@ -27,6 +27,7 @@ import {
   ScenarioLocationSection,
   ScenarioPersonaSection,
 } from "../../components/scenario-authoring/scenario-overview-sections";
+import type { ScenarioCoordinates } from "../../components/scenario-authoring/scenario-location-values";
 import {
   ScenarioEscalationSection,
   ScenarioFactsSection,
@@ -94,7 +95,7 @@ const formatIssue = (issue: {
 
 export default function ScenarioConstructorPage() {
   const navigate = useNavigate();
-  const { draft, publication } = useScenarioAuthoring();
+  const { draft, publication, reverseGeocoding } = useScenarioAuthoring();
   const [scenario, setScenario] = useState(createEmptyScenario);
   const [brief, setBrief] = useState("");
   const [authoringSource, setAuthoringSource] =
@@ -102,7 +103,12 @@ export default function ScenarioConstructorPage() {
   const [authoringPrompt, setAuthoringPrompt] = useState<string>();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [published, setPublished] = useState<PublishedScenario>();
+  const [geocodingFeedback, setGeocodingFeedback] = useState<{
+    status: "idle" | "loading" | "success" | "error";
+    message?: string;
+  }>({ status: "idle" });
   const feedbackRef = useRef<HTMLDivElement>(null);
+  const geocodingRequestRef = useRef(0);
 
   const revealFeedback = () =>
     requestAnimationFrame(() =>
@@ -116,6 +122,53 @@ export default function ScenarioConstructorPage() {
     setScenario(next);
     setPublished(undefined);
     setValidationErrors([]);
+  };
+
+  const determineAddress = async (coordinates: ScenarioCoordinates) => {
+    const requestId = ++geocodingRequestRef.current;
+    setGeocodingFeedback({ status: "loading" });
+    setPublished(undefined);
+    setValidationErrors([]);
+    setScenario((current) => ({
+      ...current,
+      location: {
+        ...current.location,
+        exactAddress: {
+          ...current.location.exactAddress,
+          city: "",
+          street: "",
+          house: "",
+        },
+      },
+    }));
+
+    try {
+      const address = await reverseGeocoding.mutateAsync({
+        latitude: coordinates[0],
+        longitude: coordinates[1],
+      });
+      if (requestId !== geocodingRequestRef.current) return;
+
+      setScenario((current) => ({
+        ...current,
+        location: {
+          ...current.location,
+          exactAddress: {
+            ...current.location.exactAddress,
+            city: address.city ?? "",
+            street: address.street ?? "",
+            house: address.house ?? "",
+          },
+        },
+      }));
+      setGeocodingFeedback({
+        status: "success",
+        message: address.displayName,
+      });
+    } catch (error) {
+      if (requestId !== geocodingRequestRef.current) return;
+      setGeocodingFeedback({ status: "error", message: messageFrom(error) });
+    }
   };
 
   const generate = async () => {
@@ -175,11 +228,14 @@ export default function ScenarioConstructorPage() {
   };
 
   const resetManual = () => {
+    geocodingRequestRef.current += 1;
+    reverseGeocoding.reset();
     setScenario(createEmptyScenario());
     setAuthoringSource("manual");
     setAuthoringPrompt(undefined);
     setPublished(undefined);
     setValidationErrors([]);
+    setGeocodingFeedback({ status: "idle" });
   };
 
   return (
@@ -266,7 +322,8 @@ export default function ScenarioConstructorPage() {
 
             <Text as="p" size="2" color="gray" mb="3">
               Опишите происшествие, заявителя, скрытые сведения и ожидаемые
-              действия оператора. Адрес и область на карте задаются вручную.
+              действия оператора. Точку и область задаёт преподаватель, адрес
+              определяется по координатам.
             </Text>
 
             <label className="text-gray-11 grid gap-1 text-xs">
@@ -374,6 +431,11 @@ export default function ScenarioConstructorPage() {
           <ScenarioLocationSection
             scenario={scenario}
             onChange={updateScenario}
+            onIncidentPointSelected={(coordinates) =>
+              void determineAddress(coordinates)
+            }
+            geocodingStatus={geocodingFeedback.status}
+            geocodingMessage={geocodingFeedback.message}
           />
           <ScenarioFactsSection scenario={scenario} onChange={updateScenario} />
           <ScenarioQuestionsSection

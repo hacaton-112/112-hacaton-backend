@@ -2,8 +2,10 @@ import { API_CONFIG } from "../config/api";
 import {
   GenerateScenarioDraftResponseSchema,
   PublishedScenarioSchema,
+  ReverseGeocodedAddressSchema,
   type GenerateScenarioDraftResponse,
   type PublishedScenario,
+  type ReverseGeocodedAddress,
   type ScenarioSeed,
 } from "../contracts/scenario-authoring";
 import { api } from "../lib/api";
@@ -11,6 +13,18 @@ import { api } from "../lib/api";
 export type ScenarioAuthoringSource = "manual" | "assistant";
 
 export const scenarioAuthoringService = {
+  async reverseGeocode(input: {
+    latitude: number;
+    longitude: number;
+  }): Promise<ReverseGeocodedAddress> {
+    const payload = await api.get<unknown>(API_CONFIG.getReverseGeocodeUrl(), {
+      params: input,
+      timeout: 15_000,
+    });
+
+    return ReverseGeocodedAddressSchema.parse(payload);
+  },
+
   async generateDraft(brief: string): Promise<GenerateScenarioDraftResponse> {
     const payload = await api.post<unknown>(
       API_CONFIG.getScenarioAssistantDraftUrl(),
