@@ -127,6 +127,7 @@ describe(ScenarioAuthoringService.name, () => {
       publishedAt: "2026-09-13T00:00:00.000Z",
       authoringSource: "manual",
       scenario: {} as never,
+      issues: [],
     } satisfies EditableScenarioVersion;
     loadVersion.mockResolvedValueOnce(version);
 

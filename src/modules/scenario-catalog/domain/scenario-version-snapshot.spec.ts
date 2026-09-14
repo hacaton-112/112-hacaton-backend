@@ -9,7 +9,7 @@ import {
 
 import {
   type StoredScenarioVersion,
-  toScenarioSeed,
+  toEditableScenario,
   toScenarioVersionRows,
 } from "./scenario-version-snapshot";
 
@@ -166,9 +166,10 @@ describe("scenario version snapshot", () => {
   it.each(shippedScenarios().map((scenario) => [scenario.code, scenario]))(
     "brings %s back from its rows exactly as it can be published again",
     (_code, scenario) => {
-      expect(toScenarioSeed(storedFrom(scenario))).toEqual(
-        expectedAfterStorage(scenario),
-      );
+      expect(toEditableScenario(storedFrom(scenario))).toEqual({
+        scenario: expectedAfterStorage(scenario),
+        issues: [],
+      });
     },
   );
 
@@ -207,7 +208,28 @@ describe("scenario version snapshot", () => {
       ),
     };
 
-    // Редактор не должен открывать черновик, который потом не опубликуется.
-    expect(() => toScenarioSeed(broken)).toThrow();
+    // С таким правилом версию не запустит и сам движок: чинить её редактором
+    // нечего, это порча данных.
+    expect(() => toEditableScenario(broken)).toThrow();
+  });
+
+  it("opens a version that breaks today's rules and says what is wrong", () => {
+    const [scenario] = shippedScenarios();
+    const stored = storedFrom(scenario);
+    const outdated: StoredScenarioVersion = {
+      ...stored,
+      version: { ...stored.version, panicFloor: 4, panicCeiling: 1 },
+    };
+
+    // Правила строже, чем были при публикации: отказать в открытии значило бы
+    // запретить именно ту правку, которая версию чинит.
+    const editable = toEditableScenario(outdated);
+
+    expect(editable.scenario.version.panicFloor).toBe(4);
+    expect(editable.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: ["version", "panicFloor"] }),
+      ]),
+    );
   });
 });

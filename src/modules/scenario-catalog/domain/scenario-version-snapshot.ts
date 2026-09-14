@@ -219,20 +219,37 @@ const byOrder =
   (left: T, right: T): number =>
     order.indexOf(left) - order.indexOf(right);
 
+/** Чем версия расходится с сегодняшними правилами сценария. */
+export interface ScenarioIssue {
+  readonly path: readonly (string | number)[];
+  readonly message: string;
+}
+
+export interface EditableScenario {
+  readonly scenario: ScenarioSeed;
+  /** Пусто, если версию можно опубликовать снова без единой правки. */
+  readonly issues: readonly ScenarioIssue[];
+}
+
 /**
  * Собирает сценарий обратно из строк версии — ту же форму, которую принимает
  * публикация.
  *
- * Результат проходит схему сценария: преподаватель получает черновик, который
- * можно опубликовать без единой правки, а битая строка в базе останавливает
- * редактирование здесь, а не на публикации.
+ * Правила сценария со временем строже: версия, опубликованная год назад,
+ * сегодняшнюю схему может не пройти. Отказать в её открытии значило бы
+ * запретить именно ту правку, которая её чинит, поэтому такая версия отдаётся
+ * как есть вместе со списком расхождений, а публикация проверяет её как любую
+ * другую. Условия раскрытия и параметры эскалации проверяются строго: с битым
+ * правилом версию не запустит и сам движок.
  *
  * У правил эскалации и полей эталона нет столбца порядка, поэтому они
  * упорядочиваются по справочнику: без этого одна и та же версия приходила бы в
  * редактор то в одном порядке, то в другом.
  */
-export const toScenarioSeed = (stored: StoredScenarioVersion): ScenarioSeed =>
-  ScenarioSeedSchema.parse({
+export const toEditableScenario = (
+  stored: StoredScenarioVersion,
+): EditableScenario => {
+  const candidate: ScenarioSeed = {
     code: stored.scenario.code,
     title: stored.scenario.title,
     category: stored.scenario.category,
@@ -330,4 +347,18 @@ export const toScenarioSeed = (stored: StoredScenarioVersion): ScenarioSeed =>
           sourceFactKey: field.sourceFactKey,
         })),
     },
-  });
+  };
+  const parsed = ScenarioSeedSchema.safeParse(candidate);
+
+  return parsed.success
+    ? { scenario: parsed.data, issues: [] }
+    : {
+        scenario: candidate,
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.map((segment) =>
+            typeof segment === "number" ? segment : String(segment),
+          ),
+          message: issue.message,
+        })),
+      };
+};

@@ -17,7 +17,7 @@ import {
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 
 import {
-  toScenarioSeed,
+  toEditableScenario,
   toScenarioVersionRows,
 } from "../domain/scenario-version-snapshot";
 import {
@@ -165,7 +165,7 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
       isLatest: latest[0]?.version === row.version.version,
       publishedAt: row.version.publishedAt.toISOString(),
       authoringSource: row.version.authoringSource,
-      scenario: toScenarioSeed({
+      ...toEditableScenario({
         scenario: row.scenario,
         version: row.version,
         persona: row.persona,

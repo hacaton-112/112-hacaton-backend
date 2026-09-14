@@ -1,6 +1,8 @@
 import type { AuthoringSource } from "@/drizzle/schema";
 import type { ScenarioSeed } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
+import type { ScenarioIssue } from "../domain/scenario-version-snapshot";
+
 export interface PublishScenarioInput {
   readonly scenario: ScenarioSeed;
   readonly authorId: string;
@@ -35,6 +37,11 @@ export interface EditableScenarioVersion {
   readonly publishedAt: string;
   readonly authoringSource: AuthoringSource;
   readonly scenario: ScenarioSeed;
+  /**
+   * Чем версия расходится с сегодняшними правилами. Такую версию можно
+   * открыть и исправить, но опубликовать — только исправленной.
+   */
+  readonly issues: readonly ScenarioIssue[];
 }
 
 export type ScenarioAuthoringConflict =

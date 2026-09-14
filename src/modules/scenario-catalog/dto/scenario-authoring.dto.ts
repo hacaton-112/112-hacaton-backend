@@ -111,7 +111,20 @@ export const EditableScenarioVersionSchema = z
     isLatest: z.boolean(),
     publishedAt: z.iso.datetime(),
     authoringSource: z.enum(AUTHORING_SOURCES),
-    scenario: ScenarioSeedSchema,
+    /**
+     * Сценарий в форме публикации. Строгой схемой не проверяется: версия,
+     * опубликованная по прошлым правилам, должна открываться, чтобы её можно
+     * было исправить, — расхождения перечислены в `issues`.
+     */
+    scenario: z.record(z.string(), z.unknown()),
+    issues: z.array(
+      z
+        .object({
+          path: z.array(z.union([z.string(), z.number()])),
+          message: z.string(),
+        })
+        .strict(),
+    ),
   })
   .strict();
 

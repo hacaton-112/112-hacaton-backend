@@ -265,6 +265,7 @@ describe(`${DrizzleScenarioAuthoringRepository.name} loadVersion`, () => {
     });
     expect(loaded?.scenario.persona).toEqual(scenario.persona);
     expect(loaded?.scenario.facts).toEqual(scenario.facts);
+    expect(loaded?.issues).toEqual([]);
   });
 
   it("finds nothing for an unknown or unpublished version", async () => {
