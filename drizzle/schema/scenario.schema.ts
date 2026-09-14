@@ -135,7 +135,13 @@ export type ReferenceComparison = (typeof REFERENCE_COMPARISONS)[number];
 export type EscalationTrigger = (typeof ESCALATION_TRIGGERS)[number];
 export type EscalationDirection = (typeof ESCALATION_DIRECTIONS)[number];
 
-/** Кто звонит: половина полей уходит в промпт, половина — в синтез речи. */
+/**
+ * Кто звонит: половина полей уходит в промпт, половина — в синтез речи.
+ *
+ * Строка принадлежит одной версии сценария и после публикации не меняется:
+ * правка персонажа порождает новую строку вместе с новой версией. Код поэтому
+ * повторяется у всех версий одного сценария и уникальным быть не может.
+ */
 export const callerPersonas = pgTable(
   "caller_personas",
   {
@@ -157,7 +163,7 @@ export const callerPersonas = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [uniqueIndex("caller_personas_code_unique_idx").on(table.code)],
+  (table) => [index("caller_personas_code_idx").on(table.code)],
 );
 
 /** Единица каталога: то, что преподаватель видит в списке и назначает. */

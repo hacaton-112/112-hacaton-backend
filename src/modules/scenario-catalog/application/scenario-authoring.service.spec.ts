@@ -3,8 +3,10 @@ import { ErrorCodes } from "@/contracts";
 import { validAssistantSuggestion } from "../domain/scenario-assistant-suggestion.fixture";
 import { ScenarioAuthoringService } from "./scenario-authoring.service";
 import {
+  type EditableScenarioVersion,
   ScenarioAuthoringConflictError,
   type ScenarioAuthoringRepository,
+  ScenarioNotFoundError,
 } from "../ports/scenario-authoring.repository";
 import type { ScenarioDraftAssistantPort } from "../ports/scenario-draft-assistant.port";
 
@@ -27,15 +29,34 @@ const createService = (responses: unknown[]) => {
       : Promise.resolve(response);
   });
   const publish = jest.fn().mockResolvedValue(publication);
+  const loadVersion = jest.fn().mockResolvedValue(null);
+  const publishVersion = jest
+    .fn()
+    .mockResolvedValue({ ...publication, version: 2 });
+  const archive = jest.fn().mockResolvedValue("archived");
 
   return {
     service: new ScenarioAuthoringService(
       { generate } as ScenarioDraftAssistantPort,
-      { publish } as ScenarioAuthoringRepository,
+      {
+        publish,
+        loadVersion,
+        publishVersion,
+        archive,
+      } as ScenarioAuthoringRepository,
     ),
     generate,
     publish,
+    loadVersion,
+    publishVersion,
+    archive,
   };
+};
+
+const editRequest = {
+  baseVersionId: "scenario-version-1",
+  scenario: {} as never,
+  authoringSource: "manual" as const,
 };
 
 describe(ScenarioAuthoringService.name, () => {
@@ -101,5 +122,121 @@ describe(ScenarioAuthoringService.name, () => {
         "instructor-1",
       ),
     ).rejects.toMatchObject({ code: ErrorCodes.SCENARIO_CODE_EXISTS });
+  });
+
+  it("hands over a published version for editing", async () => {
+    const { service, loadVersion } = createService([]);
+    const version = {
+      scenarioId: "scenario-1",
+      scenarioVersionId: "scenario-version-1",
+      version: 1,
+      isLatest: true,
+      publishedAt: "2026-09-13T00:00:00.000Z",
+      authoringSource: "manual",
+      scenario: {} as never,
+      issues: [],
+    } satisfies EditableScenarioVersion;
+    loadVersion.mockResolvedValueOnce(version);
+
+    await expect(service.loadVersion("scenario-version-1")).resolves.toBe(
+      version,
+    );
+  });
+
+  it("says a missing or unpublished version does not exist", async () => {
+    const { service } = createService([]);
+
+    await expect(service.loadVersion("missing")).rejects.toMatchObject({
+      code: ErrorCodes.SCENARIO_VERSION_NOT_FOUND,
+    });
+  });
+
+  it("publishes an edit on top of the version the instructor opened", async () => {
+    const { service, publishVersion } = createService([]);
+
+    await expect(
+      service.publishVersion("scenario-1", editRequest, "instructor-1"),
+    ).resolves.toMatchObject({ version: 2 });
+    expect(publishVersion).toHaveBeenCalledWith({
+      scenarioId: "scenario-1",
+      baseVersionId: "scenario-version-1",
+      scenario: editRequest.scenario,
+      authorId: "instructor-1",
+      authoringSource: "manual",
+      authoringPrompt: undefined,
+    });
+  });
+
+  it.each([
+    ["stale-version", ErrorCodes.SCENARIO_VERSION_STALE],
+    ["code-changed", ErrorCodes.SCENARIO_CODE_IMMUTABLE],
+    ["persona-code", ErrorCodes.SCENARIO_PERSONA_CODE_EXISTS],
+  ] as const)(
+    "reports a %s edit as a conflict the editor can explain",
+    async (conflict, code) => {
+      const { service, publishVersion } = createService([]);
+      publishVersion.mockRejectedValueOnce(
+        new ScenarioAuthoringConflictError(conflict),
+      );
+
+      await expect(
+        service.publishVersion("scenario-1", editRequest, "instructor-1"),
+      ).rejects.toMatchObject({ code, status: 409 });
+    },
+  );
+
+  it("reports an edit of a scenario that does not exist", async () => {
+    const { service, publishVersion } = createService([]);
+    publishVersion.mockRejectedValueOnce(new ScenarioNotFoundError());
+
+    await expect(
+      service.publishVersion("missing", editRequest, "instructor-1"),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.SCENARIO_NOT_FOUND,
+      status: 404,
+    });
+  });
+
+  it("does not disguise an unexpected failure as a conflict", async () => {
+    const { service, publishVersion } = createService([]);
+    const failure = new Error("connection reset");
+    publishVersion.mockRejectedValueOnce(failure);
+
+    await expect(
+      service.publishVersion("scenario-1", editRequest, "instructor-1"),
+    ).rejects.toBe(failure);
+  });
+
+  it("removes a scenario from the catalog on behalf of the instructor", async () => {
+    const { service, archive } = createService([]);
+
+    await expect(
+      service.archive("scenario-1", "instructor-1"),
+    ).resolves.toBeUndefined();
+    expect(archive).toHaveBeenCalledWith({
+      scenarioId: "scenario-1",
+      actorId: "instructor-1",
+    });
+  });
+
+  it("treats a repeated removal as done", async () => {
+    const { service, archive } = createService([]);
+    archive.mockResolvedValueOnce("already-archived");
+
+    await expect(
+      service.archive("scenario-1", "instructor-1"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports the removal of a scenario that does not exist", async () => {
+    const { service, archive } = createService([]);
+    archive.mockRejectedValueOnce(new ScenarioNotFoundError());
+
+    await expect(
+      service.archive("missing", "instructor-1"),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.SCENARIO_NOT_FOUND,
+      status: 404,
+    });
   });
 });

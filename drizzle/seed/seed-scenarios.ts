@@ -90,6 +90,8 @@ const seedScenario = async (
       return;
     }
 
+    // Персонаж входит в снимок версии: прошлые версии продолжают звучать тем
+    // голосом и той манерой, с которыми по ним проводились звонки.
     const [persona] = await tx
       .insert(callerPersonas)
       .values({
@@ -104,16 +106,6 @@ const seedScenario = async (
         voiceId: seed.persona.voiceId,
         baselinePanicLevel: seed.persona.baselinePanicLevel,
         baseSpeechRate: seed.persona.baseSpeechRate.toFixed(2),
-      })
-      .onConflictDoUpdate({
-        target: callerPersonas.code,
-        set: {
-          displayName: seed.persona.displayName,
-          condition: seed.persona.condition,
-          speechStyle: seed.persona.speechStyle,
-          voiceId: seed.persona.voiceId,
-          baselinePanicLevel: seed.persona.baselinePanicLevel,
-        },
       })
       .returning({ id: callerPersonas.id });
 

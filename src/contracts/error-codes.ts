@@ -28,10 +28,17 @@ export const ErrorCodes = {
   SCENARIO_PERSONA_CODE_EXISTS: "SCENARIO_PERSONA_CODE_EXISTS",
   SCENARIO_ASSISTANT_UNAVAILABLE: "SCENARIO_ASSISTANT_UNAVAILABLE",
   SCENARIO_ASSISTANT_INVALID_DRAFT: "SCENARIO_ASSISTANT_INVALID_DRAFT",
+  SCENARIO_NOT_FOUND: "SCENARIO_NOT_FOUND",
+  SCENARIO_VERSION_NOT_FOUND: "SCENARIO_VERSION_NOT_FOUND",
+  // Пока преподаватель правил, опубликована более новая версия: его правка
+  // затёрла бы чужую.
+  SCENARIO_VERSION_STALE: "SCENARIO_VERSION_STALE",
+  SCENARIO_CODE_IMMUTABLE: "SCENARIO_CODE_IMMUTABLE",
 
   // ── Геокодирование ─────────────────────────────────────────
   GEOCODING_ADDRESS_NOT_FOUND: "GEOCODING_ADDRESS_NOT_FOUND",
   GEOCODING_UNAVAILABLE: "GEOCODING_UNAVAILABLE",
+  GEOCODING_CALL_NOT_ACTIVE: "GEOCODING_CALL_NOT_ACTIVE",
 
   // ── Учебный звонок ─────────────────────────────────────────
   // Чужой звонок неотличим от несуществующего: знать чужие идентификаторы

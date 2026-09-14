@@ -7,6 +7,8 @@ export const ReverseGeocodeQuerySchema = z
   .object({
     latitude: z.coerce.number().min(-90).max(90),
     longitude: z.coerce.number().min(-180).max(180),
+    /** Звонок, в котором оператор отмечает место происшествия. */
+    trainingSessionId: z.uuid().optional(),
   })
   .strict();
 

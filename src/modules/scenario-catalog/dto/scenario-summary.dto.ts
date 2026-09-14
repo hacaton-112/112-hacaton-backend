@@ -18,6 +18,8 @@ export const ScenarioSummarySchema = z
     category: z.enum(SCENARIO_CATEGORIES),
     difficulty: z.number().int().min(1).max(5),
     answerNormSeconds: z.number().int().positive(),
+    /** Сколько по замыслу автора длится разговор: карточка каталога. */
+    expectedDurationSeconds: z.number().int().positive(),
     version: z.number().int().positive(),
   })
   .strict();
