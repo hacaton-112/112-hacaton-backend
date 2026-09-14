@@ -8,7 +8,7 @@ import {
   Text,
 } from "@bolid-ui/themes";
 import { AlertTriangle, Crosshair, MapPin } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
@@ -53,7 +53,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         variant="classic"
         aria-labelledby="services-title"
         data-tour="dispatch-services"
-        className="dispatch-services-card h-[210px] overflow-y-auto min-[1480px]:h-[210px] md:h-[263px]"
+        className="dispatch-services-card isolate h-[210px] overflow-x-hidden overflow-y-auto [--card-background-color:var(--color-panel-solid)] min-[1480px]:h-[210px] md:h-[263px]"
       >
         <Text id="services-title" size="2" weight="bold">
           ДДС / Службы
@@ -248,17 +248,11 @@ function DialogueList({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const lastTurnId = props.dialogue.at(-1)?.id;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!lastTurnId) return;
 
-    const frame = requestAnimationFrame(() => {
-      const viewport = scrollAreaRef.current?.querySelector<HTMLElement>(
-        ".rt-ScrollAreaViewport",
-      );
-      viewport?.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
-    });
-
-    return () => cancelAnimationFrame(frame);
+    const viewport = scrollAreaRef.current;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [lastTurnId]);
 
   if (props.dialogue.length === 0) {
