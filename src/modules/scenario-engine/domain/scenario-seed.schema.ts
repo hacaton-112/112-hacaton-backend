@@ -172,6 +172,37 @@ export const ScenarioSeedSchema = z
   .superRefine((scenario, context) => {
     const keys = new Set(scenario.facts.map((fact) => fact.key));
 
+    if (keys.size !== scenario.facts.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["facts"],
+        message: "Fact keys must be unique",
+      });
+    }
+
+    const referenceFields = new Set(
+      scenario.referenceCard.fields.map((field) => field.field),
+    );
+
+    if (referenceFields.size !== scenario.referenceCard.fields.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["referenceCard", "fields"],
+        message: "Reference card fields must be unique",
+      });
+    }
+
+    if (
+      scenario.persona.baselinePanicLevel < scenario.version.panicFloor ||
+      scenario.persona.baselinePanicLevel > scenario.version.panicCeiling
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["persona", "baselinePanicLevel"],
+        message: "Baseline panic level must be inside the version panic range",
+      });
+    }
+
     // Ссылка на несуществующий факт превратила бы обязательный вопрос в
     // невыполнимый.
     scenario.mandatoryQuestions.forEach((question, index) => {

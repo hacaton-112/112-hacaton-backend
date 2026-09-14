@@ -34,4 +34,22 @@ describe("ScenarioSeedSchema", () => {
 
     expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
   });
+
+  it("refuses duplicate fact keys before they reach the database", () => {
+    const broken = seed() as unknown as { facts: Array<{ key: string }> };
+    broken.facts[1].key = broken.facts[0].key;
+
+    expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
+  });
+
+  it("keeps the initial panic level inside the configured range", () => {
+    const broken = seed() as unknown as {
+      persona: { baselinePanicLevel: number };
+      version: { panicFloor: number };
+    };
+    broken.version.panicFloor = 3;
+    broken.persona.baselinePanicLevel = 2;
+
+    expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
+  });
 });

@@ -56,3 +56,9 @@ export class AppInternalException extends AppException {
     super(code, message, HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
+
+export class AppServiceUnavailableException extends AppException {
+  constructor(code: ErrorCode, message: string) {
+    super(code, message, HttpStatus.SERVICE_UNAVAILABLE);
+  }
+}

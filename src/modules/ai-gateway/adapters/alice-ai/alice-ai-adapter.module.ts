@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { LLM_PORT } from "../../ai-gateway.tokens";
 import { QUESTION_UNDERSTANDING_PORT } from "../../ports/question-understanding.port";
+import { AliceAiStructuredOutputClient } from "./alice-ai-structured-output.client";
 import { AliceAiLlmAdapter } from "./alice-ai.adapter";
 import { AliceAiQuestionAdapter } from "./alice-ai.question.adapter";
 import { type AliceAiEnvironment, parseAliceAiConfig } from "./alice-ai.config";
@@ -40,6 +41,7 @@ const createAliceAiConfig = (configService: ConfigService) =>
       useFactory: (): AliceAiFetch => globalThis.fetch.bind(globalThis),
     },
     AliceAiLlmAdapter,
+    AliceAiStructuredOutputClient,
     {
       provide: LLM_PORT,
       useExisting: AliceAiLlmAdapter,
@@ -50,6 +52,10 @@ const createAliceAiConfig = (configService: ConfigService) =>
       useExisting: AliceAiQuestionAdapter,
     },
   ],
-  exports: [LLM_PORT, QUESTION_UNDERSTANDING_PORT],
+  exports: [
+    LLM_PORT,
+    AliceAiStructuredOutputClient,
+    QUESTION_UNDERSTANDING_PORT,
+  ],
 })
 export class AliceAiAdapterModule {}
