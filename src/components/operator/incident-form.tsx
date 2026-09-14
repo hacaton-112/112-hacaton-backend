@@ -120,7 +120,7 @@ export function IncidentForm({
   }, [values, getValues, onChange, sessionId]);
 
   return (
-    <form className="grid content-start gap-4" noValidate>
+    <form className="grid content-start gap-4" data-tour="incident" noValidate>
       <Card size="2" variant="classic" aria-labelledby="location-title">
         <Text id="location-title" size="2" weight="bold">
           Место происшествия
