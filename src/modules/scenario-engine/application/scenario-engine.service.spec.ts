@@ -467,6 +467,36 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("records a fact the parsed question opened and the caller named", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(callState({ revealedFactKeys: ["incident_type"] })),
+    });
+
+    // «Куда ехать?» — ни «адрес», ни «улиц» в тексте нет, факт открыл разбор.
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Куда ехать?",
+      reply: reply({
+        text: "Улица Учебная, дом двенадцать!",
+        revealedFactIds: ["address_street"],
+      }),
+      resolveAskedFacts: () => Promise.resolve(["address_street"]),
+      now: NOW,
+    });
+
+    // Раньше запись хода сверялась со словами автора и отклоняла такой факт:
+    // сказанное не засчитывалось, и заявитель рассказывал его снова.
+    expect(eventTypes(store)).toContain("fact.revealed");
+    expect(eventTypes(store)).not.toContain("fact.rejected");
+    expect(patchOf(store).revealedFactKeys).toEqual([
+      "incident_type",
+      "address_street",
+    ]);
+  });
+
   it("opens a fact by the parsed question, not by the words of the author", async () => {
     const { engine } = createEngine();
 
