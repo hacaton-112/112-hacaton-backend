@@ -59,7 +59,8 @@ export default function ScenarioCatalogPage() {
           </Button>
         </Flex>
 
-        {scenarios.error ? (
+        {/* Упавшее фоновое обновление не прячет уже загруженный список. */}
+        {scenarios.error && !scenarios.data ? (
           <Callout.Root color="red" role="alert">
             <Callout.Icon>
               <AlertTriangle size={16} />
@@ -127,7 +128,7 @@ export default function ScenarioCatalogPage() {
         />
       ) : (
         !scenarios.isPending &&
-        !scenarios.error && (
+        !(scenarios.error && !scenarios.data) && (
           <Card size="3" variant="classic" className="self-start">
             <Text as="p" size="2" color="gray">
               Опубликуйте первый сценарий — здесь появится его брифинг: кто

@@ -84,7 +84,7 @@ export function ScenarioBriefingPanel({
             </Text>
           </header>
 
-          {error ? (
+          {error && !version ? (
             <Callout.Root color="red" role="alert">
               <Callout.Icon>
                 <AlertTriangle size={16} />
