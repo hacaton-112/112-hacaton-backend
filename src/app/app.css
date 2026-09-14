@@ -54,6 +54,15 @@
   backdrop-filter: blur(8px);
 }
 
+body.driver-active [data-slot="window-titlebar"] {
+  pointer-events: auto;
+  z-index: 10001;
+}
+
+body.driver-active [data-slot="window-titlebar"] * {
+  pointer-events: auto;
+}
+
 .scenario-briefing-panel {
   container: scenario-briefing / inline-size;
 }

@@ -15,10 +15,13 @@ const tourThemeTokens = [
   "--shadow-6",
 ] as const;
 
-const applyAppTheme = (popover: HTMLElement) => {
-  const theme = document.querySelector<HTMLElement>(
+const getThemeRoot = () =>
+  document.querySelector<HTMLElement>(
     '.perchik-themes[data-is-root-theme="true"]',
   );
+
+const applyAppTheme = (popover: HTMLElement) => {
+  const theme = getThemeRoot();
   if (!theme) return;
 
   const themeStyles = getComputedStyle(theme);
@@ -27,7 +30,7 @@ const applyAppTheme = (popover: HTMLElement) => {
   }
 };
 
-const createBlurLayer = () => {
+const createBlurLayer = (container: HTMLElement) => {
   const layer = document.createElement("div");
   layer.className = "operator-tour-blur-layer";
 
@@ -35,7 +38,7 @@ const createBlurLayer = () => {
     layer.appendChild(document.createElement("div"));
   }
 
-  document.body.appendChild(layer);
+  container.appendChild(layer);
   return layer;
 };
 
@@ -43,9 +46,15 @@ const updateBlurLayer = (layer: HTMLElement, element?: Element) => {
   const panels = Array.from(layer.children) as HTMLElement[];
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
+  const contentTop = Math.max(
+    0,
+    document
+      .querySelector<HTMLElement>('[data-slot="window-titlebar"]')
+      ?.getBoundingClientRect().bottom ?? 0,
+  );
 
   if (!element) {
-    panels[0].style.cssText = "inset: 0";
+    panels[0].style.cssText = `left: 0; top: ${contentTop}px; width: 100%; height: ${viewportHeight - contentTop}px`;
     for (const panel of panels.slice(1)) panel.style.cssText = "display: none";
     return;
   }
@@ -53,12 +62,12 @@ const updateBlurLayer = (layer: HTMLElement, element?: Element) => {
   const padding = 8;
   const rect = element.getBoundingClientRect();
   const left = Math.max(0, rect.left - padding);
-  const top = Math.max(0, rect.top - padding);
+  const top = Math.max(contentTop, rect.top - padding);
   const right = Math.min(viewportWidth, rect.right + padding);
   const bottom = Math.min(viewportHeight, rect.bottom + padding);
 
   const panelStyles = [
-    `left: 0; top: 0; width: 100%; height: ${top}px`,
+    `left: 0; top: ${contentTop}px; width: 100%; height: ${top - contentTop}px`,
     `left: 0; top: ${top}px; width: ${left}px; height: ${bottom - top}px`,
     `left: ${right}px; top: ${top}px; width: ${viewportWidth - right}px; height: ${bottom - top}px`,
     `left: 0; top: ${bottom}px; width: 100%; height: ${viewportHeight - bottom}px`,
@@ -72,11 +81,14 @@ const updateBlurLayer = (layer: HTMLElement, element?: Element) => {
 export function OperatorTour() {
   const tourRef = useRef<Driver | null>(null);
   const blurLayerRef = useRef<HTMLElement | null>(null);
+  const overlayObserverRef = useRef<MutationObserver | null>(null);
 
   useEffect(
     () => () => {
       tourRef.current?.destroy();
       tourRef.current = null;
+      overlayObserverRef.current?.disconnect();
+      overlayObserverRef.current = null;
       blurLayerRef.current?.remove();
       blurLayerRef.current = null;
     },
@@ -85,11 +97,32 @@ export function OperatorTour() {
 
   const startTour = () => {
     tourRef.current?.destroy();
+    overlayObserverRef.current?.disconnect();
     blurLayerRef.current?.remove();
 
-    const blurLayer = createBlurLayer();
+    const themeRoot = getThemeRoot();
+    if (!themeRoot) return;
+
+    const blurLayer = createBlurLayer(themeRoot);
     blurLayerRef.current = blurLayer;
     updateBlurLayer(blurLayer);
+
+    // Driver adds its overlay to body. Keep it in the app's root stacking
+    // context so the native titlebar can remain above it and interactive.
+    const overlayObserver = new MutationObserver(() => {
+      const overlay = Array.from(document.body.children).find((element) =>
+        element.classList.contains("driver-overlay"),
+      );
+      if (!overlay) return;
+
+      themeRoot.appendChild(overlay);
+      overlayObserver.disconnect();
+      if (overlayObserverRef.current === overlayObserver) {
+        overlayObserverRef.current = null;
+      }
+    });
+    overlayObserver.observe(document.body, { childList: true });
+    overlayObserverRef.current = overlayObserver;
 
     const tour = driver({
       animate: true,
@@ -111,6 +144,10 @@ export function OperatorTour() {
       onHighlightStarted: (element) => updateBlurLayer(blurLayer, element),
       onHighlighted: (element) => updateBlurLayer(blurLayer, element),
       onDestroyed: () => {
+        overlayObserver.disconnect();
+        if (overlayObserverRef.current === overlayObserver) {
+          overlayObserverRef.current = null;
+        }
         blurLayer.remove();
         if (blurLayerRef.current === blurLayer) blurLayerRef.current = null;
         tourRef.current = null;
