@@ -38,6 +38,7 @@ export const ErrorCodes = {
   // ── Геокодирование ─────────────────────────────────────────
   GEOCODING_ADDRESS_NOT_FOUND: "GEOCODING_ADDRESS_NOT_FOUND",
   GEOCODING_UNAVAILABLE: "GEOCODING_UNAVAILABLE",
+  GEOCODING_CALL_NOT_ACTIVE: "GEOCODING_CALL_NOT_ACTIVE",
 
   // ── Учебный звонок ─────────────────────────────────────────
   // Чужой звонок неотличим от несуществующего: знать чужие идентификаторы

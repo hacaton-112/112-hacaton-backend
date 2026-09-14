@@ -5,15 +5,19 @@ import { AuthModule } from "@/modules/auth/auth.module";
 
 import { ReverseGeocodingService } from "./application/reverse-geocoding.service";
 import { GeocodingController } from "./geocoding.controller";
+import { DrizzleTrainingCallAccess } from "./infrastructure/drizzle-training-call-access";
 import { parseNominatimConfig } from "./infrastructure/nominatim.config";
 import { NominatimReverseGeocoder } from "./infrastructure/nominatim-reverse-geocoder";
 import { REVERSE_GEOCODER } from "./ports/reverse-geocoder.port";
+import { TRAINING_CALL_ACCESS } from "./ports/training-call-access.port";
 
 @Module({
   imports: [AuthModule],
   controllers: [GeocodingController],
   providers: [
     ReverseGeocodingService,
+    DrizzleTrainingCallAccess,
+    { provide: TRAINING_CALL_ACCESS, useExisting: DrizzleTrainingCallAccess },
     {
       provide: REVERSE_GEOCODER,
       useFactory: () =>
