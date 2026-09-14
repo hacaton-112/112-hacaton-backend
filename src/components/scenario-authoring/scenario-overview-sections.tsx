@@ -20,6 +20,8 @@ import {
   TextAreaInput,
   TextInput,
 } from "./scenario-form-fields";
+import { ScenarioLocationMap } from "./scenario-location-map";
+import { hasSelectedCoordinates } from "./scenario-location-values";
 
 interface ScenarioSectionProps {
   scenario: ScenarioSeed;
@@ -368,9 +370,46 @@ export function ScenarioLocationSection({
   return (
     <SectionCard
       title="Место происшествия"
-      description="Точная точка остаётся скрытым фактом; оператор видит только область геолокации."
+      description="Этот раздел заполняет преподаватель. AI не получает и не изменяет адрес, координаты или радиус."
     >
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <ScenarioLocationMap
+        exactPoint={scenario.location.exactPoint}
+        locatorCenter={scenario.location.locatorCenter}
+        radiusMeters={scenario.location.locatorRadiusMeters}
+        onSelect={(target, coordinates) => {
+          if (target === "incident") {
+            updateLocation({
+              exactPoint: coordinates,
+              ...(!hasSelectedCoordinates(scenario.location.locatorCenter)
+                ? { locatorCenter: coordinates }
+                : {}),
+            });
+            return;
+          }
+
+          updateLocation({ locatorCenter: coordinates });
+        }}
+      />
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <NumberInput
+          label="Радиус области, м"
+          value={scenario.location.locatorRadiusMeters}
+          min={10}
+          max={50_000}
+          onChange={(locatorRadiusMeters) =>
+            updateLocation({ locatorRadiusMeters })
+          }
+        />
+        <SelectInput
+          label="Точность геолокации"
+          value={scenario.location.locatorAccuracy}
+          options={LOCATOR_ACCURACIES.map((value) => ({
+            value,
+            label: LOCATOR_ACCURACY_LABELS[value],
+          }))}
+          onChange={(locatorAccuracy) => updateLocation({ locatorAccuracy })}
+        />
         <SelectInput
           label="Тип местности"
           value={scenario.location.terrain}
@@ -381,25 +420,10 @@ export function ScenarioLocationSection({
           onChange={(terrain) => updateLocation({ terrain })}
         />
         <TextInput
-          label="Город"
-          value={scenario.location.exactAddress.city ?? ""}
-          onChange={(value) => updateAddress("city", value)}
-        />
-        <TextInput
-          label="Улица"
-          value={scenario.location.exactAddress.street ?? ""}
-          onChange={(value) => updateAddress("street", value)}
-        />
-        <TextInput
-          label="Дом"
-          value={scenario.location.exactAddress.house ?? ""}
-          onChange={(value) => updateAddress("house", value)}
-        />
-        <TextInput
-          className="md:col-span-2 lg:col-span-4"
-          label="Дополнительные детали адреса"
-          value={scenario.location.exactAddress.details ?? ""}
-          onChange={(value) => updateAddress("details", value)}
+          label="Телефон заявителя"
+          value={scenario.location.callerNumber}
+          maxLength={32}
+          onChange={(callerNumber) => updateLocation({ callerNumber })}
         />
         <NumberInput
           label="Точная широта"
@@ -449,38 +473,44 @@ export function ScenarioLocationSection({
             })
           }
         />
-        <NumberInput
-          label="Радиус области, м"
-          value={scenario.location.locatorRadiusMeters}
-          min={10}
-          max={50_000}
-          onChange={(locatorRadiusMeters) =>
-            updateLocation({ locatorRadiusMeters })
-          }
-        />
-        <SelectInput
-          label="Точность геолокации"
-          value={scenario.location.locatorAccuracy}
-          options={LOCATOR_ACCURACIES.map((value) => ({
-            value,
-            label: LOCATOR_ACCURACY_LABELS[value],
-          }))}
-          onChange={(locatorAccuracy) => updateLocation({ locatorAccuracy })}
-        />
-        <TextInput
-          label="Телефон заявителя"
-          value={scenario.location.callerNumber}
-          maxLength={32}
-          onChange={(callerNumber) => updateLocation({ callerNumber })}
-        />
-        <TextInput
-          className="md:col-span-2 lg:col-span-4"
-          label="Подпись области геолокации"
-          value={scenario.location.locatorLabel}
-          placeholder="Базовая станция: Учебный квартал"
-          maxLength={200}
-          onChange={(locatorLabel) => updateLocation({ locatorLabel })}
-        />
+      </div>
+
+      <div className="border-grayA-5 mt-5 border-t pt-4">
+        <div className="text-gray-11 mb-3 text-xs">
+          Текст адреса вводится вручную. Без reverse-geocoder координаты нельзя
+          достоверно преобразовать в улицу и номер дома.
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <TextInput
+            label="Город"
+            value={scenario.location.exactAddress.city ?? ""}
+            onChange={(value) => updateAddress("city", value)}
+          />
+          <TextInput
+            label="Улица"
+            value={scenario.location.exactAddress.street ?? ""}
+            onChange={(value) => updateAddress("street", value)}
+          />
+          <TextInput
+            label="Дом"
+            value={scenario.location.exactAddress.house ?? ""}
+            onChange={(value) => updateAddress("house", value)}
+          />
+          <TextInput
+            className="md:col-span-2 lg:col-span-4"
+            label="Дополнительные детали адреса"
+            value={scenario.location.exactAddress.details ?? ""}
+            onChange={(value) => updateAddress("details", value)}
+          />
+          <TextInput
+            className="md:col-span-2 lg:col-span-4"
+            label="Подпись области геолокации"
+            value={scenario.location.locatorLabel}
+            placeholder="Базовая станция: Учебный квартал"
+            maxLength={200}
+            onChange={(locatorLabel) => updateLocation({ locatorLabel })}
+          />
+        </div>
       </div>
       <div className="mt-4">
         <BooleanInput

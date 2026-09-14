@@ -189,6 +189,28 @@ const CoordinatesSchema = z.tuple([
   z.number().min(-180).max(180),
 ]);
 
+const isUnsetCoordinates = ([latitude, longitude]: [number, number]): boolean =>
+  latitude === 0 && longitude === 0;
+
+const distanceBetweenCoordinates = (
+  [fromLatitude, fromLongitude]: [number, number],
+  [toLatitude, toLongitude]: [number, number],
+): number => {
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(toLatitude - fromLatitude);
+  const longitudeDelta = toRadians(toLongitude - fromLongitude);
+  const fromLatitudeRadians = toRadians(fromLatitude);
+  const toLatitudeRadians = toRadians(toLatitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitudeRadians) *
+      Math.cos(toLatitudeRadians) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+};
+
 export const DisclosureRuleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("immediate") }).strict(),
   z
@@ -380,6 +402,38 @@ export const ScenarioSeedSchema = z
       });
     }
 
+    if (isUnsetCoordinates(scenario.location.exactPoint)) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "exactPoint"],
+        message: "Отметьте точку происшествия на карте",
+      });
+    }
+
+    if (isUnsetCoordinates(scenario.location.locatorCenter)) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "locatorCenter"],
+        message: "Отметьте центр области геолокации на карте",
+      });
+    }
+
+    if (
+      !isUnsetCoordinates(scenario.location.exactPoint) &&
+      !isUnsetCoordinates(scenario.location.locatorCenter) &&
+      distanceBetweenCoordinates(
+        scenario.location.exactPoint,
+        scenario.location.locatorCenter,
+      ) > scenario.location.locatorRadiusMeters
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["location", "locatorCenter"],
+        message:
+          "Точка происшествия должна находиться внутри выбранной области",
+      });
+    }
+
     scenario.mandatoryQuestions.forEach((question, index) => {
       question.satisfiedByFactKeys.forEach((key) => {
         if (!factKeys.has(key)) {
@@ -427,9 +481,53 @@ export const ScenarioSeedSchema = z
     });
   });
 
+const MANUAL_LOCATION_VALIDATION_PLACEHOLDER: ScenarioSeed["location"] = {
+  terrain: "city_block",
+  exactAddress: {},
+  exactPoint: [55.7558, 37.6173],
+  locatorCenter: [55.7558, 37.6173],
+  locatorRadiusMeters: 500,
+  locatorLabel: "Manual location selection",
+  locatorAccuracy: "approximate",
+  callerNumber: "+7 000 000-00-00",
+  previouslyCalled: false,
+};
+
+export const ScenarioAssistantDraftSchema = z
+  .object({
+    code: ScenarioSeedSchema.shape.code,
+    title: ScenarioSeedSchema.shape.title,
+    category: ScenarioSeedSchema.shape.category,
+    difficulty: ScenarioSeedSchema.shape.difficulty,
+    summary: ScenarioSeedSchema.shape.summary,
+    persona: ScenarioSeedSchema.shape.persona,
+    version: ScenarioSeedSchema.shape.version,
+    escalation: ScenarioSeedSchema.shape.escalation,
+    facts: ScenarioSeedSchema.shape.facts,
+    mandatoryQuestions: ScenarioSeedSchema.shape.mandatoryQuestions,
+    referenceCard: ScenarioSeedSchema.shape.referenceCard,
+  })
+  .strict()
+  .superRefine((draft, context) => {
+    const result = ScenarioSeedSchema.safeParse({
+      ...draft,
+      location: MANUAL_LOCATION_VALIDATION_PLACEHOLDER,
+    });
+
+    if (!result.success) {
+      result.error.issues.forEach((issue) =>
+        context.addIssue({
+          code: "custom",
+          path: issue.path,
+          message: issue.message,
+        }),
+      );
+    }
+  });
+
 export const GenerateScenarioDraftResponseSchema = z
   .object({
-    scenario: ScenarioSeedSchema,
+    scenario: ScenarioAssistantDraftSchema,
     authoringPrompt: z.string().min(20).max(4_000),
   })
   .strict();
@@ -447,6 +545,9 @@ export const PublishedScenarioSchema = z
   .strict();
 
 export type ScenarioSeed = z.infer<typeof ScenarioSeedSchema>;
+export type ScenarioAssistantDraft = z.infer<
+  typeof ScenarioAssistantDraftSchema
+>;
 export type ScenarioFact = ScenarioSeed["facts"][number];
 export type DisclosureRule = ScenarioFact["disclosure"];
 export type MandatoryQuestion = ScenarioSeed["mandatoryQuestions"][number];
@@ -492,8 +593,8 @@ export const createEmptyScenario = (): ScenarioSeed => ({
   location: {
     terrain: "city_block",
     exactAddress: { city: "", street: "", house: "", details: "" },
-    exactPoint: [55.751244, 37.618423],
-    locatorCenter: [55.752744, 37.619923],
+    exactPoint: [0, 0],
+    locatorCenter: [0, 0],
     locatorRadiusMeters: 500,
     locatorLabel: "",
     locatorAccuracy: "approximate",
@@ -529,4 +630,12 @@ export const createEmptyScenario = (): ScenarioSeed => ({
   ],
   mandatoryQuestions: [],
   referenceCard: { fields: [], notes: "" },
+});
+
+export const mergeScenarioAssistantDraft = (
+  current: ScenarioSeed,
+  draft: ScenarioAssistantDraft,
+): ScenarioSeed => ({
+  ...draft,
+  location: current.location,
 });
