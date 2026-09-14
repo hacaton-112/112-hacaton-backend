@@ -116,7 +116,6 @@ export default function OperatorPage() {
           >
             <main
               className="operator-incident-column min-h-full min-w-0"
-              data-tour="incident"
               aria-label="Карточка происшествия"
             >
               <IncidentForm
