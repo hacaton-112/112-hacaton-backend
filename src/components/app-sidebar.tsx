@@ -1,6 +1,6 @@
 import {
+  BookOpen,
   ClipboardList,
-  FilePlus2,
   Headphones,
   LogOut,
   Settings,
@@ -122,11 +122,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               {canAuthorScenarios && (
                 <SidebarNavItem
                   active={location.pathname.startsWith("/scenarios")}
-                  icon={FilePlus2}
-                  label="Конструктор"
-                  onClick={() => goTo("/scenarios/new")}
+                  icon={BookOpen}
+                  label="Учебные сценарии"
+                  onClick={() => goTo("/scenarios")}
                 >
-                  Конструктор
+                  Учебные сценарии
                 </SidebarNavItem>
               )}
             </SidebarMenu>

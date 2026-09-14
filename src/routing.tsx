@@ -14,16 +14,25 @@ import { withAppProviders, withMapWindowProviders } from "./providers";
 const ScenarioConstructorPage = lazy(
   () => import("./pages/main/scenario-constructor-page"),
 );
+const ScenarioCatalogPage = lazy(
+  () => import("./pages/main/scenario-catalog-page"),
+);
+
+const pageFallback = (
+  <Flex align="center" justify="center" className="h-full">
+    <Spinner size="3" />
+  </Flex>
+);
 
 const scenarioConstructor = (
-  <Suspense
-    fallback={
-      <Flex align="center" justify="center" className="h-full">
-        <Spinner size="3" />
-      </Flex>
-    }
-  >
+  <Suspense fallback={pageFallback}>
     <ScenarioConstructorPage />
+  </Suspense>
+);
+
+const scenarioCatalog = (
+  <Suspense fallback={pageFallback}>
+    <ScenarioCatalogPage />
   </Suspense>
 );
 
@@ -40,7 +49,12 @@ export function Routing() {
               element={<DebriefPage />}
             />
             <Route element={<RoleLayout allowed={["instructor", "admin"]} />}>
+              <Route path="/scenarios" element={scenarioCatalog} />
               <Route path="/scenarios/new" element={scenarioConstructor} />
+              <Route
+                path="/scenarios/:scenarioVersionId/edit"
+                element={scenarioConstructor}
+              />
             </Route>
           </Route>
           <Route path="/auth" element={<AuthPage />} />
