@@ -9,11 +9,31 @@ import {
 import { ipc } from "../lib/ipc";
 import { settingsService } from "./settings.service";
 
+/**
+ * Уровень речи оператора из нативного захвата, от 0 до 1.
+ *
+ * Приходит 50 раз в секунду, поэтому живёт вне React-состояния: подписан на
+ * него только индикатор, и страница звонка из-за него не перерисовывается.
+ */
+let microphoneLevel = 0;
+const microphoneLevelListeners = new Set<(level: number) => void>();
+
+const setMicrophoneLevel = (level: number) => {
+  microphoneLevel = level;
+  microphoneLevelListeners.forEach((listener) => listener(level));
+};
+
+export const microphoneLevelStore = {
+  get: () => microphoneLevel,
+  subscribe(listener: (level: number) => void): () => void {
+    microphoneLevelListeners.add(listener);
+    return () => microphoneLevelListeners.delete(listener);
+  },
+};
+
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
   onUnknownEvent?: (payload: unknown) => void;
-  /** Уровень речи оператора из нативного захвата, от 0 до 1. */
-  onMicrophoneLevel?: (level: number) => void;
 }
 
 export interface CallStream {
@@ -95,7 +115,7 @@ class NativeCallStream implements CallStream {
       levels.onmessage = (payload) => {
         const level = (payload as { level?: unknown }).level;
         if (typeof level === "number") {
-          this.callbacks.onMicrophoneLevel?.(level);
+          setMicrophoneLevel(level);
         }
       };
 
@@ -127,6 +147,7 @@ class NativeCallStream implements CallStream {
       if (connection === null) return;
 
       await ipc.systemAudio.stop().catch(() => undefined);
+      setMicrophoneLevel(0);
       await ipc.call.stopListening(connection).catch(() => undefined);
     });
   }

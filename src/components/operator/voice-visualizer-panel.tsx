@@ -1,5 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 
+import { microphoneLevelStore } from "../../services/call.service";
+
 const VISUALIZER_HEIGHT = 32;
 const BAR_WIDTH = 1;
 const BAR_GAP = 1;
@@ -10,8 +12,6 @@ const MAX_HISTORY = 1_200;
 interface VoiceVisualizerPanelProps {
   /** Во время разговора поток постоянный; false означает ручное отключение. */
   isListening: boolean;
-  /** Уровень речи из нативного захвата микрофона, от 0 до 1. */
-  level: number;
 }
 
 /** Цвета берём из темы: canvas понимает только вычисленные значения, не var(). */
@@ -45,10 +45,7 @@ function useThemeColors(elementRef: React.RefObject<HTMLElement | null>) {
  * захват через getUserMedia, и на macOS голосовая обработка WebKit глушила
  * весь звук системы — вплоть до закрытия приложения.
  */
-function VoiceVisualizerPanelImpl({
-  isListening,
-  level,
-}: VoiceVisualizerPanelProps) {
+function VoiceVisualizerPanelImpl({ isListening }: VoiceVisualizerPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[]>([]);
@@ -99,18 +96,24 @@ function VoiceVisualizerPanelImpl({
     }
   };
 
-  const levelRef = useRef(level);
+  // Уровень читаем из хранилища без setState: 50 обновлений в секунду не
+  // должны перерисовывать даже саму панель — канвас рисует таймер.
+  const levelRef = useRef(microphoneLevelStore.get());
 
-  useEffect(() => {
-    levelRef.current = level;
-  }, [level]);
+  useEffect(
+    () =>
+      microphoneLevelStore.subscribe((next) => {
+        levelRef.current = next;
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!isListening) return;
 
     const timer = window.setInterval(() => {
       const history = historyRef.current;
-      history.push(levelRef.current);
+      history.push(isListening ? levelRef.current : 0);
       if (history.length > MAX_HISTORY) {
         history.splice(0, history.length - MAX_HISTORY);
       }
