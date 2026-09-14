@@ -16,7 +16,7 @@ import {
   CheckCircle2,
   RotateCcw,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -24,6 +24,15 @@ import {
   ScenarioAiHelper,
   SupportIcon,
 } from "../../components/scenario-authoring/scenario-ai-helper";
+import {
+  describeIssue,
+  fieldErrorsFrom,
+  isShownByField,
+  ScenarioFormErrorsContext,
+  ScenarioFormLoadingContext,
+  withoutFieldErrors,
+  type ScenarioFieldErrors,
+} from "../../components/scenario-authoring/scenario-form-context";
 import { ScenarioFormSkeleton } from "../../components/scenario-authoring/scenario-form-skeleton";
 import {
   ScenarioBasicsSection,
@@ -74,11 +83,9 @@ const FIELD_LABELS: Record<string, string> = {
   "location.locatorLabel": "Подпись области геолокации",
 };
 
-const formatIssue = (issue: {
-  code: string;
-  path: PropertyKey[];
-  message: string;
-}): string => {
+type ValidationIssue = Parameters<typeof describeIssue>[0];
+
+const formatIssue = (issue: ValidationIssue): string => {
   const rawPath = issue.path.map(String).join(".");
   const factMatch = /^facts\.(\d+)\.(.+)$/.exec(rawPath);
   const questionMatch = /^mandatoryQuestions\.(\d+)\.(.+)$/.exec(rawPath);
@@ -89,16 +96,7 @@ const formatIssue = (issue: {
       : questionMatch
         ? `Вопрос ${Number(questionMatch[1]) + 1} · ${questionMatch[2]}`
         : rawPath || "Сценарий");
-  const message =
-    issue.code === "too_small"
-      ? "значение отсутствует или слишком короткое"
-      : issue.code === "too_big"
-        ? "значение превышает допустимый размер"
-        : issue.code === "invalid_type"
-          ? "неверный тип значения"
-          : issue.message;
-
-  return `${label}: ${message}`;
+  return `${label}: ${describeIssue(issue)}`;
 };
 
 /**
@@ -183,13 +181,24 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       }),
     ),
   );
-  const [brief, setBrief] = useState("");
   const [helperOpen, setHelperOpen] = useState(false);
   const [helperError, setHelperError] = useState<string>();
   const [authoringSource, setAuthoringSource] =
     useState<ScenarioAuthoringSource>("manual");
   const [authoringPrompt, setAuthoringPrompt] = useState<string>();
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // Ошибки проверки живут у полей: подсвечены красным и подписаны под ними.
+  // Расхождения версии, опубликованной по прежним правилам, видны сразу.
+  const [fieldErrors, setFieldErrors] = useState<ScenarioFieldErrors>(() =>
+    fieldErrorsFrom(
+      (base?.issues ?? []).map((issue) => ({
+        code: "custom",
+        path: [...issue.path],
+        message: issue.message,
+      })),
+    ),
+  );
+  const [revealRequest, setRevealRequest] = useState(0);
+  const revealIssuesRef = useRef<ValidationIssue[]>([]);
   const [published, setPublished] = useState<PublishedScenario>();
   const [geocodingFeedback, setGeocodingFeedback] = useState<{
     status: "idle" | "loading" | "success" | "error";
@@ -209,8 +218,46 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const updateScenario = (next: ScenarioSeed) => {
     setScenario(next);
     setPublished(undefined);
-    setValidationErrors([]);
   };
+
+  const clearFieldError = useCallback(
+    (path: string) =>
+      setFieldErrors((current) => withoutFieldErrors(current, path)),
+    [],
+  );
+  const errorsContext = useMemo(
+    () => ({ errors: fieldErrors, clear: clearFieldError }),
+    [fieldErrors, clearFieldError],
+  );
+
+  // После неудачной проверки поля уже отрисованы красными: прокручиваем к
+  // первому из них. Ошибку, у которой в форме нет своего поля, показываем
+  // уведомлением — иначе её было бы не увидеть.
+  useEffect(() => {
+    if (revealRequest === 0) return;
+
+    const fieldPaths = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-field-path]"),
+      (element) => element.dataset.fieldPath ?? "",
+    );
+    const unshown = revealIssuesRef.current.filter(
+      (issue) => !isShownByField(issue.path.map(String).join("."), fieldPaths),
+    );
+    if (unshown.length > 0) {
+      toast.error("Сценарий требует исправлений", {
+        description: unshown.slice(0, 5).map(formatIssue).join("\n"),
+        duration: 8_000,
+      });
+    }
+
+    const first = document.querySelector<HTMLElement>(
+      '[data-field-invalid="true"]',
+    );
+    first?.scrollIntoView({ behavior: "smooth", block: "center" });
+    first
+      ?.querySelector<HTMLElement>("input, textarea, [role='combobox']")
+      ?.focus({ preventScroll: true });
+  }, [revealRequest]);
 
   /** Открыть последнюю версию сценария: список перечитывается, он мог отстать. */
   const openLatestVersion = async () => {
@@ -232,7 +279,6 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     const requestId = ++geocodingRequestRef.current;
     setGeocodingFeedback({ status: "loading" });
     setPublished(undefined);
-    setValidationErrors([]);
     setScenario((current) => ({
       ...current,
       location: {
@@ -278,7 +324,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   // Панель закрывается сразу после отправки: пока черновик собирается, форма
   // показывает скелетон. Ошибку показываем в самой панели — она открывается
   // снова вместе с набранным описанием, чтобы его можно было поправить.
-  const generate = async () => {
+  const generate = async (brief: string) => {
     const normalizedBrief = brief.trim();
     if (normalizedBrief.length < BRIEF_MIN_LENGTH) {
       setHelperError(
@@ -288,7 +334,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     }
 
     setHelperError(undefined);
-    setValidationErrors([]);
+    setFieldErrors(new Map());
     setPublished(undefined);
     setHelperOpen(false);
 
@@ -314,13 +360,13 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const publish = async () => {
     const parsed = ScenarioSeedSchema.safeParse(scenario);
     if (!parsed.success) {
-      const errors = parsed.error.issues.slice(0, 12).map(formatIssue);
-      setValidationErrors(errors);
-      revealFeedback();
+      revealIssuesRef.current = parsed.error.issues;
+      setFieldErrors(fieldErrorsFrom(parsed.error.issues));
+      setRevealRequest((request) => request + 1);
       return;
     }
 
-    setValidationErrors([]);
+    setFieldErrors(new Map());
     setStaleEdit(false);
 
     try {
@@ -360,10 +406,13 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
         error.code === "SCENARIO_VERSION_STALE"
       ) {
         setStaleEdit(true);
+        revealFeedback();
       } else {
-        setValidationErrors([messageFrom(error)]);
+        toast.error("Сценарий не опубликован", {
+          description: messageFrom(error),
+          duration: 8_000,
+        });
       }
-      revealFeedback();
     }
   };
 
@@ -375,7 +424,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     setAuthoringSource("manual");
     setAuthoringPrompt(undefined);
     setPublished(undefined);
-    setValidationErrors([]);
+    setFieldErrors(new Map());
     setGeocodingFeedback({ status: "idle" });
   };
 
@@ -506,30 +555,9 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
           </Callout.Root>
         )}
 
-        {validationErrors.length > 0 && (
-          <Callout.Root color="red" size="2" role="alert">
-            <Callout.Icon>
-              <AlertTriangle size={18} />
-            </Callout.Icon>
-            <div>
-              <Text as="div" size="2" weight="bold" mb="1">
-                Сценарий требует исправлений
-              </Text>
-              <ul className="list-disc space-y-1 pl-4">
-                {validationErrors.map((error, index) => (
-                  <li key={`${index}-${error}`}>
-                    <Text size="2">{error}</Text>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </Callout.Root>
-        )}
-
-        {draft.isPending ? (
-          <ScenarioFormSkeleton />
-        ) : (
-          <>
+        {/* Пока помощник собирает черновик, скелетоном становятся только поля. */}
+        <ScenarioFormLoadingContext value={draft.isPending}>
+          <ScenarioFormErrorsContext value={errorsContext}>
             <ScenarioBasicsSection
               scenario={scenario}
               onChange={updateScenario}
@@ -568,8 +596,8 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
               scenario={scenario}
               onChange={updateScenario}
             />
-          </>
-        )}
+          </ScenarioFormErrorsContext>
+        </ScenarioFormLoadingContext>
       </Grid>
 
       {/*
@@ -590,8 +618,8 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       >
         <Card
           size="1"
-          variant="classic"
-          className="shadow-5 pointer-events-auto [--card-background-color:var(--color-panel-solid)]"
+          variant="surface"
+          className="pointer-events-auto [--card-background-color:var(--color-panel-solid)]"
         >
           <Flex align="center" gap="2" wrap="wrap">
             <Button
@@ -633,14 +661,10 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       <ScenarioAiHelper
         open={helperOpen}
         onOpenChange={setHelperOpen}
-        brief={brief}
-        onBriefChange={(next) => {
-          setBrief(next);
-          setHelperError(undefined);
-        }}
         pending={draft.isPending}
         error={helperError}
-        onGenerate={() => void generate()}
+        onErrorDismiss={() => setHelperError(undefined)}
+        onGenerate={(brief) => void generate(brief)}
       />
     </Box>
   );

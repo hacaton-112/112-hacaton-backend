@@ -15,6 +15,14 @@ interface SystemAudioCaptureOptions {
   processing?: boolean;
   levelOnly?: boolean;
   inputDevice?: string | null;
+  inputGain?: number;
+}
+
+interface MicrophoneTestOptions {
+  inputDevice: string | null;
+  inputGain: number;
+  outputDevice: string | null;
+  outputVolume: number;
 }
 
 export interface AudioDeviceInfo {
@@ -99,6 +107,29 @@ export const ipc = {
   audio: {
     devices(): Promise<AudioDeviceCatalog> {
       return invoke(IPC_CONFIG.getAudioDevicesHandler());
+    },
+
+    /** Меняет усиление сразу — и в звонке, и в идущей проверке. */
+    setInputGain(gain: number): Promise<void> {
+      return invoke(IPC_CONFIG.getAudioSetInputGainHandler(), { gain });
+    },
+
+    setOutputVolume(volume: number): Promise<void> {
+      return invoke(IPC_CONFIG.getAudioSetOutputVolumeHandler(), { volume });
+    },
+
+    startTest(
+      channel: Channel<unknown>,
+      options: MicrophoneTestOptions,
+    ): Promise<void> {
+      return invoke(IPC_CONFIG.getAudioTestStartHandler(), {
+        channel,
+        options,
+      });
+    },
+
+    stopTest(): Promise<void> {
+      return invoke(IPC_CONFIG.getAudioTestStopHandler());
     },
   },
 } as const;

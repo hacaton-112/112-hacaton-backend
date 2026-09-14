@@ -102,6 +102,7 @@ export function ScenarioFactsSection({
   return (
     <SectionCard
       title="Факты происшествия"
+      errorPath="facts"
       description="Scenario Engine раскрывает только эти атомарные факты и только при выполнении заданного условия"
       actions={
         <AddButton
@@ -138,17 +139,20 @@ export function ScenarioFactsSection({
             <FieldGrid lg="4">
               <TextInput
                 label="Ключ"
+                path={`facts.${index}.key`}
                 hint="латиницей"
                 value={fact.key}
                 onChange={(key) => updateFact(index, { key })}
               />
               <TextInput
                 label="Название для преподавателя"
+                path={`facts.${index}.displayLabel`}
                 value={fact.displayLabel}
                 onChange={(displayLabel) => updateFact(index, { displayLabel })}
               />
               <SelectInput
                 label="Критичность"
+                path={`facts.${index}.severity`}
                 value={fact.severity}
                 options={[
                   { value: "normal", label: "Обычный" },
@@ -158,6 +162,7 @@ export function ScenarioFactsSection({
               />
               <NumberInput
                 label="Приоритет"
+                path={`facts.${index}.priority`}
                 value={fact.priority}
                 min={0}
                 max={100}
@@ -166,6 +171,7 @@ export function ScenarioFactsSection({
               <TextAreaInput
                 className={FULL_ROW}
                 label="Содержание факта для заявителя"
+                path={`facts.${index}.promptValue`}
                 hint="одна проверяемая подробность"
                 value={fact.promptValue}
                 maxLength={1_000}
@@ -173,6 +179,7 @@ export function ScenarioFactsSection({
               />
               <SelectInput
                 label="Поле карточки"
+                path={`facts.${index}.cardField`}
                 value={fact.cardField ?? "none"}
                 options={[
                   { value: "none", label: "Не переносить в карточку" },
@@ -191,6 +198,7 @@ export function ScenarioFactsSection({
               />
               <TextInput
                 label="Эталонное значение"
+                path={`facts.${index}.cardValue`}
                 value={fact.cardValue ?? ""}
                 hint={
                   fact.cardField === null
@@ -203,6 +211,7 @@ export function ScenarioFactsSection({
               <ListInput
                 className="lg:col-span-2"
                 label="Ключевые слова содержания"
+                path={`facts.${index}.contentKeywords`}
                 items={fact.contentKeywords}
                 onChange={(contentKeywords) =>
                   updateFact(index, { contentKeywords })
@@ -210,6 +219,7 @@ export function ScenarioFactsSection({
               />
               <SelectInput
                 label="Условие раскрытия"
+                path={`facts.${index}.disclosure.type`}
                 value={fact.disclosure.type}
                 options={DISCLOSURE_TYPES.map((value) => ({
                   value,
@@ -220,6 +230,7 @@ export function ScenarioFactsSection({
                 }
               />
               <DisclosureFields
+                path={`facts.${index}.disclosure`}
                 disclosure={fact.disclosure}
                 onChange={(disclosure) => updateFact(index, { disclosure })}
               />
@@ -232,9 +243,12 @@ export function ScenarioFactsSection({
 }
 
 function DisclosureFields({
+  path,
   disclosure,
   onChange,
 }: {
+  /** Путь условия раскрытия в сценарии: `facts.0.disclosure`. */
+  path: string;
   disclosure: DisclosureRule;
   onChange: (disclosure: DisclosureRule) => void;
 }) {
@@ -244,6 +258,7 @@ function DisclosureFields({
         <ListInput
           className="lg:col-span-3"
           label="Слова в вопросе оператора"
+          path={`${path}.keywords`}
           items={disclosure.keywords}
           onChange={(keywords) => onChange({ ...disclosure, keywords })}
         />
@@ -252,6 +267,7 @@ function DisclosureFields({
       return (
         <NumberInput
           label="После реплик заявителя"
+          path={`${path}.turns`}
           value={disclosure.turns}
           min={1}
           max={50}
@@ -262,6 +278,7 @@ function DisclosureFields({
       return (
         <NumberInput
           label="Паника не выше"
+          path={`${path}.level`}
           value={disclosure.level}
           min={0}
           max={4}
@@ -272,6 +289,7 @@ function DisclosureFields({
       return (
         <SelectInput
           label="Этап звонка"
+          path={`${path}.stage`}
           value={disclosure.stage}
           options={[
             { value: "offered", label: "Вызов предложен" },
@@ -314,6 +332,7 @@ export function ScenarioQuestionsSection({
   return (
     <SectionCard
       title="Обязательные вопросы"
+      errorPath="mandatoryQuestions"
       description={
         <>
           Вопрос считается закрытым только фактами из списка выше; оценка не
@@ -368,12 +387,14 @@ export function ScenarioQuestionsSection({
               >
                 <TextInput
                   label={`Вопрос ${index + 1}`}
+                  path={`mandatoryQuestions.${index}.text`}
                   value={question.text}
                   placeholder="Уточнить точный адрес происшествия"
                   onChange={(text) => updateQuestion(index, { text })}
                 />
                 <ListInput
                   label="Закрывается фактами"
+                  path={`mandatoryQuestions.${index}.satisfiedByFactKeys`}
                   hint="ключи через запятую"
                   items={question.satisfiedByFactKeys}
                   onChange={(satisfiedByFactKeys) =>
@@ -383,6 +404,7 @@ export function ScenarioQuestionsSection({
                 <Flex align="center" className="h-9">
                   <BooleanInput
                     label="Критический"
+                    path={`mandatoryQuestions.${index}.isCritical`}
                     checked={question.isCritical}
                     onChange={(isCritical) =>
                       updateQuestion(index, { isCritical })
@@ -435,6 +457,7 @@ export function ScenarioEscalationSection({
   return (
     <SectionCard
       title="Динамика паники"
+      errorPath="escalation"
       description="Каждое правило двигает состояние на одну ступень и проверяется движком детерминированно"
       actions={
         <AddButton
@@ -468,6 +491,7 @@ export function ScenarioEscalationSection({
               <FieldGrid lg="4">
                 <SelectInput
                   label="Событие"
+                  path={`escalation.${index}.trigger`}
                   value={rule.trigger}
                   options={ESCALATION_TRIGGERS.map((value) => ({
                     value,
@@ -482,6 +506,7 @@ export function ScenarioEscalationSection({
                 />
                 <SelectInput
                   label="Направление"
+                  path={`escalation.${index}.direction`}
                   value={rule.direction}
                   options={[
                     { value: "up", label: "Повысить панику" },
@@ -491,6 +516,7 @@ export function ScenarioEscalationSection({
                 />
                 <NumberInput
                   label="Cooldown, сек"
+                  path={`escalation.${index}.cooldownSeconds`}
                   value={rule.cooldownSeconds}
                   min={0}
                   max={600}
@@ -499,6 +525,7 @@ export function ScenarioEscalationSection({
                   }
                 />
                 <EscalationParams
+                  path={`escalation.${index}.params`}
                   rule={rule}
                   onChange={(params) => updateRule(index, { params })}
                 />
@@ -512,9 +539,12 @@ export function ScenarioEscalationSection({
 }
 
 function EscalationParams({
+  path,
   rule,
   onChange,
 }: {
+  /** Путь параметров правила в сценарии: `escalation.0.params`. */
+  path: string;
   rule: EscalationRule;
   onChange: (params: EscalationRule["params"]) => void;
 }) {
@@ -525,6 +555,7 @@ function EscalationParams({
     return (
       <NumberInput
         label="Порог, сек"
+        path={path}
         value={rule.params?.seconds ?? 20}
         min={1}
         max={600}
@@ -537,6 +568,7 @@ function EscalationParams({
     return (
       <NumberInput
         label="Число повторов"
+        path={path}
         value={rule.params?.times ?? 2}
         min={1}
         max={20}
@@ -552,6 +584,7 @@ function EscalationParams({
     return (
       <ListInput
         label="Ключевые слова"
+        path={path}
         items={rule.params?.keywords ?? []}
         onChange={(keywords) => onChange({ keywords })}
       />
@@ -596,6 +629,7 @@ export function ScenarioReferenceSection({
   return (
     <SectionCard
       title="Эталон и оценивание"
+      errorPath="referenceCard.fields"
       description="Заполненная оператором карточка сравнивается с этими значениями воспроизводимыми правилами"
       actions={
         <AddButton
@@ -638,6 +672,7 @@ export function ScenarioReferenceSection({
             <FieldGrid lg="3">
               <SelectInput
                 label="Поле карточки"
+                path={`referenceCard.fields.${index}.field`}
                 value={field.field}
                 options={INCIDENT_CARD_FIELDS.map((value) => ({
                   value,
@@ -649,6 +684,7 @@ export function ScenarioReferenceSection({
               />
               <TextInput
                 label="Ожидаемое значение"
+                path={`referenceCard.fields.${index}.expectedValue`}
                 value={field.expectedValue}
                 onChange={(expectedValue) =>
                   updateField(index, { expectedValue })
@@ -656,6 +692,7 @@ export function ScenarioReferenceSection({
               />
               <ListInput
                 label="Допустимые варианты"
+                path={`referenceCard.fields.${index}.acceptableValues`}
                 items={field.acceptableValues}
                 onChange={(acceptableValues) =>
                   updateField(index, { acceptableValues })
@@ -663,6 +700,7 @@ export function ScenarioReferenceSection({
               />
               <SelectInput
                 label="Сравнение"
+                path={`referenceCard.fields.${index}.comparison`}
                 value={field.comparison}
                 options={[
                   { value: "exact", label: "Точное" },
@@ -674,6 +712,7 @@ export function ScenarioReferenceSection({
               />
               <TextInput
                 label="Источник-факт"
+                path={`referenceCard.fields.${index}.sourceFactKey`}
                 value={field.sourceFactKey ?? ""}
                 onChange={(sourceFactKey) =>
                   updateField(index, { sourceFactKey: sourceFactKey || null })
@@ -682,6 +721,7 @@ export function ScenarioReferenceSection({
               <Flex align="end" className="pb-2">
                 <BooleanInput
                   label="Обязательно"
+                  path={`referenceCard.fields.${index}.isRequired`}
                   checked={field.isRequired}
                   onChange={(isRequired) => updateField(index, { isRequired })}
                 />
@@ -692,6 +732,7 @@ export function ScenarioReferenceSection({
 
         <TextAreaInput
           label="Примечания для разбора"
+          path="referenceCard.notes"
           value={scenario.referenceCard.notes ?? ""}
           maxLength={2_000}
           onChange={(notes) =>
