@@ -23,8 +23,14 @@ export interface AppSettings {
   radius: AppRadius;
   scaling: AppScaling;
   inputDevice: string | null;
+  /** Громкость микрофона: 1 — 100 %, максимум 2. */
+  inputGain: number;
   outputDevice: string | null;
+  /** Громкость воспроизведения заявителя: 1 — 100 %, максимум 2. */
+  outputVolume: number;
 }
+
+export const MAX_VOLUME = 2;
 
 const STORAGE_KEY = "trainer-112-settings";
 const DEFAULT_SETTINGS: AppSettings = {
@@ -33,7 +39,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   radius: "medium",
   scaling: "100%",
   inputDevice: null,
+  inputGain: 1,
   outputDevice: null,
+  outputVolume: 1,
 };
 
 const THEMES = new Set<AppTheme>(["system", "light", "dark"]);
@@ -61,6 +69,12 @@ const SCALINGS = new Set<AppScaling>([
   "130%",
 ]);
 
+function readVolume(value: unknown, fallback: number): number {
+  return typeof value === "number" && value >= 0 && value <= MAX_VOLUME
+    ? value
+    : fallback;
+}
+
 function loadSettings(): AppSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
 
@@ -87,8 +101,13 @@ function loadSettings(): AppSettings {
           : DEFAULT_SETTINGS.scaling,
       inputDevice:
         typeof stored?.inputDevice === "string" ? stored.inputDevice : null,
+      inputGain: readVolume(stored?.inputGain, DEFAULT_SETTINGS.inputGain),
       outputDevice:
         typeof stored?.outputDevice === "string" ? stored.outputDevice : null,
+      outputVolume: readVolume(
+        stored?.outputVolume,
+        DEFAULT_SETTINGS.outputVolume,
+      ),
     };
   } catch {
     return DEFAULT_SETTINGS;

@@ -1,10 +1,13 @@
 import {
   Box,
+  Button,
   Dialog,
   Flex,
+  Grid,
   IconButton,
   ScrollArea,
   Select,
+  Slider,
   Text,
   Tooltip,
 } from "@bolid-ui/themes";
@@ -20,8 +23,13 @@ import {
   THEME_LABELS,
   THEME_PREFERENCES,
 } from "../../config/theme";
+import { useMicrophoneTest } from "../../hooks/use-microphone-test";
 import { ipc, type AudioDeviceInfo } from "../../lib/ipc";
-import { settingsService, useSettings } from "../../services/settings.service";
+import {
+  MAX_VOLUME,
+  settingsService,
+  useSettings,
+} from "../../services/settings.service";
 import {
   SidebarContent,
   SidebarGroup,
@@ -42,7 +50,6 @@ interface SettingsDialogProps {
 const SYSTEM_DEFAULT = "__system_default__";
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const settings = useSettings();
   const [page, setPage] = useState<SettingsPage>("appearance");
   const [devices, setDevices] = useState<{
     inputs: AudioDeviceInfo[];
@@ -79,24 +86,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         className="flex h-[min(620px,calc(100vh-32px))] max-h-none! w-[min(820px,calc(100vw-32px))] max-w-none! flex-col overflow-hidden shadow-none!"
         style={{ padding: 0 }}
       >
-        <Dialog.Title className="h-rx-12 border-grayA-5 bg-panel-solid text-2 text-gray-12 m-0! flex shrink-0 border-b font-medium">
-          <div className="border-grayA-5 px-rx-3 flex h-full w-52 shrink-0 items-center justify-center border-r">
-            <span className="min-w-0 truncate text-center">Тренажёр 112</span>
-          </div>
-          <div className="px-rx-5 flex h-full min-w-0 flex-1 items-center">
-            <span className="truncate">
-              {page === "appearance"
-                ? "Оформление"
-                : "Устройства ввода и вывода"}
-            </span>
-          </div>
-        </Dialog.Title>
         <Dialog.Description className="sr-only">
           Настройки внешнего вида и аудиоустройств
         </Dialog.Description>
 
         <div className="flex min-h-0 flex-1">
-          <aside className="border-grayA-5 bg-grayA-2 h-full w-52 shrink-0 overflow-hidden border-r">
+          <aside className="border-grayA-5 h-full w-52 shrink-0 overflow-hidden border-r">
             <SidebarProvider
               className="h-full min-h-0! w-full!"
               open
@@ -143,6 +138,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </aside>
 
           <section className="flex min-w-0 flex-1 flex-col">
+            <Dialog.Title className="h-rx-12 border-grayA-5 px-rx-5 text-2 text-gray-12 m-0! flex shrink-0 items-center border-b font-medium">
+              <span className="truncate">
+                {page === "appearance"
+                  ? "Оформление"
+                  : "Устройства ввода и вывода"}
+              </span>
+            </Dialog.Title>
             <Box asChild minHeight="0" flexGrow="1">
               <ScrollArea scrollbars="vertical" type="auto">
                 <div className="p-rx-5">
@@ -158,8 +160,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       devices={devices}
                       error={deviceError}
                       loading={loadingDevices}
-                      inputDevice={settings.inputDevice}
-                      outputDevice={settings.outputDevice}
                       onRefresh={refreshDevices}
                     />
                   )}
@@ -303,23 +303,21 @@ function AppearanceSettings() {
 function AudioSettings({
   devices,
   error,
-  inputDevice,
   loading,
-  outputDevice,
   onRefresh,
 }: {
   devices: { inputs: AudioDeviceInfo[]; outputs: AudioDeviceInfo[] };
   error: string | null;
-  inputDevice: string | null;
   loading: boolean;
-  outputDevice: string | null;
   onRefresh: () => Promise<void>;
 }) {
+  const settings = useSettings();
+
   return (
     <Flex direction="column" gap="5">
       <Flex align="center" justify="between">
-        <Text color="gray" size="2">
-          Изменения применяются к следующему звонку.
+        <Text size="5" weight="medium">
+          Голос
         </Text>
         <Tooltip content="Обновить список устройств">
           <IconButton
@@ -327,7 +325,7 @@ function AudioSettings({
             color="gray"
             disabled={loading}
             onClick={() => void onRefresh()}
-            variant="soft"
+            variant="ghost"
           >
             <RefreshCw
               className={loading ? "animate-spin" : undefined}
@@ -343,39 +341,67 @@ function AudioSettings({
         </Text>
       ) : null}
 
-      <DeviceSetting
-        description="Устройство, с которого записывается речь оператора."
-        devices={devices.inputs}
-        label="Микрофон"
-        value={inputDevice}
-        onChange={(inputDevice) => settingsService.update({ inputDevice })}
+      <Grid columns={{ initial: "1", sm: "2" }} gapX="5" gapY="5">
+        <DeviceSelect
+          devices={devices.inputs}
+          label="Микрофон"
+          value={settings.inputDevice}
+          onChange={(inputDevice) => settingsService.update({ inputDevice })}
+        />
+        <DeviceSelect
+          devices={devices.outputs}
+          label="Динамик"
+          value={settings.outputDevice}
+          onChange={(outputDevice) => settingsService.update({ outputDevice })}
+        />
+        <VolumeSlider
+          label="Громкость микрофона"
+          value={settings.inputGain}
+          onChange={(inputGain) => {
+            settingsService.update({ inputGain });
+            void ipc.audio.setInputGain(inputGain).catch(() => undefined);
+          }}
+        />
+        <VolumeSlider
+          label="Громкость динамика"
+          value={settings.outputVolume}
+          onChange={(outputVolume) => {
+            settingsService.update({ outputVolume });
+            void ipc.audio.setOutputVolume(outputVolume).catch(() => undefined);
+          }}
+        />
+      </Grid>
+
+      <MicrophoneTest
+        inputDevice={settings.inputDevice}
+        inputGain={settings.inputGain}
+        outputDevice={settings.outputDevice}
+        outputVolume={settings.outputVolume}
       />
-      <DeviceSetting
-        description="На него воспроизводится голос заявителя."
-        devices={devices.outputs}
-        label="Динамики или наушники"
-        value={outputDevice}
-        onChange={(outputDevice) => settingsService.update({ outputDevice })}
-      />
+
+      <Text color="gray" size="1">
+        Устройства применяются к следующему звонку, громкость — сразу.
+      </Text>
     </Flex>
   );
 }
 
-function DeviceSetting({
-  description,
+function DeviceSelect({
   devices,
   label,
   value,
   onChange,
 }: {
-  description: string;
   devices: AudioDeviceInfo[];
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
 }) {
   return (
-    <SettingRow title={label} description={description} stacked>
+    <Flex direction="column" gap="2" minWidth="0">
+      <Text size="2" weight="medium">
+        {label}
+      </Text>
       <Select.Root
         value={value ?? SYSTEM_DEFAULT}
         onValueChange={(next) =>
@@ -384,10 +410,10 @@ function DeviceSetting({
       >
         <Select.Trigger
           aria-label={label}
-          className="w-full"
+          className="w-full min-w-0"
           placeholder="Системное устройство"
         />
-        <Select.Content>
+        <Select.Content position="popper">
           <Select.Item value={SYSTEM_DEFAULT}>Системное устройство</Select.Item>
           {devices.map((device) => (
             <Select.Item key={device.id} value={device.id}>
@@ -397,7 +423,116 @@ function DeviceSetting({
           ))}
         </Select.Content>
       </Select.Root>
-    </SettingRow>
+    </Flex>
+  );
+}
+
+function VolumeSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const percent = Math.round(value * 100);
+
+  return (
+    <Flex direction="column" gap="3" minWidth="0">
+      <Flex align="center" justify="between" gap="2">
+        <Text size="2" weight="medium">
+          {label}
+        </Text>
+        <Text className="tabular-nums" color="gray" size="1">
+          {percent}%
+        </Text>
+      </Flex>
+      <Slider
+        aria-label={label}
+        max={MAX_VOLUME * 100}
+        min={0}
+        step={1}
+        value={[percent]}
+        onValueChange={([next]) => onChange((next ?? 100) / 100)}
+      />
+    </Flex>
+  );
+}
+
+function MicrophoneTest({
+  inputDevice,
+  inputGain,
+  outputDevice,
+  outputVolume,
+}: {
+  inputDevice: string | null;
+  inputGain: number;
+  outputDevice: string | null;
+  outputVolume: number;
+}) {
+  const { active, error, level, toggle } = useMicrophoneTest({
+    inputDevice,
+    inputGain,
+    outputDevice,
+    outputVolume,
+  });
+
+  return (
+    <Flex align="center" gap="4">
+      <Button
+        className="shrink-0"
+        color={active ? "red" : undefined}
+        onClick={() => void toggle()}
+        size="3"
+        variant={active ? "soft" : "solid"}
+      >
+        {active ? "Прекратить проверку" : "Проверка микрофона"}
+      </Button>
+      <Flex direction="column" gap="2" flexGrow="1" minWidth="0">
+        <LevelMeter active={active} level={level} />
+        <Text color={error ? "red" : "gray"} size="1">
+          {error ??
+            (active
+              ? "Воспроизводим ваш голос — лучше в наушниках, иначе будет эхо"
+              : "Скажите что-нибудь, и мы воспроизведём ваш голос")}
+        </Text>
+      </Flex>
+    </Flex>
+  );
+}
+
+const LEVEL_SEGMENTS = 48;
+
+function LevelMeter({ active, level }: { active: boolean; level: number }) {
+  const lit = active ? Math.round(level * LEVEL_SEGMENTS) : 0;
+
+  return (
+    <div
+      aria-label="Уровень микрофона"
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={Math.round(level * 100)}
+      className="h-rx-5 flex items-stretch justify-between gap-[2px] overflow-hidden"
+      role="meter"
+    >
+      {Array.from({ length: LEVEL_SEGMENTS }, (_, index) => (
+        <span
+          className="w-[3px] shrink-0 rounded-full transition-colors duration-75"
+          key={index}
+          style={{
+            background:
+              index < lit
+                ? index >= LEVEL_SEGMENTS * 0.85
+                  ? "var(--red-9)"
+                  : index >= LEVEL_SEGMENTS * 0.65
+                    ? "var(--amber-9)"
+                    : "var(--green-9)"
+                : "var(--gray-a6)",
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

@@ -9,7 +9,7 @@ import {
   TextArea,
 } from "@bolid-ui/themes";
 import { AlertTriangle, ArrowUp } from "lucide-react";
-import type { SVGProps } from "react";
+import { useState, type SVGProps } from "react";
 
 import {
   Sheet,
@@ -54,26 +54,26 @@ export { SupportIcon };
  * здесь нет: только поле описания и кнопка. Пока черновик собирается, панель
  * закрыта, а форма показывает скелетон.
  *
- * Описание живёт в странице, а не в панели: закрыв её посмотреть форму,
- * преподаватель не должен терять набранный текст.
+ * Описание живёт в этом компоненте, а не в странице: он смонтирован всё
+ * время, поэтому закрыв панель посмотреть форму, преподаватель не теряет текст.
+ * А набор перерисовывает только панель — не всю форму конструктора с картой.
  */
 export function ScenarioAiHelper({
   open,
   onOpenChange,
-  brief,
-  onBriefChange,
   pending,
   error,
+  onErrorDismiss,
   onGenerate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  brief: string;
-  onBriefChange: (brief: string) => void;
   pending: boolean;
   error?: string;
-  onGenerate: () => void;
+  onErrorDismiss: () => void;
+  onGenerate: (brief: string) => void;
 }) {
+  const [brief, setBrief] = useState("");
   const canSend = !pending && brief.trim().length >= BRIEF_MIN_LENGTH;
 
   return (
@@ -115,7 +115,10 @@ export function ScenarioAiHelper({
               maxLength={BRIEF_MAX_LENGTH}
               placeholder="Например: задымление в учебной мастерской, заявитель снаружи, внутри один пострадавший…"
               aria-label="Описание сценария"
-              onChange={(event) => onBriefChange(event.currentTarget.value)}
+              onChange={(event) => {
+                setBrief(event.currentTarget.value);
+                if (error !== undefined) onErrorDismiss();
+              }}
               onKeyDown={(event) => {
                 // Enter — перенос строки, как в любом поле описания;
                 // отправка по Ctrl/Cmd+Enter не мешает писать абзацами.
@@ -125,7 +128,7 @@ export function ScenarioAiHelper({
                   canSend
                 ) {
                   event.preventDefault();
-                  onGenerate();
+                  onGenerate(brief);
                 }
               }}
             />
@@ -135,7 +138,11 @@ export function ScenarioAiHelper({
                 Минимум {BRIEF_MIN_LENGTH} символов · {brief.length}/
                 {BRIEF_MAX_LENGTH} · Ctrl+Enter
               </Text>
-              <Button type="button" disabled={!canSend} onClick={onGenerate}>
+              <Button
+                type="button"
+                disabled={!canSend}
+                onClick={() => onGenerate(brief)}
+              >
                 {pending ? <Spinner size="1" /> : <ArrowUp size={16} />}
                 Заполнить черновик
               </Button>

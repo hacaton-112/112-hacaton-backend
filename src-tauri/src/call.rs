@@ -334,7 +334,8 @@ where
             self.emit_level();
         }
 
-        Some(sample)
+        // Индикатор показывает голос заявителя, а громкость — настройку оператора.
+        Some(sample * crate::audio::output_volume())
     }
 }
 

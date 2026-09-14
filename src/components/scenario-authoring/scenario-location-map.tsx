@@ -17,7 +17,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
 import { INCIDENT_ZOOM, MOSCOW } from "../../config/map";
+import { cn } from "../../lib/cn";
 import { createCircleZone } from "../map/geo-circle";
+import { useFieldError } from "./scenario-form-context";
+import { FieldError, Loadable } from "./scenario-form-fields";
 import {
   formatCoordinates,
   hasSelectedCoordinates,
@@ -59,10 +62,19 @@ export function ScenarioLocationMap({
   const [target, setTarget] = useState<ScenarioLocationTarget>("incident");
   const targetRef = useRef(target);
   const [failed, setFailed] = useState(false);
+  // Отметки на карте проверяются вместе: попадание точки в область зависит от
+  // обеих, поэтому любой клик снимает обе ошибки.
+  const pointError = useFieldError("location.exactPoint", true);
+  const centerError = useFieldError("location.locatorCenter", true);
+  const invalid = pointError.error ?? centerError.error;
 
   useEffect(() => {
-    onSelectRef.current = onSelect;
-  }, [onSelect]);
+    onSelectRef.current = (target, coordinates) => {
+      pointError.clear();
+      centerError.clear();
+      onSelect(target, coordinates);
+    };
+  }, [onSelect, pointError, centerError]);
 
   useEffect(() => {
     targetRef.current = target;
@@ -208,44 +220,59 @@ export function ScenarioLocationMap({
 
   return (
     <Grid gap="3">
-      <SegmentedControl.Root
-        value={target}
-        onValueChange={(next) => setTarget(next as ScenarioLocationTarget)}
-        aria-label="Что отметить на карте"
-        className="justify-self-start"
-      >
-        <SegmentedControl.Item value="incident">
-          Точка происшествия
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="locator">
-          Центр области
-        </SegmentedControl.Item>
-      </SegmentedControl.Root>
+      <Loadable>
+        <SegmentedControl.Root
+          value={target}
+          onValueChange={(next) => setTarget(next as ScenarioLocationTarget)}
+          aria-label="Что отметить на карте"
+          className="justify-self-start"
+        >
+          <SegmentedControl.Item value="incident">
+            Точка происшествия
+          </SegmentedControl.Item>
+          <SegmentedControl.Item value="locator">
+            Центр области
+          </SegmentedControl.Item>
+        </SegmentedControl.Root>
+      </Loadable>
 
-      <Card size="1" variant="surface" className="relative h-[360px] p-0!">
-        <div ref={containerRef} className="h-full w-full" />
+      <Loadable>
         <Card
           size="1"
-          className="pointer-events-none absolute! top-3 left-3 max-w-[260px] [--card-background-color:var(--color-panel-solid)]"
+          variant="surface"
+          className={cn(
+            "relative h-[360px] p-0!",
+            invalid !== undefined &&
+              "outline-1 outline-(--red-a11) outline-solid",
+          )}
+          {...(pointError.error === undefined
+            ? centerError.anchor
+            : pointError.anchor)}
         >
-          <Text size="1">
-            Клик задаёт:{" "}
-            {target === "incident" ? "точку происшествия" : "центр области"}
-          </Text>
-        </Card>
-        {failed && (
-          <Flex
-            justify="center"
-            px="3"
-            py="2"
-            className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
+          <div ref={containerRef} className="h-full w-full" />
+          <Card
+            size="1"
+            className="pointer-events-none absolute! top-3 left-3 max-w-[260px] [--card-background-color:var(--color-panel-solid)]"
           >
-            <Text size="1" color="gray">
-              Подложка карты недоступна — координаты можно ввести вручную
+            <Text size="1">
+              Клик задаёт:{" "}
+              {target === "incident" ? "точку происшествия" : "центр области"}
             </Text>
-          </Flex>
-        )}
-      </Card>
+          </Card>
+          {failed && (
+            <Flex
+              justify="center"
+              px="3"
+              py="2"
+              className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
+            >
+              <Text size="1" color="gray">
+                Подложка карты недоступна — координаты можно ввести вручную
+              </Text>
+            </Flex>
+          )}
+        </Card>
+      </Loadable>
 
       <Grid gap="1" columns={{ initial: "1", sm: "2" }}>
         <Text size="1" color="gray">
@@ -256,6 +283,10 @@ export function ScenarioLocationMap({
           <Code variant="ghost">{formatCoordinates(locatorCenter)}</Code>
         </Text>
       </Grid>
+      <FieldError error={pointError.error} />
+      {centerError.error !== pointError.error && (
+        <FieldError error={centerError.error} />
+      )}
     </Grid>
   );
 }

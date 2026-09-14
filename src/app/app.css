@@ -461,6 +461,17 @@ body,
   .operator-column-scroll {
     height: 100%;
   }
+
+  /*
+   * Здесь вьюпорт колонки обрезает содержимое. Radix задаёт обёртке
+   * width: fit-content, и при дробной ширине колонки (например, на 1920) она
+   * выходит на долю пикселя за край — у карточек пропадает правая граница.
+   */
+  .operator-column-scroll > .rt-ScrollAreaViewport > * {
+    width: 100% !important;
+    min-width: 0;
+    padding-inline: 1px;
+  }
 }
 
 :root {

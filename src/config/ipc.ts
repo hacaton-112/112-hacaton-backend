@@ -12,4 +12,8 @@ export const IPC_CONFIG = {
   getSystemAudioPermissionStatusHandler: () =>
     "plugin:system-audio|permission_status",
   getAudioDevicesHandler: () => "audio_devices",
+  getAudioSetInputGainHandler: () => "audio_set_input_gain",
+  getAudioSetOutputVolumeHandler: () => "audio_set_output_volume",
+  getAudioTestStartHandler: () => "audio_test_start",
+  getAudioTestStopHandler: () => "audio_test_stop",
 } as const;

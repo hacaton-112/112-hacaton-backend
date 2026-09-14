@@ -46,6 +46,9 @@ class NativeCallStream implements CallStream {
     events.onmessage = (payload) => this.handleEvent(payload);
 
     try {
+      const { inputGain, outputVolume } = settingsService.get();
+      await ipc.audio.setInputGain(inputGain).catch(() => undefined);
+      await ipc.audio.setOutputVolume(outputVolume).catch(() => undefined);
       this.connection = await ipc.call.connect({
         url: API_CONFIG.getVoicePipelineStreamUrl(),
         token,
@@ -95,6 +98,7 @@ class NativeCallStream implements CallStream {
           processing: false,
           levelOnly: false,
           inputDevice: settingsService.get().inputDevice,
+          inputGain: settingsService.get().inputGain,
         });
       } catch (reason) {
         await ipc.systemAudio.stop().catch(() => undefined);

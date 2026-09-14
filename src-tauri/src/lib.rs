@@ -29,12 +29,23 @@ pub fn run() {
             let call = webview.state::<Call>();
             call.intercept_microphone_channel(callback.0, body)
         })
+        // Окно карты живёт скрытым всё время работы, поэтому Tauri не завершил бы
+        // процесс сам: закрытие главного окна закрывает всё приложение.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .manage(Call::default())
         .manage(AudioCapture::default())
         .invoke_handler(tauri::generate_handler![
             audio::audio_devices,
             audio::audio_capture_start,
             audio::audio_capture_stop,
+            audio::audio_set_input_gain,
+            audio::audio_set_output_volume,
+            audio::audio_test_start,
+            audio::audio_test_stop,
             call::call_connect,
             call::call_start,
             call::call_send,

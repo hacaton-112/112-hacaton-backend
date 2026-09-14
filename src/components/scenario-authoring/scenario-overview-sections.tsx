@@ -52,6 +52,7 @@ export function ScenarioBasicsSection({
       <FieldGrid>
         <TextInput
           label="Код сценария"
+          path="code"
           hint={
             codeLocked ? "не меняется при правке" : "уникальный, до 32 символов"
           }
@@ -77,6 +78,7 @@ export function ScenarioBasicsSection({
         />
         <TextInput
           label="Название"
+          path="title"
           value={scenario.title}
           placeholder="Пожар в учебной мастерской"
           maxLength={120}
@@ -84,6 +86,7 @@ export function ScenarioBasicsSection({
         />
         <SelectInput
           label="Категория"
+          path="category"
           value={scenario.category}
           options={SCENARIO_CATEGORIES.map((value) => ({
             value,
@@ -93,6 +96,7 @@ export function ScenarioBasicsSection({
         />
         <NumberInput
           label="Сложность"
+          path="difficulty"
           hint="от 1 до 5"
           value={scenario.difficulty}
           min={1}
@@ -102,6 +106,7 @@ export function ScenarioBasicsSection({
         <TextAreaInput
           className={FULL_ROW}
           label="Краткое описание"
+          path="summary"
           value={scenario.summary}
           placeholder="Что происходит и чему должен научиться оператор"
           maxLength={400}
@@ -130,6 +135,7 @@ export function ScenarioPersonaSection({
       <FieldGrid>
         <TextInput
           label="Код персоны"
+          path="persona.code"
           value={scenario.persona.code}
           placeholder="s-fire-03-caller"
           maxLength={64}
@@ -137,6 +143,7 @@ export function ScenarioPersonaSection({
         />
         <SelectInput
           label="Пол"
+          path="persona.gender"
           value={scenario.persona.gender}
           options={[
             { value: "female", label: "Женский" },
@@ -154,6 +161,7 @@ export function ScenarioPersonaSection({
         />
         <TextInput
           label="Имя"
+          path="persona.displayName"
           value={scenario.persona.displayName}
           placeholder="Елена Учебная"
           maxLength={120}
@@ -161,6 +169,7 @@ export function ScenarioPersonaSection({
         />
         <NumberInput
           label="Возраст"
+          path="persona.ageYears"
           value={scenario.persona.ageYears}
           min={1}
           max={110}
@@ -168,6 +177,7 @@ export function ScenarioPersonaSection({
         />
         <SelectInput
           label="Голос TTS"
+          path="persona.voiceId"
           value={scenario.persona.voiceId}
           options={voices.map((voice) => ({
             value: voice.id,
@@ -177,6 +187,7 @@ export function ScenarioPersonaSection({
         />
         <TextInput
           label="Фоновый звук"
+          path="persona.backgroundSounds"
           value={scenario.persona.backgroundSounds ?? ""}
           placeholder="Сирена во дворе"
           maxLength={200}
@@ -185,6 +196,7 @@ export function ScenarioPersonaSection({
         <TextInput
           className={FULL_ROW}
           label="Состояние заявителя"
+          path="persona.condition"
           value={scenario.persona.condition}
           placeholder="Напугана, находится снаружи"
           maxLength={200}
@@ -193,6 +205,7 @@ export function ScenarioPersonaSection({
         <TextAreaInput
           className={FULL_ROW}
           label="Манера речи"
+          path="persona.speechStyle"
           value={scenario.persona.speechStyle}
           placeholder="Короткие фразы, сбивается, отвечает по существу..."
           maxLength={2_000}
@@ -200,6 +213,7 @@ export function ScenarioPersonaSection({
         />
         <NumberInput
           label="Начальная паника"
+          path="persona.baselinePanicLevel"
           hint="0–4"
           value={scenario.persona.baselinePanicLevel}
           min={0}
@@ -210,6 +224,7 @@ export function ScenarioPersonaSection({
         />
         <NumberInput
           label="Базовый темп речи"
+          path="persona.baseSpeechRate"
           hint="0.5–2"
           value={scenario.persona.baseSpeechRate}
           min={0.5}
@@ -237,6 +252,7 @@ export function ScenarioCallSection({
       <FieldGrid>
         <TextAreaInput
           label="Первая реплика"
+          path="version.openingLine"
           hint="воспроизводится без LLM"
           value={scenario.version.openingLine}
           maxLength={500}
@@ -244,6 +260,7 @@ export function ScenarioCallSection({
         />
         <TextAreaInput
           label="Безопасная запасная реплика"
+          path="version.fallbackLine"
           hint="не раскрывает скрытых фактов"
           value={scenario.version.fallbackLine}
           maxLength={500}
@@ -254,6 +271,7 @@ export function ScenarioCallSection({
       <FieldGrid lg="4" className="mt-3">
         <NumberInput
           label="Паника: минимум"
+          path="version.panicFloor"
           value={scenario.version.panicFloor}
           min={0}
           max={4}
@@ -261,6 +279,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Паника: максимум"
+          path="version.panicCeiling"
           value={scenario.version.panicCeiling}
           min={0}
           max={4}
@@ -268,6 +287,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Макс. перебиваний"
+          path="version.maxInterruptions"
           value={scenario.version.maxInterruptions}
           min={0}
           max={20}
@@ -275,6 +295,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Инициатива через, сек"
+          path="version.initiativeCooldownSeconds"
           value={scenario.version.initiativeCooldownSeconds}
           min={1}
           max={120}
@@ -284,6 +305,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Норматив, сек"
+          path="version.answerNormSeconds"
           value={scenario.version.answerNormSeconds}
           min={30}
           max={1_800}
@@ -291,6 +313,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Ожидаемая длительность, сек"
+          path="version.expectedDurationSeconds"
           value={scenario.version.expectedDurationSeconds}
           min={30}
           max={3_600}
@@ -300,6 +323,7 @@ export function ScenarioCallSection({
         />
         <NumberInput
           label="Проходной балл"
+          path="version.passThreshold"
           value={scenario.version.passThreshold}
           min={0}
           max={100}
@@ -311,6 +335,7 @@ export function ScenarioCallSection({
 
       <ChipsInput
         label="Ожидаемые службы"
+        path="version.expectedServices"
         value={scenario.version.expectedServices}
         options={EMERGENCY_SERVICES.map((service) => ({
           value: service,
@@ -368,6 +393,7 @@ export function ScenarioLocationSection({
       <FieldGrid lg="4" className="mt-3">
         <NumberInput
           label="Радиус области, м"
+          path="location.locatorRadiusMeters"
           value={scenario.location.locatorRadiusMeters}
           min={10}
           max={50_000}
@@ -377,6 +403,7 @@ export function ScenarioLocationSection({
         />
         <SelectInput
           label="Точность геолокации"
+          path="location.locatorAccuracy"
           value={scenario.location.locatorAccuracy}
           options={LOCATOR_ACCURACIES.map((value) => ({
             value,
@@ -386,6 +413,7 @@ export function ScenarioLocationSection({
         />
         <SelectInput
           label="Тип местности"
+          path="location.terrain"
           value={scenario.location.terrain}
           options={TERRAIN_TYPES.map((value) => ({
             value,
@@ -395,6 +423,7 @@ export function ScenarioLocationSection({
         />
         <TextInput
           label="Телефон заявителя"
+          path="location.callerNumber"
           value={scenario.location.callerNumber}
           placeholder="+7 (___) ___-__-__"
           maxLength={32}
@@ -402,6 +431,7 @@ export function ScenarioLocationSection({
         />
         <NumberInput
           label="Точная широта"
+          path="location.exactPoint.0"
           value={scenario.location.exactPoint[0]}
           min={-90}
           max={90}
@@ -414,6 +444,7 @@ export function ScenarioLocationSection({
         />
         <NumberInput
           label="Точная долгота"
+          path="location.exactPoint.1"
           value={scenario.location.exactPoint[1]}
           min={-180}
           max={180}
@@ -426,6 +457,7 @@ export function ScenarioLocationSection({
         />
         <NumberInput
           label="Центр области: широта"
+          path="location.locatorCenter.0"
           value={scenario.location.locatorCenter[0]}
           min={-90}
           max={90}
@@ -438,6 +470,7 @@ export function ScenarioLocationSection({
         />
         <NumberInput
           label="Центр области: долгота"
+          path="location.locatorCenter.1"
           value={scenario.location.locatorCenter[1]}
           min={-180}
           max={180}
@@ -478,27 +511,32 @@ export function ScenarioLocationSection({
       <FieldGrid lg="4">
         <TextInput
           label="Город"
+          path="location.exactAddress.city"
           value={scenario.location.exactAddress.city ?? ""}
           onChange={(value) => updateAddress("city", value)}
         />
         <TextInput
           label="Улица"
+          path="location.exactAddress.street"
           value={scenario.location.exactAddress.street ?? ""}
           onChange={(value) => updateAddress("street", value)}
         />
         <TextInput
           label="Дом"
+          path="location.exactAddress.house"
           value={scenario.location.exactAddress.house ?? ""}
           onChange={(value) => updateAddress("house", value)}
         />
         <TextInput
           label="Дополнительные детали адреса"
+          path="location.exactAddress.details"
           value={scenario.location.exactAddress.details ?? ""}
           onChange={(value) => updateAddress("details", value)}
         />
         <TextInput
           className={FULL_ROW}
           label="Подпись области геолокации"
+          path="location.locatorLabel"
           value={scenario.location.locatorLabel}
           placeholder="Базовая станция: Учебный квартал"
           maxLength={200}
@@ -523,6 +561,7 @@ export function ScenarioLocationSection({
       <div className="mt-3">
         <BooleanInput
           label="Заявитель уже обращался по этому происшествию"
+          path="location.previouslyCalled"
           checked={scenario.location.previouslyCalled}
           onChange={(previouslyCalled) => updateLocation({ previouslyCalled })}
         />

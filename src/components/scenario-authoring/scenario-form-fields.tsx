@@ -9,34 +9,64 @@ import {
   Heading,
   IconButton,
   Select,
+  Skeleton,
   Text,
   TextArea,
   TextField,
 } from "@bolid-ui/themes";
 import { CirclePlus, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { use, type ReactNode } from "react";
 
 import { cn } from "../../lib/cn";
+import {
+  ScenarioFormLoadingContext,
+  useFieldError,
+} from "./scenario-form-context";
+
+/** Поле или кнопка формы: пока черновик собирается, вместо них скелетон. */
+export function Loadable({ children }: { children: ReactNode }) {
+  const loading = use(ScenarioFormLoadingContext);
+
+  return <Skeleton loading={loading}>{children}</Skeleton>;
+}
+
+/** Подпись ошибки под полем. */
+export function FieldError({ error }: { error: string | undefined }) {
+  if (error === undefined) return null;
+
+  return (
+    <Text as="span" size="1" color="red" role="alert">
+      {error}
+    </Text>
+  );
+}
 
 /**
  * Карточка раздела конструктора: заголовок, пояснение и действие справа.
  *
  * В макете у всех разделов одна шапка — жирный заголовок и строка пояснения
  * под ним, а кнопка «+ Факт» прижата вправо на уровне заголовка.
+ *
+ * `errorPath` — ошибка всего списка раздела, например неуникальные ключи
+ * фактов: ни одному полю в отдельности она не принадлежит.
  */
 export function SectionCard({
   title,
   description,
   actions,
+  errorPath,
   children,
 }: {
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
+  errorPath?: string;
   children?: ReactNode;
 }) {
+  const { error, anchor } = useFieldError(errorPath, true);
+
   return (
-    <Card size="3" variant="classic">
+    <Card size="3" variant="classic" {...anchor}>
       <Flex
         align="start"
         justify="between"
@@ -52,6 +82,7 @@ export function SectionCard({
               {description}
             </Text>
           )}
+          <FieldError error={error} />
         </Grid>
         {actions}
       </Flex>
@@ -71,16 +102,18 @@ export function AddButton({
   onClick: () => void;
 }) {
   return (
-    <Button
-      type="button"
-      size="2"
-      variant="soft"
-      className="shrink-0"
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <CirclePlus size={16} /> {children}
-    </Button>
+    <Loadable>
+      <Button
+        type="button"
+        size="2"
+        variant="soft"
+        className="shrink-0"
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <CirclePlus size={16} /> {children}
+      </Button>
+    </Loadable>
   );
 }
 
@@ -148,18 +181,20 @@ export function RemoveButton({
   onClick: () => void;
 }) {
   return (
-    <IconButton
-      type="button"
-      variant="ghost"
-      color="gray"
-      size="3"
-      className="shrink-0"
-      aria-label={label ?? "Удалить"}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Trash2 size={20} />
-    </IconButton>
+    <Loadable>
+      <IconButton
+        type="button"
+        variant="ghost"
+        color="gray"
+        size="3"
+        className="shrink-0"
+        aria-label={label ?? "Удалить"}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Trash2 size={20} />
+      </IconButton>
+    </Loadable>
   );
 }
 
@@ -189,15 +224,22 @@ export function FieldGrid({
   );
 }
 
-/** Подпись над полем, как в макете: серая строка 14px, поле сразу под ней. */
+/**
+ * Подпись над полем, как в макете: серая строка 14px, поле сразу под ней, а
+ * ошибка проверки — красной строкой под полем.
+ */
 export function FieldLabel({
   label,
   hint,
+  path,
+  error,
   children,
   className,
 }: {
   label: string;
   hint?: string;
+  path?: string;
+  error?: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -206,19 +248,23 @@ export function FieldLabel({
       as="label"
       size="2"
       color="gray"
-      className={cn("grid min-w-0 gap-0.5", className)}
+      className={cn("grid min-w-0 content-start gap-0.5", className)}
+      data-field-path={path}
+      data-field-invalid={error === undefined ? undefined : "true"}
     >
       <span>
         {label}
         {hint && ` (${hint})`}
       </span>
       {children}
+      <FieldError error={error} />
     </Text>
   );
 }
 
 export function TextInput({
   label,
+  path,
   value,
   onChange,
   placeholder,
@@ -228,6 +274,7 @@ export function TextInput({
   disabled = false,
 }: {
   label: string;
+  path?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -236,22 +283,37 @@ export function TextInput({
   className?: string;
   disabled?: boolean;
 }) {
+  const { error, clear } = useFieldError(path);
+
   return (
-    <FieldLabel label={label} hint={hint} className={className}>
-      <TextField.Root
-        size="2"
-        value={value}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
+    <FieldLabel
+      label={label}
+      hint={hint}
+      path={path}
+      error={error}
+      className={className}
+    >
+      <Loadable>
+        <TextField.Root
+          size="2"
+          value={value}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-invalid={error !== undefined}
+          onChange={(event) => {
+            clear();
+            onChange(event.currentTarget.value);
+          }}
+        />
+      </Loadable>
     </FieldLabel>
   );
 }
 
 export function TextAreaInput({
   label,
+  path,
   value,
   onChange,
   placeholder,
@@ -261,6 +323,7 @@ export function TextAreaInput({
   className,
 }: {
   label: string;
+  path?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -269,22 +332,37 @@ export function TextAreaInput({
   maxLength?: number;
   className?: string;
 }) {
+  const { error, clear } = useFieldError(path);
+
   return (
-    <FieldLabel label={label} hint={hint} className={className}>
-      <TextArea
-        size="2"
-        rows={rows}
-        value={value}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
+    <FieldLabel
+      label={label}
+      hint={hint}
+      path={path}
+      error={error}
+      className={className}
+    >
+      <Loadable>
+        <TextArea
+          size="2"
+          rows={rows}
+          value={value}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          aria-invalid={error !== undefined}
+          onChange={(event) => {
+            clear();
+            onChange(event.currentTarget.value);
+          }}
+        />
+      </Loadable>
     </FieldLabel>
   );
 }
 
 export function NumberInput({
   label,
+  path,
   value,
   onChange,
   min,
@@ -294,6 +372,7 @@ export function NumberInput({
   className,
 }: {
   label: string;
+  path?: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
@@ -302,26 +381,40 @@ export function NumberInput({
   hint?: string;
   className?: string;
 }) {
+  const { error, clear } = useFieldError(path);
+
   return (
-    <FieldLabel label={label} hint={hint} className={className}>
-      <TextField.Root
-        size="2"
-        type="number"
-        value={String(value)}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(event) => {
-          const next = Number(event.currentTarget.value);
-          if (Number.isFinite(next)) onChange(next);
-        }}
-      />
+    <FieldLabel
+      label={label}
+      hint={hint}
+      path={path}
+      error={error}
+      className={className}
+    >
+      <Loadable>
+        <TextField.Root
+          size="2"
+          type="number"
+          value={String(value)}
+          min={min}
+          max={max}
+          step={step}
+          aria-invalid={error !== undefined}
+          onChange={(event) => {
+            const next = Number(event.currentTarget.value);
+            if (!Number.isFinite(next)) return;
+            clear();
+            onChange(next);
+          }}
+        />
+      </Loadable>
     </FieldLabel>
   );
 }
 
 export function SelectInput<T extends string>({
   label,
+  path,
   value,
   options,
   onChange,
@@ -329,16 +422,22 @@ export function SelectInput<T extends string>({
   className,
 }: {
   label: string;
+  path?: string;
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
   hint?: string;
   className?: string;
 }) {
+  const { error, clear, anchor } = useFieldError(path);
+
   return (
     // Подпись не оборачивает Select: клик по <label> открывал бы список
     // вторым событием, и он тут же закрывался.
-    <Grid className={cn("min-w-0 gap-0.5", className)}>
+    <Grid
+      className={cn("min-w-0 content-start gap-0.5", className)}
+      {...anchor}
+    >
       <Text size="2" color="gray">
         {label}
         {hint && ` (${hint})`}
@@ -346,9 +445,18 @@ export function SelectInput<T extends string>({
       <Select.Root
         size="2"
         value={value}
-        onValueChange={(next) => onChange(next as T)}
+        onValueChange={(next) => {
+          clear();
+          onChange(next as T);
+        }}
       >
-        <Select.Trigger aria-label={label} className="w-full" />
+        <Loadable>
+          <Select.Trigger
+            aria-label={label}
+            aria-invalid={error !== undefined}
+            className="w-full"
+          />
+        </Loadable>
         <Select.Content position="popper">
           {options.map((option) => (
             <Select.Item key={option.value} value={option.value}>
@@ -357,28 +465,40 @@ export function SelectInput<T extends string>({
           ))}
         </Select.Content>
       </Select.Root>
+      <FieldError error={error} />
     </Grid>
   );
 }
 
 export function BooleanInput({
   label,
+  path,
   checked,
   onChange,
 }: {
   label: string;
+  path?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const { error, clear, anchor } = useFieldError(path);
+
   return (
-    <Text as="label" size="2" color="gray">
+    <Text as="label" size="2" color="gray" className="grid gap-0.5" {...anchor}>
       <Flex align="center" gap="2">
-        <Checkbox
-          checked={checked}
-          onCheckedChange={(value) => onChange(value === true)}
-        />
+        <Loadable>
+          <Checkbox
+            checked={checked}
+            aria-invalid={error !== undefined}
+            onCheckedChange={(value) => {
+              clear();
+              onChange(value === true);
+            }}
+          />
+        </Loadable>
         {label}
       </Flex>
+      <FieldError error={error} />
     </Text>
   );
 }
@@ -386,33 +506,44 @@ export function BooleanInput({
 /** Набор вариантов-чипов, как «Ожидаемые службы» в макете. */
 export function ChipsInput<T extends string>({
   label,
+  path,
   value,
   options,
   onChange,
 }: {
   label: string;
+  path?: string;
   value: readonly T[];
   options: readonly { value: T; label: string }[];
   onChange: (value: T[]) => void;
 }) {
+  const { error, clear, anchor } = useFieldError(path);
+
   return (
-    <Grid gap="2">
+    <Grid gap="2" {...anchor}>
       <Text size="2" color="gray">
         {label}
       </Text>
-      <CheckboxCards.Root
-        size="1"
-        gap="2"
-        value={[...value]}
-        onValueChange={(next) => onChange(next as T[])}
-        className="flex! flex-wrap"
-      >
-        {options.map((option) => (
-          <CheckboxCards.Item key={option.value} value={option.value}>
-            <Text size="2">{option.label}</Text>
-          </CheckboxCards.Item>
-        ))}
-      </CheckboxCards.Root>
+      <Loadable>
+        <CheckboxCards.Root
+          size="1"
+          gap="2"
+          value={[...value]}
+          aria-invalid={error !== undefined}
+          onValueChange={(next) => {
+            clear();
+            onChange(next as T[]);
+          }}
+          className="flex! flex-wrap"
+        >
+          {options.map((option) => (
+            <CheckboxCards.Item key={option.value} value={option.value}>
+              <Text size="2">{option.label}</Text>
+            </CheckboxCards.Item>
+          ))}
+        </CheckboxCards.Root>
+      </Loadable>
+      <FieldError error={error} />
     </Grid>
   );
 }
