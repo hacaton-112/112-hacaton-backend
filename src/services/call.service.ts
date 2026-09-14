@@ -12,6 +12,8 @@ import { settingsService } from "./settings.service";
 interface CallStreamCallbacks {
   onEvent: (event: CallServerEvent) => void;
   onUnknownEvent?: (payload: unknown) => void;
+  /** Уровень речи оператора из нативного захвата, от 0 до 1. */
+  onMicrophoneLevel?: (level: number) => void;
 }
 
 export interface CallStream {
@@ -89,17 +91,28 @@ class NativeCallStream implements CallStream {
       const connection = this.requireConnection();
       const microphone = new Channel<unknown>();
       microphone.onmessage = () => undefined;
+      const levels = new Channel<unknown>();
+      levels.onmessage = (payload) => {
+        const level = (payload as { level?: unknown }).level;
+        if (typeof level === "number") {
+          this.callbacks.onMicrophoneLevel?.(level);
+        }
+      };
 
       try {
         await ipc.call.attachMicrophoneChannel(connection, microphone.id);
         await ipc.call.startListening(connection);
-        await ipc.systemAudio.start(microphone, {
-          loopback: false,
-          processing: false,
-          levelOnly: false,
-          inputDevice: settingsService.get().inputDevice,
-          inputGain: settingsService.get().inputGain,
-        });
+        await ipc.systemAudio.start(
+          microphone,
+          {
+            loopback: false,
+            processing: false,
+            levelOnly: false,
+            inputDevice: settingsService.get().inputDevice,
+            inputGain: settingsService.get().inputGain,
+          },
+          levels,
+        );
       } catch (reason) {
         await ipc.systemAudio.stop().catch(() => undefined);
         await ipc.call.stopListening(connection).catch(() => undefined);

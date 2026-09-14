@@ -291,7 +291,12 @@ fn frame_level(frame: &[i16]) -> f32 {
 }
 
 impl AudioCapture {
-    fn start(&self, channel: Channel<Value>, options: AudioCaptureOptions) -> Result<(), String> {
+    fn start(
+        &self,
+        channel: Channel<Value>,
+        levels: Channel<Value>,
+        options: AudioCaptureOptions,
+    ) -> Result<(), String> {
         let mut active = self
             .stream
             .lock()
@@ -321,6 +326,10 @@ impl AudioCapture {
                     "samples_base64": BASE64.encode(bytes),
                 }));
                 sequence = sequence.wrapping_add(1);
+
+                // Уровень идёт отдельным каналом: канал PCM звонка перехватывается
+                // до webview, а индикатору речи не нужен второй захват микрофона.
+                let _ = levels.send(json!({ "kind": "level", "level": frame_level(frame) }));
             },
             failure_reporter(channel),
         )?;
@@ -490,9 +499,10 @@ impl CaptureProcessor {
 pub fn audio_capture_start(
     audio: State<'_, AudioCapture>,
     channel: Channel<Value>,
+    levels: Channel<Value>,
     options: Option<AudioCaptureOptions>,
 ) -> Result<(), String> {
-    audio.start(channel, options.unwrap_or_default())
+    audio.start(channel, levels, options.unwrap_or_default())
 }
 
 #[tauri::command]

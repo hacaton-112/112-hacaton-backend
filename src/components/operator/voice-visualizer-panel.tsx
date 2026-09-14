@@ -1,13 +1,17 @@
-import { Flex, Text } from "@bolid-ui/themes";
-import { MicOff } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
-import { VoiceVisualizer, useVoiceVisualizer } from "react-voice-visualizer";
 
 const VISUALIZER_HEIGHT = 32;
+const BAR_WIDTH = 1;
+const BAR_GAP = 1;
+/** Шаг волны: полоса добавляется и в тишине, чтобы волна не замирала. */
+const SAMPLE_INTERVAL_MS = 40;
+const MAX_HISTORY = 1_200;
 
 interface VoiceVisualizerPanelProps {
   /** Во время разговора поток постоянный; false означает ручное отключение. */
   isListening: boolean;
+  /** Уровень речи из нативного захвата микрофона, от 0 до 1. */
+  level: number;
 }
 
 /** Цвета берём из темы: canvas понимает только вычисленные значения, не var(). */
@@ -33,55 +37,111 @@ function useThemeColors(elementRef: React.RefObject<HTMLElement | null>) {
   return colors;
 }
 
-function VoiceVisualizerPanelImpl({ isListening }: VoiceVisualizerPanelProps) {
+/**
+ * Волна речи оператора.
+ *
+ * Микрофон здесь не открывается: уровень приходит из того же нативного
+ * захвата, что отправляет речь на распознавание. Раньше панель делала второй
+ * захват через getUserMedia, и на macOS голосовая обработка WebKit глушила
+ * весь звук системы — вплоть до закрытия приложения.
+ */
+function VoiceVisualizerPanelImpl({
+  isListening,
+  level,
+}: VoiceVisualizerPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const historyRef = useRef<number[]>([]);
+  const frameRef = useRef<number | null>(null);
   const colors = useThemeColors(containerRef);
-  const controls = useVoiceVisualizer();
-  const { startRecording, stopRecording, error } = controls;
-  const wasListeningRef = useRef(false);
 
-  // Реагируем только на смену состояния. Если смотреть на isRecordingInProgress,
-  // то каждый рендер до готовности getUserMedia запускает ещё одну запись —
-  // несколько потоков рисуют в один канвас, и полосы скачут по ширине.
+  const draw = () => {
+    frameRef.current = null;
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    if (canvas.width !== Math.round(width * ratio)) {
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(VISUALIZER_HEIGHT * ratio);
+    }
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, VISUALIZER_HEIGHT);
+
+    const step = BAR_WIDTH + BAR_GAP;
+    const history = historyRef.current;
+    const count = Math.min(history.length, Math.floor(width / step));
+
+    // Новые полосы появляются справа и уезжают влево, как при записи.
+    for (let index = 0; index < count; index += 1) {
+      const value = history[history.length - count + index] ?? 0;
+      const height = Math.max(1, value * VISUALIZER_HEIGHT);
+      context.fillStyle = value > 0 ? colors.main : colors.secondary;
+      context.fillRect(
+        width - (count - index) * step,
+        (VISUALIZER_HEIGHT - height) / 2,
+        BAR_WIDTH,
+        height,
+      );
+    }
+  };
+  const drawRef = useRef(draw);
+
   useEffect(() => {
-    if (isListening === wasListeningRef.current) return;
-    wasListeningRef.current = isListening;
+    drawRef.current = draw;
+  });
 
-    if (isListening) startRecording();
-    else stopRecording();
-  }, [isListening, startRecording, stopRecording]);
+  const scheduleDraw = () => {
+    if (frameRef.current === null) {
+      frameRef.current = requestAnimationFrame(() => drawRef.current());
+    }
+  };
+
+  const levelRef = useRef(level);
+
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
+
+  useEffect(() => {
+    if (!isListening) return;
+
+    const timer = window.setInterval(() => {
+      const history = historyRef.current;
+      history.push(levelRef.current);
+      if (history.length > MAX_HISTORY) {
+        history.splice(0, history.length - MAX_HISTORY);
+      }
+      scheduleDraw();
+    }, SAMPLE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [isListening]);
+
+  // Ширина и цвета меняются без новых уровней — перерисовываем то, что есть.
+  useEffect(() => {
+    scheduleDraw();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const observer = new ResizeObserver(() => scheduleDraw());
+    observer.observe(canvas);
+    return () => {
+      observer.disconnect();
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    };
+  }, [colors]);
 
   return (
     <div ref={containerRef} className="h-8">
-      {error ? (
-        <Flex align="center" justify="center" gap="2" className="h-8">
-          <MicOff size={14} aria-hidden />
-          <Text size="1" color="gray">
-            Микрофон недоступен
-          </Text>
-        </Flex>
-      ) : (
-        <VoiceVisualizer
-          controls={controls}
-          height={VISUALIZER_HEIGHT}
-          width="100%"
-          speed={1}
-          barWidth={1}
-          gap={1}
-          rounded={5}
-          backgroundColor="transparent"
-          mainBarColor={colors.main}
-          secondaryBarColor={colors.secondary}
-          isControlPanelShown={false}
-          isDownloadAudioButtonShown={false}
-          isDefaultUIShown={false}
-          isProgressIndicatorShown={false}
-          isProgressIndicatorTimeShown={false}
-          mainContainerClassName="h-full w-full"
-          canvasContainerClassName="m-0! w-full!"
-          onlyRecording
-        />
-      )}
+      <canvas
+        ref={canvasRef}
+        className="block h-8 w-full"
+        height={VISUALIZER_HEIGHT}
+        aria-hidden
+      />
     </div>
   );
 }
