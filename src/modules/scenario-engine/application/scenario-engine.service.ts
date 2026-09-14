@@ -35,6 +35,7 @@ import {
   type CallerTurnTone,
 } from "../domain/caller-turn-plan";
 import {
+  deliveryExamples,
   panicProfile,
   resolveEscalation,
   resolveVoice,
@@ -400,8 +401,13 @@ export class ScenarioEngineService {
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
             ` Как говорит: ${profile.speechRules}` +
-            ` Так он звучит — это образец подачи, а не фразы для повторения:` +
-            ` ${profile.examples.map((example) => `«${example}»`).join(" ")}` +
+            ` Так звучит его подача — это образец интонации, а не слова для реплики, сведений о происшествии в нём нет:` +
+            ` ${deliveryExamples(
+              state.panicLevel,
+              `${state.rngSeed}:${state.callerTurns}`,
+            )
+              .map((example) => `«${example}»`)
+              .join(" ")}` +
             background +
             TONE_PROMPTS[tone] +
             (input.initiative === true
@@ -950,8 +956,7 @@ export class ScenarioEngineService {
     initiative: boolean,
   ): CallerReply {
     const candidateFocusFact = focusFacts[0];
-    const factPrefix =
-      turnPlan.reactionAct === "acknowledge" ? "Хорошо. " : "";
+    const factPrefix = turnPlan.reactionAct === "acknowledge" ? "Хорошо. " : "";
     const factualText =
       candidateFocusFact === undefined
         ? null

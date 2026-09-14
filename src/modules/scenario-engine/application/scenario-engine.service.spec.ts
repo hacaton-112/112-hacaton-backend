@@ -485,8 +485,11 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("shows the parser the labels and the checklist question, never the answer", async () => {
     const { engine } = createEngine();
-    let seen: readonly { id: string; label: string; question: string | null }[] =
-      [];
+    let seen: readonly {
+      id: string;
+      label: string;
+      question: string | null;
+    }[] = [];
 
     await engine.buildGenerationContext({
       trainingSessionId: "session-1",
@@ -554,9 +557,9 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("answers a question aimed at a fact the scenario opened by another rule", async () => {
     const { engine } = createEngine({
-      loadCall: jest.fn().mockResolvedValue(
-        callState({ callerTurns: 3, revealedFactKeys: [] }),
-      ),
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(callState({ callerTurns: 3, revealedFactKeys: [] })),
     });
 
     // trapped_children is gated by a question about people, but the operator
@@ -1079,8 +1082,27 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
     // Примеры даются как образец подачи: раньше модель воспроизводила их
     // дословно ход за ходом.
     expect(built.context.persona.description).toContain(
-      "образец подачи, а не фразы для повторения",
+      "образец интонации, а не слова для реплики",
     );
+  });
+
+  it("changes the delivery examples from turn to turn", async () => {
+    const descriptions = new Set<string>();
+
+    for (let callerTurns = 0; callerTurns < 8; callerTurns += 1) {
+      const { engine } = createEngine({
+        loadCall: jest.fn().mockResolvedValue(callState({ callerTurns })),
+      });
+      const built = await engine.buildGenerationContext({
+        trainingSessionId: "session-1",
+        operatorText: "Что произошло?",
+      });
+
+      descriptions.add(built.context.persona.description);
+    }
+
+    // Одни и те же примеры в каждом ходе модель со временем произносит сама.
+    expect(descriptions.size).toBeGreaterThan(1);
   });
 });
 
