@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import type { DrizzleService } from "@/core/database/drizzle.service";
@@ -17,16 +17,32 @@ import {
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 
 import {
+  toScenarioSeed,
+  toScenarioVersionRows,
+} from "../domain/scenario-version-snapshot";
+import {
+  type EditableScenarioVersion,
   ScenarioAuthoringConflictError,
   type PublishScenarioInput,
+  type PublishScenarioVersionInput,
   type PublishedScenario,
   type ScenarioAuthoringRepository,
+  ScenarioNotFoundError,
 } from "../ports/scenario-authoring.repository";
+
+type Database = DrizzleService["db"];
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+interface InsertVersionInput extends PublishScenarioInput {
+  readonly scenarioId: string;
+  readonly version: number;
+  readonly publishedAt: Date;
+}
 
 @Injectable()
 export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepository {
   constructor(
-    @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
+    @Inject(DRIZZLE) private readonly db: Database,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -42,6 +58,7 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
         throw new ScenarioAuthoringConflictError("scenario-code");
       }
 
+      // Сценария ещё нет, поэтому любая персона с этим кодом чужая.
       const [existingPersona] = await tx
         .select({ id: callerPersonas.id })
         .from(callerPersonas)
@@ -54,22 +71,6 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
 
       const now = new Date();
       const scenarioId = generateId();
-      const scenarioVersionId = generateId();
-      const personaId = generateId();
-
-      await tx.insert(callerPersonas).values({
-        id: personaId,
-        code: input.scenario.persona.code,
-        displayName: input.scenario.persona.displayName,
-        gender: input.scenario.persona.gender,
-        ageYears: input.scenario.persona.ageYears,
-        condition: input.scenario.persona.condition,
-        speechStyle: input.scenario.persona.speechStyle,
-        backgroundSounds: input.scenario.persona.backgroundSounds ?? null,
-        voiceId: input.scenario.persona.voiceId,
-        baselinePanicLevel: input.scenario.persona.baselinePanicLevel,
-        baseSpeechRate: input.scenario.persona.baseSpeechRate.toFixed(2),
-      });
 
       await tx.insert(scenarios).values({
         id: scenarioId,
@@ -83,132 +84,246 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
         updatedAt: now,
       });
 
-      await tx.insert(scenarioVersions).values({
-        id: scenarioVersionId,
+      return this.insertVersion(tx, {
+        ...input,
         scenarioId,
         version: 1,
-        personaId,
-        panicFloor: input.scenario.version.panicFloor,
-        panicCeiling: input.scenario.version.panicCeiling,
-        maxInterruptions: input.scenario.version.maxInterruptions,
-        initiativeCooldownSeconds:
-          input.scenario.version.initiativeCooldownSeconds,
-        answerNormSeconds: input.scenario.version.answerNormSeconds,
-        expectedDurationSeconds: input.scenario.version.expectedDurationSeconds,
-        passThreshold: input.scenario.version.passThreshold,
-        expectedServices: input.scenario.version.expectedServices,
-        referenceNotes:
-          input.scenario.version.referenceNotes ??
-          input.scenario.referenceCard.notes ??
-          null,
-        openingLine: input.scenario.version.openingLine,
-        fallbackLine: input.scenario.version.fallbackLine,
-        authoringSource: input.authoringSource,
-        authoringPrompt: input.authoringPrompt ?? null,
-        reviewedBy: input.authorId,
-        reviewedAt: now,
-        publishedBy: input.authorId,
         publishedAt: now,
       });
-
-      await tx.insert(scenarioLocations).values({
-        scenarioVersionId,
-        terrain: input.scenario.location.terrain,
-        exactAddress: input.scenario.location.exactAddress,
-        exactLat: input.scenario.location.exactPoint[0].toFixed(6),
-        exactLon: input.scenario.location.exactPoint[1].toFixed(6),
-        locatorCenterLat: input.scenario.location.locatorCenter[0].toFixed(6),
-        locatorCenterLon: input.scenario.location.locatorCenter[1].toFixed(6),
-        locatorRadiusMeters: input.scenario.location.locatorRadiusMeters,
-        locatorLabel: input.scenario.location.locatorLabel,
-        locatorAccuracy: input.scenario.location.locatorAccuracy,
-        callerNumber: input.scenario.location.callerNumber,
-        previouslyCalled: input.scenario.location.previouslyCalled,
-      });
-
-      await tx.insert(scenarioFacts).values(
-        input.scenario.facts.map((fact, orderIndex) => ({
-          id: generateId(),
-          scenarioVersionId,
-          key: fact.key,
-          promptValue: fact.promptValue,
-          displayLabel: fact.displayLabel,
-          severity: fact.severity,
-          cardField: fact.cardField,
-          cardValue: fact.cardValue,
-          contentKeywords: fact.contentKeywords,
-          disclosure: fact.disclosure,
-          priority: fact.priority,
-          orderIndex,
-        })),
-      );
-
-      if (input.scenario.escalation.length > 0) {
-        await tx.insert(escalationRules).values(
-          input.scenario.escalation.map((rule) => ({
-            id: generateId(),
-            scenarioVersionId,
-            trigger: rule.trigger,
-            direction: rule.direction,
-            params: rule.params ?? null,
-            cooldownSeconds: rule.cooldownSeconds,
-          })),
-        );
-      }
-
-      if (input.scenario.mandatoryQuestions.length > 0) {
-        await tx.insert(mandatoryQuestions).values(
-          input.scenario.mandatoryQuestions.map((question, orderIndex) => ({
-            id: generateId(),
-            scenarioVersionId,
-            orderIndex,
-            text: question.text,
-            satisfiedByFactKeys: question.satisfiedByFactKeys,
-            isCritical: question.isCritical,
-          })),
-        );
-      }
-
-      if (input.scenario.referenceCard.fields.length > 0) {
-        await tx.insert(referenceCardFields).values(
-          input.scenario.referenceCard.fields.map((field) => ({
-            id: generateId(),
-            scenarioVersionId,
-            field: field.field,
-            expectedValue: field.expectedValue,
-            acceptableValues: field.acceptableValues,
-            comparison: field.comparison,
-            isRequired: field.isRequired,
-            sourceFactKey: field.sourceFactKey,
-          })),
-        );
-      }
-
-      await this.auditLog.log(
-        {
-          actorId: input.authorId,
-          action: "scenario.publish",
-          resource: "scenario-version",
-          resourceId: scenarioVersionId,
-          details: {
-            scenarioId,
-            code: input.scenario.code,
-            version: 1,
-            authoringSource: input.authoringSource,
-          },
-        },
-        tx,
-      );
-
-      return {
-        scenarioId,
-        scenarioVersionId,
-        code: input.scenario.code,
-        title: input.scenario.title,
-        version: 1,
-        status: "published",
-        publishedAt: now.toISOString(),
-      };
     });
+  }
+
+  async loadVersion(
+    scenarioVersionId: string,
+  ): Promise<EditableScenarioVersion | null> {
+    const [row] = await this.db
+      .select({
+        version: scenarioVersions,
+        scenario: scenarios,
+        persona: callerPersonas,
+      })
+      .from(scenarioVersions)
+      .innerJoin(scenarios, eq(scenarioVersions.scenarioId, scenarios.id))
+      .innerJoin(
+        callerPersonas,
+        eq(scenarioVersions.personaId, callerPersonas.id),
+      )
+      .where(
+        and(
+          eq(scenarioVersions.id, scenarioVersionId),
+          eq(scenarios.status, "published"),
+          isNotNull(scenarioVersions.publishedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!row?.version.publishedAt) {
+      return null;
+    }
+
+    const [location, facts, rules, questions, referenceFields, latest] =
+      await Promise.all([
+        this.db
+          .select()
+          .from(scenarioLocations)
+          .where(eq(scenarioLocations.scenarioVersionId, scenarioVersionId))
+          .limit(1),
+        this.db
+          .select()
+          .from(scenarioFacts)
+          .where(eq(scenarioFacts.scenarioVersionId, scenarioVersionId)),
+        this.db
+          .select()
+          .from(escalationRules)
+          .where(eq(escalationRules.scenarioVersionId, scenarioVersionId)),
+        this.db
+          .select()
+          .from(mandatoryQuestions)
+          .where(eq(mandatoryQuestions.scenarioVersionId, scenarioVersionId)),
+        this.db
+          .select()
+          .from(referenceCardFields)
+          .where(eq(referenceCardFields.scenarioVersionId, scenarioVersionId)),
+        this.db
+          .select({ version: scenarioVersions.version })
+          .from(scenarioVersions)
+          .where(eq(scenarioVersions.scenarioId, row.scenario.id))
+          .orderBy(desc(scenarioVersions.version))
+          .limit(1),
+      ]);
+
+    // Версия без места происшествия не публикуется ни сидом, ни конструктором:
+    // такая строка — порча данных, и редактировать её нельзя.
+    if (!location[0]) {
+      return null;
+    }
+
+    return {
+      scenarioId: row.scenario.id,
+      scenarioVersionId: row.version.id,
+      version: row.version.version,
+      isLatest: latest[0]?.version === row.version.version,
+      publishedAt: row.version.publishedAt.toISOString(),
+      authoringSource: row.version.authoringSource,
+      scenario: toScenarioSeed({
+        scenario: row.scenario,
+        version: row.version,
+        persona: row.persona,
+        location: location[0],
+        facts,
+        escalationRules: rules,
+        mandatoryQuestions: questions,
+        referenceCardFields: referenceFields,
+      }),
+    };
+  }
+
+  publishVersion(
+    input: PublishScenarioVersionInput,
+  ): Promise<PublishedScenario> {
+    return this.db.transaction(async (tx) => {
+      // Строка сценария блокируется до конца транзакции: две правки одной и
+      // той же версии иначе обе прошли бы проверку свежести и получили один
+      // номер.
+      const [scenario] = await tx
+        .select({ id: scenarios.id, code: scenarios.code })
+        .from(scenarios)
+        .where(eq(scenarios.id, input.scenarioId))
+        .for("update")
+        .limit(1);
+
+      if (!scenario) {
+        throw new ScenarioNotFoundError();
+      }
+
+      if (scenario.code !== input.scenario.code) {
+        throw new ScenarioAuthoringConflictError("code-changed");
+      }
+
+      const [latest] = await tx
+        .select({ id: scenarioVersions.id, version: scenarioVersions.version })
+        .from(scenarioVersions)
+        .where(eq(scenarioVersions.scenarioId, scenario.id))
+        .orderBy(desc(scenarioVersions.version))
+        .limit(1);
+
+      if (!latest || latest.id !== input.baseVersionId) {
+        throw new ScenarioAuthoringConflictError("stale-version");
+      }
+
+      // Код персоны повторяется у версий одного сценария, но занятый другим
+      // сценарием код сделал бы двух разных заявителей неразличимыми.
+      const [foreignPersona] = await tx
+        .select({ id: callerPersonas.id })
+        .from(callerPersonas)
+        .innerJoin(
+          scenarioVersions,
+          eq(scenarioVersions.personaId, callerPersonas.id),
+        )
+        .where(
+          and(
+            eq(callerPersonas.code, input.scenario.persona.code),
+            ne(scenarioVersions.scenarioId, scenario.id),
+          ),
+        )
+        .limit(1);
+
+      if (foreignPersona) {
+        throw new ScenarioAuthoringConflictError("persona-code");
+      }
+
+      const now = new Date();
+
+      // Карточка каталога показывает последнюю версию, поэтому описание
+      // сценария следует за ней; сами версии остаются неизменными.
+      await tx
+        .update(scenarios)
+        .set({
+          title: input.scenario.title,
+          category: input.scenario.category,
+          difficulty: input.scenario.difficulty,
+          summary: input.scenario.summary,
+          status: "published",
+          updatedAt: now,
+        })
+        .where(eq(scenarios.id, scenario.id));
+
+      return this.insertVersion(
+        tx,
+        {
+          ...input,
+          scenarioId: scenario.id,
+          version: latest.version + 1,
+          publishedAt: now,
+        },
+        input.baseVersionId,
+      );
+    });
+  }
+
+  private async insertVersion(
+    tx: Transaction,
+    input: InsertVersionInput,
+    baseVersionId?: string,
+  ): Promise<PublishedScenario> {
+    const scenarioVersionId = generateId();
+    const rows = toScenarioVersionRows({
+      scenarioId: input.scenarioId,
+      scenarioVersionId,
+      personaId: generateId(),
+      version: input.version,
+      scenario: input.scenario,
+      authorId: input.authorId,
+      authoringSource: input.authoringSource,
+      authoringPrompt: input.authoringPrompt,
+      publishedAt: input.publishedAt,
+      generateId,
+    });
+
+    await tx.insert(callerPersonas).values(rows.persona);
+    await tx.insert(scenarioVersions).values(rows.version);
+    await tx.insert(scenarioLocations).values(rows.location);
+    await tx.insert(scenarioFacts).values([...rows.facts]);
+
+    if (rows.escalationRules.length > 0) {
+      await tx.insert(escalationRules).values([...rows.escalationRules]);
+    }
+
+    if (rows.mandatoryQuestions.length > 0) {
+      await tx.insert(mandatoryQuestions).values([...rows.mandatoryQuestions]);
+    }
+
+    if (rows.referenceCardFields.length > 0) {
+      await tx
+        .insert(referenceCardFields)
+        .values([...rows.referenceCardFields]);
+    }
+
+    await this.auditLog.log(
+      {
+        actorId: input.authorId,
+        action: "scenario.publish",
+        resource: "scenario-version",
+        resourceId: scenarioVersionId,
+        details: {
+          scenarioId: input.scenarioId,
+          code: input.scenario.code,
+          version: input.version,
+          authoringSource: input.authoringSource,
+          ...(baseVersionId === undefined ? {} : { baseVersionId }),
+        },
+      },
+      tx,
+    );
+
+    return {
+      scenarioId: input.scenarioId,
+      scenarioVersionId,
+      code: input.scenario.code,
+      title: input.scenario.title,
+      version: input.version,
+      status: "published",
+      publishedAt: input.publishedAt.toISOString(),
+    };
   }
 }

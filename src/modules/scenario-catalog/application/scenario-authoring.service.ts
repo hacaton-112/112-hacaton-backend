@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   AppConflictException,
+  AppNotFoundException,
   AppServiceUnavailableException,
 } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
@@ -12,12 +13,15 @@ import { buildScenarioDraftFromSuggestion } from "../domain/scenario-assistant-s
 import type {
   GenerateScenarioDraftResponse,
   PublishScenarioRequest,
+  PublishScenarioVersionRequest,
 } from "../dto/scenario-authoring.dto";
 import {
+  type EditableScenarioVersion,
   SCENARIO_AUTHORING_REPOSITORY,
   ScenarioAuthoringConflictError,
   type PublishedScenario,
   type ScenarioAuthoringRepository,
+  ScenarioNotFoundError,
 } from "../ports/scenario-authoring.repository";
 import {
   SCENARIO_DRAFT_ASSISTANT,
@@ -86,20 +90,84 @@ export class ScenarioAuthoringService {
         authoringPrompt: request.authoringPrompt,
       });
     } catch (error) {
-      if (error instanceof ScenarioAuthoringConflictError) {
-        const personaConflict = error.conflict === "persona-code";
+      throw this.toAppError(error);
+    }
+  }
 
-        throw new AppConflictException(
-          personaConflict
-            ? ErrorCodes.SCENARIO_PERSONA_CODE_EXISTS
-            : ErrorCodes.SCENARIO_CODE_EXISTS,
-          personaConflict
-            ? "A caller persona with this code already exists"
-            : "A scenario with this code already exists",
+  /** Опубликованная версия целиком — чтобы открыть её в конструкторе. */
+  async loadVersion(
+    scenarioVersionId: string,
+  ): Promise<EditableScenarioVersion> {
+    const version = await this.repository.loadVersion(scenarioVersionId);
+
+    if (version === null) {
+      throw new AppNotFoundException(
+        ErrorCodes.SCENARIO_VERSION_NOT_FOUND,
+        "There is no published scenario version with this id",
+      );
+    }
+
+    return version;
+  }
+
+  /**
+   * Правка публикуется новой неизменяемой версией.
+   *
+   * Прошлые версии остаются как были: на них ссылаются проведённые звонки, и
+   * разбор занятия обязан показывать сценарий таким, каким его проходили.
+   */
+  async publishVersion(
+    scenarioId: string,
+    request: PublishScenarioVersionRequest,
+    authorId: string,
+  ): Promise<PublishedScenario> {
+    try {
+      return await this.repository.publishVersion({
+        scenarioId,
+        baseVersionId: request.baseVersionId,
+        scenario: request.scenario,
+        authorId,
+        authoringSource: request.authoringSource,
+        authoringPrompt: request.authoringPrompt,
+      });
+    } catch (error) {
+      throw this.toAppError(error);
+    }
+  }
+
+  private toAppError(error: unknown): unknown {
+    if (error instanceof ScenarioNotFoundError) {
+      return new AppNotFoundException(
+        ErrorCodes.SCENARIO_NOT_FOUND,
+        "The scenario does not exist",
+      );
+    }
+
+    if (!(error instanceof ScenarioAuthoringConflictError)) {
+      return error;
+    }
+
+    switch (error.conflict) {
+      case "scenario-code":
+        return new AppConflictException(
+          ErrorCodes.SCENARIO_CODE_EXISTS,
+          "A scenario with this code already exists",
         );
-      }
-
-      throw error;
+      case "persona-code":
+        return new AppConflictException(
+          ErrorCodes.SCENARIO_PERSONA_CODE_EXISTS,
+          "A caller persona with this code already exists",
+        );
+      case "code-changed":
+        return new AppConflictException(
+          ErrorCodes.SCENARIO_CODE_IMMUTABLE,
+          "An edit cannot change the scenario code",
+        );
+      case "stale-version":
+        return new AppConflictException(
+          ErrorCodes.SCENARIO_VERSION_STALE,
+          "A newer version of this scenario has been published since the edit began",
+        );
     }
   }
 

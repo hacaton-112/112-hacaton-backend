@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Inject,
+  Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UseGuards,
@@ -20,15 +22,21 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import {
+  EditableScenarioVersionDto,
   GenerateScenarioDraftRequestDto,
   type GenerateScenarioDraftResponse,
   GenerateScenarioDraftResponseDto,
   type PublishScenarioRequest,
   PublishScenarioRequestDto,
+  type PublishScenarioVersionRequest,
+  PublishScenarioVersionRequestDto,
   PublishedScenarioDto,
 } from "./dto/scenario-authoring.dto";
 import { type ScenarioList, ScenarioListDto } from "./dto/scenario-summary.dto";
-import type { PublishedScenario } from "./ports/scenario-authoring.repository";
+import type {
+  EditableScenarioVersion,
+  PublishedScenario,
+} from "./ports/scenario-authoring.repository";
 import {
   SCENARIO_CATALOG,
   type ScenarioCatalog,
@@ -72,6 +80,38 @@ export class ScenarioCatalogController {
   ): Promise<PublishedScenario> {
     return this.authoring.publish(
       body as PublishScenarioRequest,
+      request.user.sub,
+    );
+  }
+
+  /**
+   * Опубликованная версия целиком: для брифинга и для правки в конструкторе.
+   *
+   * Только преподавателю — оператор, увидевший факты и эталон до звонка,
+   * перестаёт их выяснять.
+   */
+  @Get("versions/:scenarioVersionId")
+  @Roles("instructor", "admin")
+  @ZodSerializerDto(EditableScenarioVersionDto)
+  loadVersion(
+    @Param("scenarioVersionId", new ParseUUIDPipe()) scenarioVersionId: string,
+  ): Promise<EditableScenarioVersion> {
+    return this.authoring.loadVersion(scenarioVersionId);
+  }
+
+  /** Правка публикуется новой версией поверх той, что была открыта. */
+  @Post(":scenarioId/versions")
+  @Roles("instructor", "admin")
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  @ZodSerializerDto(PublishedScenarioDto)
+  publishVersion(
+    @Param("scenarioId", new ParseUUIDPipe()) scenarioId: string,
+    @Body() body: PublishScenarioVersionRequestDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PublishedScenario> {
+    return this.authoring.publishVersion(
+      scenarioId,
+      body as PublishScenarioVersionRequest,
       request.user.sub,
     );
   }
