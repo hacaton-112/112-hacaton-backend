@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -114,5 +117,22 @@ export class ScenarioCatalogController {
       body as PublishScenarioVersionRequest,
       request.user.sub,
     );
+  }
+
+  /**
+   * Удаление сценария из каталога.
+   *
+   * Сценарий снимается, а не стирается: проведённые по нему звонки и их
+   * разборы остаются. Повторный запрос тоже отвечает `204`.
+   */
+  @Delete(":scenarioId")
+  @Roles("instructor", "admin")
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  archive(
+    @Param("scenarioId", new ParseUUIDPipe()) scenarioId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.authoring.archive(scenarioId, request.user.sub);
   }
 }

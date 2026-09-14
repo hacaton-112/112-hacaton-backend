@@ -66,8 +66,22 @@ export class ScenarioNotFoundError extends Error {
   }
 }
 
+/** Итог удаления: сценарий снят сейчас или уже был снят раньше. */
+export type ScenarioArchiveOutcome = "archived" | "already-archived";
+
 export interface ScenarioAuthoringRepository {
   publish(input: PublishScenarioInput): Promise<PublishedScenario>;
+
+  /**
+   * Снимает сценарий с каталога.
+   *
+   * Строки версий не удаляются: на них ссылаются проведённые звонки и их
+   * разборы. Бросает `ScenarioNotFoundError`, если сценария нет.
+   */
+  archive(input: {
+    scenarioId: string;
+    actorId: string;
+  }): Promise<ScenarioArchiveOutcome>;
 
   /** `null`, если версии нет или она не опубликована. */
   loadVersion(

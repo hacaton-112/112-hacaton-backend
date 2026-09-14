@@ -111,7 +111,7 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
   it("publishes the next version with a persona of its own", async () => {
     const scenario = shippedScenario();
     const { repository, inserts, updates, auditLog } = createRepository([
-      [{ id: SCENARIO_ID, code: scenario.code }],
+      [{ id: SCENARIO_ID, code: scenario.code, status: "published" }],
       [{ id: BASE_VERSION_ID, version: 3 }],
       [],
     ]);
@@ -167,7 +167,7 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
   it("refuses an edit made on top of a version that is no longer the latest", async () => {
     const scenario = shippedScenario();
     const { repository, inserts, updates } = createRepository([
-      [{ id: SCENARIO_ID, code: scenario.code }],
+      [{ id: SCENARIO_ID, code: scenario.code, status: "published" }],
       [{ id: "a-newer-version", version: 4 }],
     ]);
 
@@ -181,7 +181,7 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
 
   it("refuses an edit that renames the scenario code", async () => {
     const { repository, inserts } = createRepository([
-      [{ id: SCENARIO_ID, code: "S-999" }],
+      [{ id: SCENARIO_ID, code: "S-999", status: "published" }],
     ]);
 
     await expect(repository.publishVersion(editInput())).rejects.toEqual(
@@ -193,7 +193,7 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
   it("refuses a persona code that belongs to another scenario", async () => {
     const scenario = shippedScenario();
     const { repository, inserts } = createRepository([
-      [{ id: SCENARIO_ID, code: scenario.code }],
+      [{ id: SCENARIO_ID, code: scenario.code, status: "published" }],
       [{ id: BASE_VERSION_ID, version: 1 }],
       [{ id: "someone-elses-persona" }],
     ]);
@@ -210,6 +210,19 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
     await expect(repository.publishVersion(editInput())).rejects.toBeInstanceOf(
       ScenarioNotFoundError,
     );
+  });
+
+  it("does not bring a removed scenario back through an edit", async () => {
+    const scenario = shippedScenario();
+    const { repository, inserts, updates } = createRepository([
+      [{ id: SCENARIO_ID, code: scenario.code, status: "archived" }],
+    ]);
+
+    await expect(repository.publishVersion(editInput())).rejects.toBeInstanceOf(
+      ScenarioNotFoundError,
+    );
+    expect(inserts).toEqual([]);
+    expect(updates).toEqual([]);
   });
 });
 
@@ -290,5 +303,55 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publish`, () => {
       }),
     ).rejects.toEqual(new ScenarioAuthoringConflictError("persona-code"));
     expect(inserts).toEqual([]);
+  });
+});
+
+describe(`${DrizzleScenarioAuthoringRepository.name} archive`, () => {
+  it("takes the scenario off the catalog without deleting its versions", async () => {
+    const { repository, inserts, updates, auditLog } = createRepository([
+      [{ id: SCENARIO_ID, code: "S-015", status: "published" }],
+    ]);
+
+    await expect(
+      repository.archive({ scenarioId: SCENARIO_ID, actorId: "instructor-1" }),
+    ).resolves.toBe("archived");
+
+    // Версии остаются: на них ссылаются проведённые звонки и их разборы.
+    expect(inserts).toEqual([]);
+    expect(updates).toEqual([
+      {
+        table: scenarios,
+        values: expect.objectContaining({ status: "archived" }),
+      },
+    ]);
+    expect(auditLog.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: "instructor-1",
+        action: "scenario.archive",
+        resourceId: SCENARIO_ID,
+        details: { code: "S-015", previousStatus: "published" },
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("changes nothing when the scenario is already removed", async () => {
+    const { repository, updates, auditLog } = createRepository([
+      [{ id: SCENARIO_ID, code: "S-015", status: "archived" }],
+    ]);
+
+    await expect(
+      repository.archive({ scenarioId: SCENARIO_ID, actorId: "instructor-1" }),
+    ).resolves.toBe("already-archived");
+    expect(updates).toEqual([]);
+    expect(auditLog.log).not.toHaveBeenCalled();
+  });
+
+  it("reports a scenario that does not exist", async () => {
+    const { repository } = createRepository([[]]);
+
+    await expect(
+      repository.archive({ scenarioId: SCENARIO_ID, actorId: "instructor-1" }),
+    ).rejects.toBeInstanceOf(ScenarioNotFoundError);
   });
 });

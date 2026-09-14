@@ -22,6 +22,7 @@ import {
 } from "../domain/scenario-version-snapshot";
 import {
   type EditableScenarioVersion,
+  type ScenarioArchiveOutcome,
   ScenarioAuthoringConflictError,
   type PublishScenarioInput,
   type PublishScenarioVersionInput,
@@ -186,13 +187,19 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
       // той же версии иначе обе прошли бы проверку свежести и получили один
       // номер.
       const [scenario] = await tx
-        .select({ id: scenarios.id, code: scenarios.code })
+        .select({
+          id: scenarios.id,
+          code: scenarios.code,
+          status: scenarios.status,
+        })
         .from(scenarios)
         .where(eq(scenarios.id, input.scenarioId))
         .for("update")
         .limit(1);
 
-      if (!scenario) {
+      // Снятый с каталога сценарий правкой не воскрешается: для преподавателя
+      // его больше нет, как нет и в редакторе.
+      if (!scenario || scenario.status === "archived") {
         throw new ScenarioNotFoundError();
       }
 
@@ -258,6 +265,54 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
         },
         input.baseVersionId,
       );
+    });
+  }
+
+  archive({
+    scenarioId,
+    actorId,
+  }: {
+    scenarioId: string;
+    actorId: string;
+  }): Promise<ScenarioArchiveOutcome> {
+    return this.db.transaction(async (tx) => {
+      const [scenario] = await tx
+        .select({
+          id: scenarios.id,
+          code: scenarios.code,
+          status: scenarios.status,
+        })
+        .from(scenarios)
+        .where(eq(scenarios.id, scenarioId))
+        .for("update")
+        .limit(1);
+
+      if (!scenario) {
+        throw new ScenarioNotFoundError();
+      }
+
+      // Повторное удаление ничего не меняет и в аудит второй раз не пишется.
+      if (scenario.status === "archived") {
+        return "already-archived";
+      }
+
+      await tx
+        .update(scenarios)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(eq(scenarios.id, scenario.id));
+
+      await this.auditLog.log(
+        {
+          actorId,
+          action: "scenario.archive",
+          resource: "scenario",
+          resourceId: scenario.id,
+          details: { code: scenario.code, previousStatus: scenario.status },
+        },
+        tx,
+      );
+
+      return "archived";
     });
   }
 

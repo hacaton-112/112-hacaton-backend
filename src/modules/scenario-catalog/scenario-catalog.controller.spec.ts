@@ -1,4 +1,5 @@
-import { GUARDS_METADATA } from "@nestjs/common/constants";
+import { HttpStatus } from "@nestjs/common";
+import { GUARDS_METADATA, HTTP_CODE_METADATA } from "@nestjs/common/constants";
 
 import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { ROLES_METADATA_KEY } from "@/modules/auth/roles.decorator";
@@ -18,6 +19,7 @@ const createController = () => {
   const authoring = {
     loadVersion: jest.fn().mockResolvedValue({ scenarioVersionId: "v1" }),
     publishVersion: jest.fn().mockResolvedValue({ version: 2 }),
+    archive: jest.fn().mockResolvedValue(undefined),
   };
   const catalog = { listPublished: jest.fn().mockResolvedValue([]) };
 
@@ -80,5 +82,24 @@ describe(ScenarioCatalogController.name, () => {
       body,
       "instructor-1",
     );
+  });
+
+  it("removes a scenario on behalf of the signed-in instructor and answers 204", async () => {
+    const { controller, authoring } = createController();
+
+    await controller.archive("scenario-1", {
+      user: { sub: "instructor-1", role: "instructor" },
+    } as never);
+
+    expect(authoring.archive).toHaveBeenCalledWith(
+      "scenario-1",
+      "instructor-1",
+    );
+    expect(
+      Reflect.getMetadata(
+        HTTP_CODE_METADATA,
+        ScenarioCatalogController.prototype.archive,
+      ),
+    ).toBe(HttpStatus.NO_CONTENT);
   });
 });

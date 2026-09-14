@@ -135,6 +135,22 @@ export class ScenarioAuthoringService {
     }
   }
 
+  /**
+   * Удаляет сценарий из каталога.
+   *
+   * Физически версии не удаляются: на них ссылаются проведённые звонки, и
+   * разбор занятия обязан открываться и после удаления сценария. Сценарий
+   * пропадает из каталога, новый звонок по нему не начать, а повторное
+   * удаление ничего не меняет.
+   */
+  async archive(scenarioId: string, actorId: string): Promise<void> {
+    try {
+      await this.repository.archive({ scenarioId, actorId });
+    } catch (error) {
+      throw this.toAppError(error);
+    }
+  }
+
   private toAppError(error: unknown): unknown {
     if (error instanceof ScenarioNotFoundError) {
       return new AppNotFoundException(

@@ -33,16 +33,23 @@ const createService = (responses: unknown[]) => {
   const publishVersion = jest
     .fn()
     .mockResolvedValue({ ...publication, version: 2 });
+  const archive = jest.fn().mockResolvedValue("archived");
 
   return {
     service: new ScenarioAuthoringService(
       { generate } as ScenarioDraftAssistantPort,
-      { publish, loadVersion, publishVersion } as ScenarioAuthoringRepository,
+      {
+        publish,
+        loadVersion,
+        publishVersion,
+        archive,
+      } as ScenarioAuthoringRepository,
     ),
     generate,
     publish,
     loadVersion,
     publishVersion,
+    archive,
   };
 };
 
@@ -198,5 +205,38 @@ describe(ScenarioAuthoringService.name, () => {
     await expect(
       service.publishVersion("scenario-1", editRequest, "instructor-1"),
     ).rejects.toBe(failure);
+  });
+
+  it("removes a scenario from the catalog on behalf of the instructor", async () => {
+    const { service, archive } = createService([]);
+
+    await expect(
+      service.archive("scenario-1", "instructor-1"),
+    ).resolves.toBeUndefined();
+    expect(archive).toHaveBeenCalledWith({
+      scenarioId: "scenario-1",
+      actorId: "instructor-1",
+    });
+  });
+
+  it("treats a repeated removal as done", async () => {
+    const { service, archive } = createService([]);
+    archive.mockResolvedValueOnce("already-archived");
+
+    await expect(
+      service.archive("scenario-1", "instructor-1"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports the removal of a scenario that does not exist", async () => {
+    const { service, archive } = createService([]);
+    archive.mockRejectedValueOnce(new ScenarioNotFoundError());
+
+    await expect(
+      service.archive("missing", "instructor-1"),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.SCENARIO_NOT_FOUND,
+      status: 404,
+    });
   });
 });
