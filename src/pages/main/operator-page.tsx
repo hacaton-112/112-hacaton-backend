@@ -110,7 +110,7 @@ export default function OperatorPage() {
             />
           </div>
           <ScrollArea
-            className="operator-column-scroll min-h-0"
+            className="operator-column-scroll operator-incident-scroll min-h-0"
             scrollbars="vertical"
             type="auto"
           >
