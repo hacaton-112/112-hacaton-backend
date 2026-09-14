@@ -13,6 +13,7 @@ import {
   FileText,
   Pencil,
   PhoneIncoming,
+  Plus,
   Trash2,
   User,
   Volume2,
@@ -32,6 +33,7 @@ interface ScenarioBriefingPanelProps {
   isPending: boolean;
   error: Error | null;
   onRetry: () => void;
+  onCreate: () => void;
   onStart: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -44,6 +46,7 @@ export function ScenarioBriefingPanel({
   isPending,
   error,
   onRetry,
+  onCreate,
   onStart,
   onEdit,
   onDelete,
@@ -55,13 +58,17 @@ export function ScenarioBriefingPanel({
   return (
     <aside
       aria-labelledby="scenario-briefing-title"
-      className="flex h-full min-h-[32rem] flex-col overflow-hidden rounded-[24px] bg-(--color-panel-solid) shadow-[0_10px_24px_6px_rgba(0,0,0,0.05)]"
+      className="scenario-briefing-panel flex h-auto min-h-[32rem] flex-col overflow-hidden rounded-[20px] border border-(--gray-a6) bg-(--color-panel-solid) shadow-[0_18px_48px_8px_rgba(0,0,0,0.12)] sm:rounded-[24px]"
     >
-      <ScrollArea type="auto" scrollbars="vertical" className="min-h-0 flex-1">
-        <div className="grid content-start gap-6 p-8">
+      <ScrollArea
+        type="auto"
+        scrollbars="vertical"
+        className="scenario-briefing-scroll min-h-0 flex-1"
+      >
+        <div className="grid content-start gap-5 p-4 sm:p-6 xl:gap-6 xl:p-8">
           <header className="grid gap-2">
             <div className="flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.06em] text-(--orange-11) uppercase">
+              <span className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.06em] text-(--gray-11) uppercase">
                 <FileText size={14} aria-hidden />
                 Брифинг перед тренировкой
               </span>
@@ -181,7 +188,7 @@ export function ScenarioBriefingPanel({
                         key={`${index}-${question.text}`}
                         className="flex items-center gap-3 rounded-[8px] bg-(--gray-a2) px-4 py-3"
                       >
-                        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-(--orange-a3) text-[11px] font-bold text-(--orange-11) tabular-nums">
+                        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-(--gray-a3) text-[11px] font-bold text-(--gray-11) tabular-nums">
                           {index + 1}
                         </span>
                         <Text
@@ -207,15 +214,25 @@ export function ScenarioBriefingPanel({
         </div>
       </ScrollArea>
 
-      <footer className="flex flex-wrap gap-2 border-t border-(--gray-a4) p-6">
+      <footer className="scenario-briefing-actions grid gap-2 border-t border-(--gray-a5) bg-(--gray-a2) p-4 sm:p-6">
         <Button
           size="3"
           radius="full"
-          className="min-w-[200px] flex-1"
+          className="scenario-briefing-start w-full"
           onClick={onStart}
         >
           <PhoneIncoming size={16} />
           Начать тренировку
+        </Button>
+        <Button
+          size="3"
+          radius="full"
+          variant="soft"
+          color="gray"
+          onClick={onCreate}
+        >
+          <Plus size={16} />
+          Создать
         </Button>
         <Button
           size="3"

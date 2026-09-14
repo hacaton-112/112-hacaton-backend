@@ -12,11 +12,7 @@ import type { ReactNode } from "react";
 
 import type { ScenarioSummary } from "../../contracts/call";
 import { cn } from "../../lib/cn";
-import {
-  categoryAppearance,
-  type CategoryTone,
-  formatClock,
-} from "./scenario-catalog-formatters";
+import { categoryAppearance, formatClock } from "./scenario-catalog-formatters";
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   fire: Flame,
@@ -46,11 +42,11 @@ export function ScenarioCatalogCard({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "grid w-full content-start gap-4 rounded-[16px] border-[1.5px] bg-(--color-panel-solid) p-6 text-left shadow-[0_6px_9px_rgba(0,0,0,0.03)] transition-[border-color,box-shadow] duration-(--app-transition-duration-fast)",
+        "grid w-full cursor-pointer content-start gap-4 rounded-[16px] border bg-(--gray-a2) p-6 text-left shadow-[0_6px_9px_rgba(0,0,0,0.03)] transition-[background-color,border-color,box-shadow] duration-(--app-transition-duration-fast)",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-8)",
         selected
-          ? "border-(--orange-9) shadow-[0_8px_12px_rgba(0,0,0,0.04)]"
-          : "border-transparent hover:border-(--gray-a6)",
+          ? "border-(--blue-8) bg-(--color-panel-solid) shadow-[0_8px_12px_rgba(0,0,0,0.04)]"
+          : "border-(--gray-a5) hover:border-(--gray-a7) hover:bg-(--gray-a3)",
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -76,10 +72,7 @@ export function ScenarioCatalogCard({
 
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
         <Meta label="Сложность">
-          <DifficultyDots
-            level={scenario.difficulty}
-            tone={categoryAppearance(scenario.category).tone}
-          />
+          <DifficultyDots level={scenario.difficulty} />
         </Meta>
         {scenario.expectedDurationSeconds !== undefined && (
           <Meta label="Длительность">
@@ -135,13 +128,9 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Пять точек, как на макете: закрашено столько, какова сложность. */
-function DifficultyDots({
-  level,
-  tone,
-}: {
-  level: number;
-  tone: CategoryTone;
-}) {
+function DifficultyDots({ level }: { level: number }) {
+  const tone = level <= 2 ? "green" : level === 3 ? "amber" : "red";
+
   return (
     <span
       className="flex items-center gap-1"
