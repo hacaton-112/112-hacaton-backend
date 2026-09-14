@@ -33,8 +33,16 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   SCENARIO_ASSISTANT_UNAVAILABLE: "AI-помощник временно недоступен",
   SCENARIO_ASSISTANT_INVALID_DRAFT:
     "AI-помощник не смог сформировать корректный черновик",
+  SCENARIO_NOT_FOUND: "Сценарий не найден",
+  SCENARIO_VERSION_NOT_FOUND: "Версия сценария не найдена или не опубликована",
+  SCENARIO_VERSION_STALE:
+    "Пока вы редактировали, опубликована более новая версия сценария",
+  SCENARIO_CODE_IMMUTABLE: "Код сценария нельзя менять при правке",
   GEOCODING_ADDRESS_NOT_FOUND: "Для выбранной точки адрес не найден",
   GEOCODING_UNAVAILABLE: "Сервис определения адреса временно недоступен",
+  GEOCODING_CALL_NOT_ACTIVE:
+    "Звонок завершён — место происшествия больше не меняется",
+  CALL_NOT_FOUND: "Звонок не найден",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 

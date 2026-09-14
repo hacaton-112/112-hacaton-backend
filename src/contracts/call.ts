@@ -118,6 +118,8 @@ export const ScenarioSummarySchema = z.object({
   category: z.string(),
   difficulty: z.number().int(),
   answerNormSeconds: z.number().int(),
+  /** Сколько по замыслу автора длится разговор; старый backend его не шлёт. */
+  expectedDurationSeconds: z.number().int().optional(),
   version: z.number().int(),
 });
 

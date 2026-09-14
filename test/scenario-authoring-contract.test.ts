@@ -2,11 +2,13 @@ import { describe, expect, it } from "bun:test";
 
 import {
   createEmptyScenario,
+  EditableScenarioVersionSchema,
   GenerateScenarioDraftResponseSchema,
   mergeScenarioAssistantDraft,
   ReverseGeocodedAddressSchema,
   ScenarioAssistantDraftSchema,
   ScenarioSeedSchema,
+  scenarioForEditing,
   type ScenarioSeed,
 } from "../src/contracts/scenario-authoring";
 
@@ -143,5 +145,58 @@ describe("ScenarioSeedSchema", () => {
         .location,
     ).toEqual(createEmptyScenario().location);
     expect(location.exactPoint).toEqual([55.75, 37.61]);
+  });
+});
+
+describe("EditableScenarioVersionSchema", () => {
+  const version = () => ({
+    scenarioId: "5b6c3f2e-0f7a-4d4b-9a3e-1f0c2d3e4f50",
+    scenarioVersionId: "7d1e2f3a-4b5c-4d6e-8f70-8192a3b4c5d6",
+    version: 3,
+    isLatest: true,
+    publishedAt: "2026-09-14T10:00:00.000Z",
+    authoringSource: "manual",
+    scenario: validScenario(),
+  });
+
+  it("accepts a published version the backend hands over for editing", () => {
+    expect(EditableScenarioVersionSchema.parse(version()).version).toBe(3);
+  });
+
+  it("tolerates a field a newer backend adds", () => {
+    expect(
+      EditableScenarioVersionSchema.safeParse({
+        ...version(),
+        reviewedBy: "instructor-1",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a version whose scenario could not be published again", () => {
+    const broken = version();
+    broken.scenario.facts = [];
+
+    expect(EditableScenarioVersionSchema.safeParse(broken).success).toBe(false);
+  });
+});
+
+describe("scenarioForEditing", () => {
+  it("shows the stored version note in the reference notes editor", () => {
+    const scenario = validScenario();
+    const stored: ScenarioSeed = {
+      ...scenario,
+      version: { ...scenario.version, referenceNotes: "Дверь на цепочке." },
+      referenceCard: { fields: scenario.referenceCard.fields },
+    };
+
+    expect(scenarioForEditing(stored).referenceCard.notes).toBe(
+      "Дверь на цепочке.",
+    );
+  });
+
+  it("keeps a note the reference card already has", () => {
+    expect(scenarioForEditing(validScenario()).referenceCard.notes).toBe(
+      "Проверить классификацию происшествия.",
+    );
   });
 });

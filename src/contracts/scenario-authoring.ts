@@ -522,6 +522,22 @@ export const PublishedScenarioSchema = z
   })
   .strict();
 
+/**
+ * Опубликованная версия целиком — для брифинга и для правки.
+ *
+ * Внешний объект нестрогий: новое поле ответа не должно закрывать экран
+ * сценариев. Сам сценарий проверяется той же схемой, что и публикация.
+ */
+export const EditableScenarioVersionSchema = z.object({
+  scenarioId: z.string().min(1),
+  scenarioVersionId: z.string().min(1),
+  version: z.number().int().positive(),
+  isLatest: z.boolean(),
+  publishedAt: z.iso.datetime(),
+  authoringSource: z.enum(["manual", "assistant", "imported"]),
+  scenario: ScenarioSeedSchema,
+});
+
 export const ReverseGeocodedAddressSchema = z
   .object({
     city: z.string().trim().min(1).max(200).optional(),
@@ -546,6 +562,9 @@ export type GenerateScenarioDraftResponse = z.infer<
   typeof GenerateScenarioDraftResponseSchema
 >;
 export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
+export type EditableScenarioVersion = z.infer<
+  typeof EditableScenarioVersionSchema
+>;
 export type ReverseGeocodedAddress = z.infer<
   typeof ReverseGeocodedAddressSchema
 >;
@@ -621,6 +640,22 @@ export const createEmptyScenario = (): ScenarioSeed => ({
   ],
   mandatoryQuestions: [],
   referenceCard: { fields: [], notes: "" },
+});
+
+/**
+ * Готовит опубликованную версию к правке.
+ *
+ * У версии на backend один столбец заметок, и приходит он заметкой версии.
+ * Редактор же показывает заметку к эталону и пишет её в оба поля — без этого
+ * заметка при правке выглядела бы пропавшей.
+ */
+export const scenarioForEditing = (scenario: ScenarioSeed): ScenarioSeed => ({
+  ...scenario,
+  referenceCard: {
+    ...scenario.referenceCard,
+    notes:
+      scenario.referenceCard.notes ?? scenario.version.referenceNotes ?? "",
+  },
 });
 
 export const mergeScenarioAssistantDraft = (
