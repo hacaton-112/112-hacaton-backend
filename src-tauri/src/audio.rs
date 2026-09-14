@@ -32,6 +32,8 @@ const BASE_INPUT_GAIN: f32 = 3.0;
 const SOFT_CLIP_THRESHOLD: f32 = 0.7;
 /// Самопрослушивание держит не больше 250 мс, чтобы голос не отставал.
 const LOOPBACK_MAX_SAMPLES: usize = TARGET_SAMPLE_RATE as usize / 4;
+/// Уровень речи для индикатора звонка — раз в 60 мс, а не на каждый кадр.
+const LEVEL_EVENT_FRAMES: usize = 3;
 /// Индикатор уровня показывает диапазон от −60 dBFS до 0.
 const LEVEL_FLOOR_DB: f32 = 60.0;
 
@@ -310,6 +312,8 @@ impl AudioCapture {
 
         let frames = channel.clone();
         let mut sequence: u64 = 0;
+        let mut level_frames = 0;
+        let mut level_peak: f32 = 0.0;
         let stream = open_input(
             options.input_device.as_deref(),
             move |frame| {
@@ -329,7 +333,15 @@ impl AudioCapture {
 
                 // Уровень идёт отдельным каналом: канал PCM звонка перехватывается
                 // до webview, а индикатору речи не нужен второй захват микрофона.
-                let _ = levels.send(json!({ "kind": "level", "level": frame_level(frame) }));
+                // Колбэк выполняется в потоке звуковой карты, поэтому в webview
+                // уходит только пик за несколько кадров.
+                level_peak = level_peak.max(frame_level(frame));
+                level_frames += 1;
+                if level_frames == LEVEL_EVENT_FRAMES {
+                    let _ = levels.send(json!({ "kind": "level", "level": level_peak }));
+                    level_frames = 0;
+                    level_peak = 0.0;
+                }
             },
             failure_reporter(channel),
         )?;
