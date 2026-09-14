@@ -51,6 +51,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="2"
         variant="classic"
         aria-labelledby="services-title"
+        data-tour="dispatch-services"
         className="dispatch-services-card h-[210px] overflow-y-auto min-[1480px]:h-[210px] md:h-[263px]"
       >
         <Text id="services-title" size="2" weight="bold">
@@ -100,6 +101,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
       <Card
         size="1"
         variant="classic"
+        data-tour="caller-chat"
         className="dispatch-chat-card h-[263px] overflow-hidden p-0!"
       >
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
@@ -134,6 +136,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
       <Card
         size="1"
         variant="classic"
+        data-tour="incident-map"
         className="dispatch-map-card relative min-h-[320px] overflow-hidden p-0! min-[1480px]:col-span-1 min-[1480px]:min-h-[418px] md:col-span-2"
       >
         <IncidentMap
