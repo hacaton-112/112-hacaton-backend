@@ -605,6 +605,16 @@ body,
     min-width: 0;
     padding-inline: 1px;
   }
+
+  .operator-incident-scroll {
+    --scrollarea-scrollbar-vertical-margin-top: var(--space-2);
+    --scrollarea-scrollbar-vertical-margin-bottom: var(--space-2);
+    --scrollarea-scrollbar-vertical-margin-right: var(--space-1);
+  }
+
+  .operator-incident-scroll > .rt-ScrollAreaViewport > * {
+    padding-right: var(--space-3);
+  }
 }
 
 :root {

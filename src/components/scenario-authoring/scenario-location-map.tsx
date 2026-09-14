@@ -11,15 +11,19 @@ import {
   Flex,
   Grid,
   SegmentedControl,
+  Skeleton,
   Text,
 } from "@bolid-ui/themes";
-import { useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
 import { INCIDENT_ZOOM, MOSCOW } from "../../config/map";
 import { cn } from "../../lib/cn";
 import { createCircleZone } from "../map/geo-circle";
-import { useFieldError } from "./scenario-form-context";
+import {
+  ScenarioFormLoadingContext,
+  useFieldError,
+} from "./scenario-form-context";
 import { FieldError, Loadable } from "./scenario-form-fields";
 import {
   formatCoordinates,
@@ -62,6 +66,7 @@ export function ScenarioLocationMap({
   const [target, setTarget] = useState<ScenarioLocationTarget>("incident");
   const targetRef = useRef(target);
   const [failed, setFailed] = useState(false);
+  const loading = use(ScenarioFormLoadingContext);
   // Отметки на карте проверяются вместе: попадание точки в область зависит от
   // обеих, поэтому любой клик снимает обе ошибки.
   const pointError = useFieldError("location.exactPoint", true);
@@ -79,6 +84,13 @@ export function ScenarioLocationMap({
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const frame = requestAnimationFrame(() => mapRef.current?.resize());
+    return () => cancelAnimationFrame(frame);
+  }, [loading]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -236,43 +248,48 @@ export function ScenarioLocationMap({
         </SegmentedControl.Root>
       </Loadable>
 
-      <Loadable>
+      <Card
+        size="1"
+        variant="surface"
+        className={cn(
+          "relative h-[360px] overflow-hidden p-0!",
+          invalid !== undefined &&
+            "outline-1 outline-(--red-a11) outline-solid",
+        )}
+        {...(pointError.error === undefined
+          ? centerError.anchor
+          : pointError.anchor)}
+      >
+        <div ref={containerRef} className="h-full w-full" />
         <Card
           size="1"
-          variant="surface"
-          className={cn(
-            "relative h-[360px] p-0!",
-            invalid !== undefined &&
-              "outline-1 outline-(--red-a11) outline-solid",
-          )}
-          {...(pointError.error === undefined
-            ? centerError.anchor
-            : pointError.anchor)}
+          className="pointer-events-none absolute! top-3 left-3 max-w-[260px] [--card-background-color:var(--color-panel-solid)]"
         >
-          <div ref={containerRef} className="h-full w-full" />
-          <Card
-            size="1"
-            className="pointer-events-none absolute! top-3 left-3 max-w-[260px] [--card-background-color:var(--color-panel-solid)]"
-          >
-            <Text size="1">
-              Клик задаёт:{" "}
-              {target === "incident" ? "точку происшествия" : "центр области"}
-            </Text>
-          </Card>
-          {failed && (
-            <Flex
-              justify="center"
-              px="3"
-              py="2"
-              className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
-            >
-              <Text size="1" color="gray">
-                Подложка карты недоступна — координаты можно ввести вручную
-              </Text>
-            </Flex>
-          )}
+          <Text size="1">
+            Клик задаёт:{" "}
+            {target === "incident" ? "точку происшествия" : "центр области"}
+          </Text>
         </Card>
-      </Loadable>
+        {failed && (
+          <Flex
+            justify="center"
+            px="3"
+            py="2"
+            className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
+          >
+            <Text size="1" color="gray">
+              Подложка карты недоступна — координаты можно ввести вручную
+            </Text>
+          </Flex>
+        )}
+        {loading && (
+          <Skeleton
+            width="100%"
+            height="100%"
+            className="absolute! inset-0 z-40"
+          />
+        )}
+      </Card>
 
       <Grid gap="1" columns={{ initial: "1", sm: "2" }}>
         <Text size="1" color="gray">
