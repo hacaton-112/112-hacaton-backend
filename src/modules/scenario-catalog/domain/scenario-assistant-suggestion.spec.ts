@@ -1,6 +1,7 @@
 import {
   buildScenarioSeedFromSuggestion,
   explicitExpectedServicesFromBrief,
+  explicitLocationHintsFromBrief,
   ScenarioAssistantSuggestionSchema,
 } from "./scenario-assistant-suggestion";
 import { validAssistantSuggestion } from "./scenario-assistant-suggestion.fixture";
@@ -75,5 +76,69 @@ describe("scenario assistant suggestion", () => {
         "Учебный пожар в мастерской с одним пострадавшим",
       ).version.expectedServices,
     ).toEqual(["fire", "ambulance"]);
+  });
+
+  it("keeps an explicit yard and mobile locator radius from the brief", () => {
+    const baseSuggestion = validAssistantSuggestion();
+    const suggestion = {
+      ...baseSuggestion,
+      location: {
+        ...baseSuggestion.location,
+        terrain: "open_field" as const,
+        details: "В поле около столба",
+        locatorLabel: "Поле около столба",
+      },
+    };
+    const brief = [
+      "Наезд на пешехода во дворе",
+      "Водитель задел пешехода, тот упал, жалуется на боль в ноге, в сознании.",
+      "Локатор — мобильный, круг 300 м.",
+      "Службы: скорая, ГИБДД. Тяжёлый факт — возможный перелом.",
+    ].join("\n");
+
+    const seed = buildScenarioSeedFromSuggestion(
+      "S-AI-YARD",
+      suggestion,
+      brief,
+    );
+
+    expect(explicitLocationHintsFromBrief(brief)).toEqual({
+      terrain: "city_block",
+      exactAddressDetails: "Во дворе",
+      locatorRadiusMeters: 300,
+      locatorLabel: "Мобильный локатор: круг 300 м",
+    });
+    expect(seed.location).toMatchObject({
+      terrain: "city_block",
+      exactAddress: { details: "Во дворе" },
+      locatorRadiusMeters: 300,
+      locatorLabel: "Мобильный локатор: круг 300 м",
+    });
+
+    const latitudeDistanceMeters =
+      Math.abs(seed.location.locatorCenter[0] - seed.location.exactPoint[0]) *
+      111_320;
+    const longitudeDistanceMeters =
+      Math.abs(seed.location.locatorCenter[1] - seed.location.exactPoint[1]) *
+      111_320 *
+      Math.cos((seed.location.exactPoint[0] * Math.PI) / 180);
+
+    expect(
+      Math.hypot(latitudeDistanceMeters, longitudeDistanceMeters),
+    ).toBeLessThan(seed.location.locatorRadiusMeters);
+  });
+
+  it("keeps the assistant location defaults when the brief has no hints", () => {
+    const seed = buildScenarioSeedFromSuggestion(
+      "S-AI-LOCATION",
+      validAssistantSuggestion(),
+      "Учебное происшествие без явного описания места и способа определения координат",
+    );
+
+    expect(seed.location).toMatchObject({
+      terrain: "city_block",
+      locatorRadiusMeters: 500,
+      locatorLabel: "Базовая станция: Учебный квартал",
+    });
   });
 });
