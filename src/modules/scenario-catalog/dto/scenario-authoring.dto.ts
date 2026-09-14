@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { ScenarioSeedSchema } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
+import { ScenarioAssistantDraftSchema } from "../domain/scenario-assistant-suggestion";
+
 export const GenerateScenarioDraftRequestSchema = z
   .object({
     brief: z.string().trim().min(20).max(4_000),
@@ -15,7 +17,7 @@ export class GenerateScenarioDraftRequestDto extends createZodDto(
 
 export const GenerateScenarioDraftResponseSchema = z
   .object({
-    scenario: ScenarioSeedSchema,
+    scenario: ScenarioAssistantDraftSchema,
     authoringPrompt: z.string().min(20).max(4_000),
   })
   .strict();

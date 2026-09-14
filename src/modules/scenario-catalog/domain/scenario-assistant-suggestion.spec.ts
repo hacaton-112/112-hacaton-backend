@@ -1,14 +1,13 @@
 import {
-  buildScenarioSeedFromSuggestion,
+  buildScenarioDraftFromSuggestion,
   explicitExpectedServicesFromBrief,
-  explicitLocationHintsFromBrief,
   ScenarioAssistantSuggestionSchema,
 } from "./scenario-assistant-suggestion";
 import { validAssistantSuggestion } from "./scenario-assistant-suggestion.fixture";
 
 describe("scenario assistant suggestion", () => {
   it("turns provider output into a complete Scenario Engine seed", () => {
-    const seed = buildScenarioSeedFromSuggestion(
+    const seed = buildScenarioDraftFromSuggestion(
       "S-AI-TEST",
       validAssistantSuggestion(),
     );
@@ -22,7 +21,7 @@ describe("scenario assistant suggestion", () => {
       persona: { voiceId: "serena" },
       version: { expectedServices: ["fire", "ambulance"] },
     });
-    expect(seed.location.locatorCenter).not.toEqual(seed.location.exactPoint);
+    expect(seed).not.toHaveProperty("location");
     expect(seed.referenceCard.fields).toHaveLength(3);
   });
 
@@ -31,7 +30,7 @@ describe("scenario assistant suggestion", () => {
     suggestion.mandatoryQuestions[0].satisfiedByFactKeys = ["missing"];
 
     expect(() =>
-      buildScenarioSeedFromSuggestion("S-AI-BROKEN", suggestion),
+      buildScenarioDraftFromSuggestion("S-AI-BROKEN", suggestion),
     ).toThrow();
   });
 
@@ -42,9 +41,9 @@ describe("scenario assistant suggestion", () => {
     const suggestion = validAssistantSuggestion();
     suggestion[field] = utterance;
 
-    expect(ScenarioAssistantSuggestionSchema.safeParse(suggestion).success).toBe(
-      false,
-    );
+    expect(
+      ScenarioAssistantSuggestionSchema.safeParse(suggestion).success,
+    ).toBe(false);
   });
 
   it("preserves the services explicitly listed by the author", () => {
@@ -55,7 +54,7 @@ describe("scenario assistant suggestion", () => {
     const brief =
       "Наезд на пешехода во дворе. Службы: скорая, ГИБДД. Тяжёлый факт — возможный перелом.";
 
-    const seed = buildScenarioSeedFromSuggestion(
+    const seed = buildScenarioDraftFromSuggestion(
       "S-AI-ROAD",
       suggestion,
       brief,
@@ -70,7 +69,7 @@ describe("scenario assistant suggestion", () => {
 
   it("keeps the assistant services when the author did not list them", () => {
     expect(
-      buildScenarioSeedFromSuggestion(
+      buildScenarioDraftFromSuggestion(
         "S-AI-FIRE",
         validAssistantSuggestion(),
         "Учебный пожар в мастерской с одним пострадавшим",
@@ -78,67 +77,26 @@ describe("scenario assistant suggestion", () => {
     ).toEqual(["fire", "ambulance"]);
   });
 
-  it("keeps an explicit yard and mobile locator radius from the brief", () => {
-    const baseSuggestion = validAssistantSuggestion();
-    const suggestion = {
-      ...baseSuggestion,
-      location: {
-        ...baseSuggestion.location,
-        terrain: "open_field" as const,
-        details: "В поле около столба",
-        locatorLabel: "Поле около столба",
-      },
-    };
-    const brief = [
-      "Наезд на пешехода во дворе",
-      "Водитель задел пешехода, тот упал, жалуется на боль в ноге, в сознании.",
-      "Локатор — мобильный, круг 300 м.",
-      "Службы: скорая, ГИБДД. Тяжёлый факт — возможный перелом.",
-    ].join("\n");
-
-    const seed = buildScenarioSeedFromSuggestion(
-      "S-AI-YARD",
-      suggestion,
-      brief,
-    );
-
-    expect(explicitLocationHintsFromBrief(brief)).toEqual({
-      terrain: "city_block",
-      exactAddressDetails: "Во дворе",
-      locatorRadiusMeters: 300,
-      locatorLabel: "Мобильный локатор: круг 300 м",
-    });
-    expect(seed.location).toMatchObject({
-      terrain: "city_block",
-      exactAddress: { details: "Во дворе" },
-      locatorRadiusMeters: 300,
-      locatorLabel: "Мобильный локатор: круг 300 м",
-    });
-
-    const latitudeDistanceMeters =
-      Math.abs(seed.location.locatorCenter[0] - seed.location.exactPoint[0]) *
-      111_320;
-    const longitudeDistanceMeters =
-      Math.abs(seed.location.locatorCenter[1] - seed.location.exactPoint[1]) *
-      111_320 *
-      Math.cos((seed.location.exactPoint[0] * Math.PI) / 180);
-
+  it("rejects location data returned outside the model-facing contract", () => {
     expect(
-      Math.hypot(latitudeDistanceMeters, longitudeDistanceMeters),
-    ).toBeLessThan(seed.location.locatorRadiusMeters);
+      ScenarioAssistantSuggestionSchema.safeParse({
+        ...validAssistantSuggestion(),
+        location: {
+          city: "Москва",
+          exactPoint: { lat: 55.75, lon: 37.61 },
+        },
+      }).success,
+    ).toBe(false);
   });
 
-  it("keeps the assistant location defaults when the brief has no hints", () => {
-    const seed = buildScenarioSeedFromSuggestion(
-      "S-AI-LOCATION",
-      validAssistantSuggestion(),
-      "Учебное происшествие без явного описания места и способа определения координат",
-    );
+  it("rejects address fields in generated incident-card facts", () => {
+    const suggestion = validAssistantSuggestion() as unknown as {
+      facts: { cardField: string }[];
+    };
+    suggestion.facts[0].cardField = "street";
 
-    expect(seed.location).toMatchObject({
-      terrain: "city_block",
-      locatorRadiusMeters: 500,
-      locatorLabel: "Базовая станция: Учебный квартал",
-    });
+    expect(
+      ScenarioAssistantSuggestionSchema.safeParse(suggestion).success,
+    ).toBe(false);
   });
 });

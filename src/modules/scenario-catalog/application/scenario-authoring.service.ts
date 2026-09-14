@@ -8,7 +8,7 @@ import {
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
 
-import { buildScenarioSeedFromSuggestion } from "../domain/scenario-assistant-suggestion";
+import { buildScenarioDraftFromSuggestion } from "../domain/scenario-assistant-suggestion";
 import type {
   GenerateScenarioDraftResponse,
   PublishScenarioRequest,
@@ -48,9 +48,8 @@ export class ScenarioAuthoringService {
           { brief, validationFeedback: feedback },
           new AbortController().signal,
         );
-
         return {
-          scenario: buildScenarioSeedFromSuggestion(code, suggestion, brief),
+          scenario: buildScenarioDraftFromSuggestion(code, suggestion, brief),
           authoringPrompt: brief,
         };
       } catch (error) {

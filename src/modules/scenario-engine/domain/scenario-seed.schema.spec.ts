@@ -53,6 +53,44 @@ describe("ScenarioSeedSchema", () => {
     expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
   });
 
+  it("requires the instructor to select location coordinates", () => {
+    const broken = seed() as unknown as {
+      location: {
+        exactPoint: [number, number];
+        locatorCenter: [number, number];
+      };
+    };
+    broken.location.exactPoint = [0, 0];
+    broken.location.locatorCenter = [0, 0];
+
+    const result = ScenarioSeedSchema.safeParse(broken);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["location", "exactPoint"] }),
+          expect.objectContaining({ path: ["location", "locatorCenter"] }),
+        ]),
+      );
+    }
+  });
+
+  it("keeps the exact point inside the locator range", () => {
+    const broken = seed() as unknown as {
+      location: {
+        exactPoint: [number, number];
+        locatorCenter: [number, number];
+        locatorRadiusMeters: number;
+      };
+    };
+    broken.location.exactPoint = [55.751244, 37.618423];
+    broken.location.locatorCenter = [55.761244, 37.618423];
+    broken.location.locatorRadiusMeters = 100;
+
+    expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
+  });
+
   it.each([
     ["openingLine", "Здравствуйте, служба 112, что случилось?"],
     ["fallbackLine", "Пожалуйста, расскажите подробнее, что произошло"],
