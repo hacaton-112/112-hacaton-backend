@@ -35,6 +35,8 @@ export interface CallSnapshot {
   isCallerSpeaking: boolean;
   /** Уровень уже обработанного и воспроизводимого Rust TTS, от 0 до 1. */
   callerAudioLevel: number;
+  /** Уровень речи оператора из нативного захвата микрофона, от 0 до 1. */
+  operatorAudioLevel: number;
   scenarioTitle?: string;
   scenarioDifficulty?: number;
   panicLevel: number;
@@ -111,6 +113,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [hasOpenedMicrophone, setHasOpenedMicrophone] = useState(false);
   const [isCallerSpeaking, setCallerSpeaking] = useState(false);
   const [callerAudioLevel, setCallerAudioLevel] = useState(0);
+  const [operatorAudioLevel, setOperatorAudioLevel] = useState(0);
   const [isMuted, setMuted] = useState(false);
   const [error, setError] = useState<string>();
   const [startedAt, setStartedAt] = useState<Date>();
@@ -148,6 +151,7 @@ export function useCall(): CallSnapshot & CallControls {
       case "call.ended":
         setState("ended");
         setListening(false);
+        setOperatorAudioLevel(0);
         void streamRef.current?.stopCapture();
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
@@ -167,6 +171,7 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "listen.stopped":
         setListening(false);
+        setOperatorAudioLevel(0);
         if (event.transcript.trim().length > 0) {
           setDialogue((turns) => [
             ...turns,
@@ -198,6 +203,7 @@ export function useCall(): CallSnapshot & CallControls {
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
         setListening(false);
+        setOperatorAudioLevel(0);
         setError(ERROR_MESSAGES[event.code] ?? event.message);
         break;
       case "socket.error":
@@ -210,6 +216,7 @@ export function useCall(): CallSnapshot & CallControls {
         // значило бы показывать вызов, который уже никто не примет.
         setState((current) => (current === "idle" ? current : "ended"));
         setListening(false);
+        setOperatorAudioLevel(0);
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
         setError("Соединение с сервером потеряно, переподключаюсь…");
@@ -237,6 +244,11 @@ export function useCall(): CallSnapshot & CallControls {
       onEvent: (event) => {
         if (!cancelled) {
           handleEvent(event);
+        }
+      },
+      onMicrophoneLevel: (level) => {
+        if (!cancelled) {
+          setOperatorAudioLevel(level);
         }
       },
     });
@@ -367,6 +379,7 @@ export function useCall(): CallSnapshot & CallControls {
     setChecklistTotal(0);
     setDialogue([]);
     setListening(false);
+    setOperatorAudioLevel(0);
     setHasOpenedMicrophone(false);
     setCallerSpeaking(false);
     setCallerAudioLevel(0);
@@ -424,6 +437,7 @@ export function useCall(): CallSnapshot & CallControls {
     isListening,
     isCallerSpeaking,
     callerAudioLevel,
+    operatorAudioLevel,
     scenarioTitle,
     scenarioDifficulty,
     panicLevel,

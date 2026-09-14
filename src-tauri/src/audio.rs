@@ -86,9 +86,29 @@ fn input_gain() -> f32 {
     f32::from_bits(INPUT_GAIN.load(Ordering::Relaxed)) * BASE_INPUT_GAIN
 }
 
-/// Множитель громкости воспроизведения из настроек, от 0 до 2.
-pub fn output_volume() -> f32 {
+fn output_volume() -> f32 {
     f32::from_bits(OUTPUT_VOLUME.load(Ordering::Relaxed))
+}
+
+/// Применяет громкость из настроек к сэмплу воспроизведения.
+///
+/// Громкость до 200 % выводит сигнал за ±1.0, а часть драйверов Windows от
+/// сэмплов вне диапазона или NaN глушит весь аудиовыход системы, пока поток не
+/// закроется. Поэтому на выход уходит только конечное значение в [-1, 1].
+pub fn apply_output_volume(sample: f32) -> f32 {
+    let volume = output_volume();
+    let sample = sample * volume;
+    // До 100 % голос звучит как раньше; громче — пики мягко сжимаются, а не хрипят.
+    let sample = if volume > 1.0 {
+        soft_clip(sample)
+    } else {
+        sample
+    };
+    if sample.is_finite() {
+        sample.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    }
 }
 
 fn store_level(target: &AtomicU32, value: f32) {
@@ -271,7 +291,12 @@ fn frame_level(frame: &[i16]) -> f32 {
 }
 
 impl AudioCapture {
-    fn start(&self, channel: Channel<Value>, options: AudioCaptureOptions) -> Result<(), String> {
+    fn start(
+        &self,
+        channel: Channel<Value>,
+        levels: Channel<Value>,
+        options: AudioCaptureOptions,
+    ) -> Result<(), String> {
         let mut active = self
             .stream
             .lock()
@@ -301,6 +326,10 @@ impl AudioCapture {
                     "samples_base64": BASE64.encode(bytes),
                 }));
                 sequence = sequence.wrapping_add(1);
+
+                // Уровень идёт отдельным каналом: канал PCM звонка перехватывается
+                // до webview, а индикатору речи не нужен второй захват микрофона.
+                let _ = levels.send(json!({ "kind": "level", "level": frame_level(frame) }));
             },
             failure_reporter(channel),
         )?;
@@ -389,7 +418,7 @@ impl Iterator for LoopbackSource {
                 .lock()
                 .ok()
                 .and_then(|mut queue| queue.pop_front())
-                .map_or(0.0, |sample| sample * output_volume()),
+                .map_or(0.0, apply_output_volume),
         )
     }
 }
@@ -470,9 +499,10 @@ impl CaptureProcessor {
 pub fn audio_capture_start(
     audio: State<'_, AudioCapture>,
     channel: Channel<Value>,
+    levels: Channel<Value>,
     options: Option<AudioCaptureOptions>,
 ) -> Result<(), String> {
-    audio.start(channel, options.unwrap_or_default())
+    audio.start(channel, levels, options.unwrap_or_default())
 }
 
 #[tauri::command]

@@ -85,12 +85,15 @@ export const ipc = {
   },
 
   systemAudio: {
+    /** `levels` получает уровень речи для индикатора, без самого звука. */
     start(
       channel: Channel<unknown>,
-      options?: SystemAudioCaptureOptions,
+      options: SystemAudioCaptureOptions,
+      levels: Channel<unknown>,
     ): Promise<void> {
       return invoke(IPC_CONFIG.getSystemAudioStartHandler(), {
         channel,
+        levels,
         options,
       });
     },

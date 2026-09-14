@@ -42,6 +42,7 @@ export function CallControlDock(props: CallControlDockProps) {
               <div className="absolute inset-0">
                 <VoiceVisualizerPanel
                   isListening={isCallRunning && !props.isMuted}
+                  level={props.operatorAudioLevel}
                 />
               </div>
             )}
