@@ -29,6 +29,10 @@ export const ErrorCodes = {
   SCENARIO_ASSISTANT_UNAVAILABLE: "SCENARIO_ASSISTANT_UNAVAILABLE",
   SCENARIO_ASSISTANT_INVALID_DRAFT: "SCENARIO_ASSISTANT_INVALID_DRAFT",
 
+  // ── Геокодирование ─────────────────────────────────────────
+  GEOCODING_ADDRESS_NOT_FOUND: "GEOCODING_ADDRESS_NOT_FOUND",
+  GEOCODING_UNAVAILABLE: "GEOCODING_UNAVAILABLE",
+
   // ── Учебный звонок ─────────────────────────────────────────
   // Чужой звонок неотличим от несуществующего: знать чужие идентификаторы
   // сессий оператору незачем.

@@ -11,6 +11,7 @@ import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { DebriefModule } from "@/modules/debrief/debrief.module";
 import { HealthModule } from "@/modules/health/health.module";
+import { GeocodingModule } from "@/modules/geocoding/geocoding.module";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
@@ -30,6 +31,7 @@ import { DatabaseModule } from "./database/database.module";
     DatabaseModule,
     AuditLogModule,
     HealthModule,
+    GeocodingModule,
     AuthModule,
     AsrModule,
     DebriefModule,
