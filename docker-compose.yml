@@ -121,8 +121,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Локальный сбор технических метрик backend и ASR. Оба сервиса обычно
+  # запускаются на хосте, поэтому контейнер обращается к ним через
+  # host.docker.internal. Сами сервисы должны публиковать endpoint /metrics.
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: system-112-training-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      - host.docker.internal:host-gateway
 volumes:
   qwen_tts_hf_cache:
   postgres_data:
   pgadmin-data:
   minio_data:
+  prometheus_data:
