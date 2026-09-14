@@ -11,6 +11,7 @@ export default function MapPage() {
   const isResolvingAddress = useMapWindowStore(
     (state) => state.isResolvingAddress,
   );
+  const selectedPoint = useMapWindowStore((state) => state.selectedPoint);
 
   return (
     <Flex direction="column" className="h-screen-safe min-h-0 overflow-hidden">
@@ -19,6 +20,8 @@ export default function MapPage() {
         <IncidentMap
           city={MOSCOW}
           incident={incident ?? undefined}
+          // Точку отмечают в окне звонка; здесь она только видна.
+          selectedPoint={selectedPoint ?? undefined}
           className="h-full"
         />
 

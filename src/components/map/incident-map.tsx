@@ -1,6 +1,7 @@
 import {
   type GeoJSONSource,
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   ScaleControl,
 } from "maplibre-gl";
@@ -9,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
 import { INCIDENT_ZOOM, type CityPreset } from "../../config/map";
+import type { GeoPoint } from "../../services/incident-location";
 import { createCircleZone } from "./geo-circle";
 
 const ZONE_RADIUS_METERS = 400;
@@ -28,6 +30,10 @@ interface IncidentMapProps {
   incident?: IncidentLocation;
   className?: string;
   controls?: boolean;
+  /** Место происшествия, которое оператор отметил сам. */
+  selectedPoint?: GeoPoint;
+  /** Передан — клик по карте отмечает точку; без него карта только показывает. */
+  onSelectPoint?: (point: GeoPoint) => void;
 }
 
 export function IncidentMap({
@@ -35,10 +41,19 @@ export function IncidentMap({
   incident,
   className,
   controls = true,
+  selectedPoint,
+  onSelectPoint,
 }: IncidentMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap>(null);
+  const markerRef = useRef<Marker>(null);
+  const onSelectPointRef = useRef(onSelectPoint);
   const [failed, setFailed] = useState(false);
+  const selectable = Boolean(onSelectPoint);
+
+  useEffect(() => {
+    onSelectPointRef.current = onSelectPoint;
+  }, [onSelectPoint]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -70,6 +85,14 @@ export function IncidentMap({
     }
     // Подложка живёт по сети; без неё карта остаётся серой, поэтому говорим об этом прямо.
     map.on("error", () => setFailed(true));
+    // Обработчик один на всю жизнь карты: отмечать ли точку, решает текущий
+    // колбэк, а не пересоздание карты.
+    map.on("click", (event) =>
+      onSelectPointRef.current?.({
+        latitude: event.lngLat.lat,
+        longitude: event.lngLat.lng,
+      }),
+    );
 
     // Контейнер меняет размер вместе с раскладкой, а не только с окном.
     const observer = new ResizeObserver(() => map.resize());
@@ -77,10 +100,45 @@ export function IncidentMap({
 
     return () => {
       observer.disconnect();
+      markerRef.current?.remove();
+      markerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
   }, [city, controls]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.getCanvas().style.cursor = selectable ? "crosshair" : "";
+  }, [selectable, city, controls]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!selectedPoint) {
+      markerRef.current?.remove();
+      markerRef.current = null;
+      return;
+    }
+
+    // Координаты задаются до addTo: addTo сразу пересчитывает позицию
+    // маркера, и без setLngLat maplibre падает на чтении lngLat.lng.
+    const lngLat: [number, number] = [
+      selectedPoint.longitude,
+      selectedPoint.latitude,
+    ];
+
+    if (markerRef.current) {
+      markerRef.current.setLngLat(lngLat);
+    } else {
+      markerRef.current = new Marker({ color: "#dc3f45" })
+        .setLngLat(lngLat)
+        .addTo(map);
+    }
+  }, [selectedPoint, city, controls]);
 
   useEffect(() => {
     const map = mapRef.current;

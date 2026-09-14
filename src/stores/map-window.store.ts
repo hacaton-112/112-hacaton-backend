@@ -4,12 +4,19 @@ import { create } from "zustand";
 
 import type { IncidentLocation } from "../components/map/incident-map";
 import type { CallState } from "../hooks/use-call";
+import type { GeoPoint } from "../services/incident-location";
 
-type MapWindowState = {
+type CallMapSnapshot = {
   callState: CallState;
   incident: IncidentLocation | null;
   isResolvingAddress: boolean;
-  setSnapshot: (snapshot: Omit<MapWindowState, "setSnapshot">) => void;
+};
+
+type MapWindowState = CallMapSnapshot & {
+  /** Место происшествия, отмеченное оператором в окне звонка. */
+  selectedPoint: GeoPoint | null;
+  setSnapshot: (snapshot: CallMapSnapshot) => void;
+  setSelectedPoint: (point: GeoPoint | null) => void;
 };
 
 /**
@@ -21,13 +28,20 @@ export const useMapWindowStore = create<MapWindowState>((set) => ({
   callState: "idle",
   incident: null,
   isResolvingAddress: false,
+  selectedPoint: null,
   setSnapshot: set,
+  setSelectedPoint: (selectedPoint) => set({ selectedPoint }),
 }));
 
 if (isTauri()) {
   createTauriStore("incident-map-window", useMapWindowStore, {
     autoStart: true,
-    filterKeys: ["callState", "incident", "isResolvingAddress"],
+    filterKeys: [
+      "callState",
+      "incident",
+      "isResolvingAddress",
+      "selectedPoint",
+    ],
     filterKeysStrategy: "pick",
     save: false,
     syncStrategy: 25,
