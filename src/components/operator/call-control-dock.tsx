@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
 import type { CallControls, CallSnapshot } from "../../hooks/use-call";
+import { OperatorTour } from "./operator-tour";
 import { ScenarioPicker } from "./scenario-picker";
 import { VoiceVisualizerPanel } from "./voice-visualizer-panel";
 
@@ -25,6 +26,7 @@ export function CallControlDock(props: CallControlDockProps) {
       size="1"
       variant="classic"
       className="absolute bottom-3 left-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2"
+      data-tour="call-controls"
       aria-label="Управление звонком"
     >
       <div className="grid grid-cols-[4rem_minmax(12rem,1fr)_auto] items-center gap-2">
@@ -55,6 +57,8 @@ export function CallControlDock(props: CallControlDockProps) {
         </AudioMonitor>
 
         <div className="flex min-w-fit items-center justify-end gap-2">
+          <OperatorTour />
+
           {props.state === "idle" && (
             <ScenarioPicker
               disabled={!props.isConnected}
