@@ -54,6 +54,81 @@
   backdrop-filter: blur(8px);
 }
 
+.scenario-briefing-panel {
+  container: scenario-briefing / inline-size;
+}
+
+.scenario-catalog-page {
+  container: scenario-catalog-page / inline-size;
+}
+
+.scenario-briefing-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.debrief-detail-tabs .rt-BaseTabListTrigger:hover .rt-BaseTabListTriggerInner {
+  background-color: transparent;
+}
+
+/* Scrollbars внутри скруглённых поверхностей не пересекают их углы. */
+:where(.rt-Card, .scenario-briefing-panel) .rt-ScrollAreaRoot {
+  --scrollarea-scrollbar-vertical-margin-top: var(--space-3);
+  --scrollarea-scrollbar-vertical-margin-bottom: var(--space-3);
+  --scrollarea-scrollbar-vertical-margin-right: var(--space-2);
+  --scrollarea-scrollbar-horizontal-margin-right: var(--space-3);
+  --scrollarea-scrollbar-horizontal-margin-left: var(--space-3);
+  --scrollarea-scrollbar-horizontal-margin-bottom: var(--space-2);
+}
+
+@container scenario-briefing (min-width: 520px) {
+  .scenario-briefing-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .scenario-briefing-start {
+    grid-column: 1 / -1;
+  }
+}
+
+@container scenario-catalog-page (max-width: 1099px) {
+  .scenario-catalog-scroll,
+  .scenario-catalog-scroll > .rt-ScrollAreaViewport,
+  .scenario-briefing-scroll,
+  .scenario-briefing-scroll > .rt-ScrollAreaViewport {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .scenario-catalog-scroll > .rt-ScrollAreaScrollbar,
+  .scenario-briefing-scroll > .rt-ScrollAreaScrollbar {
+    display: none;
+  }
+}
+
+@container scenario-catalog-page (min-width: 760px) and (max-width: 1099px) {
+  .scenario-catalog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container scenario-catalog-page (min-width: 1100px) {
+  .scenario-catalog-layout {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 600px);
+  }
+
+  .scenario-briefing-panel {
+    height: 100%;
+  }
+}
+
+@container scenario-catalog-page (min-width: 1450px) {
+  .scenario-catalog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 :root {
   --app-scaling: 1;
   --app-titlebar-height: calc(32px * var(--app-scaling));

@@ -70,6 +70,8 @@ export function DebriefDetails({
   }
 
   const evaluation = debrief.evaluation;
+  const hasRecommendations = Boolean(evaluation?.recommendations.length);
+  const hasReference = Boolean(evaluation?.fields.length);
 
   /*
    * Раскладка по ширине окна:
@@ -160,7 +162,12 @@ export function DebriefDetails({
             defaultValue="conversation"
             className="flex min-h-0 flex-1 flex-col"
           >
-            <Tabs.List size="2" mx="5" mt="3" className="shrink-0">
+            <Tabs.List
+              size="2"
+              mx="5"
+              mt="3"
+              className="debrief-detail-tabs shrink-0"
+            >
               <Tabs.Trigger value="questions" className="flex-1">
                 Детализация по вопросам
               </Tabs.Trigger>
@@ -177,15 +184,14 @@ export function DebriefDetails({
                 <DebriefSection className="px-0!">
                   <QuestionsTable debrief={debrief} />
                 </DebriefSection>
-                {evaluation && (
-                  <>
-                    <Separator size="4" />
-                    <RecommendationsSection evaluation={evaluation} />
-                    <Separator size="4" />
-                    <ReferenceSection evaluation={evaluation} />
-                  </>
+                {evaluation && hasRecommendations && (
+                  <RecommendationsSection evaluation={evaluation} />
                 )}
-                <Separator size="4" />
+                {hasRecommendations && hasReference && <Separator size="4" />}
+                {evaluation && hasReference && (
+                  <ReferenceSection evaluation={evaluation} />
+                )}
+                {(hasRecommendations || hasReference) && <Separator size="4" />}
                 <CallStateSection debrief={debrief} />
                 <Separator size="4" />
                 <IncidentCardSection debrief={debrief} />

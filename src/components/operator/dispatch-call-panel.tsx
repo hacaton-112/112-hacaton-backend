@@ -8,6 +8,7 @@ import {
   Text,
 } from "@bolid-ui/themes";
 import { AlertTriangle, Crosshair, MapPin } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
@@ -102,7 +103,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="1"
         variant="classic"
         data-tour="caller-chat"
-        className="dispatch-chat-card h-[263px] overflow-hidden p-0!"
+        className="dispatch-chat-card h-[263px] min-w-0 overflow-hidden p-0!"
       >
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
           <div>
@@ -244,6 +245,22 @@ function DialogueList({
   props: DispatchCallPanelProps;
   empty: string;
 }) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const lastTurnId = props.dialogue.at(-1)?.id;
+
+  useEffect(() => {
+    if (!lastTurnId) return;
+
+    const frame = requestAnimationFrame(() => {
+      const viewport = scrollAreaRef.current?.querySelector<HTMLElement>(
+        ".rt-ScrollAreaViewport",
+      );
+      viewport?.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [lastTurnId]);
+
   if (props.dialogue.length === 0) {
     return (
       <Text size="1" color="gray">
@@ -253,21 +270,30 @@ function DialogueList({
   }
 
   return (
-    <ScrollArea type="auto" scrollbars="vertical" className="h-full pr-1">
-      <div className="grid gap-2 pr-3">
+    <ScrollArea
+      type="auto"
+      scrollbars="vertical"
+      className="h-full min-w-0 pr-1"
+      ref={scrollAreaRef}
+    >
+      <div className="grid w-full! min-w-0 gap-2 pr-3" aria-live="polite">
         {props.dialogue.map((turn) => (
           <div
             key={turn.id}
             className={
               turn.role === "operator"
-                ? "bg-grayA-3 rounded-3 px-3 py-2"
-                : "bg-blueA-3 rounded-3 px-3 py-2"
+                ? "bg-grayA-3 rounded-3 max-w-full min-w-0 overflow-hidden px-3 py-2"
+                : "bg-blueA-3 rounded-3 max-w-full min-w-0 overflow-hidden px-3 py-2"
             }
           >
             <Text size="1" color="gray">
               {turn.role === "operator" ? "Оператор" : "Заявитель"}
             </Text>
-            <Text size="2" as="p">
+            <Text
+              size="2"
+              as="p"
+              className="max-w-full min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap"
+            >
               {turn.text}
             </Text>
           </div>
