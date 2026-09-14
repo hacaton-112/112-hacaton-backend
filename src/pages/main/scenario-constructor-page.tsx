@@ -5,12 +5,19 @@ import {
   Card,
   Flex,
   Grid,
+  Heading,
   Spinner,
   Text,
   toast,
 } from "@bolid-ui/themes";
-import { AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  RotateCcw,
+} from "lucide-react";
 import { useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
 import {
   BRIEF_MIN_LENGTH,
@@ -34,11 +41,15 @@ import {
 import {
   createEmptyScenario,
   mergeScenarioAssistantDraft,
+  scenarioForEditing,
   ScenarioSeedSchema,
+  type EditableScenarioVersion,
   type PublishedScenario,
   type ScenarioSeed,
 } from "../../contracts/scenario-authoring";
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
+import { useScenarioVersion } from "../../hooks/use-scenario-version";
+import { useScenarios } from "../../hooks/use-scenarios";
 import { ApiError } from "../../lib/api";
 import type { ScenarioAuthoringSource } from "../../services/scenario-authoring.service";
 
@@ -90,9 +101,77 @@ const formatIssue = (issue: {
   return `${label}: ${message}`;
 };
 
+/**
+ * Конструктор: новый сценарий или правка опубликованной версии.
+ *
+ * Правка всегда рождает следующую версию — проведённые звонки остаются на
+ * тех версиях, по которым они шли. Ключ по версии сбрасывает форму, когда из
+ * одной правки переходят в другую.
+ */
 export default function ScenarioConstructorPage() {
-  const { draft, publication, reverseGeocoding } = useScenarioAuthoring();
-  const [scenario, setScenario] = useState(createEmptyScenario);
+  const { scenarioVersionId } = useParams();
+
+  return scenarioVersionId ? (
+    <ScenarioVersionEditor
+      key={scenarioVersionId}
+      scenarioVersionId={scenarioVersionId}
+    />
+  ) : (
+    <ScenarioConstructor key="new" />
+  );
+}
+
+function ScenarioVersionEditor({
+  scenarioVersionId,
+}: {
+  scenarioVersionId: string;
+}) {
+  const navigate = useNavigate();
+  const version = useScenarioVersion(scenarioVersionId);
+
+  if (version.error) {
+    return (
+      <Box p="4">
+        <Callout.Root color="red" role="alert">
+          <Callout.Icon>
+            <AlertTriangle size={18} />
+          </Callout.Icon>
+          <Callout.Text>
+            Не удалось открыть сценарий на правку: {messageFrom(version.error)}{" "}
+            <Button
+              size="1"
+              variant="soft"
+              color="red"
+              onClick={() => navigate("/scenarios")}
+            >
+              К сценариям
+            </Button>
+          </Callout.Text>
+        </Callout.Root>
+      </Box>
+    );
+  }
+
+  if (!version.data) {
+    return (
+      <Box p="4">
+        <ScenarioFormSkeleton label="Загружаем опубликованную версию" />
+      </Box>
+    );
+  }
+
+  return <ScenarioConstructor base={version.data} />;
+}
+
+function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
+  const navigate = useNavigate();
+  const scenarios = useScenarios();
+  const { draft, publication, versionPublication, reverseGeocoding } =
+    useScenarioAuthoring();
+  const initialScenario = () =>
+    base ? scenarioForEditing(base.scenario) : createEmptyScenario();
+  const [scenario, setScenario] = useState(initialScenario);
+  const [staleEdit, setStaleEdit] = useState(false);
   const [brief, setBrief] = useState("");
   const [helperOpen, setHelperOpen] = useState(false);
   const [helperError, setHelperError] = useState<string>();
@@ -120,6 +199,22 @@ export default function ScenarioConstructorPage() {
     setScenario(next);
     setPublished(undefined);
     setValidationErrors([]);
+  };
+
+  /** Открыть последнюю версию сценария: список перечитывается, он мог отстать. */
+  const openLatestVersion = async () => {
+    if (!base) return;
+
+    const refreshed = await scenarios.refetch();
+    const latest = refreshed.data?.find(
+      (item) => item.code === base.scenario.code,
+    );
+
+    navigate(
+      latest
+        ? `/scenarios/${encodeURIComponent(latest.scenarioVersionId)}/edit`
+        : "/scenarios",
+    );
   };
 
   const determineAddress = async (coordinates: ScenarioCoordinates) => {
@@ -189,7 +284,9 @@ export default function ScenarioConstructorPage() {
     try {
       const result = await draft.mutateAsync(normalizedBrief);
       setScenario((current) =>
-        mergeScenarioAssistantDraft(current, result.scenario),
+        mergeScenarioAssistantDraft(current, result.scenario, {
+          keepIdentity: Boolean(base),
+        }),
       );
       setAuthoringSource("assistant");
       setAuthoringPrompt(result.authoringPrompt);
@@ -213,8 +310,26 @@ export default function ScenarioConstructorPage() {
     }
 
     setValidationErrors([]);
+    setStaleEdit(false);
 
     try {
+      if (base) {
+        const result = await versionPublication.mutateAsync({
+          scenarioId: base.scenarioId,
+          baseVersionId: base.scenarioVersionId,
+          scenario: parsed.data,
+          authoringSource,
+          ...(authoringPrompt ? { authoringPrompt } : {}),
+        });
+        toast.success("Опубликована новая версия", {
+          description: `${result.code} · версия ${result.version}`,
+        });
+        navigate(
+          `/scenarios?selected=${encodeURIComponent(result.scenarioVersionId)}`,
+        );
+        return;
+      }
+
       const result = await publication.mutateAsync({
         scenario: parsed.data,
         authoringSource,
@@ -226,7 +341,16 @@ export default function ScenarioConstructorPage() {
       });
       revealFeedback();
     } catch (error) {
-      setValidationErrors([messageFrom(error)]);
+      // Устаревшая правка — не ошибка ввода: её нельзя исправить в форме, и
+      // объяснять её нужно отдельно.
+      if (
+        error instanceof ApiError &&
+        error.code === "SCENARIO_VERSION_STALE"
+      ) {
+        setStaleEdit(true);
+      } else {
+        setValidationErrors([messageFrom(error)]);
+      }
       revealFeedback();
     }
   };
@@ -234,7 +358,8 @@ export default function ScenarioConstructorPage() {
   const resetManual = () => {
     geocodingRequestRef.current += 1;
     reverseGeocoding.reset();
-    setScenario(createEmptyScenario());
+    setScenario(initialScenario());
+    setStaleEdit(false);
     setAuthoringSource("manual");
     setAuthoringPrompt(undefined);
     setPublished(undefined);
@@ -242,7 +367,8 @@ export default function ScenarioConstructorPage() {
     setGeocodingFeedback({ status: "idle" });
   };
 
-  const busy = draft.isPending || publication.isPending;
+  const publishing = publication.isPending || versionPublication.isPending;
+  const busy = draft.isPending || publishing;
 
   return (
     <Box p="4" className="min-h-full">
@@ -251,6 +377,87 @@ export default function ScenarioConstructorPage() {
         gap="4"
         className="min-w-0 scroll-mt-4 content-start"
       >
+        {base && (
+          <Card size="2" variant="classic">
+            <Flex align="start" justify="between" gap="3" wrap="wrap">
+              <Grid gap="1" className="min-w-0">
+                <Text size="1" color="gray">
+                  Правка опубликованного сценария
+                </Text>
+                <Heading as="h1" size="4" weight="bold">
+                  {base.scenario.code} · {base.scenario.title}
+                </Heading>
+                <Text size="2" color="gray">
+                  Основа — версия {base.version}. Публикация создаст версию{" "}
+                  {base.version + 1}, а проведённые звонки останутся на своих
+                  версиях.
+                </Text>
+              </Grid>
+              <Button
+                type="button"
+                size="2"
+                variant="soft"
+                color="gray"
+                onClick={() =>
+                  navigate(
+                    `/scenarios?selected=${encodeURIComponent(base.scenarioVersionId)}`,
+                  )
+                }
+              >
+                <ArrowLeft size={16} /> К сценариям
+              </Button>
+            </Flex>
+            {!base.isLatest && (
+              <Callout.Root color="amber" size="1" mt="3">
+                <Callout.Icon>
+                  <AlertTriangle size={16} />
+                </Callout.Icon>
+                <Callout.Text>
+                  Это не последняя версия сценария, и её правку backend не
+                  примет. Откройте актуальную версию.{" "}
+                  <Button
+                    type="button"
+                    size="1"
+                    variant="soft"
+                    color="amber"
+                    onClick={() => void openLatestVersion()}
+                  >
+                    Открыть актуальную
+                  </Button>
+                </Callout.Text>
+              </Callout.Root>
+            )}
+          </Card>
+        )}
+
+        {staleEdit && base && (
+          <Callout.Root color="amber" size="2" role="alert">
+            <Callout.Icon>
+              <AlertTriangle size={18} />
+            </Callout.Icon>
+            <div>
+              <Text as="div" size="2" weight="bold" mb="1">
+                Сценарий уже изменили
+              </Text>
+              <Text as="p" size="2">
+                Пока вы правили версию {base.version}, опубликована более новая.
+                Ваши правки не опубликованы, чтобы не затереть чужие: откройте
+                актуальную версию и внесите их в неё.
+              </Text>
+              <Button
+                type="button"
+                size="1"
+                variant="soft"
+                color="amber"
+                mt="2"
+                onClick={() => void openLatestVersion()}
+              >
+                Открыть актуальную версию
+              </Button>
+            </div>
+          </Callout.Root>
+        )}
+
         {published && (
           <Callout.Root color="green" size="2" role="status">
             <Callout.Icon>
@@ -290,6 +497,7 @@ export default function ScenarioConstructorPage() {
             <ScenarioBasicsSection
               scenario={scenario}
               onChange={updateScenario}
+              codeLocked={Boolean(base)}
             />
             <ScenarioPersonaSection
               scenario={scenario}
@@ -367,7 +575,7 @@ export default function ScenarioConstructorPage() {
               disabled={busy}
               onClick={resetManual}
             >
-              <RotateCcw size={16} /> Очистить
+              <RotateCcw size={16} /> {base ? "Сбросить правки" : "Очистить"}
             </Button>
             <Button
               type="button"
@@ -375,14 +583,12 @@ export default function ScenarioConstructorPage() {
               disabled={busy || Boolean(published)}
               onClick={() => void publish()}
             >
-              {publication.isPending ? (
-                <Spinner size="1" />
-              ) : (
-                <CheckCircle2 size={16} />
-              )}
-              {publication.isPending
+              {publishing ? <Spinner size="1" /> : <CheckCircle2 size={16} />}
+              {publishing
                 ? "Публикуем…"
-                : "Проверить и опубликовать"}
+                : base
+                  ? `Опубликовать версию ${base.version + 1}`
+                  : "Проверить и опубликовать"}
             </Button>
           </Flex>
         </Card>

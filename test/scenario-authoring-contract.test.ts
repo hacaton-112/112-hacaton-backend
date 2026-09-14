@@ -200,3 +200,36 @@ describe("scenarioForEditing", () => {
     );
   });
 });
+
+describe("mergeScenarioAssistantDraft", () => {
+  const assistantDraft = () => {
+    const { location: _location, ...draft } = validScenario();
+
+    return {
+      ...draft,
+      code: "S-AI-1A2B3C4D",
+      persona: { ...draft.persona, code: "s-ai-1a2b3c4d-caller" },
+    };
+  };
+
+  it("takes the assistant's codes for a new scenario", () => {
+    const merged = mergeScenarioAssistantDraft(
+      createEmptyScenario(),
+      assistantDraft(),
+    );
+
+    expect(merged.code).toBe("S-AI-1A2B3C4D");
+    expect(merged.persona.code).toBe("s-ai-1a2b3c4d-caller");
+  });
+
+  it("keeps the codes of a published scenario that is being edited", () => {
+    const published = validScenario();
+    const merged = mergeScenarioAssistantDraft(published, assistantDraft(), {
+      keepIdentity: true,
+    });
+
+    expect(merged.code).toBe("S-FIRE-TEST");
+    expect(merged.persona.code).toBe("s-fire-test-caller");
+    expect(merged.location).toEqual(published.location);
+  });
+});

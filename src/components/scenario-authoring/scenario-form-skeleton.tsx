@@ -14,10 +14,14 @@ const SECTIONS: readonly { fields: number; columns: "2" | "4" }[] = [
   { fields: 8, columns: "4" },
 ];
 
-/** Форма конструктора, пока помощник собирает черновик. */
-export function ScenarioFormSkeleton() {
+/** Форма конструктора, пока помощник собирает черновик или грузится версия. */
+export function ScenarioFormSkeleton({
+  label = "Помощник заполняет черновик",
+}: {
+  label?: string;
+}) {
   return (
-    <Grid gap="4" aria-busy="true" aria-label="Помощник заполняет черновик">
+    <Grid gap="4" aria-busy="true" aria-label={label}>
       {SECTIONS.map((section, index) => (
         <Card key={index} size="3" variant="classic">
           <Grid gap="2" mb="4">

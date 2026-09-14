@@ -661,7 +661,22 @@ export const scenarioForEditing = (scenario: ScenarioSeed): ScenarioSeed => ({
 export const mergeScenarioAssistantDraft = (
   current: ScenarioSeed,
   draft: ScenarioAssistantDraft,
+  {
+    keepIdentity = false,
+  }: {
+    /**
+     * При правке опубликованного сценария код сценария и код персоны остаются
+     * прежними: иначе backend примет черновик помощника за другой сценарий.
+     */
+    keepIdentity?: boolean;
+  } = {},
 ): ScenarioSeed => ({
   ...draft,
+  ...(keepIdentity
+    ? {
+        code: current.code,
+        persona: { ...draft.persona, code: current.persona.code },
+      }
+    : {}),
   location: current.location,
 });
