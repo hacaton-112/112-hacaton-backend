@@ -50,7 +50,7 @@ export class ScenarioAuthoringService {
         );
 
         return {
-          scenario: buildScenarioSeedFromSuggestion(code, suggestion),
+          scenario: buildScenarioSeedFromSuggestion(code, suggestion, brief),
           authoringPrompt: brief,
         };
       } catch (error) {

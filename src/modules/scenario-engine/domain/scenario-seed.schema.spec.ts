@@ -52,4 +52,25 @@ describe("ScenarioSeedSchema", () => {
 
     expect(ScenarioSeedSchema.safeParse(broken).success).toBe(false);
   });
+
+  it.each([
+    ["openingLine", "Здравствуйте, служба 112, что случилось?"],
+    ["fallbackLine", "Пожалуйста, расскажите подробнее, что произошло"],
+  ] as const)("refuses an operator phrase in %s", (field, utterance) => {
+    const broken = seed() as unknown as {
+      version: { openingLine: string; fallbackLine: string };
+    };
+    broken.version[field] = utterance;
+
+    const result = ScenarioSeedSchema.safeParse(broken);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["version", field] }),
+        ]),
+      );
+    }
+  });
 });

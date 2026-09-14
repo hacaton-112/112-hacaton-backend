@@ -14,6 +14,7 @@ import {
   TERRAIN_TYPES,
 } from "@/drizzle/schema";
 
+import { CallerUtteranceSchema } from "./caller-utterance.schema";
 import { DisclosureRuleSchema } from "./disclosure";
 import { EscalationParamsSchema } from "./escalation-params";
 import { PANIC_LEVELS } from "./panic-scale";
@@ -82,8 +83,8 @@ export const ScenarioSeedSchema = z
         passThreshold: z.number().int().min(0).max(100),
         expectedServices: z.array(z.enum(EMERGENCY_SERVICES)).max(4),
         referenceNotes: z.string().trim().max(2_000).optional(),
-        openingLine: z.string().trim().min(3).max(500),
-        fallbackLine: z.string().trim().min(3).max(500),
+        openingLine: CallerUtteranceSchema,
+        fallbackLine: CallerUtteranceSchema,
       })
       .strict()
       .refine((value) => value.panicFloor <= value.panicCeiling, {

@@ -7,6 +7,7 @@ import {
   SCENARIO_CATEGORIES,
   TERRAIN_TYPES,
 } from "@/drizzle/schema";
+import { CallerUtteranceSchema } from "@/modules/scenario-engine/domain/caller-utterance.schema";
 import {
   ScenarioSeedSchema,
   type ScenarioSeed,
@@ -39,8 +40,8 @@ export const ScenarioAssistantSuggestionSchema = z
         baseSpeechRate: z.number().min(0.5).max(2),
       })
       .strict(),
-    openingLine: z.string().min(3).max(500),
-    fallbackLine: z.string().min(3).max(500),
+    openingLine: CallerUtteranceSchema,
+    fallbackLine: CallerUtteranceSchema,
     expectedServices: z.array(z.enum(EMERGENCY_SERVICES)).min(1).max(4),
     location: z
       .object({
@@ -107,12 +108,54 @@ const shiftCoordinate = (value: number, maximum: number): number =>
     (value > maximum - 0.002 ? value - 0.0015 : value + 0.0015).toFixed(6),
   );
 
+type EmergencyService = (typeof EMERGENCY_SERVICES)[number];
+
+const SERVICE_ALIASES = [
+  { service: "fire", pattern: /пожарн|мчс/iu },
+  { service: "police", pattern: /полиц|гибдд|дпс/iu },
+  { service: "ambulance", pattern: /скор(?:ая|ую|ой)|медик/iu },
+  { service: "gas", pattern: /газов/iu },
+] as const satisfies readonly {
+  service: EmergencyService;
+  pattern: RegExp;
+}[];
+
+/**
+ * An explicit `Службы:` clause is an author instruction, not a model choice.
+ * Preserve its order and ignore any extra services suggested by the provider.
+ */
+export const explicitExpectedServicesFromBrief = (
+  brief: string,
+): EmergencyService[] | undefined => {
+  const section =
+    /(?:^|[\n.!?]\s*)служб(?:а|ы)\s*:\s*([^.!?\n]+)/iu.exec(brief)?.[1];
+
+  if (section === undefined) {
+    return undefined;
+  }
+
+  const matches = SERVICE_ALIASES.flatMap(({ service, pattern }) => {
+    const index = section.search(pattern);
+
+    return index < 0 ? [] : [{ service, index }];
+  }).sort((left, right) => left.index - right.index);
+
+  return matches.length === 0
+    ? undefined
+    : matches.map(({ service }) => service);
+};
+
 /** Converts descriptive AI output into the authoritative Scenario Engine seed. */
 export const buildScenarioSeedFromSuggestion = (
   code: string,
   rawSuggestion: unknown,
+  authoringBrief?: string,
 ): ScenarioSeed => {
   const suggestion = ScenarioAssistantSuggestionSchema.parse(rawSuggestion);
+  const explicitExpectedServices =
+    authoringBrief === undefined
+      ? undefined
+      : explicitExpectedServicesFromBrief(authoringBrief);
   const exactAddress = Object.fromEntries(
     Object.entries({
       city: suggestion.location.city,
@@ -174,7 +217,8 @@ export const buildScenarioSeedFromSuggestion = (
       answerNormSeconds: 240,
       expectedDurationSeconds: 240 + suggestion.difficulty * 60,
       passThreshold: 75,
-      expectedServices: suggestion.expectedServices,
+      expectedServices:
+        explicitExpectedServices ?? suggestion.expectedServices,
       referenceNotes: suggestion.referenceNotes,
       openingLine: suggestion.openingLine,
       fallbackLine: suggestion.fallbackLine,
