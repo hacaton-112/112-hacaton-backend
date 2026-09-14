@@ -74,7 +74,7 @@ export function ScenarioCatalogCard({
 
       <Separator size="4" />
 
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
         <Meta label="Сложность">
           <DifficultyDots
             level={scenario.difficulty}
@@ -127,7 +127,7 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-[10px] tracking-[0.04em] text-(--gray-11) uppercase">
         {label}
       </span>
-      <span className="text-[13px] font-medium text-(--gray-11) tabular-nums">
+      <span className="flex h-5 items-center text-[13px] leading-5 font-medium text-(--gray-11) tabular-nums">
         {children}
       </span>
     </div>
@@ -144,7 +144,7 @@ function DifficultyDots({
 }) {
   return (
     <span
-      className="flex h-4 items-center gap-1"
+      className="flex items-center gap-1"
       role="img"
       aria-label={`Сложность ${level} из ${MAX_DIFFICULTY}`}
     >
