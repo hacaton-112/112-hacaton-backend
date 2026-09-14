@@ -84,6 +84,19 @@ export function ScenarioBriefingPanel({
             </Text>
           </header>
 
+          {version && version.issues.length > 0 && (
+            <Callout.Root color="amber" size="1" role="status">
+              <Callout.Icon>
+                <AlertTriangle size={16} />
+              </Callout.Icon>
+              <Callout.Text>
+                Версия опубликована по прежним правилам и сейчас не проходит
+                проверку ({version.issues.length}). Откройте её на правку, чтобы
+                исправить.
+              </Callout.Text>
+            </Callout.Root>
+          )}
+
           {error && !version ? (
             <Callout.Root color="red" role="alert">
               <Callout.Icon>

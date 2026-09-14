@@ -172,6 +172,17 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     base ? scenarioForEditing(base.scenario) : createEmptyScenario();
   const [scenario, setScenario] = useState(initialScenario);
   const [staleEdit, setStaleEdit] = useState(false);
+  // Версия, опубликованная по прежним правилам: расхождения видны сразу, до
+  // первой попытки публикации, и не пропадают от случайной правки.
+  const [outdatedIssues, setOutdatedIssues] = useState<string[]>(() =>
+    (base?.issues ?? []).map((issue) =>
+      formatIssue({
+        code: "custom",
+        path: [...issue.path],
+        message: issue.message,
+      }),
+    ),
+  );
   const [brief, setBrief] = useState("");
   const [helperOpen, setHelperOpen] = useState(false);
   const [helperError, setHelperError] = useState<string>();
@@ -321,6 +332,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
           authoringSource,
           ...(authoringPrompt ? { authoringPrompt } : {}),
         });
+        setOutdatedIssues([]);
         toast.success("Опубликована новая версия", {
           description: `${result.code} · версия ${result.version}`,
         });
@@ -428,6 +440,30 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
               </Callout.Root>
             )}
           </Card>
+        )}
+
+        {outdatedIssues.length > 0 && (
+          <Callout.Root color="amber" size="2" role="status">
+            <Callout.Icon>
+              <AlertTriangle size={18} />
+            </Callout.Icon>
+            <div>
+              <Text as="div" size="2" weight="bold" mb="1">
+                Версия не проходит сегодняшние правила сценария
+              </Text>
+              <Text as="p" size="2" mb="1">
+                Её опубликовали до того, как правила стали строже. Исправьте
+                расхождения — иначе новую версию опубликовать не получится.
+              </Text>
+              <ul className="list-disc space-y-1 pl-4">
+                {outdatedIssues.map((issue, index) => (
+                  <li key={`${index}-${issue}`}>
+                    <Text size="2">{issue}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Callout.Root>
         )}
 
         {staleEdit && base && (

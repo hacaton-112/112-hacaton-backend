@@ -522,11 +522,20 @@ export const PublishedScenarioSchema = z
   })
   .strict();
 
+/** Чем опубликованная версия расходится с сегодняшними правилами сценария. */
+export const ScenarioIssueSchema = z.object({
+  path: z.array(z.union([z.string(), z.number()])),
+  message: z.string(),
+});
+
 /**
  * Опубликованная версия целиком — для брифинга и для правки.
  *
- * Внешний объект нестрогий: новое поле ответа не должно закрывать экран
- * сценариев. Сам сценарий проверяется той же схемой, что и публикация.
+ * Сценарий строгой схемой здесь не проверяется: версия, опубликованная по
+ * прошлым правилам, должна открываться, чтобы её можно было исправить. Чем
+ * она расходится с сегодняшними правилами, backend перечисляет в `issues`, а
+ * публикация проверяет правку как любую другую. Внешний объект нестрогий:
+ * новое поле ответа не должно закрывать экран сценариев.
  */
 export const EditableScenarioVersionSchema = z.object({
   scenarioId: z.string().min(1),
@@ -535,7 +544,11 @@ export const EditableScenarioVersionSchema = z.object({
   isLatest: z.boolean(),
   publishedAt: z.iso.datetime(),
   authoringSource: z.enum(["manual", "assistant", "imported"]),
-  scenario: ScenarioSeedSchema,
+  scenario: z.custom<ScenarioSeed>(
+    (value) => typeof value === "object" && value !== null,
+    "Сценарий версии не пришёл",
+  ),
+  issues: z.array(ScenarioIssueSchema).default([]),
 });
 
 export const ReverseGeocodedAddressSchema = z
@@ -565,6 +578,7 @@ export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
 export type EditableScenarioVersion = z.infer<
   typeof EditableScenarioVersionSchema
 >;
+export type ScenarioIssue = z.infer<typeof ScenarioIssueSchema>;
 export type ReverseGeocodedAddress = z.infer<
   typeof ReverseGeocodedAddressSchema
 >;

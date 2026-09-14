@@ -172,11 +172,36 @@ describe("EditableScenarioVersionSchema", () => {
     ).toBe(true);
   });
 
-  it("refuses a version whose scenario could not be published again", () => {
-    const broken = version();
-    broken.scenario.facts = [];
+  it("opens a version that breaks today's rules, together with its issues", () => {
+    const outdated = {
+      ...version(),
+      scenario: { ...validScenario(), facts: [] },
+      issues: [{ path: ["facts"], message: "Добавьте хотя бы один факт" }],
+    };
 
-    expect(EditableScenarioVersionSchema.safeParse(broken).success).toBe(false);
+    // Otherwise exactly the version that needs fixing could not be opened.
+    const parsed = EditableScenarioVersionSchema.parse(outdated);
+
+    expect(parsed.scenario.facts).toEqual([]);
+    expect(parsed.issues).toHaveLength(1);
+  });
+
+  it("treats a version without listed issues as clean", () => {
+    const { issues: _issues, ...withoutIssues } = {
+      ...version(),
+      issues: undefined,
+    };
+
+    expect(EditableScenarioVersionSchema.parse(withoutIssues).issues).toEqual(
+      [],
+    );
+  });
+
+  it("refuses a response that carries no scenario at all", () => {
+    expect(
+      EditableScenarioVersionSchema.safeParse({ ...version(), scenario: null })
+        .success,
+    ).toBe(false);
   });
 });
 
