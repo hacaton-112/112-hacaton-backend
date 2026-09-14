@@ -159,12 +159,15 @@ export function ScenarioLocationMap({
           locatorMarkerRef.current = new Marker({
             color: "#1684e8",
             scale: 0.75,
-          }).addTo(map);
+          })
+            .setLngLat([locatorCenter[1], locatorCenter[0]])
+            .addTo(map);
+        } else {
+          locatorMarkerRef.current.setLngLat([
+            locatorCenter[1],
+            locatorCenter[0],
+          ]);
         }
-        locatorMarkerRef.current.setLngLat([
-          locatorCenter[1],
-          locatorCenter[0],
-        ]);
       } else {
         locatorMarkerRef.current?.remove();
         locatorMarkerRef.current = null;
@@ -172,11 +175,12 @@ export function ScenarioLocationMap({
 
       if (hasSelectedCoordinates(exactPoint)) {
         if (!incidentMarkerRef.current) {
-          incidentMarkerRef.current = new Marker({ color: "#dc3f45" }).addTo(
-            map,
-          );
+          incidentMarkerRef.current = new Marker({ color: "#dc3f45" })
+            .setLngLat([exactPoint[1], exactPoint[0]])
+            .addTo(map);
+        } else {
+          incidentMarkerRef.current.setLngLat([exactPoint[1], exactPoint[0]]);
         }
-        incidentMarkerRef.current.setLngLat([exactPoint[1], exactPoint[0]]);
       } else {
         incidentMarkerRef.current?.remove();
         incidentMarkerRef.current = null;
