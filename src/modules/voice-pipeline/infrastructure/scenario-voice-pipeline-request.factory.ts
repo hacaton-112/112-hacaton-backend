@@ -135,6 +135,15 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       operatorText,
       reply,
       generation,
+      // Разбор этого же вопроса уже лежит в кеше после сборки контекста:
+      // запись хода сверяется с тем же ответом, а не спрашивает модель снова.
+      resolveAskedFacts: (facts) =>
+        this.understand(
+          requestId,
+          operatorText,
+          facts,
+          new AbortController().signal,
+        ),
     });
   }
 }
