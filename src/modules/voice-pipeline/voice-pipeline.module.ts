@@ -10,8 +10,10 @@ import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 
+import { VOICE_PIPELINE_METRICS } from "./application/voice-pipeline.metrics";
 import { VoicePipelineService } from "./application/voice-pipeline.service";
 import { DemoVoicePipelineRequestFactory } from "./infrastructure/demo-voice-pipeline-request.factory";
+import { PrometheusVoicePipelineMetrics } from "./infrastructure/prometheus-voice-pipeline.metrics";
 import { ScenarioVoicePipelineRequestFactory } from "./infrastructure/scenario-voice-pipeline-request.factory";
 import {
   parseVoicePipelineTransportConfig,
@@ -76,6 +78,11 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
       ) => (config.demoEnabled ? demo : scenario),
     },
     VoicePipelineService,
+    PrometheusVoicePipelineMetrics,
+    {
+      provide: VOICE_PIPELINE_METRICS,
+      useExisting: PrometheusVoicePipelineMetrics,
+    },
     VoicePipelineGateway,
   ],
   exports: [VoicePipelineService],
