@@ -8,6 +8,7 @@ const row = (code: string, version: number) => ({
   category: "fire" as const,
   difficulty: 3,
   answerNormSeconds: 240,
+  expectedDurationSeconds: 360,
   version,
 });
 

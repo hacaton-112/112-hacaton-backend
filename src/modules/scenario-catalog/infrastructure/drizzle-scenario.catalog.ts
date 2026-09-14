@@ -22,6 +22,7 @@ export class DrizzleScenarioCatalog implements ScenarioCatalog {
         category: scenarios.category,
         difficulty: scenarios.difficulty,
         answerNormSeconds: scenarioVersions.answerNormSeconds,
+        expectedDurationSeconds: scenarioVersions.expectedDurationSeconds,
         version: scenarioVersions.version,
       })
       .from(scenarioVersions)
