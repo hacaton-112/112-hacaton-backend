@@ -82,6 +82,14 @@ export const scenarioAuthoringService = {
     return EditableScenarioVersionSchema.parse(payload);
   },
 
+  /**
+   * Удаляет сценарий из каталога. Проведённые по нему звонки и разборы
+   * остаются: backend снимает сценарий, а не стирает его версии.
+   */
+  async archive(scenarioId: string): Promise<void> {
+    await api.delete<unknown>(API_CONFIG.getScenarioUrl(scenarioId));
+  },
+
   async publishVersion({
     scenarioId,
     ...body

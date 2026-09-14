@@ -31,5 +31,17 @@ export function useScenarioAuthoring() {
     onSuccess: invalidateCatalog,
   });
 
-  return { draft, publication, versionPublication, reverseGeocoding };
+  const archival = useMutation({
+    mutationFn: (scenarioId: string) =>
+      scenarioAuthoringService.archive(scenarioId),
+    onSuccess: invalidateCatalog,
+  });
+
+  return {
+    draft,
+    publication,
+    versionPublication,
+    archival,
+    reverseGeocoding,
+  };
 }
