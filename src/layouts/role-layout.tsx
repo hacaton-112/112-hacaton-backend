@@ -2,6 +2,7 @@ import { Navigate, Outlet } from "react-router";
 
 import type { UserRole } from "../contracts/auth";
 import { useAuthStore } from "../stores/auth.store";
+import { ROUTES } from "../config/routes";
 
 interface RoleLayoutProps {
   allowed: readonly UserRole[];
@@ -14,6 +15,6 @@ export function RoleLayout({ allowed }: RoleLayoutProps) {
   return role && allowed.includes(role) ? (
     <Outlet />
   ) : (
-    <Navigate to="/" replace />
+    <Navigate to={ROUTES.operator()} replace />
   );
 }

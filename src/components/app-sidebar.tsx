@@ -11,8 +11,9 @@ import type { LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import type { AuthUser } from "../contracts/auth";
 import { useAuthLogout } from "../hooks/use-auth";
+import { ROLE_LABELS, canAuthorScenarios } from "../config/roles";
+import { ROUTES } from "../config/routes";
 import { useAuthStore } from "../stores/auth.store";
 import {
   Sidebar,
@@ -27,12 +28,6 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "./ui/sidebar";
-
-const ROLE_LABELS: Record<AuthUser["role"], string> = {
-  operator: "Оператор",
-  instructor: "Преподаватель",
-  admin: "Администратор",
-};
 
 type NavItemProps = {
   active?: boolean;
@@ -75,8 +70,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
   const [accountOpen, setAccountOpen] = useState(false);
-  const canAuthorScenarios =
-    user?.role === "instructor" || user?.role === "admin";
+  const showScenarios = canAuthorScenarios(user?.role);
 
   const goTo = (path: string) => {
     navigate(path);
@@ -104,27 +98,27 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarNavItem
-                active={location.pathname === "/"}
+                active={location.pathname === ROUTES.operator()}
                 icon={Headphones}
                 label="Рабочее место"
-                onClick={() => goTo("/")}
+                onClick={() => goTo(ROUTES.operator())}
               >
                 Рабочее место
               </SidebarNavItem>
               <SidebarNavItem
-                active={location.pathname.startsWith("/debrief")}
+                active={location.pathname.startsWith(ROUTES.debrief())}
                 icon={ClipboardList}
                 label="Разбор звонков"
-                onClick={() => goTo("/debrief")}
+                onClick={() => goTo(ROUTES.debrief())}
               >
                 Разбор звонков
               </SidebarNavItem>
-              {canAuthorScenarios && (
+              {showScenarios && (
                 <SidebarNavItem
-                  active={location.pathname.startsWith("/scenarios")}
+                  active={location.pathname.startsWith(ROUTES.scenarios())}
                   icon={BookOpen}
                   label="Учебные сценарии"
-                  onClick={() => goTo("/scenarios")}
+                  onClick={() => goTo(ROUTES.scenarios())}
                 >
                   Учебные сценарии
                 </SidebarNavItem>

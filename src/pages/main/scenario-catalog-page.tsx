@@ -17,6 +17,7 @@ import { ScenarioDeleteDialog } from "../../components/scenario-catalog/scenario
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
 import { useScenarios } from "../../hooks/use-scenarios";
+import { ROUTES } from "../../config/routes";
 
 /**
  * Учебные сценарии: что опубликовано, брифинг выбранного и правка.
@@ -124,16 +125,12 @@ export default function ScenarioCatalogPage() {
             isPending={version.isPending}
             error={version.error}
             onRetry={() => void version.refetch()}
-            onCreate={() => navigate("/scenarios/new")}
+            onCreate={() => navigate(ROUTES.scenarioNew())}
             onStart={() =>
-              navigate(
-                `/?scenario=${encodeURIComponent(selected.scenarioVersionId)}`,
-              )
+              navigate(ROUTES.operatorWithScenario(selected.scenarioVersionId))
             }
             onEdit={() =>
-              navigate(
-                `/scenarios/${encodeURIComponent(selected.scenarioVersionId)}/edit`,
-              )
+              navigate(ROUTES.scenarioEdit(selected.scenarioVersionId))
             }
             onDelete={openDeleteDialog}
           />
@@ -149,7 +146,7 @@ export default function ScenarioCatalogPage() {
                 size="2"
                 radius="full"
                 className="justify-self-start"
-                onClick={() => navigate("/scenarios/new")}
+                onClick={() => navigate(ROUTES.scenarioNew())}
               >
                 <Plus size={16} />
                 Создать сценарий

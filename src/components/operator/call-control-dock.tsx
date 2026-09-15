@@ -7,6 +7,7 @@ import type { CallControls, CallSnapshot } from "../../hooks/use-call";
 import { OperatorTour } from "./operator-tour";
 import { ScenarioPicker } from "./scenario-picker";
 import { VoiceVisualizerPanel } from "./voice-visualizer-panel";
+import { ROUTES } from "../../config/routes";
 
 type CallControlDockProps = Omit<CallSnapshot & CallControls, "end"> & {
   isCardReady: boolean;
@@ -20,6 +21,9 @@ const formatDuration = (seconds: number) =>
 export function CallControlDock(props: CallControlDockProps) {
   const navigate = useNavigate();
   const isCallRunning = props.state === "active";
+  // Отдельная переменная, чтобы сузить тип: внутри обработчика TypeScript уже
+  // не помнит проверку `props.trainingSessionId`.
+  const debriefSessionId = props.trainingSessionId;
 
   return (
     <Card
@@ -95,13 +99,13 @@ export function CallControlDock(props: CallControlDockProps) {
 
           {props.state === "ended" && (
             <>
-              {props.trainingSessionId && (
+              {debriefSessionId !== undefined && (
                 <Button
                   size="2"
                   radius="full"
                   variant="soft"
                   onClick={() =>
-                    navigate(`/debrief/${props.trainingSessionId}`)
+                    navigate(ROUTES.debriefSession(debriefSessionId))
                   }
                 >
                   <ClipboardList size={17} /> Разбор
