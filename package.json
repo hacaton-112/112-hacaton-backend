@@ -12,7 +12,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "bun dist/main.js",
+    "start:prod": "bun dist/src/main.js",
     "lint": "eslint \"{src,drizzle,test}/**/*.ts\"",
     "lint:fix": "bun run lint --fix",
     "typecheck": "tsc --noEmit",
