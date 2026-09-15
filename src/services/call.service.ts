@@ -38,7 +38,11 @@ interface CallStreamCallbacks {
 
 export interface CallStream {
   connect(token: string): Promise<void>;
-  start(scenarioVersionId: string, scenarioCategory: string): Promise<void>;
+  start(
+    scenarioVersionId: string,
+    scenarioCategory: string,
+    assignmentId?: string,
+  ): Promise<void>;
   accept(): Promise<void>;
   decline(): Promise<void>;
   end(): Promise<void>;
@@ -86,9 +90,18 @@ class NativeCallStream implements CallStream {
     }
   }
 
-  start(scenarioVersionId: string, scenarioCategory: string): Promise<void> {
+  start(
+    scenarioVersionId: string,
+    scenarioCategory: string,
+    assignmentId?: string,
+  ): Promise<void> {
     return ipc.call
-      .start(this.requireConnection(), scenarioVersionId, scenarioCategory)
+      .start(
+        this.requireConnection(),
+        scenarioVersionId,
+        scenarioCategory,
+        assignmentId,
+      )
       .catch((reason: unknown) => {
         throw this.toError(reason);
       });

@@ -4,8 +4,14 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 import type { ScenarioSummary } from "../../contracts/call";
+import { attemptsLeft } from "../../contracts/training";
+import {
+  ASSIGNMENT_QUERY_PARAM,
+  SCENARIO_QUERY_PARAM,
+} from "../../config/routes";
 import { useScenarios } from "../../hooks/use-scenarios";
-import { SCENARIO_QUERY_PARAM } from "../../config/routes";
+import { useMyAssignments } from "../../hooks/use-training";
+import { useAuthStore } from "../../stores/auth.store";
 
 interface ScenarioPickerProps {
   disabled: boolean;
@@ -13,7 +19,7 @@ interface ScenarioPickerProps {
     scenario: Pick<
       ScenarioSummary,
       "scenarioVersionId" | "category" | "title" | "difficulty"
-    >,
+    > & { assignmentId?: string },
   ) => void;
 }
 
@@ -21,10 +27,14 @@ interface ScenarioPickerProps {
 export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   // Каталог сценариев открывает рабочее место уже с выбранным сценарием.
   const [searchParams] = useSearchParams();
+  const role = useAuthStore((state) => state.user?.role);
+  const isOperator = role === "operator";
   const [selected, setSelected] = useState(
     () => searchParams.get(SCENARIO_QUERY_PARAM) ?? undefined,
   );
   const { data, isPending } = useScenarios();
+  const { data: assignments, isPending: assignmentsPending } =
+    useMyAssignments(isOperator);
 
   const scenarios = data ?? [];
   const current = scenarios.some(
@@ -35,6 +45,22 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   const chosen = scenarios.find(
     (scenario) => scenario.scenarioVersionId === current,
   );
+  const requestedAssignmentId = searchParams.get(ASSIGNMENT_QUERY_PARAM);
+  const assignment = assignments?.find(
+    (item) =>
+      item.scenarioVersionId === current &&
+      (requestedAssignmentId === null || item.id === requestedAssignmentId),
+  );
+  // Оператор начинает звонок только по назначению, где остались попытки.
+  const blockedReason = !isOperator
+    ? undefined
+    : assignmentsPending
+      ? "Загружаем назначения"
+      : !assignment
+        ? "Сценарий не назначен"
+        : attemptsLeft(assignment) === 0
+          ? "Попытки по назначению исчерпаны"
+          : undefined;
 
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -62,10 +88,16 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
       <Button
         color="green"
         radius="full"
-        disabled={disabled || !chosen}
-        onClick={() => chosen && onStart(chosen)}
+        disabled={disabled || !chosen || blockedReason !== undefined}
+        onClick={() =>
+          chosen &&
+          onStart({
+            ...chosen,
+            assignmentId: isOperator ? assignment?.id : undefined,
+          })
+        }
         aria-label="Запустить выбранный сценарий"
-        title="Запустить выбранный сценарий"
+        title={blockedReason ?? "Запустить выбранный сценарий"}
         className="shrink-0"
       >
         <PhoneIncoming size={17} />

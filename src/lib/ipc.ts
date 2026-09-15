@@ -53,11 +53,13 @@ export const ipc = {
       connection: string,
       scenarioVersionId: string,
       scenarioCategory: string,
+      assignmentId?: string,
     ): Promise<void> {
       return invoke(IPC_CONFIG.getCallStartHandler(), {
         connection,
         scenarioVersionId,
         scenarioCategory,
+        assignmentId,
       });
     },
 

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { QUERY_KEYS } from "../config/query-keys";
 import type { CallSummary, Debrief } from "../contracts/debrief";
 import { debriefService } from "../services/debrief.service";
+import { useAuthStore } from "../stores/auth.store";
 
 export interface DebriefState {
   calls?: CallSummary[];
@@ -15,6 +16,7 @@ export interface DebriefState {
 
 /** Данные списка вызовов или одного разбора в зависимости от маршрута. */
 export function useDebrief(trainingSessionId?: string): DebriefState {
+  const asReviewer = useAuthStore((state) => state.user?.role !== "operator");
   const callsQuery = useQuery({
     queryKey: QUERY_KEYS.calls(),
     queryFn: debriefService.listCalls,
@@ -28,7 +30,7 @@ export function useDebrief(trainingSessionId?: string): DebriefState {
         throw new Error("Не указана учебная сессия");
       }
 
-      return debriefService.loadDebrief(trainingSessionId);
+      return debriefService.loadDebrief(trainingSessionId, asReviewer);
     },
     enabled: trainingSessionId !== undefined,
   });

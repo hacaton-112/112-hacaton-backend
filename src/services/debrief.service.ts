@@ -15,9 +15,18 @@ export const debriefService = {
     return CallListSchema.parse(payload).calls;
   },
 
-  async loadDebrief(trainingSessionId: string): Promise<Debrief> {
+  /**
+   * Преподаватель открывает разбор обучающегося своей группы отдельным
+   * маршрутом: доступ к нему проверяется по группе, а не по владельцу звонка.
+   */
+  async loadDebrief(
+    trainingSessionId: string,
+    asReviewer = false,
+  ): Promise<Debrief> {
     const payload = await api.get<unknown>(
-      API_CONFIG.getDebriefUrl(trainingSessionId),
+      asReviewer
+        ? API_CONFIG.getInstructorDebriefUrl(trainingSessionId)
+        : API_CONFIG.getDebriefUrl(trainingSessionId),
     );
 
     return DebriefSchema.parse(payload);
