@@ -1,8 +1,3 @@
-import { DataTableReact } from "@bolid-ui/data-table";
-import type {
-  ColDef,
-  ICellRendererParams,
-} from "@bolid-ui/data-table/community";
 import {
   Badge,
   Button,
@@ -14,25 +9,22 @@ import {
   Tabs,
   Text,
 } from "@bolid-ui/themes";
-import { AlertTriangle, ArrowLeft, FileSearch } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { useNavigate, useParams } from "react-router";
 
+import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
 import {
-  ATTEMPT_STATUS_COLORS,
-  ATTEMPT_STATUS_LABELS,
-  callVerdict,
   formatDateTime,
   formatDuration,
   formatScore,
 } from "../../components/training/training-labels";
 import { ROUTES } from "../../config/routes";
-import type { InstructorCall, StudentProfile } from "../../contracts/training";
+import type { StudentProfile } from "../../contracts/training";
 import {
   useStudentProfile,
   useTrainingMutations,
 } from "../../hooks/use-training";
-import { ACTION_COLUMN, DATA_TABLE_DEFAULTS } from "../../lib/data-table";
 
 /** Ученик: успеваемость по всем занятиям и разборы его звонков. */
 export default function StudentPage() {
@@ -72,8 +64,6 @@ export default function StudentPage() {
 }
 
 function StudentContent({ profile }: { profile: StudentProfile }) {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { student, stats, calls } = profile;
   const mutations = useTrainingMutations();
 
@@ -92,91 +82,6 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
         stats.averageAnswerSeconds === null
           ? "—"
           : formatDuration(stats.averageAnswerSeconds),
-    },
-  ];
-
-  const columnDefs: ColDef<InstructorCall>[] = [
-    {
-      field: "offeredAt",
-      headerName: "Дата",
-      minWidth: 160,
-      sort: "desc",
-      valueFormatter: ({ value }) => formatDateTime(value),
-    },
-    { field: "assignmentTitle", headerName: "Занятие", flex: 2, minWidth: 180 },
-    {
-      colId: "scenario",
-      headerName: "Сценарий",
-      flex: 2,
-      minWidth: 180,
-      valueGetter: ({ data }) =>
-        data ? `${data.scenarioCode} · ${data.title}` : null,
-    },
-    { field: "groupName", headerName: "Группа", flex: 1, minWidth: 140 },
-    {
-      field: "attemptNumber",
-      headerName: "Попытка",
-      minWidth: 100,
-      valueFormatter: ({ value }) => `№ ${value}`,
-    },
-    {
-      field: "attemptStatus",
-      headerName: "Статус",
-      minWidth: 200,
-      cellRenderer: ({ data }: ICellRendererParams<InstructorCall>) =>
-        data && (
-          <Badge color={ATTEMPT_STATUS_COLORS[data.attemptStatus]}>
-            {ATTEMPT_STATUS_LABELS[data.attemptStatus]}
-          </Badge>
-        ),
-    },
-    {
-      field: "durationSeconds",
-      headerName: "Длительность",
-      minWidth: 130,
-      valueFormatter: ({ value }) =>
-        value === null ? "—" : formatDuration(value),
-    },
-    {
-      field: "score",
-      headerName: "Балл",
-      minWidth: 120,
-      cellRenderer: ({ data }: ICellRendererParams<InstructorCall>) => {
-        if (!data) return null;
-        const verdict = callVerdict(data);
-        return verdict === null ? (
-          <Text color="gray">—</Text>
-        ) : (
-          <Badge color={verdict === "passed" ? "green" : "red"}>
-            {data.score} / {data.passThreshold}
-          </Badge>
-        );
-      },
-    },
-    {
-      ...ACTION_COLUMN,
-      width: 130,
-      cellRenderer: ({ data }: ICellRendererParams<InstructorCall>) => {
-        if (!data) return null;
-        const isOver = data.stage === "ended" || data.stage === "declined";
-        return (
-          <Flex align="center" justify="center" className="h-full">
-            <Button
-              size="1"
-              variant="soft"
-              disabled={!isOver}
-              title={isOver ? undefined : "Звонок ещё идёт"}
-              onClick={() =>
-                navigate(ROUTES.debriefSession(data.trainingSessionId), {
-                  state: { backTo: location.pathname, backLabel: "К ученику" },
-                })
-              }
-            >
-              <FileSearch size={14} /> Разбор
-            </Button>
-          </Flex>
-        );
-      },
     },
   ];
 
@@ -226,14 +131,7 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
           value="calls"
           className="flex min-h-0 flex-1 flex-col pt-4"
         >
-          <div className="min-h-80 flex-1">
-            <DataTableReact<InstructorCall>
-              {...DATA_TABLE_DEFAULTS}
-              rowData={calls}
-              columnDefs={columnDefs}
-              getRowId={({ data }) => data.trainingSessionId}
-            />
-          </div>
+          <InstructorCallsTable calls={calls} backLabel="К ученику" />
         </Tabs.Content>
         <Tabs.Content
           value="assignments"

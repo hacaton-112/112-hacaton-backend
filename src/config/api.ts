@@ -32,6 +32,7 @@ export const API_CONFIG = {
   getArchiveAssignmentUrl: (assignmentId: string) =>
     `/assignments/${assignmentId}/archive`,
   getLiveTrainingSessionsUrl: () => `/instructor/live-sessions`,
+  getInstructorCallsUrl: () => `/instructor/calls`,
   getEndTrainingSessionUrl: (trainingSessionId: string) =>
     `/instructor/sessions/${trainingSessionId}/end`,
   getInstructorDebriefUrl: (trainingSessionId: string) =>

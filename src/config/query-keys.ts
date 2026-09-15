@@ -22,6 +22,7 @@ export const QUERY_KEYS = {
   myAssignments: () => ["my-assignments"] as const,
   liveTrainingSessions: (groupId?: string) =>
     ["live-training-sessions", groupId] as const,
+  instructorCalls: () => ["instructor-calls"] as const,
   scenarioVersion: (scenarioVersionId?: string) =>
     ["scenario-version", scenarioVersionId] as const,
   calls: () => ["calls"] as const,

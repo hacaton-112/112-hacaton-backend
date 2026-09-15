@@ -1,4 +1,5 @@
 import {
+  Activity,
   BookOpen,
   ClipboardList,
   Headphones,
@@ -123,6 +124,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               </SidebarNavItem>
               {canManageTraining(user?.role) ? (
                 <>
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.monitoring())}
+                    icon={Activity}
+                    label="Мониторинг"
+                    onClick={() => goTo(ROUTES.monitoring())}
+                  >
+                    Мониторинг
+                  </SidebarNavItem>
                   <SidebarNavItem
                     active={location.pathname.startsWith(ROUTES.groups())}
                     icon={Users}

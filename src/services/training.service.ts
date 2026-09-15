@@ -1,6 +1,7 @@
 import { API_CONFIG } from "../config/api";
 import {
   GroupStudentListSchema,
+  InstructorCallListSchema,
   LiveTrainingSessionListSchema,
   OperatorOptionListSchema,
   StudentListSchema,
@@ -120,6 +121,11 @@ export const trainingService = {
         byGroup(groupId),
       ),
     ).sessions;
+  },
+  async listInstructorCalls() {
+    return InstructorCallListSchema.parse(
+      await api.get<unknown>(API_CONFIG.getInstructorCallsUrl()),
+    ).calls;
   },
   async endSession(trainingSessionId: string, reason: string) {
     await api.post<unknown>(
