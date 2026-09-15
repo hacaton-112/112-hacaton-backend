@@ -35,6 +35,7 @@ import {
   type CallerTurnTone,
 } from "../domain/caller-turn-plan";
 import {
+  deliveryExamples,
   panicProfile,
   resolveEscalation,
   resolveVoice,
@@ -400,8 +401,13 @@ export class ScenarioEngineService {
             `${version.persona.displayName}. ${version.persona.condition}. ` +
             `${version.persona.speechStyle} Сейчас ${profile.description}.` +
             ` Как говорит: ${profile.speechRules}` +
-            ` Так он звучит — это образец подачи, а не фразы для повторения:` +
-            ` ${profile.examples.map((example) => `«${example}»`).join(" ")}` +
+            ` Так звучит его подача — это образец интонации, а не слова для реплики, сведений о происшествии в нём нет:` +
+            ` ${deliveryExamples(
+              state.panicLevel,
+              `${state.rngSeed}:${state.callerTurns}`,
+            )
+              .map((example) => `«${example}»`)
+              .join(" ")}` +
             background +
             TONE_PROMPTS[tone] +
             (input.initiative === true
@@ -444,6 +450,17 @@ export class ScenarioEngineService {
     generation?: Pick<DialogueGenerationResult, "source" | "attempts">;
     initiative?: boolean;
     now?: Date;
+    /**
+     * Тот же разбор вопроса, что открыл факты при сборке контекста.
+     *
+     * Без него запись хода проверяла доступность по словам автора и
+     * отклоняла факт, который разбор открыл, а заявитель назвал: сказанное не
+     * засчитывалось, не попадало в список уже сказанного, и заявитель
+     * рассказывал его снова и снова.
+     */
+    resolveAskedFacts?: (
+      facts: readonly FactQuestion[],
+    ) => Promise<readonly string[]>;
   }): Promise<CallSnapshot> {
     const now = input.now ?? new Date();
     const { state, version } = await this.loadCall(input.trainingSessionId);
@@ -452,7 +469,17 @@ export class ScenarioEngineService {
 
     const initiative = input.initiative === true;
     const matchedText = initiative ? "" : input.operatorText;
-    const allowed = this.allowedFacts(state, version, matchedText);
+    const askedFactKeys = await this.askedFacts(
+      version,
+      matchedText,
+      input.resolveAskedFacts,
+    );
+    const allowed = this.allowedFacts(
+      state,
+      version,
+      matchedText,
+      askedFactKeys,
+    );
     const allowedKeys = new Set(allowed.facts.map((fact) => fact.key));
     const forbidden = input.reply.revealedFactIds.filter(
       (key) => !allowedKeys.has(key),

@@ -137,6 +137,41 @@ describe(DialogueGenerationService.name, () => {
       expect.objectContaining({ attempt: 1, outcome: "invalid-response" }),
       expect.objectContaining({ attempt: 2, outcome: "success" }),
     ]);
+    // Повторная попытка объясняет модели, что было не так: иначе это тот же
+    // запрос, и при низкой температуре ответ почти тот же.
+    expect(llmPort.calls[0]?.retryFeedback).toBeUndefined();
+    expect(llmPort.calls[1]?.retryFeedback).toContain(repeated.text);
+  });
+
+  it("drops a clause the caller already said from an accepted reply", async () => {
+    const reply = {
+      ...validReply,
+      text: "Улица Учебная. Дети в комнате, быстрее!",
+      revealedFactIds: [],
+    };
+    const llmPort = new FakeLlmPort([() => replyStream(JSON.stringify(reply))]);
+
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        operatorText: "Какая улица?",
+        context: {
+          ...validRequest.context,
+          allowedFacts: [{ id: "address_street", value: "Улица Учебная." }],
+          recentTurns: [
+            {
+              role: "caller",
+              text: "Горит квартира! Дети в комнате, быстрее!",
+            },
+            { role: "operator", text: "Какая улица?" },
+          ],
+        },
+      },
+      new AbortController().signal,
+    );
+
+    expect(llmPort.calls).toHaveLength(1);
+    expect(result.reply.text).toBe("Улица Учебная.");
   });
 
   it("keeps a repeated reply rather than leaving the operator without an answer", async () => {
@@ -168,7 +203,9 @@ describe(DialogueGenerationService.name, () => {
     );
 
     expect(result.source).toBe("model");
-    expect(result.reply.text).toBe(repeated.text);
+    // На последней попытке пересказ принимается, но без фраз, которые
+    // заявитель уже произносил: остаётся то, что в реплике новое.
+    expect(result.reply.text).toBe("Быстрее!");
   });
 
   it("does not fight a repetition the operator asked for", async () => {
@@ -177,7 +214,9 @@ describe(DialogueGenerationService.name, () => {
       text: "Улица Учебная, дом двенадцать!",
       revealedFactIds: [],
     };
-    const llmPort = new FakeLlmPort([() => replyStream(JSON.stringify(repeated))]);
+    const llmPort = new FakeLlmPort([
+      () => replyStream(JSON.stringify(repeated)),
+    ]);
 
     const result = await createService(llmPort).generate(
       {

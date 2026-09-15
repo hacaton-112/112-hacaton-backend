@@ -45,6 +45,10 @@ import {
 import { TrainingService } from "@/modules/training/training.service";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
+import {
+  VOICE_PIPELINE_METRICS,
+  type VoicePipelineMetrics,
+} from "../../application/voice-pipeline.metrics";
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import { VOICE_PIPELINE_REQUEST_FACTORY } from "../../voice-pipeline.tokens";
 
@@ -142,6 +146,8 @@ export class VoicePipelineGateway
     private readonly recorder: CallRecorder,
     private readonly incidentCards: IncidentCardService,
     private readonly training: TrainingService,
+    @Inject(VOICE_PIPELINE_METRICS)
+    private readonly metrics: VoicePipelineMetrics,
   ) {}
 
   /**
@@ -179,6 +185,7 @@ export class VoicePipelineGateway
       strayAudioWarned: false,
       user,
     });
+    this.metrics.sessionOpened();
 
     client.on("message", (data, isBinary) => {
       void this.handleClientMessage(client, data, isBinary);
@@ -226,6 +233,7 @@ export class VoicePipelineGateway
     const state = this.connections.get(client);
 
     if (state !== undefined) {
+      this.metrics.sessionClosed();
       this.stopTicking(state);
       this.abortListening(state);
       this.recorder.finishCall(state.sessionId);
@@ -996,6 +1004,7 @@ export class VoicePipelineGateway
             activeRequest.controller.abort(
               new DOMException("Caller reply rejected", "AbortError"),
             );
+            this.metrics.turnFailed("generated");
             await this.sendError(
               client,
               state,
@@ -1006,6 +1015,7 @@ export class VoicePipelineGateway
             return;
           }
 
+          this.metrics.callerReplyGenerated(event.result.source);
           await this.sendEvent(client, state, {
             type: "reply.text",
             requestId: activeRequest.requestId,
@@ -1040,6 +1050,10 @@ export class VoicePipelineGateway
           continue;
         }
 
+        this.metrics.turnCompleted(
+          "generated",
+          event.metrics.timeToFirstAudioMs,
+        );
         await this.sendEvent(client, state, {
           type: "audio.done",
           requestId: activeRequest.requestId,
@@ -1051,6 +1065,7 @@ export class VoicePipelineGateway
         !activeRequest.controller.signal.aborted &&
         this.isCurrent(state, activeRequest)
       ) {
+        this.metrics.turnFailed("generated");
         await this.sendError(
           client,
           state,
@@ -1154,6 +1169,7 @@ export class VoicePipelineGateway
         }
 
         completed = true;
+        this.metrics.turnCompleted("prescribed", firstAudioAt - startedAt);
         await this.sendEvent(client, state, {
           type: "audio.done",
           requestId: activeRequest.requestId,
@@ -1175,6 +1191,7 @@ export class VoicePipelineGateway
         !activeRequest.controller.signal.aborted &&
         this.isCurrent(state, activeRequest)
       ) {
+        this.metrics.turnFailed("prescribed");
         await this.sendError(
           client,
           state,

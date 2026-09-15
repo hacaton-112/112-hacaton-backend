@@ -1,0 +1,21 @@
+# Разработка: backend запущен на хосте (bun run start:dev), в Docker — только
+# зависимости и мониторинг. Включается через PROMETHEUS_CONFIG=prometheus.host.yml.
+global:
+  scrape_interval: 10s
+  scrape_timeout: 5s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: system112-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:9464
+
+  # Сервис пока не отдаёт /metrics: цель остаётся в состоянии DOWN, пока
+  # endpoint не появится.
+  - job_name: system112-asr
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8787

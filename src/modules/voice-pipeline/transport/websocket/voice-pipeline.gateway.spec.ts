@@ -325,6 +325,14 @@ const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
     ...overrides,
   }) as unknown as ScenarioEngineService;
 
+const createMetrics = () => ({
+  sessionOpened: jest.fn(),
+  sessionClosed: jest.fn(),
+  callerReplyGenerated: jest.fn(),
+  turnCompleted: jest.fn(),
+  turnFailed: jest.fn(),
+});
+
 const startedCall = async (
   gateway: VoicePipelineGateway,
   socket: SocketMock,
@@ -389,6 +397,7 @@ const createRuntime = async (
       })(),
   );
   const create = jest.fn(async () => request);
+  const metrics = createMetrics();
   const gateway = new VoicePipelineGateway(
     { streamReply, streamPrescribedSpeech } as unknown as VoicePipelineService,
     { create, recordReply } as unknown as VoicePipelineRequestFactory,
@@ -398,6 +407,7 @@ const createRuntime = async (
     recording.recorder,
     cards,
     training,
+    metrics,
   );
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
@@ -411,6 +421,7 @@ const createRuntime = async (
     create,
     engine,
     gateway,
+    metrics,
     recordReply,
     socket,
     streamPrescribedSpeech,
@@ -436,6 +447,7 @@ describe(VoicePipelineGateway.name, () => {
       createRecorder().recorder,
       createCards(),
       createTraining(),
+      createMetrics(),
     );
     const socket = new SocketMock();
 
@@ -470,6 +482,7 @@ describe(VoicePipelineGateway.name, () => {
       createRecorder().recorder,
       createCards(),
       createTraining(),
+      createMetrics(),
     );
     const socket = new SocketMock();
 
@@ -498,6 +511,7 @@ describe(VoicePipelineGateway.name, () => {
       createRecorder().recorder,
       createCards(),
       createTraining(),
+      createMetrics(),
     );
     const socket = new SocketMock();
 
@@ -750,6 +764,23 @@ describe(VoicePipelineGateway.name, () => {
       2,
       expect.objectContaining({ speaking: false }),
     );
+    // Мониторинг видит, кто написал реплику и сколько оператор ждал звука.
+    expect(runtime.metrics.callerReplyGenerated).toHaveBeenCalledTimes(1);
+    expect(runtime.metrics.turnCompleted).toHaveBeenCalledWith(
+      "generated",
+      expect.any(Number),
+    );
+    expect(runtime.metrics.turnFailed).not.toHaveBeenCalled();
+  });
+
+  it("counts an open session and closes it on disconnect", async () => {
+    const runtime = await createRuntime();
+
+    expect(runtime.metrics.sessionOpened).toHaveBeenCalledTimes(1);
+
+    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+    expect(runtime.metrics.sessionClosed).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -1221,6 +1252,7 @@ describe(VoicePipelineGateway.name, () => {
       createRecorder().recorder,
       createCards(),
       createTraining(),
+      createMetrics(),
     );
     const socket = new SocketMock();
 

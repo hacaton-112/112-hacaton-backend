@@ -594,6 +594,37 @@ bun run db:migrate
 bun run start:dev
 ```
 
+## Запуск в Docker и выкладка на сервер
+
+Backend собирается в образ по `Dockerfile` и запускается в `docker-compose.yml`
+вместе с базой, MinIO, Prometheus и Grafana. Приложение и миграции входят в
+профиль `app`, поэтому обычный `docker compose up -d` для разработки их не
+трогает:
+
+```bash
+cp .env.production.example .env
+docker compose --profile app up -d --build
+```
+
+Перед каждым запуском backend сервис `migrate` применяет миграции и выходит.
+Порядок выкладки на сервер, сид сценариев, первая учётная запись, обновление,
+резервные копии и HTTPS описаны в [`docs/deployment.md`](docs/deployment.md).
+
+### Метрики и Grafana
+
+Backend отдаёт метрики Prometheus на отдельном порту 9464, а не рядом с API:
+авторизации у них нет, и в compose этот порт наружу не публикуется. Кроме
+метрик процесса там есть длительность HTTP-запросов по шаблону маршрута,
+открытые голосовые сессии, ожидание первого звука заявителя, сорванные ходы и
+доля запасных реплик. Порт настраивается переменными `METRICS_ENABLED`,
+`METRICS_HOST` и `METRICS_PORT`.
+
+Grafana слушает `http://localhost:3001`. Источник данных и дашборд
+«Тренажёр 112 — backend» заводятся из `observability/grafana` при старте. Какой
+backend читает Prometheus, решает `PROMETHEUS_CONFIG`: `prometheus.yml` — для
+контейнера из профиля `app`, `prometheus.host.yml` — для backend, запущенного на
+хосте.
+
 ## Проверки
 
 ```bash

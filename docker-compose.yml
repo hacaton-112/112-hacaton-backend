@@ -58,8 +58,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-system112_training}
     ports:
       # Переопределяется через POSTGRES_PORT: на Windows дефолтный 54322 может
-      # попасть в зарезервированный Hyper-V диапазон портов.
-      - "${POSTGRES_PORT:-54322}:5432"
+      # попасть в зарезервированный Hyper-V диапазон портов. Слушает только
+      # localhost: backend в compose ходит в базу по имени сервиса, и на сервере
+      # база не должна быть видна из интернета.
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-54322}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -80,8 +82,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # Записи отдаёт клиенту сам backend, поэтому хранилище наружу не нужно.
+      - "${MINIO_BIND_ADDRESS:-127.0.0.1}:${MINIO_PORT:-9000}:9000"
+      - "${MINIO_BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -115,16 +118,16 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
     ports:
-      - '${PGADMIN_PORT:-5050}:80'
+      - '${PGADMIN_BIND_ADDRESS:-127.0.0.1}:${PGADMIN_PORT:-5050}:80'
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
 
-  # Локальный сбор технических метрик backend и ASR. Оба сервиса обычно
-  # запускаются на хосте, поэтому контейнер обращается к ним через
-  # host.docker.internal. Сами сервисы должны публиковать endpoint /metrics.
+  # Сбор технических метрик backend и ASR. Какой backend читать, решает
+  # PROMETHEUS_CONFIG: prometheus.yml — контейнер из профиля app (сервер),
+  # prometheus.host.yml — backend, запущенный на хосте через bun run start:dev.
   prometheus:
     image: prom/prometheus:latest
     container_name: system-112-training-prometheus
@@ -135,13 +138,105 @@ services:
     ports:
       - "${PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/${PROMETHEUS_CONFIG:-prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     extra_hosts:
       - host.docker.internal:host-gateway
+
+  # Дашборды поверх Prometheus. Источник данных и дашборд backend заводятся из
+  # файлов при старте, руками в интерфейсе ничего настраивать не нужно. Порт
+  # 3001, а не 3000: 3000 занят API.
+  grafana:
+    image: grafana/grafana-oss:12.4.3
+    container_name: system-112-training-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # ── Приложение ─────────────────────────────────────────────────────────────
+  # Профиль app не включается обычным `compose up`: разработчик запускает
+  # backend на хосте, а в Docker держит только базу, хранилище и мониторинг.
+  # На сервере стек поднимается целиком: docker compose --profile app up -d.
+
+  # Разовая задача: применяет миграции и выходит. backend ждёт её успешного
+  # завершения, поэтому схема базы всегда совпадает с кодом образа. Тот же
+  # образ выполняет сид сценариев и создание учётной записи — см.
+  # docs/deployment.md.
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      target: tools
+    image: system-112-training-backend-tools:${BACKEND_IMAGE_TAG:-local}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-system112}:${POSTGRES_PASSWORD:-system112}@postgres:5432/${POSTGRES_DB:-system112_training}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    profiles: ["app"]
+    build:
+      context: .
+      target: runtime
+    image: system-112-training-backend:${BACKEND_IMAGE_TAG:-local}
+    container_name: system-112-training-backend
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    # Адреса внутри стека задаёт compose, а не .env: в .env разработчика база и
+    # хранилище живут на localhost, а внутри контейнера localhost — он сам.
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      METRICS_ENABLED: "true"
+      METRICS_HOST: 0.0.0.0
+      METRICS_PORT: "9464"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-system112}:${POSTGRES_PASSWORD:-system112}@postgres:5432/${POSTGRES_DB:-system112_training}
+      CALL_RECORDING_S3_ENDPOINT: http://minio:9000
+      CALL_RECORDING_S3_ACCESS_KEY_ID: ${CALL_RECORDING_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
+      CALL_RECORDING_S3_SECRET_ACCESS_KEY: ${CALL_RECORDING_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
+    ports:
+      # API и WebSocket голосового канала — единственный вход, который нужен
+      # приложению. За обратным прокси с TLS задайте BACKEND_BIND_ADDRESS=127.0.0.1.
+      - "${BACKEND_BIND_ADDRESS:-0.0.0.0}:${BACKEND_PORT:-3000}:3000"
+    # Метрики без авторизации наружу не публикуются: Prometheus читает их из
+    # сети compose.
+    expose:
+      - "9464"
+    volumes:
+      - backend_logs:/app/logs
+    # ASR и TTS обычно подняты на том же хосте из репозитория infra и доступны
+    # контейнеру как host.docker.internal.
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   qwen_tts_hf_cache:
   postgres_data:
   pgadmin-data:
   minio_data:
   prometheus_data:
+  grafana_data:
+  backend_logs:
