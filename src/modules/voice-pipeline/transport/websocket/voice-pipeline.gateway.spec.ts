@@ -1532,6 +1532,7 @@ describe(VoicePipelineGateway.name, () => {
         createRecorder().recorder,
         createCards(),
         training,
+        createMetrics(),
       );
 
     it("reserves the operator's attempt before the call exists", async () => {
