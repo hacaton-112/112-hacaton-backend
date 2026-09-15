@@ -143,6 +143,29 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
 
+  # Дашборды поверх Prometheus. Источник данных и дашборд backend заводятся из
+  # файлов при старте, руками в интерфейсе ничего настраивать не нужно. Порт
+  # 3001, а не 3000: 3000 занят API.
+  grafana:
+    image: grafana/grafana-oss:12.4.3
+    container_name: system-112-training-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
   # ── Приложение ─────────────────────────────────────────────────────────────
   # Профиль app не включается обычным `compose up`: разработчик запускает
   # backend на хосте, а в Docker держит только базу, хранилище и мониторинг.
@@ -215,4 +238,5 @@ volumes:
   pgadmin-data:
   minio_data:
   prometheus_data:
+  grafana_data:
   backend_logs:

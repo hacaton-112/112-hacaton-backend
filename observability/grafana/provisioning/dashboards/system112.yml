@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  # Дашборды живут в репозитории: правка в интерфейсе не сохранится и не
+  # разойдётся с файлом. Меняйте JSON и перезапускайте Grafana.
+  - name: system112
+    folder: Тренажёр 112
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
