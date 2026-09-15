@@ -85,13 +85,16 @@ const createDb = (results: unknown[]) => {
   return { db, calls };
 };
 
-const createService = (results: unknown[]) => {
+const createService = (
+  results: unknown[],
+  engine: Partial<ScenarioEngineService> = {},
+) => {
   const { db, calls } = createDb(results);
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const service = new TrainingService(
     db as never,
     audit as unknown as AuditLogService,
-    {} as ScenarioEngineService,
+    engine as ScenarioEngineService,
   );
   return { service, calls, audit };
 };
@@ -257,6 +260,53 @@ describe(TrainingService.name, () => {
     trainingSessionId: "session-1",
   };
   const membership = [{ groupId: "group-1", serviceTag: "FIRE_101" }];
+
+  it("returns the group and scenario context for live monitoring", async () => {
+    const startedAt = new Date("2026-09-15T11:59:00.000Z");
+    const getSnapshot = jest.fn().mockResolvedValue({
+      checklistSatisfied: 2,
+      checklistTotal: 5,
+    });
+    const { service } = createService(
+      [
+        [
+          {
+            trainingSessionId: "session-1",
+            assignmentId: "assignment-1",
+            assignmentTitle: "Пожар в жилом доме",
+            groupId: "group-1",
+            groupName: "Смена А",
+            scenarioCode: "FIRE-01",
+            scenarioTitle: "Пожар в жилом доме",
+            operatorId: "operator-1",
+            operatorName: "Анна Оператор",
+            attemptStatus: "active",
+            stage: "conversation",
+            panicLevel: 3,
+            startedAt,
+          },
+        ],
+      ],
+      { getSnapshot },
+    );
+
+    await expect(
+      service.listLiveSessions(
+        { id: "instructor-1", role: "instructor" },
+        "group-1",
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        groupName: "Смена А",
+        scenarioCode: "FIRE-01",
+        scenarioTitle: "Пожар в жилом доме",
+        checklistSatisfied: 2,
+        checklistTotal: 5,
+        startedAt: startedAt.toISOString(),
+      }),
+    ]);
+    expect(getSnapshot).toHaveBeenCalledWith("session-1");
+  });
 
   describe("reserveAttempt", () => {
     it("numbers the attempt after the operator's previous ones under a row lock", async () => {
