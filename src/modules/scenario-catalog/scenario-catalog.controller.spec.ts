@@ -4,6 +4,7 @@ import { GUARDS_METADATA, HTTP_CODE_METADATA } from "@nestjs/common/constants";
 import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { ROLES_METADATA_KEY } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
+import type { TrainingService } from "@/modules/training/training.service";
 
 import type { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import type { ScenarioCatalog } from "./ports/scenario-catalog.port";
@@ -22,11 +23,15 @@ const createController = () => {
     archive: jest.fn().mockResolvedValue(undefined),
   };
   const catalog = { listPublished: jest.fn().mockResolvedValue([]) };
+  const training = {
+    listScenarioVersionIdsForOperator: jest.fn().mockResolvedValue([]),
+  };
 
   return {
     controller: new ScenarioCatalogController(
       catalog as ScenarioCatalog,
       authoring as unknown as ScenarioAuthoringService,
+      training as unknown as TrainingService,
     ),
     authoring,
   };

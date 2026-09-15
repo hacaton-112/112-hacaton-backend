@@ -4,7 +4,9 @@ import type { IncomingMessage } from "node:http";
 import { Logger } from "@nestjs/common";
 import WebSocket, { type RawData } from "ws";
 
+import { AppConflictException } from "@/common/exceptions/app.exception";
 import {
+  ErrorCodes,
   VoicePipelineServerEventSchema,
   type PrescribedSpeechRequest,
   type SpeechSynthesisStreamEvent,
@@ -24,6 +26,7 @@ import {
   type CallSnapshot,
   type ScenarioEngineService,
 } from "@/modules/scenario-engine";
+import type { TrainingService } from "@/modules/training/training.service";
 
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "../../application/voice-pipeline.service";
@@ -296,6 +299,17 @@ const createCards = () =>
     close: jest.fn().mockResolvedValue(undefined),
   }) as unknown as import("@/modules/incident-card").IncidentCardService;
 
+const createTraining = (overrides: Record<string, jest.Mock> = {}) => {
+  const mocks = {
+    reserveAttempt: jest.fn().mockResolvedValue(1),
+    activateAttempt: jest.fn().mockResolvedValue(undefined),
+    finishAttempt: jest.fn().mockResolvedValue(true),
+    auditInstructorEnd: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+  return mocks as typeof mocks & TrainingService;
+};
+
 const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
   ({
     startCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "offered" }),
@@ -325,7 +339,11 @@ const startedCall = async (
 ): Promise<void> => {
   await gateway.handleClientMessage(
     asSocket(socket),
-    message({ type: "start", scenarioVersionId: "version-1" }),
+    message({
+      type: "start",
+      scenarioVersionId: "version-1",
+      assignmentId: "assignment-1",
+    }),
     false,
   );
 };
@@ -341,6 +359,7 @@ const createRuntime = async (
     mocks: RecorderMocks;
   } = createRecorder(),
   cards = createCards(),
+  training = createTraining(),
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -387,6 +406,7 @@ const createRuntime = async (
     asr.asr,
     recording.recorder,
     cards,
+    training,
     metrics,
   );
   const socket = new SocketMock();
@@ -406,6 +426,7 @@ const createRuntime = async (
     socket,
     streamPrescribedSpeech,
     streamReply,
+    training,
     verify,
   };
 };
@@ -425,6 +446,7 @@ describe(VoicePipelineGateway.name, () => {
       createAsr().asr,
       createRecorder().recorder,
       createCards(),
+      createTraining(),
       createMetrics(),
     );
     const socket = new SocketMock();
@@ -459,6 +481,7 @@ describe(VoicePipelineGateway.name, () => {
       createAsr().asr,
       createRecorder().recorder,
       createCards(),
+      createTraining(),
       createMetrics(),
     );
     const socket = new SocketMock();
@@ -487,6 +510,7 @@ describe(VoicePipelineGateway.name, () => {
       createAsr().asr,
       createRecorder().recorder,
       createCards(),
+      createTraining(),
       createMetrics(),
     );
     const socket = new SocketMock();
@@ -1227,6 +1251,7 @@ describe(VoicePipelineGateway.name, () => {
       asr,
       createRecorder().recorder,
       createCards(),
+      createTraining(),
       createMetrics(),
     );
     const socket = new SocketMock();
@@ -1487,5 +1512,164 @@ describe(VoicePipelineGateway.name, () => {
     // Соединение то же, звонок другой: журнал и запись принадлежат звонку.
     expect(offered?.sessionId).not.toBe(first);
     expect(runtime.recorder.finishCall).toHaveBeenCalledWith(first);
+  });
+  describe("training attempts", () => {
+    const createStartGateway = (
+      training: ReturnType<typeof createTraining>,
+      engine: ScenarioEngineService = createEngine(),
+    ) =>
+      new VoicePipelineGateway(
+        {} as unknown as VoicePipelineService,
+        {
+          create: jest.fn(),
+          recordReply: jest.fn(),
+        } as unknown as VoicePipelineRequestFactory,
+        {
+          verify: jest.fn().mockResolvedValue(authenticatedUser),
+        } as unknown as AccessTokenVerifier,
+        engine,
+        createAsr().asr,
+        createRecorder().recorder,
+        createCards(),
+        training,
+      );
+
+    it("reserves the operator's attempt before the call exists", async () => {
+      const runtime = await createRuntime();
+
+      expect(runtime.training.reserveAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assignmentId: "assignment-1",
+          operatorId: authenticatedUser.sub,
+          scenarioVersionId: "version-1",
+        }),
+      );
+      expect(
+        runtime.training.reserveAttempt.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        (runtime.engine.startCall as jest.Mock).mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it.each([
+      [
+        ErrorCodes.ASSIGNMENT_MAX_ATTEMPTS_REACHED,
+        "assignment-attempts-exhausted",
+      ],
+      [ErrorCodes.ASSIGNMENT_ATTEMPT_ACTIVE, "assignment-attempt-active"],
+      [ErrorCodes.ASSIGNMENT_NOT_AVAILABLE, "assignment-unavailable"],
+    ] as const)(
+      "tells the operator why %s refused the call",
+      async (errorCode, socketCode) => {
+        const engine = createEngine();
+        const gateway = createStartGateway(
+          createTraining({
+            reserveAttempt: jest
+              .fn()
+              .mockRejectedValue(new AppConflictException(errorCode, "no")),
+          }),
+          engine,
+        );
+        const socket = new SocketMock();
+        await gateway.handleConnection(
+          asSocket(socket),
+          handshake("Bearer token"),
+        );
+
+        await startedCall(gateway, socket);
+
+        expect(textEvents(socket).at(-1)).toMatchObject({
+          type: "error",
+          code: socketCode,
+        });
+        expect(engine.startCall).not.toHaveBeenCalled();
+      },
+    );
+
+    it("releases the reserved attempt when the call cannot start", async () => {
+      const training = createTraining();
+      const gateway = createStartGateway(
+        training,
+        createEngine({
+          startCall: jest.fn().mockRejectedValue(new Error("db is down")),
+        }),
+      );
+      const socket = new SocketMock();
+      await gateway.handleConnection(
+        asSocket(socket),
+        handshake("Bearer token"),
+      );
+
+      await startedCall(gateway, socket);
+
+      expect(training.finishAttempt).toHaveBeenCalledWith(
+        training.reserveAttempt.mock.calls[0][0].trainingSessionId,
+        "abandoned",
+      );
+    });
+
+    it("ends the operator's call when the instructor intervenes", async () => {
+      const endCallByInstructor = jest
+        .fn()
+        .mockResolvedValue({ ...snapshot, stage: "ended" });
+      const runtime = await createRuntime(
+        successfulStream,
+        undefined,
+        undefined,
+        createEngine({ endCallByInstructor }),
+      );
+      const sessionId = runtime.training.reserveAttempt.mock.calls[0][0]
+        .trainingSessionId as string;
+
+      await runtime.gateway.endSessionByInstructor(
+        sessionId,
+        "instructor-1",
+        "Время занятия вышло",
+      );
+
+      expect(endCallByInstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trainingSessionId: sessionId,
+          instructorId: "instructor-1",
+          reason: "Время занятия вышло",
+        }),
+      );
+      expect(textEvents(runtime.socket).at(-1)).toMatchObject({
+        type: "call.ended",
+        reason: "instructor",
+      });
+      expect(runtime.training.finishAttempt).toHaveBeenCalledWith(
+        sessionId,
+        "cancelled_by_instructor",
+      );
+      expect(runtime.training.auditInstructorEnd).toHaveBeenCalledWith(
+        "instructor-1",
+        sessionId,
+        "Время занятия вышло",
+      );
+    });
+
+    it("refuses to end a session that is already over", async () => {
+      const runtime = await createRuntime(
+        successfulStream,
+        undefined,
+        undefined,
+        createEngine({
+          endCallByInstructor: jest
+            .fn()
+            .mockRejectedValue(
+              new ScenarioEngineError("call-stage-forbidden", "ended"),
+            ),
+        }),
+      );
+      runtime.training.finishAttempt.mockResolvedValue(false);
+
+      const error = await runtime.gateway
+        .endSessionByInstructor("session-x", "instructor-1", "stop")
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(AppConflictException);
+      expect(runtime.training.auditInstructorEnd).not.toHaveBeenCalled();
+    });
   });
 });

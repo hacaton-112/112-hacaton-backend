@@ -1363,4 +1363,40 @@ describe(`${ScenarioEngineService.name} endCall`, () => {
     expect(snapshot.checklistSatisfied).toBe(2);
     expect(eventTypes(store)).toEqual(["call.ended", "stage.changed"]);
   });
+
+  it("records an instructor intervention with its reason", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.endCallByInstructor({
+      trainingSessionId: "session-1",
+      eventId: "event-10",
+      instructorId: "instructor-1",
+      reason: "Оператору требуется помощь",
+      now: NOW,
+    });
+
+    const events = store.appendTurn.mock.calls[0]?.[2] as Array<{
+      type: string;
+      actor: string;
+      payload: Record<string, unknown>;
+    }>;
+    expect(snapshot.stage).toBe("ended");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "instructor.intervened",
+          actor: "instructor",
+          payload: expect.objectContaining({
+            instructorId: "instructor-1",
+            reason: "Оператору требуется помощь",
+          }),
+        }),
+        expect.objectContaining({
+          type: "call.ended",
+          actor: "instructor",
+          payload: { reason: "instructor" },
+        }),
+      ]),
+    );
+  });
 });

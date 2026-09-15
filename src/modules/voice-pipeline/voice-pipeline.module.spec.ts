@@ -28,6 +28,7 @@ import { CallRecordingModule } from "@/modules/call-recording";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
+import { TrainingModule } from "@/modules/training/training.module";
 
 import { VoicePipelineService } from "./application/voice-pipeline.service";
 import { DemoVoicePipelineRequestFactory } from "./infrastructure/demo-voice-pipeline-request.factory";
@@ -55,6 +56,7 @@ describe(VoicePipelineModule.name, () => {
       AliceAiAdapterModule,
       IncidentCardModule,
       SpeechSynthesisModule,
+      TrainingModule,
     ]);
   });
 

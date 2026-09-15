@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
 import { AuthModule } from "@/modules/auth/auth.module";
+import { TrainingModule } from "@/modules/training/training.module";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import { AliceAiScenarioDraftAssistant } from "./infrastructure/alice-ai-scenario-draft.assistant";
@@ -20,7 +21,7 @@ import { ScenarioCatalogController } from "./scenario-catalog.controller";
  * и своей защитой.
  */
 @Module({
-  imports: [AuthModule, AliceAiAdapterModule],
+  imports: [AuthModule, AliceAiAdapterModule, TrainingModule],
   controllers: [ScenarioCatalogController],
   providers: [
     ScenarioAuthoringService,

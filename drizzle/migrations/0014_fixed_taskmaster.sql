@@ -1,0 +1,1 @@
+ALTER TYPE "public"."training_card_source" ADD VALUE 'mixed';

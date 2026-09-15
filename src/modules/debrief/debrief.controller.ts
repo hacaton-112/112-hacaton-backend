@@ -15,6 +15,7 @@ import {
   type AuthenticatedRequest,
   JwtAuthGuard,
 } from "@/modules/auth/jwt-auth.guard";
+import { TrainingService } from "@/modules/training/training.service";
 
 import { DebriefService } from "./application/debrief.service";
 import {
@@ -28,7 +29,10 @@ import {
 @Controller(ApiRoutes.Calls)
 @UseGuards(JwtAuthGuard)
 export class DebriefController {
-  constructor(private readonly debrief: DebriefService) {}
+  constructor(
+    private readonly debrief: DebriefService,
+    private readonly training: TrainingService,
+  ) {}
 
   @Get()
   @ZodSerializerDto(CallListDto)
@@ -38,11 +42,14 @@ export class DebriefController {
 
   @Get(":trainingSessionId/debrief")
   @ZodSerializerDto(DebriefDto)
-  get(
+  async get(
     @Param("trainingSessionId") trainingSessionId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<Debrief> {
-    return this.debrief.get(trainingSessionId, request.user.sub);
+    return this.debrief.get(
+      trainingSessionId,
+      await this.callOwner(trainingSessionId, request),
+    );
   }
 
   /** Разговор целиком: то, что слушают на разборе первым делом. */
@@ -55,7 +62,7 @@ export class DebriefController {
   ): Promise<StreamableFile> {
     const audio = await this.debrief.readWholeRecording(
       trainingSessionId,
-      request.user.sub,
+      await this.callOwner(trainingSessionId, request),
     );
 
     return new StreamableFile(Buffer.from(audio));
@@ -75,10 +82,27 @@ export class DebriefController {
   ): Promise<StreamableFile> {
     const audio = await this.debrief.readSegment(
       trainingSessionId,
-      request.user.sub,
+      await this.callOwner(trainingSessionId, request),
       index,
     );
 
     return new StreamableFile(Buffer.from(audio));
+  }
+
+  /**
+   * Чей звонок открывается. Оператор видит только свои; преподаватель —
+   * звонки обучающихся своих групп, чтобы разбор и запись открывались и из
+   * его кабинета.
+   */
+  private async callOwner(
+    trainingSessionId: string,
+    request: AuthenticatedRequest,
+  ): Promise<string> {
+    if (request.user.role === "operator") return request.user.sub;
+    const session = await this.training.requireManagedSession(
+      { id: request.user.sub, role: request.user.role },
+      trainingSessionId,
+    );
+    return session.operatorId;
   }
 }

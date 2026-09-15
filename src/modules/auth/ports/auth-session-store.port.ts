@@ -66,4 +66,11 @@ export interface AuthSessionStore {
     reason: AuthSessionRevokedReason,
     revokedAt: Date,
   ): Promise<void>;
+
+  /** Ends every still active session of a user. */
+  revokeUserSessions(
+    userId: string,
+    reason: AuthSessionRevokedReason,
+    revokedAt: Date,
+  ): Promise<void>;
 }
