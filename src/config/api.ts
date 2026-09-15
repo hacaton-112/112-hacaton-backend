@@ -10,6 +10,32 @@ export const API_CONFIG = {
   getLogoutUrl: () => `/auth/logout`,
   getCurrentUserUrl: () => `/auth/me`,
   getScenariosUrl: () => `/scenarios`,
+  getTrainingGroupsUrl: () => `/groups`,
+  getTrainingGroupUrl: (groupId: string) => `/groups/${groupId}`,
+  getGroupStudentsUrl: (groupId: string) => `/groups/${groupId}/students`,
+  getStudentsUrl: () => `/instructor/students`,
+  getStudentProfileUrl: (userId: string) => `/instructor/students/${userId}`,
+  getUsersUrl: () => `/users`,
+  getUserUrl: (userId: string) => `/users/${userId}`,
+  getTrainingOperatorsUrl: () => `/groups/operators`,
+  getTrainingGroupMembersUrl: (groupId: string) => `/groups/${groupId}/members`,
+  getTrainingGroupMemberUrl: (groupId: string, userId: string) =>
+    `/groups/${groupId}/members/${userId}`,
+  getTrainingAssignmentsUrl: () => `/assignments`,
+  getMyTrainingAssignmentsUrl: () => `/assignments/my`,
+  getTrainingAssignmentUrl: (assignmentId: string) =>
+    `/assignments/${assignmentId}`,
+  getLaunchAssignmentUrl: (assignmentId: string) =>
+    `/assignments/${assignmentId}/launch`,
+  getCompleteAssignmentUrl: (assignmentId: string) =>
+    `/assignments/${assignmentId}/complete`,
+  getArchiveAssignmentUrl: (assignmentId: string) =>
+    `/assignments/${assignmentId}/archive`,
+  getLiveTrainingSessionsUrl: () => `/instructor/live-sessions`,
+  getEndTrainingSessionUrl: (trainingSessionId: string) =>
+    `/instructor/sessions/${trainingSessionId}/end`,
+  getInstructorDebriefUrl: (trainingSessionId: string) =>
+    `/instructor/calls/${encodeURIComponent(trainingSessionId)}/debrief`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
   getScenarioPublishUrl: () => `/scenarios`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,

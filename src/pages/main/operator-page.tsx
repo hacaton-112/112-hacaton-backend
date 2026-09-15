@@ -1,6 +1,8 @@
 import { ScrollArea, toast } from "@bolid-ui/themes";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { QUERY_KEYS } from "../../config/query-keys";
 import { CallerPanel } from "../../components/operator/caller-panel";
 import { CallControlDock } from "../../components/operator/call-control-dock";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
@@ -76,6 +78,27 @@ export default function OperatorPage() {
       duration: 6_000,
     });
   }, [call.error, call.isConnected]);
+
+  const queryClient = useQueryClient();
+
+  // Закончившийся или отклонённый сервером звонок меняет счётчик попыток.
+  useEffect(() => {
+    if (call.state !== "ended" && !call.error) return;
+
+    void queryClient.invalidateQueries({
+      queryKey: QUERY_KEYS.myAssignments(),
+    });
+  }, [call.state, call.error, queryClient]);
+
+  useEffect(() => {
+    if (!call.endedByInstructor) return;
+
+    toast.warning("Занятие завершено преподавателем", {
+      id: "call-ended-by-instructor",
+      description: "Запись попытки сохранена. Можно перейти к разбору.",
+      duration: 8_000,
+    });
+  }, [call.endedByInstructor]);
 
   useEffect(() => {
     if (!incidentCard.error) return;

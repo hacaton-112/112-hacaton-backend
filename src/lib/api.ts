@@ -43,6 +43,25 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   GEOCODING_CALL_NOT_ACTIVE:
     "Звонок завершён — место происшествия больше не меняется",
   CALL_NOT_FOUND: "Звонок не найден",
+  GROUP_NOT_FOUND: "Учебная группа не найдена",
+  AUTH_EMAIL_ALREADY_EXISTS: "Пользователь с таким email уже есть",
+  GROUP_CODE_ALREADY_EXISTS: "Группа с таким кодом уже существует",
+  GROUP_MEMBER_EXISTS: "Оператор уже добавлен в эту группу",
+  GROUP_MEMBER_NOT_FOUND: "Ученика уже нет в этой группе",
+  GROUP_ARCHIVED: "Архивную группу нельзя изменять",
+  GROUP_HAS_ASSIGNMENTS:
+    "У группы есть назначения — её можно только архивировать",
+  GROUP_HAS_RUNNING_ASSIGNMENTS: "Сначала завершите идущие занятия группы",
+  ASSIGNMENT_NOT_FOUND: "Назначение не найдено",
+  ASSIGNMENT_NOT_AVAILABLE: "Это назначение сейчас недоступно",
+  ASSIGNMENT_INVALID_DUE_DATE: "Срок назначения должен быть в будущем",
+  ASSIGNMENT_STATE_INVALID:
+    "Действие недоступно в текущем состоянии назначения",
+  ASSIGNMENT_MAX_ATTEMPTS_REACHED: "Лимит попыток исчерпан",
+  ASSIGNMENT_ATTEMPT_ACTIVE: "У вас уже есть активная попытка",
+  ASSIGNMENT_HAS_ACTIVE_ATTEMPTS:
+    "Сначала завершите активные попытки операторов",
+  TRAINING_SESSION_NOT_ACTIVE: "Сессия уже завершена",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 

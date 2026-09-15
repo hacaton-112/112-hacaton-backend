@@ -14,6 +14,12 @@ export const ROUTE_PATTERNS = {
   debrief: "/debrief",
   debriefSession: "/debrief/:trainingSessionId",
   scenarios: "/scenarios",
+  assignments: "/assignments",
+  groups: "/groups",
+  group: "/groups/:groupId",
+  groupStudent: "/groups/:groupId/students/:userId",
+  students: "/students",
+  student: "/students/:userId",
   scenarioNew: "/scenarios/new",
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
@@ -26,16 +32,26 @@ export const ROUTES = {
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
+  assignments: () => "/assignments",
+  groups: () => "/groups",
+  group: (groupId: string) => `/groups/${encodeURIComponent(groupId)}`,
+  groupStudent: (groupId: string, userId: string) =>
+    `/groups/${encodeURIComponent(groupId)}/students/${encodeURIComponent(userId)}`,
+  students: () => "/students",
+  student: (userId: string) => `/students/${encodeURIComponent(userId)}`,
   scenarioNew: () => "/scenarios/new",
   scenarioEdit: (scenarioVersionId: string) =>
     `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,
   /** Рабочее место с уже выбранным сценарием: брифинг открывает звонок так. */
   operatorWithScenario: (scenarioVersionId: string) =>
     `/?scenario=${encodeURIComponent(scenarioVersionId)}`,
+  operatorWithAssignment: (scenarioVersionId: string, assignmentId: string) =>
+    `/?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
 } as const;
 
 /** Имя параметра, которым брифинг передаёт сценарий на рабочее место. */
 export const SCENARIO_QUERY_PARAM = "scenario";
+export const ASSIGNMENT_QUERY_PARAM = "assignment";
 
 /**
  * Окно карты. В Tauri оно уже создано и адресуется меткой из `tauri.conf.json`;

@@ -59,7 +59,13 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("call.ended"),
-    reason: z.enum(["operator", "declined", "scenario", "timeout"]),
+    reason: z.enum([
+      "operator",
+      "declined",
+      "scenario",
+      "timeout",
+      "instructor",
+    ]),
     ...SnapshotShape,
   }),
   z.object({

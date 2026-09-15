@@ -1,9 +1,13 @@
 import { Flex, Spinner } from "@bolid-ui/themes";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Outlet, Route, Routes } from "react-router";
 
 import { ROUTE_PATTERNS } from "./config/routes";
-import { SCENARIO_AUTHOR_ROLES } from "./config/roles";
+import {
+  SCENARIO_AUTHOR_ROLES,
+  TRAINEE_ROLES,
+  TRAINING_MANAGER_ROLES,
+} from "./config/roles";
 import { AppLayout } from "./layouts/app-layout";
 import { AuthLayout } from "./layouts/auth-layout";
 import { RoleLayout } from "./layouts/role-layout";
@@ -19,6 +23,11 @@ const ScenarioConstructorPage = lazy(
 const ScenarioCatalogPage = lazy(
   () => import("./pages/main/scenario-catalog-page"),
 );
+const AssignmentsPage = lazy(() => import("./pages/main/assignments-page"));
+const GroupsPage = lazy(() => import("./pages/main/groups-page"));
+const GroupPage = lazy(() => import("./pages/main/group-page"));
+const StudentPage = lazy(() => import("./pages/main/student-page"));
+const StudentsPage = lazy(() => import("./pages/main/students-page"));
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -38,6 +47,10 @@ const scenarioCatalog = (
   </Suspense>
 );
 
+const lazyPage = (page: ReactNode) => (
+  <Suspense fallback={pageFallback}>{page}</Suspense>
+);
+
 export function Routing() {
   return (
     <Routes>
@@ -50,6 +63,34 @@ export function Routing() {
               path={ROUTE_PATTERNS.debriefSession}
               element={<DebriefPage />}
             />
+            <Route element={<RoleLayout allowed={TRAINEE_ROLES} />}>
+              <Route
+                path={ROUTE_PATTERNS.assignments}
+                element={lazyPage(<AssignmentsPage />)}
+              />
+            </Route>
+            <Route element={<RoleLayout allowed={TRAINING_MANAGER_ROLES} />}>
+              <Route
+                path={ROUTE_PATTERNS.groups}
+                element={lazyPage(<GroupsPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.group}
+                element={lazyPage(<GroupPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.groupStudent}
+                element={lazyPage(<StudentPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.students}
+                element={lazyPage(<StudentsPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.student}
+                element={lazyPage(<StudentPage />)}
+              />
+            </Route>
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
               <Route
                 path={ROUTE_PATTERNS.scenarios}

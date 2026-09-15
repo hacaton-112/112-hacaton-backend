@@ -8,7 +8,7 @@ import {
   Tabs,
   Text,
 } from "@bolid-ui/themes";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import type { Debrief } from "../../contracts/debrief";
 import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
@@ -51,6 +51,24 @@ const shortName = (fullName?: string) => {
     : `${last} ${rest.map((part) => `${part[0]}.`).join("")}`;
 };
 
+const debriefBackLink = (state: unknown): { to: string; label: string } => {
+  if (
+    state &&
+    typeof state === "object" &&
+    "backTo" in state &&
+    typeof state.backTo === "string"
+  ) {
+    return {
+      to: state.backTo,
+      label:
+        "backLabel" in state && typeof state.backLabel === "string"
+          ? state.backLabel
+          : "Назад",
+    };
+  }
+  return { to: ROUTES.debrief(), label: "К списку вызовов" };
+};
+
 export function DebriefDetails({
   debrief,
   isPending,
@@ -58,6 +76,8 @@ export function DebriefDetails({
   loadRecordingSegment,
 }: DebriefDetailsProps) {
   const navigate = useNavigate();
+  // Со страницы ученика разбор возвращает к ученику, иначе — к своим звонкам.
+  const back = debriefBackLink(useLocation().state);
   const user = useAuthStore((state) => state.user);
 
   if (error) {
@@ -112,9 +132,7 @@ export function DebriefDetails({
           <Button variant="soft" color="gray" onClick={() => navigate("/")}>
             Пройти заново
           </Button>
-          <Button onClick={() => navigate(ROUTES.debrief())}>
-            К списку вызовов
-          </Button>
+          <Button onClick={() => navigate(back.to)}>{back.label}</Button>
         </Flex>
       </Flex>
 

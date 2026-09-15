@@ -20,6 +20,7 @@ export interface DialogueTurn {
 
 export interface CallSnapshot {
   state: CallState;
+  endedByInstructor: boolean;
   /** Учебная сессия звонка: по ней адресуется карточка и разбор. */
   trainingSessionId?: string;
   /** Готовность соединения: до неё звонок начать нельзя. */
@@ -52,7 +53,7 @@ export interface CallControls {
     scenario: Pick<
       ScenarioSummary,
       "scenarioVersionId" | "category" | "title" | "difficulty"
-    >,
+    > & { assignmentId?: string },
   ) => void;
   end: () => Promise<void>;
   toggleMute: () => void;
@@ -68,6 +69,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   "context-unavailable": "Сценарий недоступен",
   "call-state-invalid": "Команда пришла не вовремя",
   "invalid-message": "Сервер не понял команду",
+  "assignment-unavailable": "Назначение закрыто или вам не адресовано",
+  "assignment-attempts-exhausted": "Попытки по этому назначению исчерпаны",
+  "assignment-attempt-active": "Предыдущая попытка ещё не завершена",
 };
 
 const toIncident = (
@@ -97,6 +101,7 @@ export function useCall(): CallSnapshot & CallControls {
   const [isConnected, setConnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<CallState>("idle");
+  const [endedByInstructor, setEndedByInstructor] = useState(false);
   const [trainingSessionId, setTrainingSessionId] = useState<string>();
   const [locator, setLocator] = useState<CallLocator | null>(null);
   const [scenarioTitle, setScenarioTitle] = useState<string>();
@@ -146,6 +151,7 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "call.ended":
         setState("ended");
+        setEndedByInstructor(event.reason === "instructor");
         setListening(false);
         void streamRef.current?.stopCapture();
         setCallerSpeaking(false);
@@ -357,6 +363,7 @@ export function useCall(): CallSnapshot & CallControls {
 
   const reset = useCallback(() => {
     setState("idle");
+    setEndedByInstructor(false);
     setTrainingSessionId(undefined);
     setLocator(null);
     setScenarioTitle(undefined);
@@ -381,13 +388,17 @@ export function useCall(): CallSnapshot & CallControls {
       scenario: Pick<
         ScenarioSummary,
         "scenarioVersionId" | "category" | "title" | "difficulty"
-      >,
+      > & { assignmentId?: string },
     ) => {
       reset();
       setScenarioTitle(scenario.title);
       setScenarioDifficulty(scenario.difficulty);
       command((stream) =>
-        stream.start(scenario.scenarioVersionId, scenario.category),
+        stream.start(
+          scenario.scenarioVersionId,
+          scenario.category,
+          scenario.assignmentId,
+        ),
       )();
     },
     [command, reset],
@@ -414,6 +425,7 @@ export function useCall(): CallSnapshot & CallControls {
 
   return {
     state,
+    endedByInstructor,
     trainingSessionId,
     isConnected,
     callerNumber: locator?.callerNumber,

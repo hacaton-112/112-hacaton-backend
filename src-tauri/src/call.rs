@@ -50,7 +50,10 @@ const INTERFERENCE_CRACKLE_LEVEL: f32 = 0.10;
 
 enum Outgoing {
     Command(String),
-    Start { scenario_version_id: String },
+    Start {
+        scenario_version_id: String,
+        assignment_id: Option<String>,
+    },
     Pcm(Vec<u8>),
 }
 
@@ -445,11 +448,13 @@ impl Call {
         connection: &str,
         scenario_version_id: String,
         _scenario_category: String,
+        assignment_id: Option<String>,
     ) -> Result<(), String> {
         let outgoing = self.sender(connection)?;
         outgoing
             .send(Outgoing::Start {
                 scenario_version_id,
+                assignment_id,
             })
             .await
             .map_err(|_| "the call socket is closed".to_owned())
@@ -705,9 +710,15 @@ pub async fn call_start(
     connection: String,
     scenario_version_id: String,
     scenario_category: String,
+    assignment_id: Option<String>,
 ) -> Result<(), String> {
-    call.start(&connection, scenario_version_id, scenario_category)
-        .await
+    call.start(
+        &connection,
+        scenario_version_id,
+        scenario_category,
+        assignment_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -771,6 +782,7 @@ async fn pump(
                     Outgoing::Command(text) => Message::text(text),
                     Outgoing::Start {
                         scenario_version_id: version_id,
+                        assignment_id,
                     } => {
                         if let Some(audio) = tts_audio.take() {
                             audio.sink.stop();
@@ -780,13 +792,14 @@ async fn pump(
                         }
                         playback_generation = playback_generation.wrapping_add(1);
                         deferred_audio_done = None;
-                        Message::text(
-                            json!({
-                                "type": "start",
-                                "scenarioVersionId": version_id,
-                            })
-                            .to_string(),
-                        )
+                        let mut command = json!({
+                            "type": "start",
+                            "scenarioVersionId": version_id,
+                        });
+                        if let Some(assignment_id) = assignment_id {
+                            command["assignmentId"] = json!(assignment_id);
+                        }
+                        Message::text(command.to_string())
                     }
                     Outgoing::Pcm(chunk) => {
                         if !listening {
