@@ -14,6 +14,8 @@ import { HealthModule } from "@/modules/health/health.module";
 import { GeocodingModule } from "@/modules/geocoding/geocoding.module";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
+import { TrainingModule } from "@/modules/training/training.module";
+import { UsersModule } from "@/modules/users/users.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
 
 import { IS_DEV_ENV } from "./config/app.config";
@@ -37,6 +39,8 @@ import { DatabaseModule } from "./database/database.module";
     DebriefModule,
     IncidentCardModule,
     ScenarioCatalogModule,
+    TrainingModule,
+    UsersModule,
     VoicePipelineModule,
   ],
   providers: [

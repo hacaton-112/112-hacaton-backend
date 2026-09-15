@@ -485,8 +485,11 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("shows the parser the labels and the checklist question, never the answer", async () => {
     const { engine } = createEngine();
-    let seen: readonly { id: string; label: string; question: string | null }[] =
-      [];
+    let seen: readonly {
+      id: string;
+      label: string;
+      question: string | null;
+    }[] = [];
 
     await engine.buildGenerationContext({
       trainingSessionId: "session-1",
@@ -554,9 +557,9 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("answers a question aimed at a fact the scenario opened by another rule", async () => {
     const { engine } = createEngine({
-      loadCall: jest.fn().mockResolvedValue(
-        callState({ callerTurns: 3, revealedFactKeys: [] }),
-      ),
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(callState({ callerTurns: 3, revealedFactKeys: [] })),
     });
 
     // trapped_children is gated by a question about people, but the operator
@@ -1310,5 +1313,41 @@ describe(`${ScenarioEngineService.name} endCall`, () => {
     expect(snapshot.stage).toBe("ended");
     expect(snapshot.checklistSatisfied).toBe(2);
     expect(eventTypes(store)).toEqual(["call.ended", "stage.changed"]);
+  });
+
+  it("records an instructor intervention with its reason", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.endCallByInstructor({
+      trainingSessionId: "session-1",
+      eventId: "event-10",
+      instructorId: "instructor-1",
+      reason: "Оператору требуется помощь",
+      now: NOW,
+    });
+
+    const events = store.appendTurn.mock.calls[0]?.[2] as Array<{
+      type: string;
+      actor: string;
+      payload: Record<string, unknown>;
+    }>;
+    expect(snapshot.stage).toBe("ended");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "instructor.intervened",
+          actor: "instructor",
+          payload: expect.objectContaining({
+            instructorId: "instructor-1",
+            reason: "Оператору требуется помощь",
+          }),
+        }),
+        expect.objectContaining({
+          type: "call.ended",
+          actor: "instructor",
+          payload: { reason: "instructor" },
+        }),
+      ]),
+    );
   });
 });

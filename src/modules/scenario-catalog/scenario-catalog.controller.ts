@@ -22,6 +22,7 @@ import {
 } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
+import { TrainingService } from "@/modules/training/training.service";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import {
@@ -52,13 +53,24 @@ export class ScenarioCatalogController {
     @Inject(SCENARIO_CATALOG)
     private readonly catalog: ScenarioCatalog,
     private readonly authoring: ScenarioAuthoringService,
+    private readonly training: TrainingService,
   ) {}
 
   /** Сценарии, на которых можно тренироваться прямо сейчас. */
   @Get()
   @ZodSerializerDto(ScenarioListDto)
-  async list(): Promise<ScenarioList> {
-    return { scenarios: [...(await this.catalog.listPublished())] };
+  async list(@Req() request: AuthenticatedRequest): Promise<ScenarioList> {
+    const scenarios = [...(await this.catalog.listPublished())];
+    if (request.user.role !== "operator") return { scenarios };
+
+    const allowed = new Set(
+      await this.training.listScenarioVersionIdsForOperator(request.user.sub),
+    );
+    return {
+      scenarios: scenarios.filter(({ scenarioVersionId }) =>
+        allowed.has(scenarioVersionId),
+      ),
+    };
   }
 
   /** AI only prepares an editable draft; this route never writes to the DB. */

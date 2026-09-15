@@ -9,6 +9,7 @@ import { DialogueGenerationModule } from "@/modules/dialogue-generation";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
+import { TrainingModule } from "@/modules/training/training.module";
 
 import { VoicePipelineService } from "./application/voice-pipeline.service";
 import { DemoVoicePipelineRequestFactory } from "./infrastructure/demo-voice-pipeline-request.factory";
@@ -19,6 +20,7 @@ import {
   type VoicePipelineTransportEnvironment,
 } from "./infrastructure/voice-pipeline-transport.config";
 import { VoicePipelineGateway } from "./transport/websocket/voice-pipeline.gateway";
+import { InstructorSessionsController } from "./instructor-sessions.controller";
 import {
   VOICE_PIPELINE_REQUEST_FACTORY,
   VOICE_PIPELINE_TRANSPORT_CONFIG,
@@ -51,7 +53,9 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
     AliceAiAdapterModule,
     IncidentCardModule,
     SpeechSynthesisModule,
+    TrainingModule,
   ],
+  controllers: [InstructorSessionsController],
   providers: [
     {
       provide: VOICE_PIPELINE_TRANSPORT_CONFIG,

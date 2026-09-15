@@ -8,7 +8,12 @@ import {
 
 import { users } from "./user.schema";
 
-export const AUTH_SESSION_REVOKED_REASONS = ["logout", "token_reuse"] as const;
+export const AUTH_SESSION_REVOKED_REASONS = [
+  "logout",
+  "token_reuse",
+  // Администратор сменил пароль или роль: старый вход больше не действует.
+  "credentials_changed",
+] as const;
 
 export type AuthSessionRevokedReason =
   (typeof AUTH_SESSION_REVOKED_REASONS)[number];

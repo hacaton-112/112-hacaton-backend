@@ -27,6 +27,7 @@ interface StoreMocks {
   findRefreshToken: jest.Mock;
   replaceRefreshToken: jest.Mock;
   revokeSession: jest.Mock;
+  revokeUserSessions: jest.Mock;
 }
 
 const createService = (
@@ -38,6 +39,7 @@ const createService = (
     findRefreshToken: jest.fn().mockResolvedValue(null),
     replaceRefreshToken: jest.fn().mockResolvedValue(true),
     revokeSession: jest.fn().mockResolvedValue(undefined),
+    revokeUserSessions: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 

@@ -59,6 +59,8 @@ export const VoicePipelineStartCommandSchema = z
   .object({
     type: z.literal("start"),
     scenarioVersionId: AiIdentifierSchema,
+    /** Required for operators; instructors/admins may still run a free preview. */
+    assignmentId: AiIdentifierSchema.optional(),
   })
   .strict();
 
@@ -151,7 +153,13 @@ export const VoicePipelineCallEndedEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
     type: z.literal("call.ended"),
-    reason: z.enum(["operator", "declined", "scenario", "timeout"]),
+    reason: z.enum([
+      "operator",
+      "declined",
+      "scenario",
+      "timeout",
+      "instructor",
+    ]),
     ...CallSnapshotShape,
   })
   .strict();
@@ -251,6 +259,10 @@ export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "call-state-invalid",
   // Реплика оператора потеряна на распознавании: её нужно повторить.
   "listen-failed",
+  // Старт звонка по назначению отклонён: назначение закрыто или не адресовано.
+  "assignment-unavailable",
+  "assignment-attempts-exhausted",
+  "assignment-attempt-active",
 ]);
 
 export const VoicePipelineSocketErrorEventSchema = z

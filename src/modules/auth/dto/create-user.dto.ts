@@ -21,3 +21,18 @@ export const CreateUserSchema = z
   .strict();
 
 export type CreateUser = z.infer<typeof CreateUserSchema>;
+
+/** Правка учётной записи администратором: пароль меняется, только если задан. */
+export const UpdateUserSchema = z
+  .object({
+    email: EmailSchema.optional(),
+    password: PasswordSchema.optional(),
+    fullName: FullNameSchema.optional(),
+    role: UserRoleSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one user field is required",
+  });
+
+export type UpdateUser = z.infer<typeof UpdateUserSchema>;

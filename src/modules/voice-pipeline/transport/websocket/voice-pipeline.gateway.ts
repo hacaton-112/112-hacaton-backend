@@ -9,6 +9,11 @@ import {
 import WebSocket, { type RawData } from "ws";
 
 import {
+  AppConflictException,
+  AppException,
+} from "@/common/exceptions/app.exception";
+import {
+  ErrorCodes,
   VoicePipelineClientCommandSchema,
   VoicePipelineServerEventSchema,
   type VoicePipelineClientCommand,
@@ -37,6 +42,7 @@ import {
   type CallSnapshot,
   type EngineOpeningTurn,
 } from "@/modules/scenario-engine";
+import { TrainingService } from "@/modules/training/training.service";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
@@ -122,6 +128,7 @@ export class VoicePipelineGateway
 {
   private readonly logger = new Logger(VoicePipelineGateway.name);
   private readonly connections = new WeakMap<WebSocket, ConnectionState>();
+  private readonly sessionClients = new Map<string, WebSocket>();
 
   constructor(
     private readonly voicePipeline: VoicePipelineService,
@@ -134,6 +141,7 @@ export class VoicePipelineGateway
     @Inject(CALL_RECORDER)
     private readonly recorder: CallRecorder,
     private readonly incidentCards: IncidentCardService,
+    private readonly training: TrainingService,
   ) {}
 
   /**
@@ -230,7 +238,12 @@ export class VoicePipelineGateway
       // Оператор закрыл окно или потерял сеть — для звонка это конец, а не
       // пауза. Без этого звонок навсегда оставался в разговоре: без
       // длительности, без оценки и с открытой на запись карточкой.
-      void this.endAbandonedCall(state);
+      this.sessionClients.delete(state.sessionId);
+      if (state.callStarted) {
+        void this.endAbandonedCall(state).finally(() =>
+          this.training.finishAttempt(state.sessionId, "abandoned"),
+        );
+      }
     }
 
     state?.activeRequest?.controller.abort(
@@ -422,13 +435,34 @@ export class VoicePipelineGateway
         state.sessionId = generateId();
         state.lastSnapshotKey = null;
 
-        const snapshot = await this.engine.startCall({
-          trainingSessionId: state.sessionId,
-          scenarioVersionId: command.scenarioVersionId,
-          eventId: generateId(),
-          operatorId: state.user.sub,
-        });
+        // Попытка резервируется раньше звонка: лимит и номер проверяются под
+        // блокировкой назначения, а не после того, как звонок уже создан.
+        const reserved = state.user.role === "operator";
+        if (reserved) {
+          await this.training.reserveAttempt({
+            assignmentId: command.assignmentId ?? "",
+            operatorId: state.user.sub,
+            scenarioVersionId: command.scenarioVersionId,
+            trainingSessionId: state.sessionId,
+          });
+        }
+
+        let snapshot: CallSnapshot;
+        try {
+          snapshot = await this.engine.startCall({
+            trainingSessionId: state.sessionId,
+            scenarioVersionId: command.scenarioVersionId,
+            eventId: generateId(),
+            operatorId: state.user.sub,
+          });
+        } catch (error) {
+          if (reserved) {
+            await this.training.finishAttempt(state.sessionId, "abandoned");
+          }
+          throw error;
+        }
         state.callStarted = true;
+        this.sessionClients.set(state.sessionId, client);
 
         await this.sendEvent(client, state, {
           type: "call.offered",
@@ -446,6 +480,7 @@ export class VoicePipelineGateway
           trainingSessionId: state.sessionId,
           eventId: generateId(),
         });
+        await this.training.activateAttempt(state.sessionId);
 
         // Запись начинается с принятого вызова: смещения в манифесте считаются
         // от той же секунды, с которой начинается разговор.
@@ -475,6 +510,13 @@ export class VoicePipelineGateway
               reason: "operator",
             });
 
+      // Финал попытки фиксируется сразу за движком: в гонке с преподавателем
+      // выигрывает тот, кто первым закончил звонок.
+      await this.training.finishAttempt(
+        state.sessionId,
+        command.type === "decline" ? "declined" : "completed",
+      );
+      this.sessionClients.delete(state.sessionId);
       this.stopTicking(state);
       this.abortListening(state);
       this.recorder.finishCall(state.sessionId);
@@ -487,21 +529,94 @@ export class VoicePipelineGateway
         reason: command.type === "decline" ? "declined" : "operator",
         ...this.snapshotFields(snapshot),
       });
+      state.callStarted = false;
     } catch (error) {
       this.logger.warn(
         `Rejected ${command.type} for session ${state.sessionId}: ${
           error instanceof Error ? error.message : "unknown error"
         }`,
       );
-      await this.sendError(
-        client,
-        state,
-        null,
-        error instanceof ScenarioEngineError
-          ? "call-state-invalid"
-          : "context-unavailable",
+      await this.sendError(client, state, null, this.commandErrorCode(error));
+    }
+  }
+
+  private commandErrorCode(error: unknown): VoicePipelineSocketErrorCode {
+    if (error instanceof ScenarioEngineError) return "call-state-invalid";
+    if (error instanceof AppException) {
+      if (error.code === ErrorCodes.ASSIGNMENT_MAX_ATTEMPTS_REACHED) {
+        return "assignment-attempts-exhausted";
+      }
+      if (error.code === ErrorCodes.ASSIGNMENT_ATTEMPT_ACTIVE) {
+        return "assignment-attempt-active";
+      }
+      if (error.code === ErrorCodes.ASSIGNMENT_NOT_AVAILABLE) {
+        return "assignment-unavailable";
+      }
+    }
+    return "context-unavailable";
+  }
+
+  /**
+   * Преподаватель останавливает занятие оператора.
+   *
+   * Звонок, уже закончившийся в движке (например, оператор положил трубку
+   * мгновением раньше), не мешает закрыть висящую попытку.
+   */
+  async endSessionByInstructor(
+    trainingSessionId: string,
+    instructorId: string,
+    reason: string,
+  ): Promise<Date> {
+    const client = this.sessionClients.get(trainingSessionId);
+    const state = client ? this.connections.get(client) : undefined;
+    const endedAt = new Date();
+    let snapshot: CallSnapshot | null = null;
+    try {
+      snapshot = await this.engine.endCallByInstructor({
+        trainingSessionId,
+        eventId: generateId(),
+        instructorId,
+        reason,
+        now: endedAt,
+      });
+    } catch (error) {
+      if (!(error instanceof ScenarioEngineError)) throw error;
+    }
+
+    const cancelled = await this.training.finishAttempt(
+      trainingSessionId,
+      "cancelled_by_instructor",
+    );
+    if (snapshot === null && !cancelled) {
+      throw new AppConflictException(
+        ErrorCodes.TRAINING_SESSION_NOT_ACTIVE,
+        "The training session has already ended",
       );
     }
+
+    if (client && state && state.sessionId === trainingSessionId) {
+      this.stopTicking(state);
+      this.abortListening(state);
+      this.recorder.finishCall(trainingSessionId);
+      await this.incidentCards.close(trainingSessionId);
+      await this.cancelActiveRequest(client, state);
+      if (snapshot !== null) {
+        await this.sendEvent(client, state, {
+          type: "call.ended",
+          reason: "instructor",
+          ...this.snapshotFields(snapshot),
+        });
+      }
+      state.callStarted = false;
+    }
+
+    this.sessionClients.delete(trainingSessionId);
+    await this.training.auditInstructorEnd(
+      instructorId,
+      trainingSessionId,
+      reason,
+    );
+    return endedAt;
   }
 
   /**
@@ -1144,6 +1259,10 @@ export class VoicePipelineGateway
       "pipeline-failed": "Voice pipeline request failed",
       "call-state-invalid": "The call is not in a state that allows this",
       "listen-failed": "The operator utterance was not recognised",
+      "assignment-unavailable": "This assignment is not available",
+      "assignment-attempts-exhausted":
+        "Every attempt of this assignment has been used",
+      "assignment-attempt-active": "Another training attempt is still active",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
     await this.sendEvent(client, state, {

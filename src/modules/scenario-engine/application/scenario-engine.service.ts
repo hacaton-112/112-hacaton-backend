@@ -732,6 +732,52 @@ export class ScenarioEngineService {
     return this.toSnapshot({ ...state, ...patch }, version);
   }
 
+  async endCallByInstructor(input: {
+    trainingSessionId: string;
+    eventId: string;
+    instructorId: string;
+    reason: string;
+    now?: Date;
+  }): Promise<CallSnapshot> {
+    const now = input.now ?? new Date();
+    const { state, version } = await this.loadCall(input.trainingSessionId);
+
+    this.requireStage(state, ["offered", "conversation", "wrap_up"]);
+    const patch: CallStatePatch = { stage: "ended", endedAt: now };
+
+    await this.store.appendTurn(
+      state.trainingSessionId,
+      input.eventId,
+      [
+        {
+          type: "instructor.intervened",
+          actor: "instructor",
+          occurredAt: now,
+          payload: {
+            instructorId: input.instructorId,
+            action: "end_call",
+            reason: input.reason,
+          },
+        },
+        {
+          type: "call.ended",
+          actor: "instructor",
+          occurredAt: now,
+          payload: { reason: "instructor" },
+        },
+        {
+          type: "stage.changed",
+          actor: "instructor",
+          occurredAt: now,
+          payload: { from: state.stage, to: "ended" },
+        },
+      ],
+      patch,
+    );
+
+    return this.toSnapshot({ ...state, ...patch }, version);
+  }
+
   async getSnapshot(trainingSessionId: string): Promise<CallSnapshot> {
     const { state, version } = await this.loadCall(trainingSessionId);
 
@@ -950,8 +996,7 @@ export class ScenarioEngineService {
     initiative: boolean,
   ): CallerReply {
     const candidateFocusFact = focusFacts[0];
-    const factPrefix =
-      turnPlan.reactionAct === "acknowledge" ? "Хорошо. " : "";
+    const factPrefix = turnPlan.reactionAct === "acknowledge" ? "Хорошо. " : "";
     const factualText =
       candidateFocusFact === undefined
         ? null
