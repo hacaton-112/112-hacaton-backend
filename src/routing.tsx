@@ -91,6 +91,7 @@ export function Routing() {
                 path={ROUTE_PATTERNS.student}
                 element={lazyPage(<StudentPage />)}
               />
+            </Route>
             <Route element={<RoleLayout allowed={["operator"]} />}>
               <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
             </Route>

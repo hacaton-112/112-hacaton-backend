@@ -148,6 +148,8 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.assignments())}
                 >
                   Мои назначения
+                </SidebarNavItem>
+              )}
               {canTrainAsDds && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.dds())}
