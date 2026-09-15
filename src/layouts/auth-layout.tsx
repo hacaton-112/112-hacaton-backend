@@ -3,6 +3,7 @@ import { Navigate, Outlet } from "react-router";
 
 import { useAuthSession } from "../hooks/use-auth";
 import { useAuthStore } from "../stores/auth.store";
+import { ROUTES } from "../config/routes";
 
 /** Восстанавливает сессию и пропускает к вложенным маршрутам только авторизованного пользователя. */
 export function AuthLayout() {
@@ -20,7 +21,7 @@ export function AuthLayout() {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to={ROUTES.auth()} replace />;
   }
 
   return <Outlet />;

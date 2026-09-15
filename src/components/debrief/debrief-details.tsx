@@ -29,6 +29,7 @@ import {
 import { AnswerStatsSection, ScoreSection, TimeSection } from "./debrief-score";
 import { GroupSection, SkillsSection } from "./debrief-skills";
 import { Transcript } from "./debrief-transcript";
+import { ROUTES } from "../../config/routes";
 
 interface DebriefDetailsProps {
   debrief?: Debrief;
@@ -111,7 +112,9 @@ export function DebriefDetails({
           <Button variant="soft" color="gray" onClick={() => navigate("/")}>
             Пройти заново
           </Button>
-          <Button onClick={() => navigate("/debrief")}>К списку вызовов</Button>
+          <Button onClick={() => navigate(ROUTES.debrief())}>
+            К списку вызовов
+          </Button>
         </Flex>
       </Flex>
 

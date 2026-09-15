@@ -1,23 +1,7 @@
 import type { ReverseGeocodedAddress } from "../contracts/scenario-authoring";
 
-export interface GeoPoint {
-  latitude: number;
-  longitude: number;
-}
-
-/**
- * Что карта подставляет в карточку.
- *
- * `revision` растёт с каждой подстановкой: форма применяет каждую ровно один
- * раз, даже если оператор дважды щёлкнул в одну и ту же точку. Адреса может
- * не быть — координаты известны сразу, а адрес приходит после геокодирования.
- */
-export interface IncidentLocationFill {
-  revision: number;
-  latitude: string;
-  longitude: string;
-  addressText?: string;
-}
+// Типы места вызова живут в contracts; сервис только форматирует их.
+export type { GeoPoint, IncidentLocationFill } from "../contracts/geo";
 
 /** Шесть знаков — около десяти сантиметров: точнее клик по карте не бывает. */
 export const formatCoordinate = (value: number): string => value.toFixed(6);

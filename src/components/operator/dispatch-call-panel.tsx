@@ -21,7 +21,7 @@ import {
 } from "../../contracts/incident";
 import type { CallSnapshot } from "../../hooks/use-call";
 import type { IncidentPointStatus } from "../../hooks/use-incident-point";
-import type { GeoPoint } from "../../services/incident-location";
+import type { GeoPoint } from "../../contracts/geo";
 
 interface ServicesProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */

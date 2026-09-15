@@ -1,12 +1,9 @@
-export interface GeographicPoint {
-  longitude: number;
-  latitude: number;
-}
+import type { GeoPoint } from "../../contracts/geo";
+import { EARTH_RADIUS_METERS } from "../../config/map";
 
 /** Build a real geographic circle so its radius remains stable at every zoom. */
-export function createCircleZone(point: GeographicPoint, radiusMeters: number) {
-  const earthRadiusMeters = 6_371_000;
-  const angularDistance = radiusMeters / earthRadiusMeters;
+export function createCircleZone(point: GeoPoint, radiusMeters: number) {
+  const angularDistance = radiusMeters / EARTH_RADIUS_METERS;
   const latitude = (point.latitude * Math.PI) / 180;
   const longitude = (point.longitude * Math.PI) / 180;
   const coordinates: [number, number][] = [];

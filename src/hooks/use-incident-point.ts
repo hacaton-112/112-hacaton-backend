@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError } from "../lib/api";
+import type { GeoPoint, IncidentLocationFill } from "../contracts/geo";
+import { messageFrom } from "../lib/error-message";
 import {
   formatCoordinate,
   formatIncidentAddress,
-  type GeoPoint,
-  type IncidentLocationFill,
 } from "../services/incident-location";
 import { scenarioAuthoringService } from "../services/scenario-authoring.service";
 import { useMapWindowStore } from "../stores/map-window.store";
@@ -34,10 +33,8 @@ interface Selection {
 
 const IDLE: IncidentPointStatus = { state: "idle" };
 
-const messageFrom = (error: unknown): string =>
-  error instanceof ApiError || error instanceof Error
-    ? error.message
-    : "Не удалось определить адрес";
+/** Запасной текст, если ошибка пришла без сообщения. */
+const ADDRESS_ERROR = "Не удалось определить адрес";
 
 /**
  * Место происшествия, отмеченное оператором на карте.
@@ -99,7 +96,10 @@ export function useIncidentPoint(
             current
               ? {
                   ...current,
-                  status: { state: "failed", message: messageFrom(error) },
+                  status: {
+                    state: "failed",
+                    message: messageFrom(error, ADDRESS_ERROR),
+                  },
                 }
               : current,
           );

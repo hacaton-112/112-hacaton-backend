@@ -130,6 +130,15 @@ export const ScenarioListSchema = z.object({
 /** Commands initiated by the webview and sent through the native call transport. */
 export type CallClientCommand = { type: "accept" | "decline" | "end" };
 
+/**
+ * Состояние звонка в окне оператора.
+ *
+ * Не то же, что `CallStage`: тот описывает стадию на backend (включая
+ * `wrap_up` и `declined`), а это — что именно показывает рабочее место.
+ * Переход между ними делает `use-call`.
+ */
+export type CallState = "idle" | "ringing" | "active" | "ended";
+
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;
 export type CallServerEvent = z.infer<typeof CallServerEventSchema>;

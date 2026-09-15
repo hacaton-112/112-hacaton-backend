@@ -4,12 +4,13 @@ import { Navigate } from "react-router";
 import { AuthCornerDecoration } from "../../components/auth/auth-corner-decoration";
 import { AuthForm } from "../../components/auth/auth-form";
 import { useAuthStore } from "../../stores/auth.store";
+import { ROUTES } from "../../config/routes";
 
 export default function AuthPage() {
   const user = useAuthStore((state) => state.user);
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTES.operator()} replace />;
   }
 
   return (

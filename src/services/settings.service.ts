@@ -1,21 +1,22 @@
 import { useSyncExternalStore } from "react";
 
-export type AppTheme = "system" | "light" | "dark";
-export type AppAccentColor =
-  | "gray"
-  | "blue"
-  | "indigo"
-  | "violet"
-  | "cyan"
-  | "teal"
-  | "green"
-  | "amber"
-  | "orange"
-  | "red"
-  | "pink";
-export type AppRadius = "none" | "small" | "medium" | "large" | "full";
-export type AppScaling =
-  "90%" | "95%" | "100%" | "105%" | "110%" | "120%" | "130%";
+import {
+  ACCENT_COLORS,
+  RADIUS_OPTIONS,
+  SCALING_OPTIONS,
+  THEME_PREFERENCES,
+  type AppAccentColor,
+  type AppRadius,
+  type AppScaling,
+  type AppTheme,
+} from "../config/theme";
+
+export type {
+  AppAccentColor,
+  AppRadius,
+  AppScaling,
+  AppTheme,
+} from "../config/theme";
 
 export interface AppSettings {
   theme: AppTheme;
@@ -44,30 +45,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   outputVolume: 1,
 };
 
-const THEMES = new Set<AppTheme>(["system", "light", "dark"]);
-const ACCENTS = new Set<AppAccentColor>([
-  "gray",
-  "blue",
-  "indigo",
-  "violet",
-  "cyan",
-  "teal",
-  "green",
-  "amber",
-  "orange",
-  "red",
-  "pink",
-]);
-const RADII = new Set<AppRadius>(["none", "small", "medium", "large", "full"]);
-const SCALINGS = new Set<AppScaling>([
-  "90%",
-  "95%",
-  "100%",
-  "105%",
-  "110%",
-  "120%",
-  "130%",
-]);
+// Наборы для проверки прочитанного из localStorage: значения берутся из того
+// же списка, который рисует настройки, — разойтись они уже не могут.
+const THEMES = new Set<string>(THEME_PREFERENCES);
+const ACCENTS = new Set<string>(ACCENT_COLORS);
+const RADII = new Set<string>(RADIUS_OPTIONS);
+const SCALINGS = new Set<string>(SCALING_OPTIONS);
 
 function readVolume(value: unknown, fallback: number): number {
   return typeof value === "number" && value >= 0 && value <= MAX_VOLUME

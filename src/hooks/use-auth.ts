@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import type { AuthCredentials, AuthSession } from "../contracts/auth";
+import { QUERY_KEYS } from "../config/query-keys";
 import type { ApiError } from "../lib/api";
 import { authService } from "../services/auth.service";
 import { hydrateAuthStore, useAuthStore } from "../stores/auth.store";
@@ -45,7 +46,7 @@ export function useAuthSession(): void {
   }, [isHydrated]);
 
   const session = useQuery({
-    queryKey: ["auth", "session", refreshToken],
+    queryKey: QUERY_KEYS.authSession(refreshToken),
     queryFn: () => authService.refresh({ refreshToken: refreshToken! }),
     enabled: isHydrated && Boolean(refreshToken) && !user,
     retry: false,

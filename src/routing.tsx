@@ -2,6 +2,8 @@ import { Flex, Spinner } from "@bolid-ui/themes";
 import { lazy, Suspense } from "react";
 import { Outlet, Route, Routes } from "react-router";
 
+import { ROUTE_PATTERNS } from "./config/routes";
+import { SCENARIO_AUTHOR_ROLES } from "./config/roles";
 import { AppLayout } from "./layouts/app-layout";
 import { AuthLayout } from "./layouts/auth-layout";
 import { RoleLayout } from "./layouts/role-layout";
@@ -44,9 +46,9 @@ export function Routing() {
         <Route element={<AppLayout />}>
           <Route element={<AuthLayout />}>
             <Route index element={<OperatorPage />} />
-            <Route path="/debrief" element={<DebriefPage />} />
+            <Route path={ROUTE_PATTERNS.debrief} element={<DebriefPage />} />
             <Route
-              path="/debrief/:trainingSessionId"
+              path={ROUTE_PATTERNS.debriefSession}
               element={<DebriefPage />}
             />
             <Route element={<RoleLayout allowed={["operator"]} />}>
@@ -55,18 +57,27 @@ export function Routing() {
             <Route element={<RoleLayout allowed={["instructor", "admin"]} />}>
               <Route path="/scenarios" element={scenarioCatalog} />
               <Route path="/scenarios/new" element={scenarioConstructor} />
+            <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
               <Route
-                path="/scenarios/:scenarioVersionId/edit"
+                path={ROUTE_PATTERNS.scenarios}
+                element={scenarioCatalog}
+              />
+              <Route
+                path={ROUTE_PATTERNS.scenarioNew}
+                element={scenarioConstructor}
+              />
+              <Route
+                path={ROUTE_PATTERNS.scenarioEdit}
                 element={scenarioConstructor}
               />
             </Route>
           </Route>
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path={ROUTE_PATTERNS.auth} element={<AuthPage />} />
         </Route>
       </Route>
 
       <Route element={withMapWindowProviders(<Outlet />)}>
-        <Route path="/map" element={<MapPage />} />
+        <Route path={ROUTE_PATTERNS.map} element={<MapPage />} />
       </Route>
     </Routes>
   );
