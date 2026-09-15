@@ -1,15 +1,19 @@
+# Стек целиком в compose: backend запущен из профиля app.
 global:
   scrape_interval: 10s
   scrape_timeout: 5s
   evaluation_interval: 10s
 
 scrape_configs:
+  # Метрики backend живут на отдельном внутреннем порту, а не рядом с API.
   - job_name: system112-backend
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:3000
+          - backend:9464
 
+  # ASR поднят на хосте из репозитория infra. Сервис пока не отдаёт /metrics:
+  # цель остаётся в состоянии DOWN, пока endpoint не появится.
   - job_name: system112-asr
     metrics_path: /metrics
     static_configs:
