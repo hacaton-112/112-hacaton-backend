@@ -924,6 +924,9 @@ export class TrainingService {
         assignmentId: trainingAssignments.id,
         assignmentTitle: trainingAssignments.title,
         groupId: trainingAssignments.groupId,
+        groupName: trainingGroups.name,
+        scenarioCode: scenarios.code,
+        scenarioTitle: scenarios.title,
         operatorId: trainingAttempts.operatorId,
         operatorName: users.fullName,
         attemptStatus: trainingAttempts.status,
@@ -935,6 +938,15 @@ export class TrainingService {
       .innerJoin(
         trainingAssignments,
         eq(trainingAttempts.assignmentId, trainingAssignments.id),
+      )
+      .innerJoin(
+        scenarioVersions,
+        eq(trainingAssignments.scenarioVersionId, scenarioVersions.id),
+      )
+      .innerJoin(scenarios, eq(scenarioVersions.scenarioId, scenarios.id))
+      .leftJoin(
+        trainingGroups,
+        eq(trainingAssignments.groupId, trainingGroups.id),
       )
       .innerJoin(users, eq(trainingAttempts.operatorId, users.id))
       .innerJoin(
