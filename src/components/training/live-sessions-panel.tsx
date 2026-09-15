@@ -1,17 +1,21 @@
 import {
   Badge,
   Button,
+  Callout,
   Card,
   DataList,
   Flex,
   Heading,
+  Skeleton,
   Text,
   TextArea,
   toast,
 } from "@bolid-ui/themes";
-import { CircleStop } from "lucide-react";
+import { AlertTriangle, CircleStop, GraduationCap } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 
+import { ROUTES } from "../../config/routes";
 import type { LiveTrainingSession } from "../../contracts/training";
 import {
   useLiveTrainingSessions,
@@ -22,14 +26,15 @@ import { formatDuration, LIVE_STAGE_LABELS } from "./training-labels";
 
 const MIN_REASON_LENGTH = 3;
 
-/** Идущие звонки группы в реальном времени и остановка занятия оператора. */
+/** Идущие звонки в реальном времени и остановка занятия оператора. */
 export function LiveSessionsPanel({
   groupId,
   mutations,
 }: {
-  groupId: string;
+  groupId?: string;
   mutations: TrainingMutations;
 }) {
+  const navigate = useNavigate();
   const sessions = useLiveTrainingSessions(groupId);
   const [sessionToEnd, setSessionToEnd] = useState<LiveTrainingSession>();
   const [reason, setReason] = useState("");
@@ -59,8 +64,24 @@ export function LiveSessionsPanel({
   return (
     <div className="grid gap-4">
       <Text size="2" color="gray">
-        Звонки учеников группы, список обновляется каждые две секунды.
+        {groupId
+          ? "Звонки учеников группы"
+          : "Звонки учеников ваших групп и индивидуальных занятий"}
+        , список обновляется каждые две секунды.
       </Text>
+
+      {sessions.error && (
+        <Callout.Root color="red" role="alert">
+          <Callout.Icon>
+            <AlertTriangle size={16} />
+          </Callout.Icon>
+          <Callout.Text>
+            Не удалось обновить активные попытки: {sessions.error.message}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
+      {sessions.isPending && <Skeleton height="220px" className="rounded-xl" />}
 
       {sessions.data?.length === 0 && (
         <Card size="3">
@@ -86,6 +107,20 @@ export function LiveSessionsPanel({
             </Flex>
 
             <DataList.Root size="2">
+              {!groupId && (
+                <DataList.Item>
+                  <DataList.Label>Группа</DataList.Label>
+                  <DataList.Value>
+                    {session.groupName ?? "Индивидуально"}
+                  </DataList.Value>
+                </DataList.Item>
+              )}
+              <DataList.Item>
+                <DataList.Label>Сценарий</DataList.Label>
+                <DataList.Value>
+                  {session.scenarioCode} · {session.scenarioTitle}
+                </DataList.Value>
+              </DataList.Item>
               <DataList.Item>
                 <DataList.Label>В звонке</DataList.Label>
                 <DataList.Value>
@@ -104,13 +139,22 @@ export function LiveSessionsPanel({
               </DataList.Item>
             </DataList.Root>
 
-            <Button
-              color="red"
-              variant="soft"
-              onClick={() => openEndDialog(session)}
-            >
-              <CircleStop size={15} /> Остановить звонок
-            </Button>
+            <Flex gap="2" wrap="wrap">
+              <Button
+                color="gray"
+                variant="soft"
+                onClick={() => navigate(ROUTES.student(session.operatorId))}
+              >
+                <GraduationCap size={15} /> Ученик
+              </Button>
+              <Button
+                color="red"
+                variant="soft"
+                onClick={() => openEndDialog(session)}
+              >
+                <CircleStop size={15} /> Остановить звонок
+              </Button>
+            </Flex>
           </Card>
         ))}
       </div>

@@ -11,6 +11,7 @@ import {
   CardSourceSchema,
   isAssignmentForTarget,
   InstructorCallListSchema,
+  LiveTrainingSessionListSchema,
   TrainingAssignmentSchema,
 } from "../src/contracts/training";
 
@@ -136,6 +137,37 @@ describe("training contract", () => {
     expect(callVerdict(call!)).toBe("failed");
     expect(callVerdict({ score: 75, passThreshold: 75 })).toBe("passed");
     expect(callVerdict({ score: null, passThreshold: 75 })).toBeNull();
+  });
+
+  it("reads group and scenario context for live instructor monitoring", () => {
+    const [session] = LiveTrainingSessionListSchema.parse({
+      sessions: [
+        {
+          trainingSessionId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f04",
+          assignmentId: assignment.id,
+          assignmentTitle: assignment.title,
+          groupId: assignment.groupId,
+          groupName: assignment.groupName,
+          scenarioCode: assignment.scenarioCode,
+          scenarioTitle: assignment.scenarioTitle,
+          operatorId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f05",
+          operatorName: "Анна Смирнова",
+          stage: "conversation",
+          attemptStatus: "active",
+          panicLevel: 2,
+          checklistSatisfied: 3,
+          checklistTotal: 5,
+          elapsedSeconds: 95,
+          startedAt: "2026-09-15T10:00:00.000Z",
+        },
+      ],
+    }).sessions;
+
+    expect(session).toMatchObject({
+      groupName: assignment.groupName,
+      scenarioCode: "S-015",
+      scenarioTitle: "Пожар",
+    });
   });
 
   it("keeps a group without students in the grouped table", () => {

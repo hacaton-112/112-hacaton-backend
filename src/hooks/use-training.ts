@@ -77,6 +77,12 @@ export const useLiveTrainingSessions = (groupId?: string) =>
     refetchInterval: LIVE_SESSIONS_REFRESH_MS,
   });
 
+export const useInstructorCalls = () =>
+  useQuery({
+    queryKey: QUERY_KEYS.instructorCalls(),
+    queryFn: trainingService.listInstructorCalls,
+  });
+
 /** Все изменения учебного центра: после каждого списки перечитываются. */
 export function useTrainingMutations() {
   const client = useQueryClient();
@@ -90,6 +96,7 @@ export function useTrainingMutations() {
         QUERY_KEYS.myAssignments(),
         QUERY_KEYS.scenarios(),
         ["live-training-sessions"],
+        QUERY_KEYS.instructorCalls(),
         ["student-profile"],
         QUERY_KEYS.students(),
         ["users"],

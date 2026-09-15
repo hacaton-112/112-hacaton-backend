@@ -47,7 +47,6 @@ import {
   DATA_TABLE_DEFAULTS,
   menuIcon,
 } from "../../lib/data-table";
-import { useAuthStore } from "../../stores/auth.store";
 
 /** Строка группы: название, код и число учеников. */
 function GroupCell({ node }: ICellRendererParams<GroupTableRow>) {
