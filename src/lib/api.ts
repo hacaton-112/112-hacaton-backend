@@ -62,6 +62,14 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   ASSIGNMENT_HAS_ACTIVE_ATTEMPTS:
     "Сначала завершите активные попытки операторов",
   TRAINING_SESSION_NOT_ACTIVE: "Сессия уже завершена",
+  DDS_EXERCISE_NOT_FOUND: "Учебная карточка ДДС не найдена",
+  DDS_SCENARIO_NOT_READY:
+    "Для сценария не определена служба, которая должна получить карточку",
+  DDS_STATUS_COMMENT_REQUIRED: "Для выбранного статуса нужен комментарий",
+  DDS_STATUS_TRANSITION_INVALID:
+    "Этот статус нельзя установить на текущем этапе реагирования",
+  DDS_STATUS_TRANSITION_CONFLICT:
+    "Статус карточки уже изменился. Данные обновлены",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 

@@ -3,6 +3,7 @@ import {
   ClipboardList,
   Headphones,
   GraduationCap,
+  RadioTower,
   LogOut,
   Settings,
   UserRound,
@@ -76,6 +77,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
   const [accountOpen, setAccountOpen] = useState(false);
+  const canTrainAsDds = user?.role === "operator";
   const showScenarios = canAuthorScenarios(user?.role);
 
   const goTo = (path: string) => {
@@ -146,6 +148,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.assignments())}
                 >
                   Мои назначения
+              {canTrainAsDds && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.dds())}
+                  icon={RadioTower}
+                  label="Карточки ДДС"
+                  onClick={() => goTo(ROUTES.dds())}
+                >
+                  Карточки ДДС
                 </SidebarNavItem>
               )}
               {showScenarios && (
