@@ -2,6 +2,7 @@ import {
   BookOpen,
   ClipboardList,
   Headphones,
+  RadioTower,
   LogOut,
   Settings,
   UserRound,
@@ -70,6 +71,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
   const [accountOpen, setAccountOpen] = useState(false);
+  const canTrainAsDds = user?.role === "operator";
   const showScenarios = canAuthorScenarios(user?.role);
 
   const goTo = (path: string) => {
@@ -113,6 +115,16 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               >
                 Разбор звонков
               </SidebarNavItem>
+              {canTrainAsDds && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.dds())}
+                  icon={RadioTower}
+                  label="Карточки ДДС"
+                  onClick={() => goTo(ROUTES.dds())}
+                >
+                  Карточки ДДС
+                </SidebarNavItem>
+              )}
               {showScenarios && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.scenarios())}

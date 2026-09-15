@@ -19,6 +19,10 @@ export const API_CONFIG = {
     `/scenarios/${scenarioId}/versions`,
   getReverseGeocodeUrl: () => `/geocoding/reverse`,
   getCallsUrl: () => `/calls`,
+  getDdsExercisesUrl: () => `/dds-exercises`,
+  getDdsExerciseUrl: (exerciseId: string) => `/dds-exercises/${exerciseId}`,
+  getDdsExerciseTransitionsUrl: (exerciseId: string) =>
+    `/dds-exercises/${exerciseId}/transitions`,
   getIncidentCardUrl: (trainingSessionId: string) =>
     `/calls/${trainingSessionId}/incident-card`,
   getDebriefUrl: (trainingSessionId: string) =>

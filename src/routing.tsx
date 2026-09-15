@@ -9,6 +9,7 @@ import { AuthLayout } from "./layouts/auth-layout";
 import { RoleLayout } from "./layouts/role-layout";
 import AuthPage from "./pages/main/auth-page";
 import DebriefPage from "./pages/main/debrief-page";
+import DdsExercisePage from "./pages/main/dds-exercise-page";
 import OperatorPage from "./pages/main/operator-page";
 import MapPage from "./pages/map/map-page";
 import { withAppProviders, withMapWindowProviders } from "./providers";
@@ -50,6 +51,9 @@ export function Routing() {
               path={ROUTE_PATTERNS.debriefSession}
               element={<DebriefPage />}
             />
+            <Route element={<RoleLayout allowed={["operator"]} />}>
+              <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
+            </Route>
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
               <Route
                 path={ROUTE_PATTERNS.scenarios}

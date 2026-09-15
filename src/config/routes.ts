@@ -13,6 +13,7 @@ export const ROUTE_PATTERNS = {
   auth: "/auth",
   debrief: "/debrief",
   debriefSession: "/debrief/:trainingSessionId",
+  dds: "/dds",
   scenarios: "/scenarios",
   scenarioNew: "/scenarios/new",
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
@@ -23,6 +24,7 @@ export const ROUTES = {
   operator: () => "/",
   auth: () => "/auth",
   debrief: () => "/debrief",
+  dds: () => "/dds",
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
