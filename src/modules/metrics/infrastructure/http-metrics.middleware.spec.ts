@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 
 import type { NextFunction, Request, Response } from "express";
 
+import { HttpMetrics } from "../application/http-metrics";
 import {
   METRIC_PREFIX,
   MetricsRegistry,
@@ -24,8 +25,8 @@ const respond = (
 
 describe(HttpMetricsMiddleware.name, () => {
   it("labels a request by its route template, not by its address", async () => {
-    const metrics = new MetricsRegistry();
-    const middleware = new HttpMetricsMiddleware(metrics);
+    const registry = new MetricsRegistry();
+    const middleware = new HttpMetricsMiddleware(new HttpMetrics(registry));
 
     const next = respond(
       middleware,
@@ -40,22 +41,33 @@ describe(HttpMetricsMiddleware.name, () => {
     expect(next).toHaveBeenCalled();
     // Идентификатор сессии в метку не попадает: иначе каждая учебная сессия
     // стала бы отдельным временным рядом.
-    expect(await metrics.render()).toContain(
+    expect(await registry.render()).toContain(
       `${METRIC_PREFIX}http_request_duration_seconds_count{method="GET",route="/api/v1/calls/:trainingSessionId/debrief",status_code="200"} 1`,
     );
   });
 
   it("puts a request that matched no route under one label", async () => {
-    const metrics = new MetricsRegistry();
+    const registry = new MetricsRegistry();
 
     respond(
-      new HttpMetricsMiddleware(metrics),
+      new HttpMetricsMiddleware(new HttpMetrics(registry)),
       { method: "GET", baseUrl: "" },
       404,
     );
 
-    expect(await metrics.render()).toContain(
+    expect(await registry.render()).toContain(
       `route="unmatched",status_code="404"`,
     );
+  });
+
+  it("survives Nest creating the middleware more than once", () => {
+    // Экземпляр middleware Nest создаёт сам: метрика в его конструкторе
+    // регистрировалась повторно, и backend падал на старте.
+    const metrics = new HttpMetrics(new MetricsRegistry());
+
+    expect(() => {
+      new HttpMetricsMiddleware(metrics);
+      new HttpMetricsMiddleware(metrics);
+    }).not.toThrow();
   });
 });

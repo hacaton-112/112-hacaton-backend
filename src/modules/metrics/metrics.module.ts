@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
+import { HttpMetrics } from "./application/http-metrics";
 import { MetricsRegistry } from "./application/metrics.registry";
 import { HttpMetricsMiddleware } from "./infrastructure/http-metrics.middleware";
 import {
@@ -15,24 +16,25 @@ import {
 } from "./infrastructure/metrics.config";
 import { METRICS_CONFIG, MetricsServer } from "./infrastructure/metrics.server";
 
-/**
- * Метрики Prometheus.
- *
- * Глобальный модуль: реестр нужен и HTTP-слою, и голосовому каналу, и каждый
- * модуль, которому есть что считать, получает его без лишнего импорта.
- */
 const METRICS_ENVIRONMENT_KEYS = [
   "METRICS_ENABLED",
   "METRICS_HOST",
   "METRICS_PORT",
 ] as const satisfies readonly (keyof MetricsEnvironment)[];
 
+/**
+ * Метрики Prometheus.
+ *
+ * Глобальный модуль: реестр нужен и HTTP-слою, и голосовому каналу, и каждый
+ * модуль, которому есть что считать, получает его без лишнего импорта.
+ */
 @Global()
 @Module({
   imports: [ConfigModule],
   providers: [
     MetricsRegistry,
-    HttpMetricsMiddleware,
+    // Middleware в провайдерах не нужен: его экземпляр Nest создаёт сам.
+    HttpMetrics,
     {
       provide: METRICS_CONFIG,
       inject: [ConfigService],

@@ -1,16 +1,7 @@
 import { Injectable, type NestMiddleware } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
-import type { Histogram } from "prom-client";
 
-import {
-  METRIC_PREFIX,
-  MetricsRegistry,
-} from "../application/metrics.registry";
-
-/** Секунды: от быстрых чтений каталога до генерации черновика сценария. */
-const HTTP_DURATION_BUCKETS = [
-  0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30,
-];
+import { HttpMetrics } from "../application/http-metrics";
 
 /**
  * Длительность HTTP-запросов по маршруту и статусу.
@@ -22,19 +13,10 @@ const HTTP_DURATION_BUCKETS = [
  */
 @Injectable()
 export class HttpMetricsMiddleware implements NestMiddleware {
-  private readonly duration: Histogram<"method" | "route" | "status_code">;
-
-  constructor(metrics: MetricsRegistry) {
-    this.duration = metrics.histogram({
-      name: `${METRIC_PREFIX}http_request_duration_seconds`,
-      help: "Duration of HTTP requests by method, route template and status code",
-      labelNames: ["method", "route", "status_code"],
-      buckets: HTTP_DURATION_BUCKETS,
-    });
-  }
+  constructor(private readonly metrics: HttpMetrics) {}
 
   use(request: Request, response: Response, next: NextFunction): void {
-    const stopTimer = this.duration.startTimer();
+    const stopTimer = this.metrics.duration.startTimer();
 
     response.once("finish", () => {
       const route = (request.route as { path?: unknown } | undefined)?.path;
