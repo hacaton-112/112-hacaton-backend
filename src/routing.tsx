@@ -52,11 +52,8 @@ export function Routing() {
               element={<DebriefPage />}
             />
             <Route element={<RoleLayout allowed={["operator"]} />}>
-              <Route path="/dds" element={<DdsExercisePage />} />
+              <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
             </Route>
-            <Route element={<RoleLayout allowed={["instructor", "admin"]} />}>
-              <Route path="/scenarios" element={scenarioCatalog} />
-              <Route path="/scenarios/new" element={scenarioConstructor} />
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
               <Route
                 path={ROUTE_PATTERNS.scenarios}

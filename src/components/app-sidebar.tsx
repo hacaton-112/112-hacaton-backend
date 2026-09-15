@@ -71,8 +71,6 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
   const [accountOpen, setAccountOpen] = useState(false);
-  const canAuthorScenarios =
-    user?.role === "instructor" || user?.role === "admin";
   const canTrainAsDds = user?.role === "operator";
   const showScenarios = canAuthorScenarios(user?.role);
 
@@ -119,15 +117,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               </SidebarNavItem>
               {canTrainAsDds && (
                 <SidebarNavItem
-                  active={location.pathname.startsWith("/dds")}
+                  active={location.pathname.startsWith(ROUTES.dds())}
                   icon={RadioTower}
                   label="Карточки ДДС"
-                  onClick={() => goTo("/dds")}
+                  onClick={() => goTo(ROUTES.dds())}
                 >
                   Карточки ДДС
                 </SidebarNavItem>
               )}
-              {canAuthorScenarios && (
               {showScenarios && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.scenarios())}
