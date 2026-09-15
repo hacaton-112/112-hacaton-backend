@@ -82,6 +82,31 @@ describe(buildAliceAiRequest.name, () => {
     });
   });
 
+  it("tells the model why its previous answer to this turn was rejected", () => {
+    const result = buildAliceAiRequest(
+      {
+        ...request,
+        retryFeedback:
+          "Вариант «Дети там!» почти дословно повторял прошлую реплику.",
+      },
+      config,
+    );
+    const context = JSON.parse(result.messages[1]!.content) as {
+      retryFeedback?: string;
+    };
+
+    expect(context.retryFeedback).toContain("Дети там!");
+    expect(ALICE_AI_SYSTEM_PROMPT).toContain("retryFeedback");
+  });
+
+  it("forbids ending every reply with the same facts or plea", () => {
+    // Хвост «Дети там, быстрее приезжайте!» звучал в каждой реплике звонка.
+    expect(ALICE_AI_SYSTEM_PROMPT).toContain(
+      "Сведения, которых нет в allowedFacts этого хода, не называй",
+    );
+    expect(ALICE_AI_SYSTEM_PROMPT).toContain("ни целиком, ни хвостом");
+  });
+
   it("does not expose identifiers, credentials, or unsupported options", () => {
     const result = buildAliceAiRequest(request, config);
     const serialized = JSON.stringify(result);

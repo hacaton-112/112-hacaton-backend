@@ -165,4 +165,77 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
       expect.objectContaining({ generation }),
     );
   });
+
+  it("records the turn against the same parsed question, without asking the model again", async () => {
+    const catalogue = [
+      { id: "victim_age", label: "Возраст", question: "Возраст пострадавшего" },
+    ];
+    type Resolver = (
+      facts: readonly { id: string }[],
+    ) => Promise<readonly string[]>;
+    let recordedAsked: readonly string[] | undefined;
+    const engine = {
+      buildGenerationContext: jest
+        .fn()
+        .mockImplementation(
+          async ({ resolveAskedFacts }: { resolveAskedFacts?: Resolver }) => {
+            await resolveAskedFacts?.(catalogue as never);
+
+            return {
+              scenarioVersionId: "scenario-version-1",
+              context: {
+                persona: {
+                  id: "caller-1",
+                  description: "Взволнованный заявитель",
+                  language: "Russian",
+                },
+                allowedFacts: [{ id: "address", value: fallbackReply.text }],
+                recentTurns: [],
+              },
+              voice: {
+                voiceId: "Vivian",
+                gender: "female",
+                emotion: "panic",
+                intensity: 0.8,
+                speechRate: 1.1,
+              },
+              fallbackReply,
+            };
+          },
+        ),
+      applyCallerReply: jest
+        .fn()
+        .mockImplementation(
+          async ({ resolveAskedFacts }: { resolveAskedFacts?: Resolver }) => {
+            recordedAsked = await resolveAskedFacts?.(catalogue as never);
+          },
+        ),
+    };
+    const questions = createQuestions(
+      jest.fn().mockResolvedValue(["victim_age"]),
+    );
+    const factory = new ScenarioVoicePipelineRequestFactory(
+      engine as unknown as ScenarioEngineService,
+      questions.port,
+    );
+
+    await factory.create({
+      command: { type: "speak", operatorText: "Кто-нибудь пострадал?" },
+      requestId: "request-1",
+      sessionId: "session-1",
+      signal: new AbortController().signal,
+    });
+    await factory.recordReply({
+      requestId: "request-1",
+      sessionId: "session-1",
+      operatorText: "Кто-нибудь пострадал?",
+      reply: fallbackReply,
+      generation,
+    });
+
+    // Иначе факт, открытый разбором, при записи отклонялся, не засчитывался
+    // сказанным, и заявитель рассказывал его снова.
+    expect(recordedAsked).toEqual(["victim_age"]);
+    expect(questions.understand).toHaveBeenCalledTimes(1);
+  });
 });
