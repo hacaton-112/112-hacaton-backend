@@ -1,11 +1,11 @@
-import type {
-  AppAccentColor,
-  AppRadius,
-  AppScaling,
-  AppTheme,
-} from "../services/settings.service";
-
-export const THEME_PREFERENCES: AppTheme[] = ["system", "light", "dark"];
+/**
+ * Единственный список допустимых значений оформления.
+ *
+ * Типы выводятся из этих же массивов, а `settings.service` валидирует
+ * сохранённые настройки по ним: раньше каждый список существовал дважды и мог
+ * разойтись.
+ */
+export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
 
 export const THEME_LABELS: Record<AppTheme, string> = {
   system: "Системная",
@@ -13,7 +13,7 @@ export const THEME_LABELS: Record<AppTheme, string> = {
   dark: "Тёмная",
 };
 
-export const ACCENT_COLORS: AppAccentColor[] = [
+export const ACCENT_COLORS = [
   "gray",
   "blue",
   "indigo",
@@ -25,7 +25,7 @@ export const ACCENT_COLORS: AppAccentColor[] = [
   "orange",
   "red",
   "pink",
-];
+] as const;
 
 export const ACCENT_LABELS: Record<AppAccentColor, string> = {
   gray: "Серый",
@@ -41,13 +41,13 @@ export const ACCENT_LABELS: Record<AppAccentColor, string> = {
   pink: "Розовый",
 };
 
-export const RADIUS_OPTIONS: AppRadius[] = [
+export const RADIUS_OPTIONS = [
   "none",
   "small",
   "medium",
   "large",
   "full",
-];
+] as const;
 
 export const RADIUS_LABELS: Record<AppRadius, string> = {
   none: "Без скругления",
@@ -57,7 +57,7 @@ export const RADIUS_LABELS: Record<AppRadius, string> = {
   full: "Полное",
 };
 
-export const SCALING_OPTIONS: AppScaling[] = [
+export const SCALING_OPTIONS = [
   "90%",
   "95%",
   "100%",
@@ -65,4 +65,9 @@ export const SCALING_OPTIONS: AppScaling[] = [
   "110%",
   "120%",
   "130%",
-];
+] as const;
+
+export type AppTheme = (typeof THEME_PREFERENCES)[number];
+export type AppAccentColor = (typeof ACCENT_COLORS)[number];
+export type AppRadius = (typeof RADIUS_OPTIONS)[number];
+export type AppScaling = (typeof SCALING_OPTIONS)[number];

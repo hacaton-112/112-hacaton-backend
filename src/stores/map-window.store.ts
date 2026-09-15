@@ -2,9 +2,8 @@ import { isTauri } from "@tauri-apps/api/core";
 import { createTauriStore } from "@tauri-store/zustand";
 import { create } from "zustand";
 
-import type { IncidentLocation } from "../components/map/incident-map";
-import type { CallState } from "../hooks/use-call";
-import type { GeoPoint } from "../services/incident-location";
+import type { GeoPoint, IncidentLocation } from "../contracts/geo";
+import type { CallState } from "../contracts/call";
 
 type CallMapSnapshot = {
   callState: CallState;

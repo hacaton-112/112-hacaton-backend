@@ -30,7 +30,7 @@ import {
   type IncidentCardPatch,
   IncidentCardSchema,
 } from "../../contracts/incident";
-import type { IncidentLocationFill } from "../../services/incident-location";
+import type { IncidentLocationFill } from "../../contracts/geo";
 import { FormField } from "../auth/form-field";
 import { DuplicateSuspicion } from "./duplicate-suspicion";
 

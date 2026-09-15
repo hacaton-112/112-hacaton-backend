@@ -3,12 +3,12 @@ import { isTauri } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { ExternalLink } from "lucide-react";
 
-const MAP_WINDOW_LABEL = "incident-map";
+import { MAP_WINDOW_LABEL, MAP_WINDOW_URL } from "../../config/routes";
 
 export function MapWindowButton({ label = "Карта" }: { label?: string }) {
   const showMap = async () => {
     if (!isTauri()) {
-      window.open("/#/map", MAP_WINDOW_LABEL);
+      window.open(MAP_WINDOW_URL, MAP_WINDOW_LABEL);
       return;
     }
 

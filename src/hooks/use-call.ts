@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { IncidentLocation } from "../components/map/incident-map";
+import type { IncidentLocation } from "../contracts/geo";
 import type {
   CallLocator,
   CallServerEvent,
+  CallState,
   ScenarioSummary,
 } from "../contracts/call";
 import { callService, type CallStream } from "../services/call.service";
 import { useAuthStore } from "../stores/auth.store";
 import { useMapWindowStore } from "../stores/map-window.store";
-
-export type CallState = "idle" | "ringing" | "active" | "ended";
 
 /** Реплика разговора: то, что расслышал сервер, и то, что ответил заявитель. */
 export interface DialogueTurn {

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type { CallSummary } from "../../contracts/debrief";
 import { formatDuration } from "./debrief-formatters";
 import { DebriefNotice } from "./debrief-primitives";
+import { ROUTES } from "../../config/routes";
 
 interface DebriefCallListProps {
   calls?: CallSummary[];
@@ -41,7 +42,9 @@ export function DebriefCallList({
           <CallRow
             key={call.trainingSessionId}
             call={call}
-            onOpen={() => navigate(`/debrief/${call.trainingSessionId}`)}
+            onOpen={() =>
+              navigate(ROUTES.debriefSession(call.trainingSessionId))
+            }
           />
         ))}
       </div>
