@@ -58,11 +58,12 @@ export class InstructorCallsController {
     @Query("operatorId", new ParseUUIDPipe({ optional: true }))
     operatorId?: string,
   ) {
+    const calls = await this.training.listInstructorCalls(actor(request), {
+      groupId,
+      operatorId,
+    });
     return {
-      calls: await this.training.listInstructorCalls(actor(request), {
-        groupId,
-        operatorId,
-      }),
+      calls: await this.withScores(calls),
     };
   }
 
