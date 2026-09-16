@@ -676,11 +676,13 @@ Backend отдаёт метрики Prometheus на отдельном порт�
 доля запасных реплик. Порт настраивается переменными `METRICS_ENABLED`,
 `METRICS_HOST` и `METRICS_PORT`.
 
-Grafana слушает `http://localhost:3001`. Источник данных и дашборд
-«Тренажёр 112 — backend» заводятся из `observability/grafana` при старте. Какой
-backend читает Prometheus, решает `PROMETHEUS_CONFIG`: `prometheus.yml` — для
-контейнера из профиля `app`, `prometheus.host.yml` — для backend, запущенного на
-хосте.
+Grafana слушает `http://localhost:3001`. Источник данных и dashboard состояния
+системы, backend и ASR заводятся из `observability/grafana` при старте.
+Prometheus загружает recording/alerting rules из `observability/prometheus`.
+Какой backend он читает, решает `PROMETHEUS_CONFIG`: `prometheus.yml` — для
+контейнера из профиля `app`, `prometheus.host.yml` — для backend, запущенного
+на хосте. Метрики, пороги и runbook описаны в
+[`docs/observability.md`](docs/observability.md).
 
 ## Проверки
 
