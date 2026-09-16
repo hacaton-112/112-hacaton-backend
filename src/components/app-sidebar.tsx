@@ -24,6 +24,7 @@ import {
   canViewClassifier,
   canManageTraining,
   canTrainAsDds,
+  canAdministerUsers,
 } from "../config/roles";
 import { ROUTES } from "../config/routes";
 import { useAuthStore } from "../stores/auth.store";
@@ -191,6 +192,8 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.admin())}
                 >
                   Администрирование
+                </SidebarNavItem>
+              )}
               {canViewClassifier(user?.role) && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.classifier())}
