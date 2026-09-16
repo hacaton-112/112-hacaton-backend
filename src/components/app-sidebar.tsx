@@ -1,6 +1,7 @@
 import {
   Activity,
   BookOpen,
+  LibraryBig,
   ClipboardList,
   FileSpreadsheet,
   Headphones,
@@ -126,6 +127,16 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 onClick={() => goTo(ROUTES.debrief())}
               >
                 Разбор звонков
+              </SidebarNavItem>
+              <SidebarNavItem
+                active={location.pathname.startsWith(
+                  ROUTES.methodicalMaterials(),
+                )}
+                icon={LibraryBig}
+                label="Методические материалы"
+                onClick={() => goTo(ROUTES.methodicalMaterials())}
+              >
+                Методические материалы
               </SidebarNavItem>
               {canManageTraining(user?.role) ? (
                 <>

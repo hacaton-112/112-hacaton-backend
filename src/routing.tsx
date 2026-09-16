@@ -35,6 +35,9 @@ const StudentPage = lazy(() => import("./pages/main/student-page"));
 const StudentsPage = lazy(() => import("./pages/main/students-page"));
 const AdminPage = lazy(() => import("./pages/main/admin-page"));
 const ClassifierPage = lazy(() => import("./pages/main/classifier-page"));
+const MethodicalMaterialsPage = lazy(
+  () => import("./pages/main/methodical-materials-page"),
+);
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -66,6 +69,10 @@ export function Routing() {
           <Route element={<AuthLayout />}>
             <Route index element={<OperatorPage />} />
             <Route path={ROUTE_PATTERNS.debrief} element={<DebriefPage />} />
+            <Route
+              path={ROUTE_PATTERNS.methodicalMaterials}
+              element={lazyPage(<MethodicalMaterialsPage />)}
+            />
             <Route
               path={ROUTE_PATTERNS.debriefSession}
               element={<DebriefPage />}

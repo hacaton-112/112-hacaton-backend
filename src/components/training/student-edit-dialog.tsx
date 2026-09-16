@@ -141,7 +141,7 @@ function StudentEditForm({
             onChange={(event) => setFullName(event.target.value)}
           />
         </TrainingField>
-        <TrainingField label="Email для входа">
+        <TrainingField label="Email для входа" className="sm:col-span-2">
           <TextField.Root
             required
             type="email"
@@ -151,7 +151,12 @@ function StudentEditForm({
           />
         </TrainingField>
         {isAdmin ? (
-          <TrainingField label="Новый пароль" hint={passwordHint ?? undefined}>
+          <TrainingField
+            label="Новый пароль"
+            hint={passwordHint ?? undefined}
+            reserveHintSpace
+            className="sm:col-span-2"
+          >
             <TextField.Root
               type="password"
               autoComplete="new-password"
@@ -161,7 +166,7 @@ function StudentEditForm({
             />
           </TrainingField>
         ) : (
-          <TrainingField label="Пароль">
+          <TrainingField label="Пароль" className="sm:col-span-2">
             <Text size="2" color="gray">
               Меняет администратор
             </Text>

@@ -108,7 +108,7 @@ function StudentCreateForm({
             onChange={(event) => setFullName(event.target.value)}
           />
         </TrainingField>
-        <TrainingField label="Email для входа">
+        <TrainingField label="Email для входа" className="sm:col-span-2">
           <TextField.Root
             required
             type="email"
@@ -117,7 +117,12 @@ function StudentCreateForm({
             onChange={(event) => setEmail(event.target.value)}
           />
         </TrainingField>
-        <TrainingField label="Пароль" hint={passwordHint ?? undefined}>
+        <TrainingField
+          label="Пароль"
+          hint={passwordHint ?? undefined}
+          reserveHintSpace
+          className="sm:col-span-2"
+        >
           <TextField.Root
             required
             type="password"

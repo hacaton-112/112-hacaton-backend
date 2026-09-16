@@ -172,6 +172,7 @@ function UserForm({
             passwordHint ??
             (editing ? "Оставьте пустым, чтобы не менять" : undefined)
           }
+          reserveHintSpace
           className="sm:col-span-2"
         >
           <TextField.Root
