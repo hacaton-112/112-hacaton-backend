@@ -27,6 +27,7 @@ const createUserRecord = async (): Promise<UserRecord> => ({
   passwordHash: await bcrypt.hash(PASSWORD, TEST_SALT_ROUNDS),
   fullName: "Иванов Иван",
   role: "operator",
+  isActive: true,
   createdAt: new Date("2026-09-01T10:00:00.000Z"),
   updatedAt: new Date("2026-09-01T10:00:00.000Z"),
 });
@@ -56,6 +57,7 @@ interface SessionMocks {
   issue: jest.Mock;
   rotate: jest.Mock;
   revokeByToken: jest.Mock;
+  revokeAllForUser: jest.Mock;
 }
 
 const createService = (
@@ -77,6 +79,7 @@ const createService = (
     }),
     rotate: jest.fn(),
     revokeByToken: jest.fn().mockResolvedValue(undefined),
+    revokeAllForUser: jest.fn().mockResolvedValue(undefined),
     ...sessionOverrides,
   };
 
@@ -121,7 +124,9 @@ describe(AuthService.name, () => {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        isActive: true,
         createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
       },
     });
   });
@@ -160,6 +165,19 @@ describe(AuthService.name, () => {
     });
 
     expect(signAsync).not.toHaveBeenCalled();
+  });
+
+  it("rejects an inactive account with the same public login error", async () => {
+    const user = { ...(await createUserRecord()), isActive: false };
+    const { service, sessions } = createService(createDb([user]));
+
+    await expect(
+      service.login({ email: user.email, password: PASSWORD }, METADATA),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.AUTH_LOGIN_INVALID_CREDENTIALS,
+    });
+
+    expect(sessions.issue).not.toHaveBeenCalled();
   });
 
   it("opens a session with the client metadata", async () => {
@@ -227,6 +245,23 @@ describe(AuthService.name, () => {
     });
   });
 
+  it("revokes refresh sessions of an inactive account", async () => {
+    const user = { ...(await createUserRecord()), isActive: false };
+    const { service, sessions } = createService(createDb([user]), undefined, {
+      rotate: jest.fn().mockResolvedValue({
+        sessionId: "session-1",
+        userId: user.id,
+        refreshToken: "next-refresh-token",
+        refreshExpiresIn: 2_592_000,
+      }),
+    });
+
+    await expect(service.refresh("refresh-token")).rejects.toMatchObject({
+      code: ErrorCodes.AUTH_REFRESH_TOKEN_INVALID,
+    });
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith(user.id);
+  });
+
   it("revokes the session on logout, including for an unknown token", async () => {
     const { service, sessions } = createService(createDb([]));
 
@@ -255,5 +290,31 @@ describe(AuthService.name, () => {
         role: "operator",
       }),
     ).rejects.toBeInstanceOf(AppConflictException);
+  });
+
+  it("keeps the last active administrator in place", async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              limit: () => Promise.resolve([{ role: "admin", isActive: true }]),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => Promise.resolve([{ activeAdmins: 1 }]),
+          }),
+        }),
+    } as unknown as DrizzleService["db"];
+    const { service } = createService(db);
+
+    await expect(
+      service.updateUser("0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f", {
+        role: "instructor",
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.AUTH_LAST_ADMIN_REQUIRED });
   });
 });

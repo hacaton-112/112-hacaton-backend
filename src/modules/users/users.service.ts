@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 
 import { AppForbiddenException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
-import type { UserRole } from "@/drizzle/schema";
 
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import { AuthService } from "@/modules/auth/auth.service";
@@ -11,6 +10,7 @@ import type {
   CreateUser,
   UpdateUser,
 } from "@/modules/auth/dto/create-user.dto";
+import type { ListUsersQueryDto } from "./dto/users.dto";
 
 @Injectable()
 export class UsersService {
@@ -32,8 +32,8 @@ export class UsersService {
     return user;
   }
 
-  list(role?: UserRole): Promise<AuthUser[]> {
-    return this.auth.listUsers(role);
+  list(filters: ListUsersQueryDto): Promise<AuthUser[]> {
+    return this.auth.listUsers(filters);
   }
 
   async update(
@@ -48,10 +48,26 @@ export class UsersService {
         "An administrator cannot change their own role",
       );
     }
+    if (actorId === userId && input.isActive === false) {
+      throw new AppForbiddenException(
+        ErrorCodes.AUTH_ROLE_FORBIDDEN,
+        "An administrator cannot deactivate their own account",
+      );
+    }
     const user = await this.auth.updateUser(userId, input);
+    const action =
+      input.isActive === false
+        ? "user.deactivated"
+        : input.isActive === true
+          ? "user.reactivated"
+          : input.password !== undefined
+            ? "user.password_reset"
+            : input.role !== undefined
+              ? "user.role_changed"
+              : "user.updated";
     await this.audit.log({
       actorId,
-      action: "user.updated",
+      action,
       resource: "user",
       resourceId: userId,
       details: {

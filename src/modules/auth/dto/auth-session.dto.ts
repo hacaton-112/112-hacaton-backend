@@ -9,7 +9,9 @@ export const AuthUserSchema = z
     email: z.email(),
     fullName: FullNameSchema,
     role: UserRoleSchema,
+    isActive: z.boolean(),
     createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 
