@@ -1,0 +1,213 @@
+groups:
+  - name: system112-recording
+    interval: 30s
+    rules:
+      - record: system112:backend_http_requests:rate5m
+        expr: sum(rate(system112_http_request_duration_seconds_count[5m]))
+
+      - record: system112:backend_http_errors:ratio5m
+        expr: |
+          (
+            sum(rate(system112_http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+            or
+            vector(0)
+          )
+          /
+          clamp_min(sum(rate(system112_http_request_duration_seconds_count[5m])), 0.001)
+
+      - record: system112:backend_http_latency:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(system112_http_request_duration_seconds_bucket[5m]))
+          )
+
+      - record: system112:voice_first_audio:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(system112_voice_turn_first_audio_seconds_bucket[5m]))
+          )
+
+      - record: system112:asr_http_requests:rate5m
+        expr: sum(rate(system112_asr_http_request_duration_seconds_count[5m]))
+
+      - record: system112:asr_http_errors:ratio5m
+        expr: |
+          (
+            sum(rate(system112_asr_http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+            or
+            vector(0)
+          )
+          /
+          clamp_min(sum(rate(system112_asr_http_request_duration_seconds_count[5m])), 0.001)
+
+      - record: system112:asr_transcription_latency:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(system112_asr_transcription_duration_seconds_bucket[5m]))
+          )
+
+      - record: system112:asr_transcription_errors:ratio10m
+        expr: |
+          sum(rate(system112_asr_transcriptions_total{outcome="error"}[10m]))
+          /
+          clamp_min(sum(rate(system112_asr_transcriptions_total[10m])), 0.001)
+
+      - record: system112:asr_realtime_factor:ratio5m
+        expr: |
+          sum(rate(system112_asr_transcription_duration_seconds_sum{kind!="partial"}[5m]))
+          /
+          clamp_min(sum(rate(system112_asr_audio_duration_seconds_sum{kind!="partial"}[5m])), 0.001)
+
+  - name: system112-availability
+    interval: 30s
+    rules:
+      - alert: System112BackendDown
+        expr: up{job="system112-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: System 112 backend metrics target is down
+          description: Prometheus has not scraped the backend metrics endpoint for one minute.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#target-down
+
+      - alert: System112AsrDown
+        expr: up{job="system112-asr"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: asr
+        annotations:
+          summary: System 112 ASR target is down
+          description: Prometheus has not scraped the ASR /metrics endpoint for one minute.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#target-down
+
+  - name: system112-backend
+    interval: 30s
+    rules:
+      - alert: System112BackendHighHttpErrorRate
+        expr: |
+          system112:backend_http_errors:ratio5m > 0.05
+          and
+          system112:backend_http_requests:rate5m > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Backend 5xx ratio is above 5%
+          description: More than 5% of backend HTTP requests have failed for five minutes.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#backend-http-errors
+
+      - alert: System112BackendHttpLatencyHigh
+        expr: system112:backend_http_latency:p95_5m > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Backend HTTP p95 latency is above 2 seconds
+          description: The global backend HTTP p95 has exceeded the UI response target for ten minutes.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#backend-latency
+
+      - alert: System112BackendEventLoopLagHigh
+        expr: max(system112_nodejs_eventloop_lag_p99_seconds) > 0.25
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Backend event-loop p99 lag is above 250 ms
+          description: The Node.js event loop is persistently delayed and may affect realtime calls.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#backend-event-loop
+
+      - alert: System112VoicePipelineFailures
+        expr: sum(increase(system112_voice_turn_failures_total[10m])) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          service: voice-pipeline
+        annotations:
+          summary: Voice pipeline has failed at least three turns
+          description: Operators did not receive caller audio for at least three turns in the last ten minutes.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#voice-pipeline-failures
+
+      - alert: System112VoiceFallbackRateHigh
+        expr: |
+          (
+            sum(increase(system112_caller_replies_total{source="fallback"}[15m]))
+            /
+            clamp_min(sum(increase(system112_caller_replies_total[15m])), 1)
+          ) > 0.2
+          and
+          sum(increase(system112_caller_replies_total[15m])) >= 5
+        for: 5m
+        labels:
+          severity: warning
+          service: voice-pipeline
+        annotations:
+          summary: More than 20% of caller replies use fallback text
+          description: The LLM is unavailable or repeatedly returns invalid output.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#voice-fallbacks
+
+      - alert: System112VoiceSessionCapacity
+        expr: sum(system112_voice_sessions) >= 20
+        for: 5m
+        labels:
+          severity: warning
+          service: voice-pipeline
+        annotations:
+          summary: Backend reached the required 20 concurrent voice sessions
+          description: The documented concurrency target is saturated; inspect latency and resource graphs.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#voice-capacity
+
+  - name: system112-asr
+    interval: 30s
+    rules:
+      - alert: System112AsrHighErrorRate
+        expr: system112:asr_transcription_errors:ratio10m > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: asr
+        annotations:
+          summary: ASR transcription error ratio is above 5%
+          description: Whisper inference has failed for more than 5% of attempts during the last ten minutes.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#asr-errors
+
+      - alert: System112AsrLatencyHigh
+        expr: system112:asr_transcription_latency:p95_5m > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: asr
+        annotations:
+          summary: ASR transcription p95 is above 5 seconds
+          description: Queueing plus Whisper inference is too slow for an interactive call.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#asr-latency
+
+      - alert: System112AsrInferenceQueueSaturated
+        expr: system112_asr_inferences > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: asr
+        annotations:
+          summary: More than one ASR inference is running or queued
+          description: The single Whisper inference gate is persistently saturated.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#asr-queue
+
+      - alert: System112AsrWebsocketErrors
+        expr: sum(increase(system112_asr_websocket_errors_total{kind=~"receive|vad|send"}[10m])) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          service: asr
+        annotations:
+          summary: ASR WebSocket or VAD errors are repeating
+          description: At least three transport, send, or voice-activity errors occurred in ten minutes.
+          runbook_url: https://github.com/koch-123/112-hacaton-backend/blob/main/docs/observability.md#asr-websocket

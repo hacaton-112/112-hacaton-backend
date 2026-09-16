@@ -129,7 +129,7 @@ services:
   # PROMETHEUS_CONFIG: prometheus.yml — контейнер из профиля app (сервер),
   # prometheus.host.yml — backend, запущенный на хосте через bun run start:dev.
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     container_name: system-112-training-prometheus
     restart: unless-stopped
     command:
@@ -139,6 +139,7 @@ services:
       - "${PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./observability/${PROMETHEUS_CONFIG:-prometheus.yml}:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     extra_hosts:
       - host.docker.internal:host-gateway
