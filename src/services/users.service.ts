@@ -2,17 +2,22 @@ import { API_CONFIG } from "../config/api";
 import { z } from "zod";
 
 import { AuthUserSchema, type UserRole } from "../contracts/auth";
-import type { CreateUser, UpdateUser } from "../contracts/users";
+import type {
+  CreateUser,
+  UpdateUser,
+  UserListFilters,
+} from "../contracts/users";
 import { api } from "../lib/api";
 
 const UserListSchema = z.object({ users: z.array(AuthUserSchema) });
 
 export const usersService = {
-  async list(role?: UserRole) {
+  async list(filters: UserListFilters | UserRole = {}) {
+    const params = typeof filters === "string" ? { role: filters } : filters;
     return UserListSchema.parse(
       await api.get<unknown>(
         API_CONFIG.getUsersUrl(),
-        role ? { params: { role } } : undefined,
+        Object.keys(params).length > 0 ? { params } : undefined,
       ),
     ).users;
   },

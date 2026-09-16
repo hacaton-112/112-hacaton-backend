@@ -26,8 +26,10 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   AUTH_LOGIN_INVALID_CREDENTIALS: "Неверный email или пароль",
   AUTH_TOKEN_INVALID: "Сессия истекла, войдите заново",
   AUTH_REFRESH_TOKEN_INVALID: "Сессия истекла, войдите заново",
-  AUTH_USER_NOT_FOUND: "Учётная запись отключена",
+  AUTH_USER_NOT_FOUND: "Пользователь не найден или учётная запись недоступна",
   AUTH_ROLE_FORBIDDEN: "Недостаточно прав для этого действия",
+  AUTH_LAST_ADMIN_REQUIRED:
+    "Нельзя отключить или сменить роль последнего активного администратора",
   SCENARIO_CODE_EXISTS: "Сценарий с таким кодом уже существует",
   SCENARIO_PERSONA_CODE_EXISTS: "Персона с таким кодом уже существует",
   SCENARIO_ASSISTANT_UNAVAILABLE: "AI-помощник временно недоступен",

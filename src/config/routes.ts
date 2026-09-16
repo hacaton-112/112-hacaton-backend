@@ -23,6 +23,7 @@ export const ROUTE_PATTERNS = {
   groupStudent: "/groups/:groupId/students/:userId",
   students: "/students",
   student: "/students/:userId",
+  admin: "/admin",
   scenarioNew: "/scenarios/new",
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
@@ -45,6 +46,7 @@ export const ROUTES = {
     `/groups/${encodeURIComponent(groupId)}/students/${encodeURIComponent(userId)}`,
   students: () => "/students",
   student: (userId: string) => `/students/${encodeURIComponent(userId)}`,
+  admin: () => "/admin",
   scenarioNew: () => "/scenarios/new",
   scenarioEdit: (scenarioVersionId: string) =>
     `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,

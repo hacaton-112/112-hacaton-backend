@@ -10,6 +10,7 @@ import {
   Settings,
   UserRound,
   Users,
+  ShieldCheck,
 } from "lucide-react";
 import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
@@ -23,6 +24,7 @@ import {
   canViewClassifier,
   canManageTraining,
   canTrainAsDds,
+  canAdministerUsers,
 } from "../config/roles";
 import { ROUTES } from "../config/routes";
 import { useAuthStore } from "../stores/auth.store";
@@ -180,6 +182,16 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.scenarios())}
                 >
                   Учебные сценарии
+                </SidebarNavItem>
+              )}
+              {canAdministerUsers(user?.role) && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.admin())}
+                  icon={ShieldCheck}
+                  label="Администрирование"
+                  onClick={() => goTo(ROUTES.admin())}
+                >
+                  Администрирование
                 </SidebarNavItem>
               )}
               {canViewClassifier(user?.role) && (

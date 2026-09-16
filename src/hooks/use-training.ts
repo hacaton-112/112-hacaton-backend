@@ -59,8 +59,8 @@ export const useTrainingOperators = () =>
 /** Учётные записи нужной роли; список доступен только администратору. */
 export const useUsers = (role: UserRole, enabled: boolean) =>
   useQuery({
-    queryKey: QUERY_KEYS.users(role),
-    queryFn: () => usersService.list(role),
+    queryKey: QUERY_KEYS.users({ role }),
+    queryFn: () => usersService.list({ role, status: "active" }),
     enabled,
   });
 
