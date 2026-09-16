@@ -4,6 +4,7 @@ import { Outlet, Route, Routes } from "react-router";
 
 import { ROUTE_PATTERNS } from "./config/routes";
 import {
+  DDS_TRAINEE_ROLES,
   SCENARIO_AUTHOR_ROLES,
   TRAINEE_ROLES,
   TRAINING_MANAGER_ROLES,
@@ -97,7 +98,7 @@ export function Routing() {
                 element={lazyPage(<StudentPage />)}
               />
             </Route>
-            <Route element={<RoleLayout allowed={["operator"]} />}>
+            <Route element={<RoleLayout allowed={DDS_TRAINEE_ROLES} />}>
               <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
             </Route>
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>

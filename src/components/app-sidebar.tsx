@@ -20,6 +20,7 @@ import {
   ROLE_LABELS,
   canAuthorScenarios,
   canManageTraining,
+  canTrainAsDds,
 } from "../config/roles";
 import { ROUTES } from "../config/routes";
 import { useAuthStore } from "../stores/auth.store";
@@ -78,7 +79,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const logout = useAuthLogout();
   const { setOpenMobile } = useSidebar();
   const [accountOpen, setAccountOpen] = useState(false);
-  const canTrainAsDds = user?.role === "operator";
+  const showDds = canTrainAsDds(user?.role);
   const showScenarios = canAuthorScenarios(user?.role);
 
   const goTo = (path: string) => {
@@ -159,7 +160,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Мои назначения
                 </SidebarNavItem>
               )}
-              {canTrainAsDds && (
+              {showDds && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.dds())}
                   icon={RadioTower}

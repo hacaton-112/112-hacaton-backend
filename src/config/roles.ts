@@ -25,6 +25,12 @@ export const TRAINEE_ROLES: readonly UserRole[] = ["operator"];
 export const canManageTraining = (role?: UserRole): boolean =>
   role !== undefined && TRAINING_MANAGER_ROLES.includes(role);
 
+/** Карточки ДДС сейчас предназначены только для обучающихся-операторов. */
+export const DDS_TRAINEE_ROLES: readonly UserRole[] = TRAINEE_ROLES;
+
+export const canTrainAsDds = (role?: UserRole): boolean =>
+  role !== undefined && DDS_TRAINEE_ROLES.includes(role);
+
 /** Учётные записи создаёт только администратор (ТЗ, стр. 9). */
 export const canCreateUsers = (role?: UserRole): boolean => role === "admin";
 
