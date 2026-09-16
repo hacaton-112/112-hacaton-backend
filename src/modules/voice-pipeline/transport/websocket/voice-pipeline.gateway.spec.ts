@@ -263,6 +263,7 @@ const createAsr = (
 
 interface RecorderMocks {
   startCall: jest.Mock;
+  resumeCall: jest.Mock;
   openSegment: jest.Mock;
   finishCall: jest.Mock;
   write: jest.Mock;
@@ -278,6 +279,7 @@ const createRecorder = (): {
   const segment: RecordingSegment = { write, close };
   const mocks: RecorderMocks = {
     startCall: jest.fn(),
+    resumeCall: jest.fn(),
     openSegment: jest.fn().mockReturnValue(segment),
     finishCall: jest.fn(),
     write,
@@ -287,6 +289,7 @@ const createRecorder = (): {
   return {
     recorder: {
       startCall: mocks.startCall,
+      resumeCall: mocks.resumeCall,
       openSegment: mocks.openSegment,
       finishCall: mocks.finishCall,
     } as unknown as CallRecorder,
@@ -320,6 +323,14 @@ const createEngine = (overrides: Record<string, jest.Mock> = {}) =>
     endCall: jest.fn().mockResolvedValue({ ...snapshot, stage: "ended" }),
     tick: jest.fn().mockResolvedValue([]),
     getSnapshot: jest.fn().mockResolvedValue(snapshot),
+    renewRecoveryLease: jest.fn().mockResolvedValue(true),
+    claimRecoveryLease: jest.fn().mockResolvedValue(false),
+    listRecoveryLeases: jest.fn().mockResolvedValue([]),
+    claimExpiredRecoveryLease: jest.fn().mockResolvedValue(false),
+    getRecentTurns: jest.fn().mockResolvedValue([
+      { role: "operator", text: "Что произошло?" },
+      { role: "caller", text: "На кухне пожар." },
+    ]),
     setOperatorSpeaking: jest.fn().mockResolvedValue(undefined),
     setCallerSpeaking: jest.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -1283,6 +1294,7 @@ describe(VoicePipelineGateway.name, () => {
   });
 
   it("ends the call when the operator's connection drops", async () => {
+    jest.useFakeTimers();
     const engine = createEngine();
     const cards = createCards();
     const runtime = await createRuntime(
@@ -1295,16 +1307,278 @@ describe(VoicePipelineGateway.name, () => {
       cards,
     );
 
-    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
-    await Promise.resolve();
-    await Promise.resolve();
+    try {
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+      expect(engine.endCall).not.toHaveBeenCalled();
 
-    // Закрытое окно — это конец звонка, а не пауза: иначе он навсегда
-    // остаётся в разговоре, без длительности и без оценки.
-    expect(engine.endCall).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "disconnected" }),
+      jest.advanceTimersByTime(30_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(engine.endCall).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "disconnected" }),
+      );
+      expect(cards.close).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("resumes the same active session during the recovery window", async () => {
+    jest.useFakeTimers();
+    const engine = createEngine();
+
+    try {
+      const runtime = await createRuntime(
+        successfulStream,
+        jest.fn().mockResolvedValue(authenticatedUser),
+        jest.fn().mockResolvedValue(undefined),
+        engine,
+      );
+      const sessionId = (engine.startCall as jest.Mock).mock.calls[0]?.[0]
+        .trainingSessionId as string;
+
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+      jest.advanceTimersByTime(5_000);
+
+      const resumedSocket = new SocketMock();
+      await runtime.gateway.handleConnection(
+        asSocket(resumedSocket),
+        handshake("Bearer token"),
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(resumedSocket),
+        message({ type: "resume", sessionId, resumeListening: true }),
+        false,
+      );
+
+      expect(textEvents(resumedSocket)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "call.resumed",
+            sessionId,
+            stage: "conversation",
+          }),
+          expect.objectContaining({ type: "listen.started", sessionId }),
+        ]),
+      );
+      jest.advanceTimersByTime(30_000);
+      expect(engine.endCall).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("resumes an active session from its persisted lease after backend restart", async () => {
+    const sessionId = "2f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f";
+    const answeredAt = new Date("2026-09-15T20:00:00.000Z");
+    const engine = createEngine({
+      claimRecoveryLease: jest.fn().mockResolvedValue(true),
+      getSnapshot: jest.fn().mockResolvedValue({ ...snapshot, answeredAt }),
+    });
+    const recording = createRecorder();
+    const gateway = new VoicePipelineGateway(
+      {} as unknown as VoicePipelineService,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
+      {
+        verify: jest.fn().mockResolvedValue(authenticatedUser),
+      } as unknown as AccessTokenVerifier,
+      engine,
+      createAsr().asr,
+      recording.recorder,
+      createCards(),
+      createTraining(),
+      createMetrics(),
     );
-    expect(cards.close).toHaveBeenCalledTimes(1);
+    const socket = new SocketMock();
+
+    await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
+    await gateway.handleClientMessage(
+      asSocket(socket),
+      message({ type: "resume", sessionId, resumeListening: false }),
+      false,
+    );
+
+    expect(engine.claimRecoveryLease).toHaveBeenCalledWith(
+      sessionId,
+      authenticatedUser.sub,
+      expect.any(Date),
+      expect.any(Date),
+    );
+    expect(textEvents(socket)).toContainEqual(
+      expect.objectContaining({ type: "call.resumed", sessionId }),
+    );
+    expect(recording.mocks.resumeCall).toHaveBeenCalledWith(
+      sessionId,
+      answeredAt,
+    );
+  });
+
+  it("finishes an unclaimed persisted session after restart grace expires", async () => {
+    jest.useFakeTimers();
+    const sessionId = "3f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f";
+    const engine = createEngine({
+      listRecoveryLeases: jest.fn().mockResolvedValue([
+        {
+          trainingSessionId: sessionId,
+          expiresAt: new Date(Date.now() + 5_000),
+        },
+      ]),
+      claimExpiredRecoveryLease: jest.fn().mockResolvedValue(true),
+    });
+    const training = createTraining();
+    const cards = createCards();
+    const gateway = new VoicePipelineGateway(
+      {} as unknown as VoicePipelineService,
+      {
+        create: jest.fn(),
+        recordReply: jest.fn(),
+      } as unknown as VoicePipelineRequestFactory,
+      {
+        verify: jest.fn().mockResolvedValue(authenticatedUser),
+      } as unknown as AccessTokenVerifier,
+      engine,
+      createAsr().asr,
+      createRecorder().recorder,
+      cards,
+      training,
+      createMetrics(),
+    );
+
+    try {
+      await gateway.onModuleInit();
+      jest.advanceTimersByTime(5_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(engine.claimExpiredRecoveryLease).toHaveBeenCalledWith(
+        sessionId,
+        expect.any(Date),
+        expect.any(Date),
+      );
+      expect(engine.endCall).toHaveBeenCalledWith(
+        expect.objectContaining({ trainingSessionId: sessionId }),
+      );
+      expect(cards.close).toHaveBeenCalledWith(sessionId);
+      expect(training.finishAttempt).toHaveBeenCalledWith(
+        sessionId,
+        "abandoned",
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps a failed recovery timer bound to the old session", async () => {
+    jest.useFakeTimers();
+    const engine = createEngine({
+      getSnapshot: jest.fn().mockRejectedValue(new Error("db read failed")),
+    });
+
+    try {
+      const runtime = await createRuntime(
+        successfulStream,
+        jest.fn().mockResolvedValue(authenticatedUser),
+        jest.fn().mockResolvedValue(undefined),
+        engine,
+      );
+      const oldSessionId = (engine.startCall as jest.Mock).mock.calls[0]?.[0]
+        .trainingSessionId as string;
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+      const resumedSocket = new SocketMock();
+      await runtime.gateway.handleConnection(
+        asSocket(resumedSocket),
+        handshake("Bearer token"),
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(resumedSocket),
+        message({
+          type: "resume",
+          sessionId: oldSessionId,
+          resumeListening: false,
+        }),
+        false,
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(resumedSocket),
+        message({
+          type: "start",
+          scenarioVersionId: "version-1",
+          assignmentId: "assignment-1",
+        }),
+        false,
+      );
+
+      const newSessionId = (engine.startCall as jest.Mock).mock.calls[1]?.[0]
+        .trainingSessionId as string;
+      expect(newSessionId).not.toBe(oldSessionId);
+
+      jest.advanceTimersByTime(30_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(engine.endCall).toHaveBeenCalledWith(
+        expect.objectContaining({ trainingSessionId: oldSessionId }),
+      );
+      expect(engine.endCall).not.toHaveBeenCalledWith(
+        expect.objectContaining({ trainingSessionId: newSessionId }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not let another operator recover the session", async () => {
+    jest.useFakeTimers();
+    const engine = createEngine();
+    const verify = jest
+      .fn()
+      .mockResolvedValueOnce(authenticatedUser)
+      .mockResolvedValueOnce({
+        ...authenticatedUser,
+        sub: "1f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+        email: "another-operator@example.test",
+      });
+
+    try {
+      const runtime = await createRuntime(
+        successfulStream,
+        verify,
+        jest.fn().mockResolvedValue(undefined),
+        engine,
+      );
+      const sessionId = (engine.startCall as jest.Mock).mock.calls[0]?.[0]
+        .trainingSessionId as string;
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+      const otherSocket = new SocketMock();
+      await runtime.gateway.handleConnection(
+        asSocket(otherSocket),
+        handshake("Bearer other-token"),
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(otherSocket),
+        message({ type: "resume", sessionId, resumeListening: false }),
+        false,
+      );
+
+      expect(textEvents(otherSocket)).toContainEqual(
+        expect.objectContaining({
+          type: "error",
+          code: "session-recovery-unavailable",
+        }),
+      );
+      jest.advanceTimersByTime(30_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(engine.endCall).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("says nothing when the socket drops right after a normal end", async () => {
@@ -1437,11 +1711,22 @@ describe(VoicePipelineGateway.name, () => {
   });
 
   it("closes the recording when the client disappears mid-call", async () => {
-    const runtime = await createRuntime();
+    jest.useFakeTimers();
+    try {
+      const runtime = await createRuntime();
 
-    runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+      expect(runtime.recorder.finishCall).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(30_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
 
-    expect(runtime.recorder.finishCall).toHaveBeenCalledTimes(1);
+      expect(runtime.recorder.finishCall).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
   it("drops a client that stopped answering", async () => {
     jest.useFakeTimers();
@@ -1532,6 +1817,7 @@ describe(VoicePipelineGateway.name, () => {
         createRecorder().recorder,
         createCards(),
         training,
+        createMetrics(),
       );
 
     it("reserves the operator's attempt before the call exists", async () => {

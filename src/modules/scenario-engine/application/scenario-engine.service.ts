@@ -9,6 +9,7 @@ import {
   type CallerReply,
   type CallerTurnPlan,
   type DialogueGenerationResult,
+  type DialogueTurn,
   type GenerationContext,
 } from "@/contracts";
 import type {
@@ -809,6 +810,55 @@ export class ScenarioEngineService {
     const { state, version } = await this.loadCall(trainingSessionId);
 
     return this.toSnapshot(state, version);
+  }
+
+  renewRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    expiresAt: Date,
+  ): Promise<boolean> {
+    return this.store.renewRecoveryLease(
+      trainingSessionId,
+      operatorId,
+      expiresAt,
+    );
+  }
+
+  claimRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    now: Date,
+    expiresAt: Date,
+  ): Promise<boolean> {
+    return this.store.claimRecoveryLease(
+      trainingSessionId,
+      operatorId,
+      now,
+      expiresAt,
+    );
+  }
+
+  listRecoveryLeases(limit: number) {
+    return this.store.listRecoveryLeases(limit);
+  }
+
+  claimExpiredRecoveryLease(
+    trainingSessionId: string,
+    now: Date,
+    retryAt: Date,
+  ): Promise<boolean> {
+    return this.store.claimExpiredRecoveryLease(
+      trainingSessionId,
+      now,
+      retryAt,
+    );
+  }
+
+  async getRecentTurns(
+    trainingSessionId: string,
+  ): Promise<readonly DialogueTurn[]> {
+    await this.loadCall(trainingSessionId);
+    return this.store.loadRecentTurns(trainingSessionId, MAX_RECENT_TURNS);
   }
 
   /** Параметры синтеза для текущей ступени состояния. */

@@ -216,6 +216,32 @@ describe(CallRecordingService.name, () => {
 
     expect(put).not.toHaveBeenCalled();
   });
+
+  it("continues a recovered call without reusing its first segment keys", async () => {
+    const { storage, stored } = createStorage();
+    const recorder = new CallRecordingService(storage);
+    const startedAt = new Date(Date.now() - 10_000);
+
+    recorder.resumeCall("session-1", startedAt);
+    const segment = recorder.openSegment({
+      sessionId: "session-1",
+      track: "operator",
+      sampleRate: 16_000,
+    });
+    segment.write(new Uint8Array([1, 2]));
+    segment.close();
+    recorder.finishCall("session-1");
+    await settled();
+
+    const recoveredSegment = stored.find((object) =>
+      object.key.endsWith("-operator.wav"),
+    );
+    expect(recoveredSegment?.key).not.toBe("calls/session-1/0001-operator.wav");
+    expect(manifestOf(stored)).toMatchObject({
+      startedAt: startedAt.toISOString(),
+      segments: [{ startMs: expect.any(Number) }],
+    });
+  });
 });
 
 describe(NoopCallRecordingService.name, () => {
@@ -224,6 +250,7 @@ describe(NoopCallRecordingService.name, () => {
 
     expect(() => {
       recorder.startCall("session-1");
+      recorder.resumeCall("session-1", new Date());
       const segment = recorder.openSegment({
         sessionId: "session-1",
         track: "operator",
