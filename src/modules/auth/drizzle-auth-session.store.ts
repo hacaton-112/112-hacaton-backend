@@ -100,4 +100,17 @@ export class DrizzleAuthSessionStore implements AuthSessionStore {
         and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt)),
       );
   }
+
+  async revokeUserSessions(
+    userId: string,
+    reason: AuthSessionRevokedReason,
+    revokedAt: Date,
+  ): Promise<void> {
+    await this.db
+      .update(authSessions)
+      .set({ revokedAt, revokedReason: reason })
+      .where(
+        and(eq(authSessions.userId, userId), isNull(authSessions.revokedAt)),
+      );
+  }
 }

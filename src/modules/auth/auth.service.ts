@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 
 import {
   AppConflictException,
+  AppNotFoundException,
   AppUnauthorizedException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
@@ -11,7 +12,7 @@ import { env } from "@/core/config/env.config";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { generateId } from "@/common/utils/id";
-import { type UserRecord, users } from "@/drizzle/schema";
+import { type UserRecord, type UserRole, users } from "@/drizzle/schema";
 
 // Imported as a value, not a type: `import type` is erased before decorator
 // metadata is emitted, and Nest would receive Object instead of the class.
@@ -22,7 +23,7 @@ import {
 } from "./auth-session.service";
 import { TOKEN_SIGNER } from "./auth.tokens";
 import type { AuthSession, AuthUser } from "./dto/auth-session.dto";
-import type { CreateUser } from "./dto/create-user.dto";
+import type { CreateUser, UpdateUser } from "./dto/create-user.dto";
 import type { Login } from "./dto/login.dto";
 import type { JwtPayload } from "./dto/jwt-payload.dto";
 import type { TokenSigner } from "./ports/token-signer.port";
@@ -109,6 +110,66 @@ export class AuthService {
         ErrorCodes.AUTH_USER_NOT_FOUND,
         "Account no longer exists",
       );
+    }
+
+    return this.toAuthUser(user);
+  }
+
+  async listUsers(role?: UserRole): Promise<AuthUser[]> {
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(role ? eq(users.role, role) : undefined)
+      .orderBy(asc(users.fullName));
+    return rows.map((user) => this.toAuthUser(user));
+  }
+
+  /**
+   * Правка учётной записи. Новый пароль или роль отзывают все сессии: иначе
+   * тот, у кого забрали доступ, продолжал бы входить по старому токену.
+   */
+  async updateUser(userId: string, input: UpdateUser): Promise<AuthUser> {
+    if (input.email) {
+      const [taken] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, input.email), ne(users.id, userId)))
+        .limit(1);
+      if (taken) {
+        throw new AppConflictException(
+          ErrorCodes.AUTH_EMAIL_ALREADY_EXISTS,
+          "Email is already registered",
+        );
+      }
+    }
+
+    const { password, ...rest } = input;
+    const [before] = await this.db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!before) {
+      throw new AppNotFoundException(
+        ErrorCodes.AUTH_USER_NOT_FOUND,
+        "The user does not exist",
+      );
+    }
+
+    const [user] = await this.db
+      .update(users)
+      .set({
+        ...rest,
+        ...(password
+          ? { passwordHash: await bcrypt.hash(password, SALT_ROUNDS) }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (password || (input.role && input.role !== before.role)) {
+      await this.sessions.revokeAllForUser(userId);
     }
 
     return this.toAuthUser(user);

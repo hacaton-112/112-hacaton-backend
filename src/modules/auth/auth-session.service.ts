@@ -182,6 +182,14 @@ export class AuthSessionService {
     await this.store.revokeSession(found.session.id, "logout", now);
   }
 
+  /** Signs a user out everywhere, e.g. after an administrator reset the password. */
+  async revokeAllForUser(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<void> {
+    await this.store.revokeUserSessions(userId, "credentials_changed", now);
+  }
+
   /** Never outlives the session it belongs to, however the TTLs are set. */
   private tokenExpiry(now: Date, sessionExpiresAt: Date): Date {
     const idleExpiresAt = addSeconds(now, this.config.refreshTokenTtlSeconds);

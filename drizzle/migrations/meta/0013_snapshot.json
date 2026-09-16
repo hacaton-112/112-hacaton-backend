@@ -1,5 +1,5 @@
 {
-  "id": "64408821-3329-47e4-b4b6-fa2502ead14b",
+  "id": "ca771ea3-be1f-427d-8ab0-a59b2261db0a",
   "prevId": "938fda40-9682-487a-983b-03ffdcc4c459",
   "version": "7",
   "dialect": "postgresql",
@@ -741,376 +741,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.dds_exercise_events": {
-      "name": "dds_exercise_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "exercise_id": {
-          "name": "exercise_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sequence": {
-          "name": "sequence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "from_status": {
-          "name": "from_status",
-          "type": "dds_response_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "to_status": {
-          "name": "to_status",
-          "type": "dds_response_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_id": {
-          "name": "actor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comment": {
-          "name": "comment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "dds_exercise_events_sequence_unique_idx": {
-          "name": "dds_exercise_events_sequence_unique_idx",
-          "columns": [
-            {
-              "expression": "exercise_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sequence",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dds_exercise_events_event_unique_idx": {
-          "name": "dds_exercise_events_event_unique_idx",
-          "columns": [
-            {
-              "expression": "exercise_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dds_exercise_events_exercise_idx": {
-          "name": "dds_exercise_events_exercise_idx",
-          "columns": [
-            {
-              "expression": "exercise_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dds_exercise_events_exercise_id_dds_exercises_id_fk": {
-          "name": "dds_exercise_events_exercise_id_dds_exercises_id_fk",
-          "tableFrom": "dds_exercise_events",
-          "tableTo": "dds_exercises",
-          "columnsFrom": [
-            "exercise_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "dds_exercise_events_actor_id_users_id_fk": {
-          "name": "dds_exercise_events_actor_id_users_id_fk",
-          "tableFrom": "dds_exercise_events",
-          "tableTo": "users",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.dds_exercises": {
-      "name": "dds_exercises",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "scenario_version_id": {
-          "name": "scenario_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operator_id": {
-          "name": "operator_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "training_attempt_id": {
-          "name": "training_attempt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "addressed_service": {
-          "name": "addressed_service",
-          "type": "dispatch_service",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "dds_response_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "card": {
-          "name": "card",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "acknowledgement_deadline_at": {
-          "name": "acknowledgement_deadline_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "acknowledged_at": {
-          "name": "acknowledged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_sequence": {
-          "name": "last_sequence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "score": {
-          "name": "score",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passed": {
-          "name": "passed",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_event_id": {
-          "name": "start_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "dds_exercises_operator_start_event_unique_idx": {
-          "name": "dds_exercises_operator_start_event_unique_idx",
-          "columns": [
-            {
-              "expression": "operator_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "start_event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dds_exercises_operator_created_idx": {
-          "name": "dds_exercises_operator_created_idx",
-          "columns": [
-            {
-              "expression": "operator_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dds_exercises_status_idx": {
-          "name": "dds_exercises_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dds_exercises_training_attempt_idx": {
-          "name": "dds_exercises_training_attempt_idx",
-          "columns": [
-            {
-              "expression": "training_attempt_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dds_exercises_scenario_version_id_scenario_versions_id_fk": {
-          "name": "dds_exercises_scenario_version_id_scenario_versions_id_fk",
-          "tableFrom": "dds_exercises",
-          "tableTo": "scenario_versions",
-          "columnsFrom": [
-            "scenario_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "dds_exercises_operator_id_users_id_fk": {
-          "name": "dds_exercises_operator_id_users_id_fk",
-          "tableFrom": "dds_exercises",
-          "tableTo": "users",
-          "columnsFrom": [
-            "operator_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.incident_card_victims": {
       "name": "incident_card_victims",
       "schema": "",
@@ -1430,6 +1060,682 @@
             "training_session_id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.training_assignments": {
+      "name": "training_assignments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scenario_version_id": {
+          "name": "scenario_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "training_assignment_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'voice_call'"
+        },
+        "card_source": {
+          "name": "card_source",
+          "type": "training_card_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'generated'"
+        },
+        "service_tag": {
+          "name": "service_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "answer_norm_seconds": {
+          "name": "answer_norm_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 240
+        },
+        "pass_threshold": {
+          "name": "pass_threshold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 75
+        },
+        "max_attempts": {
+          "name": "max_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 3
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "training_assignment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "launched_at": {
+          "name": "launched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "training_assignments_group_idx": {
+          "name": "training_assignments_group_idx",
+          "columns": [
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_assignments_target_user_idx": {
+          "name": "training_assignments_target_user_idx",
+          "columns": [
+            {
+              "expression": "target_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_assignments_scenario_version_idx": {
+          "name": "training_assignments_scenario_version_idx",
+          "columns": [
+            {
+              "expression": "scenario_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_assignments_status_idx": {
+          "name": "training_assignments_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_assignments_scenario_version_id_scenario_versions_id_fk": {
+          "name": "training_assignments_scenario_version_id_scenario_versions_id_fk",
+          "tableFrom": "training_assignments",
+          "tableTo": "scenario_versions",
+          "columnsFrom": [
+            "scenario_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "training_assignments_group_id_training_groups_id_fk": {
+          "name": "training_assignments_group_id_training_groups_id_fk",
+          "tableFrom": "training_assignments",
+          "tableTo": "training_groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "training_assignments_target_user_id_users_id_fk": {
+          "name": "training_assignments_target_user_id_users_id_fk",
+          "tableFrom": "training_assignments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "target_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "training_assignments_created_by_users_id_fk": {
+          "name": "training_assignments_created_by_users_id_fk",
+          "tableFrom": "training_assignments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "training_assignments_one_target_check": {
+          "name": "training_assignments_one_target_check",
+          "value": "(\"training_assignments\".\"group_id\" is not null) <> (\"training_assignments\".\"target_user_id\" is not null)"
+        },
+        "training_assignments_pass_threshold_check": {
+          "name": "training_assignments_pass_threshold_check",
+          "value": "\"training_assignments\".\"pass_threshold\" between 50 and 100"
+        },
+        "training_assignments_answer_norm_check": {
+          "name": "training_assignments_answer_norm_check",
+          "value": "\"training_assignments\".\"answer_norm_seconds\" > 0"
+        },
+        "training_assignments_max_attempts_check": {
+          "name": "training_assignments_max_attempts_check",
+          "value": "\"training_assignments\".\"max_attempts\" is null or \"training_assignments\".\"max_attempts\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.training_attempts": {
+      "name": "training_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "training_session_id": {
+          "name": "training_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "training_attempt_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'offered'"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "training_attempts_session_unique_idx": {
+          "name": "training_attempts_session_unique_idx",
+          "columns": [
+            {
+              "expression": "training_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_attempts_number_unique_idx": {
+          "name": "training_attempts_number_unique_idx",
+          "columns": [
+            {
+              "expression": "assignment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "operator_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempt_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_attempts_operator_active_unique_idx": {
+          "name": "training_attempts_operator_active_unique_idx",
+          "columns": [
+            {
+              "expression": "operator_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"training_attempts\".\"status\" in ('offered', 'active')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_attempts_operator_idx": {
+          "name": "training_attempts_operator_idx",
+          "columns": [
+            {
+              "expression": "operator_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_attempts_status_idx": {
+          "name": "training_attempts_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_attempts_assignment_id_training_assignments_id_fk": {
+          "name": "training_attempts_assignment_id_training_assignments_id_fk",
+          "tableFrom": "training_attempts",
+          "tableTo": "training_assignments",
+          "columnsFrom": [
+            "assignment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "training_attempts_operator_id_users_id_fk": {
+          "name": "training_attempts_operator_id_users_id_fk",
+          "tableFrom": "training_attempts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "operator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.training_group_members": {
+      "name": "training_group_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_tag": {
+          "name": "service_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "training_group_members_group_user_unique_idx": {
+          "name": "training_group_members_group_user_unique_idx",
+          "columns": [
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_group_members_user_idx": {
+          "name": "training_group_members_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_group_members_group_id_training_groups_id_fk": {
+          "name": "training_group_members_group_id_training_groups_id_fk",
+          "tableFrom": "training_group_members",
+          "tableTo": "training_groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "training_group_members_user_id_users_id_fk": {
+          "name": "training_group_members_user_id_users_id_fk",
+          "tableFrom": "training_group_members",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.training_groups": {
+      "name": "training_groups",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization": {
+          "name": "organization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "training_group_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "training_groups_code_unique_idx": {
+          "name": "training_groups_code_unique_idx",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_groups_instructor_idx": {
+          "name": "training_groups_instructor_idx",
+          "columns": [
+            {
+              "expression": "instructor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "training_groups_status_idx": {
+          "name": "training_groups_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_groups_instructor_id_users_id_fk": {
+          "name": "training_groups_instructor_id_users_id_fk",
+          "tableFrom": "training_groups",
+          "tableTo": "users",
+          "columnsFrom": [
+            "instructor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -2532,20 +2838,6 @@
         "declined"
       ]
     },
-    "public.dds_response_status": {
-      "name": "dds_response_status",
-      "schema": "public",
-      "values": [
-        "pending",
-        "accepted",
-        "not_accepted",
-        "responding",
-        "arrived",
-        "working",
-        "completed",
-        "refused"
-      ]
-    },
     "public.dispatch_service": {
       "name": "dispatch_service",
       "schema": "public",
@@ -2573,6 +2865,54 @@
         "threat_to_people",
         "emergency_threat",
         "important"
+      ]
+    },
+    "public.training_assignment_status": {
+      "name": "training_assignment_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "in_progress",
+        "completed",
+        "archived"
+      ]
+    },
+    "public.training_assignment_type": {
+      "name": "training_assignment_type",
+      "schema": "public",
+      "values": [
+        "voice_call",
+        "card_action",
+        "mixed"
+      ]
+    },
+    "public.training_card_source": {
+      "name": "training_card_source",
+      "schema": "public",
+      "values": [
+        "generated",
+        "ticket",
+        "operator_call"
+      ]
+    },
+    "public.training_group_status": {
+      "name": "training_group_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "archived"
+      ]
+    },
+    "public.training_attempt_status": {
+      "name": "training_attempt_status",
+      "schema": "public",
+      "values": [
+        "offered",
+        "active",
+        "completed",
+        "declined",
+        "cancelled_by_instructor",
+        "abandoned"
       ]
     },
     "public.authoring_source": {

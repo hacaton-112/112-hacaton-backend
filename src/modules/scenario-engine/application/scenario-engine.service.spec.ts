@@ -467,6 +467,36 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("records a fact the parsed question opened and the caller named", async () => {
+    const { engine, store } = createEngine({
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(callState({ revealedFactKeys: ["incident_type"] })),
+    });
+
+    // «Куда ехать?» — ни «адрес», ни «улиц» в тексте нет, факт открыл разбор.
+    await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-1",
+      operatorText: "Куда ехать?",
+      reply: reply({
+        text: "Улица Учебная, дом двенадцать!",
+        revealedFactIds: ["address_street"],
+      }),
+      resolveAskedFacts: () => Promise.resolve(["address_street"]),
+      now: NOW,
+    });
+
+    // Раньше запись хода сверялась со словами автора и отклоняла такой факт:
+    // сказанное не засчитывалось, и заявитель рассказывал его снова.
+    expect(eventTypes(store)).toContain("fact.revealed");
+    expect(eventTypes(store)).not.toContain("fact.rejected");
+    expect(patchOf(store).revealedFactKeys).toEqual([
+      "incident_type",
+      "address_street",
+    ]);
+  });
+
   it("opens a fact by the parsed question, not by the words of the author", async () => {
     const { engine } = createEngine();
 
@@ -485,8 +515,11 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("shows the parser the labels and the checklist question, never the answer", async () => {
     const { engine } = createEngine();
-    let seen: readonly { id: string; label: string; question: string | null }[] =
-      [];
+    let seen: readonly {
+      id: string;
+      label: string;
+      question: string | null;
+    }[] = [];
 
     await engine.buildGenerationContext({
       trainingSessionId: "session-1",
@@ -554,9 +587,9 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
   it("answers a question aimed at a fact the scenario opened by another rule", async () => {
     const { engine } = createEngine({
-      loadCall: jest.fn().mockResolvedValue(
-        callState({ callerTurns: 3, revealedFactKeys: [] }),
-      ),
+      loadCall: jest
+        .fn()
+        .mockResolvedValue(callState({ callerTurns: 3, revealedFactKeys: [] })),
     });
 
     // trapped_children is gated by a question about people, but the operator
@@ -1079,8 +1112,27 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
     // Примеры даются как образец подачи: раньше модель воспроизводила их
     // дословно ход за ходом.
     expect(built.context.persona.description).toContain(
-      "образец подачи, а не фразы для повторения",
+      "образец интонации, а не слова для реплики",
     );
+  });
+
+  it("changes the delivery examples from turn to turn", async () => {
+    const descriptions = new Set<string>();
+
+    for (let callerTurns = 0; callerTurns < 8; callerTurns += 1) {
+      const { engine } = createEngine({
+        loadCall: jest.fn().mockResolvedValue(callState({ callerTurns })),
+      });
+      const built = await engine.buildGenerationContext({
+        trainingSessionId: "session-1",
+        operatorText: "Что произошло?",
+      });
+
+      descriptions.add(built.context.persona.description);
+    }
+
+    // Одни и те же примеры в каждом ходе модель со временем произносит сама.
+    expect(descriptions.size).toBeGreaterThan(1);
   });
 });
 
@@ -1310,5 +1362,41 @@ describe(`${ScenarioEngineService.name} endCall`, () => {
     expect(snapshot.stage).toBe("ended");
     expect(snapshot.checklistSatisfied).toBe(2);
     expect(eventTypes(store)).toEqual(["call.ended", "stage.changed"]);
+  });
+
+  it("records an instructor intervention with its reason", async () => {
+    const { engine, store } = createEngine();
+
+    const snapshot = await engine.endCallByInstructor({
+      trainingSessionId: "session-1",
+      eventId: "event-10",
+      instructorId: "instructor-1",
+      reason: "Оператору требуется помощь",
+      now: NOW,
+    });
+
+    const events = store.appendTurn.mock.calls[0]?.[2] as Array<{
+      type: string;
+      actor: string;
+      payload: Record<string, unknown>;
+    }>;
+    expect(snapshot.stage).toBe("ended");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "instructor.intervened",
+          actor: "instructor",
+          payload: expect.objectContaining({
+            instructorId: "instructor-1",
+            reason: "Оператору требуется помощь",
+          }),
+        }),
+        expect.objectContaining({
+          type: "call.ended",
+          actor: "instructor",
+          payload: { reason: "instructor" },
+        }),
+      ]),
+    );
   });
 });

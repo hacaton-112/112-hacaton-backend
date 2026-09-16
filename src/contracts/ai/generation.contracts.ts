@@ -176,6 +176,13 @@ export const GenerateCallerReplyRequestSchema = z
     context: GenerationContextSchema,
     /** Безопасная реплика от Scenario Engine на случай двух ошибок модели. */
     fallbackReply: CallerReplySchema.optional(),
+    /**
+     * Почему отклонён прошлый вариант ответа на этот же ход.
+     *
+     * Без объяснения повторная попытка — тот же запрос, и модель при низкой
+     * температуре возвращает почти тот же ответ.
+     */
+    retryFeedback: z.string().trim().min(1).max(600).optional(),
   })
   .strict()
   .superRefine((request, refinement) => {

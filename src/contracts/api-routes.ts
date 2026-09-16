@@ -6,6 +6,10 @@ export const ApiRoutes = {
   Scenarios: "scenarios",
   Calls: "calls",
   DdsExercises: "dds-exercises",
+  Groups: "groups",
+  Assignments: "assignments",
+  Instructor: "instructor",
+  Users: "users",
 } as const;
 
 export type ApiRouteName = (typeof ApiRoutes)[keyof typeof ApiRoutes];

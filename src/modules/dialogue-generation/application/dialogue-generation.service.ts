@@ -13,7 +13,11 @@ import { LLM_PORT, type LlmPort } from "@/modules/ai-gateway";
 
 import { CallerReplyValidationError } from "../domain/caller-reply-validation.error";
 import { LlmReplyCollectionError } from "../domain/llm-reply-collection.error";
-import { isNearRepetition } from "../domain/repetition";
+import {
+  isNearRepetition,
+  RECENT_CALLER_REPLIES,
+  removeRepeatedSentences,
+} from "../domain/repetition";
 import { LlmReplyStreamCollector } from "./llm-reply-stream.collector";
 
 export const MAX_GENERATION_ATTEMPTS = 2;
@@ -54,6 +58,7 @@ export class DialogueGenerationService {
   ): Promise<DialogueGenerationResult> {
     const request = GenerateCallerReplyRequestSchema.parse(input);
     const attempts: GenerationAttemptMetrics[] = [];
+    let retryFeedback: string | undefined;
 
     signal.throwIfAborted();
 
@@ -61,26 +66,38 @@ export class DialogueGenerationService {
       const startedAt = performance.now();
 
       try {
-        const stream = this.llmPort.streamReply(request, signal);
+        const stream = this.llmPort.streamReply(
+          retryFeedback === undefined ? request : { ...request, retryFeedback },
+          signal,
+        );
         const collectedReply = await this.streamCollector.collect(
           stream,
           request.context.allowedFacts,
           signal,
         );
-
         // Пересказ предыдущей реплики стоит одной попытки: модель сама себя
         // не слышит, и без этой проверки заявитель по пять ходов подряд
-        // говорит «дети в комнате, дверь горит». На последней попытке реплика
-        // принимается: оставить оператора без ответа хуже, чем с повтором.
+        // говорит «дети в комнате, дверь горит». Проверяется исходный текст:
+        // срезанный до одного «Быстрее!» пересказ проверку прошёл бы, а новая
+        // попытка с объяснением даёт ответ лучше обрубка.
         if (
           attempt < MAX_GENERATION_ATTEMPTS &&
           this.repeatsPreviousReply(request, collectedReply.reply.text)
         ) {
+          retryFeedback = `Вариант «${collectedReply.reply.text}» почти дословно повторял прошлую реплику заявителя. Скажи иначе и не пересказывай уже сказанное.`;
           throw new CallerReplyValidationError(
             "repeats-previous",
             "The generated caller reply retells the previous one",
           );
         }
+
+        // Принятый ответ теряет только то, что заявитель уже говорил. На
+        // последней попытке пересказ остаётся репликой, но без повторённых
+        // фраз: оставить оператора без ответа хуже, чем с коротким ответом.
+        const reply = this.withoutRepeatedSentences(
+          request,
+          collectedReply.reply,
+        );
 
         attempts.push({
           attempt,
@@ -90,7 +107,7 @@ export class DialogueGenerationService {
         });
 
         return DialogueGenerationResultSchema.parse({
-          reply: collectedReply.reply,
+          reply,
           source: "model",
           attempts,
         });
@@ -125,6 +142,40 @@ export class DialogueGenerationService {
       source: "fallback",
       attempts,
     });
+  }
+
+  /**
+   * Снимает фразы, которые заявитель уже говорил в последних репликах.
+   *
+   * На просьбу оператора повторить повтор и есть ответ, поэтому такой ход не
+   * трогается.
+   */
+  private withoutRepeatedSentences(
+    request: GenerateCallerReplyRequest,
+    reply: CallerReply,
+  ): CallerReply {
+    if (request.context.turnPlan?.reactionAct === "repeat") {
+      return reply;
+    }
+
+    const text = removeRepeatedSentences({
+      text: reply.text,
+      recentCallerReplies: request.context.recentTurns
+        .filter((turn) => turn.role === "caller")
+        .slice(-RECENT_CALLER_REPLIES)
+        .map((turn) => turn.text),
+      allowedFactValues: request.context.allowedFacts.map(({ value }) => value),
+    });
+
+    if (text === reply.text) {
+      return reply;
+    }
+
+    this.logger.debug(
+      `Dropped repeated sentences from a caller reply of ${request.sessionId}: «${reply.text}» → «${text}»`,
+    );
+
+    return { ...reply, text };
   }
 
   /** Оператор попросил повторить — тогда повтор и есть требуемый ответ. */

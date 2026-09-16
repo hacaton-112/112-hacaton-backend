@@ -1,5 +1,6 @@
 import {
   clampPanicLevel,
+  deliveryExamples,
   panicProfile,
   PANIC_LEVELS,
   type EscalationRule,
@@ -179,6 +180,69 @@ describe("panic profiles as the prompt sees them", () => {
 
   it("lets the calm caller build a story and the panicking one only shout", () => {
     expect(panicProfile(0).speechRules).toContain("полными фразами");
-    expect(panicProfile(4).speechRules).toContain("повторяет");
+    expect(panicProfile(4).speechRules).toContain("обрывками");
+  });
+
+  it("never tells the caller to repeat what was already said", () => {
+    // Правило «повторяет ключевые слова» модель исполняла буквально: один и
+    // тот же факт звучал хвостом каждой реплики.
+    for (const level of PANIC_LEVELS) {
+      expect(panicProfile(level).speechRules).not.toMatch(/повторяет/u);
+    }
+  });
+
+  it("keeps the delivery examples free of anything a scenario could hold", () => {
+    // Профиль общий для всех сценариев, а пример модель переносит почти
+    // дословно: «Дети там, дети!» из пожара звучало в наезде на пешехода.
+    const scenarioWords =
+      /\d|дет|гор|пожар|дым|этаж|кварт|подъезд|(?<!\p{L})дом(?!\p{L})|улиц|машин|газ|двер|окн|муж|жена|кров/iu;
+
+    for (const level of PANIC_LEVELS) {
+      for (const example of panicProfile(level).examples) {
+        expect(example).not.toMatch(scenarioWords);
+      }
+    }
+  });
+
+  it("keeps the delivery examples free of gendered past forms", () => {
+    // «Я вышел» из примера модель повторяла и за женщину-заявителя.
+    // \b в JavaScript не видит границ кириллических слов, поэтому границы
+    // заданы явно.
+    const gendered = /(?<!\p{L})\p{L}+(?:л|ла|лся|лась)(?!\p{L})/iu;
+
+    for (const level of PANIC_LEVELS) {
+      for (const example of panicProfile(level).examples) {
+        expect(example).not.toMatch(gendered);
+      }
+    }
+  });
+});
+
+describe("deliveryExamples", () => {
+  it("offers two different examples of the current step", () => {
+    const examples = deliveryExamples(3, "call-1:4");
+
+    expect(examples).toHaveLength(2);
+    expect(new Set(examples).size).toBe(2);
+    for (const example of examples) {
+      expect(panicProfile(3).examples).toContain(example);
+    }
+  });
+
+  it("gives the same turn the same examples", () => {
+    expect(deliveryExamples(4, "call-1:7")).toEqual(
+      deliveryExamples(4, "call-1:7"),
+    );
+  });
+
+  it("does not show the same examples on every turn of a call", () => {
+    const shown = new Set(
+      Array.from({ length: 12 }, (_, turn) =>
+        deliveryExamples(4, `call-1:${turn}`).join("|"),
+      ),
+    );
+
+    // Иначе модель со временем начинает произносить пример сама.
+    expect(shown.size).toBeGreaterThan(1);
   });
 });
