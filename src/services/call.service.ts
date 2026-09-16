@@ -38,6 +38,7 @@ interface CallStreamCallbacks {
 
 export interface CallStream {
   connect(token: string): Promise<void>;
+  resume(sessionId: string, resumeListening: boolean): Promise<void>;
   start(
     scenarioVersionId: string,
     scenarioCategory: string,
@@ -109,6 +110,10 @@ class NativeCallStream implements CallStream {
 
   accept(): Promise<void> {
     return this.send({ type: "accept" });
+  }
+
+  resume(sessionId: string, resumeListening: boolean): Promise<void> {
+    return this.send({ type: "resume", sessionId, resumeListening });
   }
 
   decline(): Promise<void> {
