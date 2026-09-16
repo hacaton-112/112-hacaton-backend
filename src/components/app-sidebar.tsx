@@ -2,6 +2,7 @@ import {
   Activity,
   BookOpen,
   ClipboardList,
+  FileSpreadsheet,
   Headphones,
   GraduationCap,
   RadioTower,
@@ -20,7 +21,7 @@ import { useAuthLogout } from "../hooks/use-auth";
 import {
   ROLE_LABELS,
   canAuthorScenarios,
-  canAdministerUsers,
+  canViewClassifier,
   canManageTraining,
   canTrainAsDds,
 } from "../config/roles";
@@ -190,6 +191,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.admin())}
                 >
                   Администрирование
+              {canViewClassifier(user?.role) && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.classifier())}
+                  icon={FileSpreadsheet}
+                  label="Классификатор"
+                  onClick={() => goTo(ROUTES.classifier())}
+                >
+                  Классификатор
                 </SidebarNavItem>
               )}
             </SidebarMenu>

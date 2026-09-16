@@ -77,10 +77,12 @@ export function useIncidentCard({
               ? undefined
               : current,
         ),
-      onSaved: () =>
+      onSaved: (saved) => {
+        setCard(saved);
         setFailure((current) =>
           current?.sessionId === trainingSessionId ? undefined : current,
-        ),
+        );
+      },
       onError: (reason) =>
         setFailure({
           sessionId: trainingSessionId,

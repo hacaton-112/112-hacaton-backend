@@ -20,6 +20,9 @@ const emptyBackendCard = {
   longitude: null,
   nearby: false,
   placeNotes: null,
+  classifierEntryId: null,
+  classifierQualifierCodes: [],
+  classifierRouting: null,
   incidentType: null,
   categories: [],
   startedAt: null,
@@ -43,6 +46,8 @@ describe("IncidentCardSchema", () => {
     expect(card.victimsTotal).toBeNull();
     expect(card.deathsTotal).toBeNull();
     expect(card.callerFirstName).toBeNull();
+    expect(card.classifierEntryId).toBeNull();
+    expect(card.classifierRouting).toBeNull();
     expect(card.victims).toEqual([]);
   });
 

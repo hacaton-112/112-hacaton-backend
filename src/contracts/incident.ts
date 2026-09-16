@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ClassifierRoutingSchema } from "./classifier";
+
 /**
  * Службы так, как они подписаны на кнопках АРМ. Коды совпадают с backend:
  * называть ДДС-01 «пожарной» внутри карточки значит заставить оператора и
@@ -96,6 +98,12 @@ export const IncidentCardSchema = z.object({
   nearby: z.boolean(),
   placeNotes: text(2_000),
 
+  classifierEntryId: z.string().uuid().nullable().default(null),
+  classifierQualifierCodes: z
+    .array(z.string().min(3).max(64))
+    .max(32)
+    .default([]),
+  classifierRouting: ClassifierRoutingSchema.nullable().default(null),
   incidentType: text(200),
   categories: z.array(IncidentCategorySchema).max(4),
   startedAt: z.iso.datetime().nullable(),
@@ -134,6 +142,9 @@ export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
   longitude: "",
   nearby: false,
   placeNotes: "",
+  classifierEntryId: null,
+  classifierQualifierCodes: [],
+  classifierRouting: null,
   incidentType: "",
   categories: [],
   startedAt: null,

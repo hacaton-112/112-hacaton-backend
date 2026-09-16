@@ -163,6 +163,9 @@ export default function OperatorPage() {
               pointStatus={incidentPoint.status}
               onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
               services={incidentCard.services}
+              requiredServices={
+                incidentCard.card?.classifierRouting?.requiredServices ?? []
+              }
               onToggleService={incidentCard.toggleService}
               callerName={callerName}
               isCardReady={Boolean(incidentCard.card)}

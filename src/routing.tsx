@@ -5,6 +5,7 @@ import { Outlet, Route, Routes } from "react-router";
 import { ROUTE_PATTERNS } from "./config/routes";
 import {
   ADMIN_ROLES,
+  CLASSIFIER_VIEWER_ROLES,
   DDS_TRAINEE_ROLES,
   SCENARIO_AUTHOR_ROLES,
   TRAINEE_ROLES,
@@ -33,6 +34,7 @@ const GroupPage = lazy(() => import("./pages/main/group-page"));
 const StudentPage = lazy(() => import("./pages/main/student-page"));
 const StudentsPage = lazy(() => import("./pages/main/students-page"));
 const AdminPage = lazy(() => import("./pages/main/admin-page"));
+const ClassifierPage = lazy(() => import("./pages/main/classifier-page"));
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -102,6 +104,12 @@ export function Routing() {
             </Route>
             <Route element={<RoleLayout allowed={DDS_TRAINEE_ROLES} />}>
               <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
+            </Route>
+            <Route element={<RoleLayout allowed={CLASSIFIER_VIEWER_ROLES} />}>
+              <Route
+                path={ROUTE_PATTERNS.classifier}
+                element={lazyPage(<ClassifierPage />)}
+              />
             </Route>
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
               <Route
