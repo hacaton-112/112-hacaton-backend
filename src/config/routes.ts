@@ -24,9 +24,9 @@ export const ROUTES = {
   operator: () => "/",
   auth: () => "/auth",
   debrief: () => "/debrief",
+  dds: () => "/dds",
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
-  dds: () => "/dds",
   scenarios: () => "/scenarios",
   scenarioNew: () => "/scenarios/new",
   scenarioEdit: (scenarioVersionId: string) =>
