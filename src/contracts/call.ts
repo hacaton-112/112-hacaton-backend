@@ -58,6 +58,20 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     ...SnapshotShape,
   }),
   z.object({
+    type: z.literal("call.resumed"),
+    scenarioCode: z.string(),
+    title: z.string(),
+    locator: CallLocatorSchema.nullable(),
+    revealedFactKeys: z.array(z.string()),
+    dialogue: z.array(
+      z.object({ role: z.enum(["operator", "caller"]), text: z.string() }),
+    ),
+    offeredAt: z.string(),
+    answeredAt: z.string().nullable(),
+    recoveryWindowSeconds: z.number().int().positive(),
+    ...SnapshotShape,
+  }),
+  z.object({
     type: z.literal("call.ended"),
     reason: z.enum([
       "operator",
@@ -134,7 +148,9 @@ export const ScenarioListSchema = z.object({
 });
 
 /** Commands initiated by the webview and sent through the native call transport. */
-export type CallClientCommand = { type: "accept" | "decline" | "end" };
+export type CallClientCommand =
+  | { type: "accept" | "decline" | "end" }
+  | { type: "resume"; sessionId: string; resumeListening: boolean };
 
 /**
  * Состояние звонка в окне оператора.

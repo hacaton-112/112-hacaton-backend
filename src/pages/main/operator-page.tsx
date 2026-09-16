@@ -64,7 +64,10 @@ export default function OperatorPage() {
     );
   })();
   const isCardEditable =
-    call.state === "active" && Boolean(incidentCard.card) && !isEnding;
+    call.state === "active" &&
+    Boolean(incidentCard.card) &&
+    !isEnding &&
+    !call.isRecovering;
   // Точку на карте оператор отмечает только в своём идущем звонке: backend
   // определяет адрес по той же учебной сессии и чужую не примет.
   const incidentPoint = useIncidentPoint(call.trainingSessionId);
@@ -112,6 +115,15 @@ export default function OperatorPage() {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+      {call.isRecovering && (
+        <div
+          className="bg-amber-3 text-amber-12 absolute inset-x-0 top-0 z-[60] px-4 py-2 text-center text-sm font-medium shadow-sm"
+          role="status"
+        >
+          Сбой сети. Восстановление активной сессии…{" "}
+          {call.recoverySecondsRemaining} с
+        </div>
+      )}
       <ScrollArea
         className="operator-page-scroll min-h-0 flex-1"
         scrollbars="vertical"

@@ -78,6 +78,7 @@ export function CallControlDock(props: CallControlDockProps) {
                 variant={props.isMuted ? "solid" : "soft"}
                 color={props.isMuted ? "red" : "gray"}
                 onClick={props.toggleMute}
+                disabled={props.isRecovering}
                 aria-label={
                   props.isMuted ? "Включить микрофон" : "Выключить микрофон"
                 }
@@ -89,7 +90,9 @@ export function CallControlDock(props: CallControlDockProps) {
                 radius="full"
                 color="red"
                 onClick={props.onEnd}
-                disabled={!props.isCardReady || props.isEnding}
+                disabled={
+                  !props.isCardReady || props.isEnding || props.isRecovering
+                }
                 aria-label="Завершить вызов"
               >
                 <PhoneOff size={17} />
