@@ -5,6 +5,7 @@ import {
   AppNotFoundException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
+import { ClassifierService } from "@/modules/classifier/classifier.service";
 
 import type { IncidentCard, SaveIncidentCard } from "../dto/incident-card.dto";
 import {
@@ -24,6 +25,7 @@ export class IncidentCardService {
   constructor(
     @Inject(INCIDENT_CARD_STORE)
     private readonly store: IncidentCardStore,
+    private readonly classifier: ClassifierService,
   ) {}
 
   async get(
@@ -50,6 +52,50 @@ export class IncidentCardService {
         ErrorCodes.INCIDENT_CARD_CLOSED,
         "The call is over and its incident card is read-only",
       );
+    }
+
+    const current = await this.store.load(trainingSessionId);
+    const classifierChanged =
+      patch.classifierEntryId !== undefined ||
+      patch.classifierQualifierCodes !== undefined;
+
+    if (classifierChanged) {
+      const entryId =
+        patch.classifierEntryId !== undefined
+          ? patch.classifierEntryId
+          : (current?.classifierEntryId ?? null);
+
+      if (entryId === null) {
+        return this.store.save(trainingSessionId, {
+          ...patch,
+          classifierEntryId: null,
+          classifierQualifierCodes: [],
+          classifierRouting: null,
+          incidentType: patch.incidentType ?? null,
+        });
+      }
+
+      const qualifierCodes =
+        patch.classifierQualifierCodes ??
+        current?.classifierQualifierCodes ??
+        [];
+      const selectedBefore = current?.classifierEntryId === entryId;
+      const result = selectedBefore
+        ? await this.classifier.routeStored(entryId, qualifierCodes)
+        : await this.classifier.routeActive(entryId, qualifierCodes);
+
+      return this.store.save(trainingSessionId, {
+        ...patch,
+        classifierEntryId: entryId,
+        classifierQualifierCodes: [...result.routing.qualifierCodes],
+        classifierRouting: result.routing,
+        incidentType: result.routing.finalType,
+      });
+    }
+
+    if (current?.classifierEntryId && patch.incidentType !== undefined) {
+      const { incidentType: _ignored, ...safePatch } = patch;
+      return this.store.save(trainingSessionId, safePatch);
     }
 
     return this.store.save(trainingSessionId, patch);
@@ -101,6 +147,9 @@ export class IncidentCardService {
       longitude: null,
       nearby: false,
       placeNotes: null,
+      classifierEntryId: null,
+      classifierQualifierCodes: [],
+      classifierRouting: null,
       incidentType: null,
       categories: [],
       startedAt: null,

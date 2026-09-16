@@ -3,6 +3,7 @@ import { ErrorCodes } from "@/contracts";
 
 import type { IncidentCard } from "../dto/incident-card.dto";
 import type { IncidentCardStore } from "../ports/incident-card.store.port";
+import type { ClassifierService } from "@/modules/classifier/classifier.service";
 
 import { IncidentCardService } from "./incident-card.service";
 
@@ -26,9 +27,36 @@ interface StoreMocks {
   submit: jest.Mock;
 }
 
+interface ClassifierMocks {
+  routeActive: jest.Mock;
+  routeStored: jest.Mock;
+}
+
+const classifierResult = {
+  routing: {
+    classifierVersionId: "7d382312-d69e-4f10-8c77-f7b795707ccd",
+    classifierEntryId: "52a2fb62-356f-49c0-a621-882af11e45c8",
+    sourceCode: "12001",
+    featurePath: ["Пожар"],
+    finalType: "Пожар в жилом доме",
+    ekpType: "ПОЖАР",
+    mainServiceCode: "01",
+    qualifierCodes: [],
+    requiredServices: [
+      { code: "svc_fire", name: "Пожарная охрана", routeLabel: "Выезд" },
+    ],
+  },
+  availableQualifiers: [],
+} as const;
+
 const createService = (
   overrides: Partial<StoreMocks> = {},
-): { service: IncidentCardService; store: StoreMocks } => {
+  classifierOverrides: Partial<ClassifierMocks> = {},
+): {
+  service: IncidentCardService;
+  store: StoreMocks;
+  classifier: ClassifierMocks;
+} => {
   const store: StoreMocks = {
     findCall: jest
       .fn()
@@ -38,10 +66,19 @@ const createService = (
     submit: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
+  const classifier: ClassifierMocks = {
+    routeActive: jest.fn().mockResolvedValue(classifierResult),
+    routeStored: jest.fn().mockResolvedValue(classifierResult),
+    ...classifierOverrides,
+  };
 
   return {
-    service: new IncidentCardService(store as unknown as IncidentCardStore),
+    service: new IncidentCardService(
+      store as unknown as IncidentCardStore,
+      classifier as unknown as ClassifierService,
+    ),
     store,
+    classifier,
   };
 };
 
@@ -82,6 +119,71 @@ describe(IncidentCardService.name, () => {
     expect(store.save).toHaveBeenCalledWith("session-1", {
       addressText: "улица Учебная, дом 12, квартира 34",
       services: ["dds_01"],
+    });
+  });
+
+  it("stores the backend routing snapshot and ignores a forged final type", async () => {
+    const { service, store, classifier } = createService();
+
+    await service.save("session-1", "operator-1", {
+      classifierEntryId: classifierResult.routing.classifierEntryId,
+      classifierQualifierCodes: [],
+      incidentType: "Подменено клиентом",
+    });
+
+    expect(classifier.routeActive).toHaveBeenCalledWith(
+      classifierResult.routing.classifierEntryId,
+      [],
+    );
+    expect(store.save).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        incidentType: "Пожар в жилом доме",
+        classifierRouting: classifierResult.routing,
+      }),
+    );
+  });
+
+  it("reroutes the stored immutable version when a qualifier changes", async () => {
+    const current = card({
+      classifierEntryId: classifierResult.routing.classifierEntryId,
+      classifierQualifierCodes: [],
+      classifierRouting: classifierResult.routing,
+      incidentType: classifierResult.routing.finalType,
+    });
+    const { service, classifier } = createService({
+      load: jest.fn().mockResolvedValue(current),
+    });
+
+    await service.save("session-1", "operator-1", {
+      classifierQualifierCodes: ["q_people"],
+    });
+
+    expect(classifier.routeStored).toHaveBeenCalledWith(
+      classifierResult.routing.classifierEntryId,
+      ["q_people"],
+    );
+    expect(classifier.routeActive).not.toHaveBeenCalled();
+  });
+
+  it("does not let a later patch overwrite a classified final type", async () => {
+    const current = card({
+      classifierEntryId: classifierResult.routing.classifierEntryId,
+      classifierQualifierCodes: [],
+      classifierRouting: classifierResult.routing,
+      incidentType: classifierResult.routing.finalType,
+    });
+    const { service, store } = createService({
+      load: jest.fn().mockResolvedValue(current),
+    });
+
+    await service.save("session-1", "operator-1", {
+      incidentType: "Подменено клиентом",
+      description: "Описание оператора",
+    });
+
+    expect(store.save).toHaveBeenCalledWith("session-1", {
+      description: "Описание оператора",
     });
   });
 

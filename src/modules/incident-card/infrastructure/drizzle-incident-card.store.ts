@@ -13,11 +13,11 @@ import {
 import type {
   IncidentCard,
   IncidentCardVictim,
-  SaveIncidentCard,
 } from "../dto/incident-card.dto";
 import type {
   CallOwnership,
   IncidentCardStore,
+  StoredIncidentCardPatch,
 } from "../ports/incident-card.store.port";
 
 type CardRow = typeof incidentCards.$inferSelect;
@@ -67,7 +67,7 @@ export class DrizzleIncidentCardStore implements IncidentCardStore {
 
   async save(
     trainingSessionId: string,
-    patch: SaveIncidentCard,
+    patch: StoredIncidentCardPatch,
   ): Promise<IncidentCard> {
     const { victims, startedAt, latitude, longitude, ...fields } = patch;
     const values = {
@@ -150,6 +150,9 @@ export class DrizzleIncidentCardStore implements IncidentCardStore {
       longitude: toNumber(card.longitude),
       nearby: card.nearby,
       placeNotes: card.placeNotes,
+      classifierEntryId: card.classifierEntryId,
+      classifierQualifierCodes: [...card.classifierQualifierCodes],
+      classifierRouting: card.classifierRouting,
       incidentType: card.incidentType,
       categories: [...card.categories],
       startedAt: card.startedAt?.toISOString() ?? null,

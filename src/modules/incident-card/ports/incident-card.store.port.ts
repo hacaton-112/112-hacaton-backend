@@ -1,4 +1,9 @@
 import type { IncidentCard, SaveIncidentCard } from "../dto/incident-card.dto";
+import type { ClassifierRoutingSnapshot } from "@/drizzle/schema";
+
+export type StoredIncidentCardPatch = SaveIncidentCard & {
+  readonly classifierRouting?: ClassifierRoutingSnapshot | null;
+};
 
 /** Кому принадлежит звонок и можно ли ещё править его карточку. */
 export interface CallOwnership {
@@ -20,7 +25,7 @@ export interface IncidentCardStore {
 
   save(
     trainingSessionId: string,
-    patch: SaveIncidentCard,
+    patch: StoredIncidentCardPatch,
   ): Promise<IncidentCard>;
 
   /** Закрывает карточку вместе со звонком; повтор ничего не меняет. */
