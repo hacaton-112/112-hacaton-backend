@@ -7,6 +7,11 @@ import type {
   CallState,
   ScenarioSummary,
 } from "../contracts/call";
+import {
+  clearActiveTrainingSession,
+  readActiveTrainingSession,
+  writeActiveTrainingSession,
+} from "../lib/active-call-session";
 import { callService, type CallStream } from "../services/call.service";
 import { useAuthStore } from "../stores/auth.store";
 import { useMapWindowStore } from "../stores/map-window.store";
@@ -65,7 +70,6 @@ export interface CallControls {
 /** Через сколько пробовать снова после обрыва: сокет — единственный канал. */
 const RECONNECT_DELAY_MS = 2_000;
 const RECOVERY_WINDOW_MS = 30_000;
-const ACTIVE_CALL_STORAGE_KEY = "system112.activeTrainingSession";
 
 const ERROR_MESSAGES: Record<string, string> = {
   "session-recovery-unavailable": "Сессию не удалось восстановить",
@@ -102,6 +106,12 @@ const turnId = () =>
  */
 export function useCall(): CallSnapshot & CallControls {
   const token = useAuthStore((state) => state.accessToken);
+  const operatorId = useAuthStore((state) => state.user?.id);
+  // handleEvent живёт вне рендера, поэтому читает оператора через ref.
+  const operatorIdRef = useRef(operatorId);
+  useEffect(() => {
+    operatorIdRef.current = operatorId;
+  }, [operatorId]);
   const streamRef = useRef<CallStream>(null);
   const recoveryDeadlineRef = useRef<number | null>(null);
   const [isConnected, setConnected] = useState(false);
@@ -141,7 +151,7 @@ export function useCall(): CallSnapshot & CallControls {
         setChecklistSatisfied(event.checklistSatisfied);
         setAnswerNormSeconds(event.answerNormSeconds);
         setStartedAt(new Date());
-        localStorage.setItem(ACTIVE_CALL_STORAGE_KEY, event.sessionId);
+        writeActiveTrainingSession(operatorIdRef.current, event.sessionId);
         break;
       case "call.accepted":
         setState("active");
@@ -177,7 +187,7 @@ export function useCall(): CallSnapshot & CallControls {
         setRecoverySecondsRemaining(0);
         setError(undefined);
         recoveryDeadlineRef.current = null;
-        localStorage.setItem(ACTIVE_CALL_STORAGE_KEY, event.sessionId);
+        writeActiveTrainingSession(operatorIdRef.current, event.sessionId);
         break;
       case "call.ended":
         setState("ended");
@@ -188,7 +198,7 @@ export function useCall(): CallSnapshot & CallControls {
         setCallerAudioLevel(0);
         setRecovering(false);
         recoveryDeadlineRef.current = null;
-        localStorage.removeItem(ACTIVE_CALL_STORAGE_KEY);
+        clearActiveTrainingSession();
         break;
       case "listen.started":
         setListening(true);
@@ -240,7 +250,7 @@ export function useCall(): CallSnapshot & CallControls {
         if (event.code === "session-recovery-unavailable") {
           setRecovering(false);
           setState("ended");
-          localStorage.removeItem(ACTIVE_CALL_STORAGE_KEY);
+          clearActiveTrainingSession();
         }
         break;
       case "socket.error":
@@ -251,7 +261,7 @@ export function useCall(): CallSnapshot & CallControls {
         setListening(false);
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
-        if (localStorage.getItem(ACTIVE_CALL_STORAGE_KEY)) {
+        if (readActiveTrainingSession(operatorIdRef.current)) {
           recoveryDeadlineRef.current ??= Date.now() + RECOVERY_WINDOW_MS;
           setRecovering(true);
           setRecoverySecondsRemaining(
@@ -277,7 +287,7 @@ export function useCall(): CallSnapshot & CallControls {
   useEffect(() => {
     if (!token) return;
 
-    const storedSessionId = localStorage.getItem(ACTIVE_CALL_STORAGE_KEY);
+    const storedSessionId = readActiveTrainingSession(operatorId);
     if (storedSessionId && recoveryDeadlineRef.current === null) {
       recoveryDeadlineRef.current = Date.now() + RECOVERY_WINDOW_MS;
       setRecovering(true);
@@ -305,9 +315,11 @@ export function useCall(): CallSnapshot & CallControls {
 
         setConnected(true);
         setError(undefined);
-        const sessionId = localStorage.getItem(ACTIVE_CALL_STORAGE_KEY);
+        const sessionId = readActiveTrainingSession(operatorId);
         if (sessionId) {
           setRecovering(true);
+          // Микрофон не переоткрываем сами: слушать снова решает оператор,
+          // иначе восстановление записало бы тишину как его реплику.
           return stream.resume(sessionId, false);
         }
       })
@@ -317,7 +329,7 @@ export function useCall(): CallSnapshot & CallControls {
         const deadline = recoveryDeadlineRef.current;
         if (deadline !== null && Date.now() >= deadline) {
           recoveryDeadlineRef.current = null;
-          localStorage.removeItem(ACTIVE_CALL_STORAGE_KEY);
+          clearActiveTrainingSession();
           setRecovering(false);
           setState((current) => (current === "idle" ? current : "ended"));
           setError("Сессия завершена: связь не восстановлена за 30 секунд");
@@ -337,7 +349,7 @@ export function useCall(): CallSnapshot & CallControls {
       setConnected(false);
       void stream.dispose();
     };
-  }, [token, attempt, handleEvent]);
+  }, [token, operatorId, attempt, handleEvent]);
 
   useEffect(() => {
     if (!isRecovering) return;
@@ -350,7 +362,7 @@ export function useCall(): CallSnapshot & CallControls {
       setRecoverySecondsRemaining(remaining);
       if (remaining === 0) {
         recoveryDeadlineRef.current = null;
-        localStorage.removeItem(ACTIVE_CALL_STORAGE_KEY);
+        clearActiveTrainingSession();
         setRecovering(false);
         setState((current) => (current === "idle" ? current : "ended"));
         setError("Сессия завершена: связь не восстановлена за 30 секунд");
@@ -458,7 +470,7 @@ export function useCall(): CallSnapshot & CallControls {
     setState("idle");
     setEndedByInstructor(false);
     setTrainingSessionId(undefined);
-    localStorage.removeItem(ACTIVE_CALL_STORAGE_KEY);
+    clearActiveTrainingSession();
     recoveryDeadlineRef.current = null;
     setLocator(null);
     setScenarioTitle(undefined);

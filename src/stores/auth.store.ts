@@ -2,6 +2,7 @@ import { createTauriStore } from "@tauri-store/zustand";
 import { create } from "zustand";
 
 import type { AuthSession, AuthUser } from "../contracts/auth";
+import { clearActiveTrainingSession } from "../lib/active-call-session";
 
 /** A type alias, not an interface: the plugin's `State` needs an index signature. */
 type AuthState = {
@@ -30,13 +31,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       user: session.user,
     }),
 
-  signOut: () =>
+  signOut: () => {
+    // Осознанный выход — не обрыв связи: восстанавливать нечего, и окно
+    // оператора не должно встретить следующий вход баннером восстановления.
+    clearActiveTrainingSession();
     set({
       accessToken: null,
       accessTokenExpiresAt: null,
       refreshToken: null,
       user: null,
-    }),
+    });
+  },
 }));
 
 // Access tokens are short-lived. Persist only the rotating refresh credential;
