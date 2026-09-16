@@ -43,6 +43,14 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   GEOCODING_CALL_NOT_ACTIVE:
     "Звонок завершён — место происшествия больше не меняется",
   CALL_NOT_FOUND: "Звонок не найден",
+  DDS_EXERCISE_NOT_FOUND: "Учебная карточка ДДС не найдена",
+  DDS_SCENARIO_NOT_READY:
+    "Для сценария не определена служба, которая должна получить карточку",
+  DDS_STATUS_COMMENT_REQUIRED: "Для выбранного статуса нужен комментарий",
+  DDS_STATUS_TRANSITION_INVALID:
+    "Этот статус нельзя установить на текущем этапе реагирования",
+  DDS_STATUS_TRANSITION_CONFLICT:
+    "Статус карточки уже изменился. Данные обновлены",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 
