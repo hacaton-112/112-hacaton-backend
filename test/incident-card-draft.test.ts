@@ -21,7 +21,7 @@ const inertScheduler = {
 describe("IncidentCardDraft", () => {
   it("keeps edits from different operator panels in one card", () => {
     const draft = new IncidentCardDraft({
-      save: async () => undefined,
+      save: async (card) => card,
       scheduler: inertScheduler,
     });
 
@@ -40,6 +40,7 @@ describe("IncidentCardDraft", () => {
     const draft = new IncidentCardDraft({
       save: async (card) => {
         order.push(`save:${card.description}`);
+        return card;
       },
       scheduler: inertScheduler,
     });
@@ -58,6 +59,7 @@ describe("IncidentCardDraft", () => {
     const draft = new IncidentCardDraft({
       save: async (card) => {
         saves.push(card);
+        return card;
       },
       scheduler: inertScheduler,
     });
@@ -82,6 +84,7 @@ describe("IncidentCardDraft", () => {
         if (saves.length === 1) {
           draft.update({ description: "Второе изменение" });
         }
+        return card;
       },
       scheduler: inertScheduler,
     });
@@ -96,9 +99,10 @@ describe("IncidentCardDraft", () => {
   it("keeps a failed save pending for an explicit retry", async () => {
     let attempts = 0;
     const draft = new IncidentCardDraft({
-      save: async () => {
+      save: async (card) => {
         attempts += 1;
         if (attempts === 1) throw new Error("backend unavailable");
+        return card;
       },
       scheduler: inertScheduler,
     });
@@ -110,6 +114,50 @@ describe("IncidentCardDraft", () => {
     await draft.flush();
 
     expect(attempts).toBe(2);
+  });
+
+  it("does not apply an older classifier response over a newer selection", async () => {
+    const oldEntry = "52a2fb62-356f-49c0-a621-882af11e45c8";
+    const newEntry = "1616d357-877e-491f-9626-e4bb9ed6a3a1";
+    let releaseFirst: (() => void) | undefined;
+    let announceStart: (() => void) | undefined;
+    const firstStarted = new Promise<void>((resolve) => {
+      announceStart = resolve;
+    });
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const savedSelections: Array<string | null> = [];
+    let calls = 0;
+    const draft = new IncidentCardDraft({
+      save: async (card) => {
+        calls += 1;
+        if (calls === 1) {
+          announceStart?.();
+          await firstGate;
+        }
+
+        return IncidentCardSchema.parse({
+          ...card,
+          incidentType:
+            card.classifierEntryId === oldEntry ? "Старый тип" : "Новый тип",
+        });
+      },
+      onSaved: (card) => savedSelections.push(card.classifierEntryId),
+      scheduler: inertScheduler,
+    });
+
+    draft.load(emptyCard());
+    draft.update({ classifierEntryId: oldEntry });
+    const flush = draft.flush();
+    await firstStarted;
+    draft.update({ classifierEntryId: newEntry });
+    releaseFirst?.();
+    await flush;
+
+    expect(savedSelections[0]).toBe(newEntry);
+    expect(draft.getSnapshot()?.classifierEntryId).toBe(newEntry);
+    expect(draft.getSnapshot()?.incidentType).toBe("Новый тип");
   });
 });
 

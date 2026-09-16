@@ -45,6 +45,12 @@ export const API_CONFIG = {
   getScenarioVersionsUrl: (scenarioId: string) =>
     `/scenarios/${scenarioId}/versions`,
   getReverseGeocodeUrl: () => `/geocoding/reverse`,
+  getClassifierVersionsUrl: () => `/classifiers/versions`,
+  getClassifierImportUrl: () => `/classifiers/versions/import`,
+  getClassifierActivationUrl: (versionId: string) =>
+    `/classifiers/versions/${versionId}/activate`,
+  getActiveClassifierTreeUrl: () => `/classifiers/active/tree`,
+  getActiveClassifierRouteUrl: () => `/classifiers/active/route`,
   getCallsUrl: () => `/calls`,
   getDdsExercisesUrl: () => `/dds-exercises`,
   getDdsExerciseUrl: (exerciseId: string) => `/dds-exercises/${exerciseId}`,

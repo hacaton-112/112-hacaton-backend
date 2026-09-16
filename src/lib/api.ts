@@ -62,6 +62,16 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   ASSIGNMENT_HAS_ACTIVE_ATTEMPTS:
     "Сначала завершите активные попытки операторов",
   TRAINING_SESSION_NOT_ACTIVE: "Сессия уже завершена",
+  CLASSIFIER_IMPORT_INVALID:
+    "Файл не соответствует формату классификатора происшествий",
+  CLASSIFIER_FILE_REQUIRED: "Выберите XLSX-файл классификатора",
+  CLASSIFIER_VERSION_NOT_FOUND: "Версия классификатора не найдена",
+  CLASSIFIER_ACTIVE_VERSION_NOT_FOUND:
+    "Активная версия классификатора ещё не выбрана",
+  CLASSIFIER_ENTRY_NOT_FOUND:
+    "Выбранный тип отсутствует в активной версии классификатора",
+  CLASSIFIER_QUALIFIER_INVALID:
+    "Дополнительный признак не относится к выбранному типу",
   DDS_EXERCISE_NOT_FOUND: "Учебная карточка ДДС не найдена",
   DDS_SCENARIO_NOT_READY:
     "Для сценария не определена служба, которая должна получить карточку",

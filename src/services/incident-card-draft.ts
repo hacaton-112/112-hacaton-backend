@@ -16,11 +16,11 @@ interface DraftScheduler {
 }
 
 interface IncidentCardDraftOptions {
-  save: (card: IncidentCard) => Promise<void>;
+  save: (card: IncidentCard) => Promise<IncidentCard>;
   saveDelayMs?: number;
   scheduler?: DraftScheduler;
   onSavingChange?: (isSaving: boolean) => void;
-  onSaved?: () => void;
+  onSaved?: (card: IncidentCard) => void;
   onError?: (reason: unknown) => void;
 }
 
@@ -54,11 +54,11 @@ export function applyIncidentCardLocationDefaults(
  * ждать обычный debounce уже нельзя.
  */
 export class IncidentCardDraft {
-  private readonly save: (card: IncidentCard) => Promise<void>;
+  private readonly save: (card: IncidentCard) => Promise<IncidentCard>;
   private readonly saveDelayMs: number;
   private readonly scheduler: DraftScheduler;
   private readonly onSavingChange?: (isSaving: boolean) => void;
-  private readonly onSaved?: () => void;
+  private readonly onSaved?: (card: IncidentCard) => void;
   private readonly onError?: (reason: unknown) => void;
 
   private current?: IncidentCard;
@@ -130,8 +130,9 @@ export class IncidentCardDraft {
           this.onSavingChange?.(true);
 
           try {
-            await this.save(snapshot);
-            this.onSaved?.();
+            const saved = await this.save(snapshot);
+            this.reconcile(snapshot, saved);
+            this.onSaved?.(this.current ?? saved);
           } finally {
             this.onSavingChange?.(false);
           }
@@ -174,5 +175,38 @@ export class IncidentCardDraft {
 
     this.scheduler.clearTimeout(this.timer);
     this.timer = undefined;
+  }
+
+  /**
+   * The backend owns classifier results. Apply them only while the same leaf
+   * and qualifiers are still selected, so a slower response can never replace
+   * the operator's newer choice.
+   */
+  private reconcile(snapshot: IncidentCard, saved: IncidentCard): void {
+    if (this.current === snapshot) {
+      this.current = saved;
+      return;
+    }
+    if (!this.current) return;
+
+    const sameSelection =
+      this.current.classifierEntryId === snapshot.classifierEntryId &&
+      this.current.classifierQualifierCodes.length ===
+        snapshot.classifierQualifierCodes.length &&
+      this.current.classifierQualifierCodes.every((code) =>
+        snapshot.classifierQualifierCodes.includes(code),
+      );
+
+    if (!sameSelection) return;
+
+    const reconciled = IncidentCardSchema.parse({
+      ...this.current,
+      classifierEntryId: saved.classifierEntryId,
+      classifierQualifierCodes: saved.classifierQualifierCodes,
+      classifierRouting: saved.classifierRouting,
+      incidentType: saved.incidentType,
+    });
+    if (this.pending === this.current) this.pending = reconciled;
+    this.current = reconciled;
   }
 }
