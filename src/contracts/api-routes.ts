@@ -11,6 +11,7 @@ export const ApiRoutes = {
   Assignments: "assignments",
   Instructor: "instructor",
   Users: "users",
+  MethodicalMaterials: "methodical-materials",
 } as const;
 
 export type ApiRouteName = (typeof ApiRoutes)[keyof typeof ApiRoutes];

@@ -16,6 +16,7 @@ import { HealthModule } from "@/modules/health/health.module";
 import { GeocodingModule } from "@/modules/geocoding/geocoding.module";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { MetricsModule } from "@/modules/metrics";
+import { MethodicalMaterialsModule } from "@/modules/methodical-materials/methodical-materials.module";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { TrainingModule } from "@/modules/training/training.module";
 import { UsersModule } from "@/modules/users/users.module";
@@ -35,6 +36,7 @@ import { DatabaseModule } from "./database/database.module";
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
     MetricsModule,
+    MethodicalMaterialsModule,
     AuditLogModule,
     HealthModule,
     GeocodingModule,
