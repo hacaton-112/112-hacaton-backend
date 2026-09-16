@@ -1532,6 +1532,104 @@ describe(VoicePipelineGateway.name, () => {
     }
   });
 
+  it("keeps the recovered socket when the dropped one closes late", async () => {
+    jest.useFakeTimers();
+    const engine = createEngine({
+      endCallByInstructor: jest
+        .fn()
+        .mockResolvedValue({ ...snapshot, stage: "ended" }),
+    });
+
+    try {
+      const runtime = await createRuntime(
+        successfulStream,
+        jest.fn().mockResolvedValue(authenticatedUser),
+        jest.fn().mockResolvedValue(undefined),
+        engine,
+      );
+      const sessionId = (engine.startCall as jest.Mock).mock.calls[0]?.[0]
+        .trainingSessionId as string;
+
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+      const resumedSocket = new SocketMock();
+      await runtime.gateway.handleConnection(
+        asSocket(resumedSocket),
+        handshake("Bearer token"),
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(resumedSocket),
+        message({ type: "resume", sessionId, resumeListening: false }),
+        false,
+      );
+
+      // Обрыв старого сокета мог дойти до сервера уже после восстановления.
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+
+      await runtime.gateway.endSessionByInstructor(
+        sessionId,
+        "9f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+        "instructor stopped the drill",
+      );
+
+      expect(textEvents(resumedSocket)).toContainEqual(
+        expect.objectContaining({ type: "call.ended", reason: "instructor" }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not expire a session recovered from its persisted lease", async () => {
+    jest.useFakeTimers();
+    const engine = createEngine({
+      claimRecoveryLease: jest.fn().mockResolvedValue(true),
+    });
+
+    try {
+      const runtime = await createRuntime(
+        successfulStream,
+        jest.fn().mockResolvedValue(authenticatedUser),
+        jest.fn().mockResolvedValue(undefined),
+        engine,
+      );
+      const sessionId = (engine.startCall as jest.Mock).mock.calls[0]?.[0]
+        .trainingSessionId as string;
+
+      runtime.gateway.handleDisconnect(asSocket(runtime.socket));
+      // Клиент вернулся по сохранённой lease, а не по живой памяти процесса.
+      (
+        runtime.gateway as unknown as {
+          recoverableSessions: Map<string, unknown>;
+        }
+      ).recoverableSessions.delete(sessionId);
+
+      const resumedSocket = new SocketMock();
+      await runtime.gateway.handleConnection(
+        asSocket(resumedSocket),
+        handshake("Bearer token"),
+      );
+      await runtime.gateway.handleClientMessage(
+        asSocket(resumedSocket),
+        message({ type: "resume", sessionId, resumeListening: false }),
+        false,
+      );
+
+      expect(textEvents(resumedSocket)).toContainEqual(
+        expect.objectContaining({ type: "call.resumed", sessionId }),
+      );
+
+      jest.advanceTimersByTime(60_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(engine.endCall).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("does not let another operator recover the session", async () => {
     jest.useFakeTimers();
     const engine = createEngine();
