@@ -5,6 +5,7 @@ export const ApiRoutes = {
   Geocoding: "geocoding",
   Scenarios: "scenarios",
   Calls: "calls",
+  Classifiers: "classifiers",
   DdsExercises: "dds-exercises",
   Groups: "groups",
   Assignments: "assignments",

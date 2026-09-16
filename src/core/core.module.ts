@@ -9,6 +9,7 @@ import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { AuthModule } from "@/modules/auth/auth.module";
+import { ClassifierModule } from "@/modules/classifier";
 import { DebriefModule } from "@/modules/debrief/debrief.module";
 import { DdsExerciseModule } from "@/modules/dds-exercise";
 import { HealthModule } from "@/modules/health/health.module";
@@ -38,6 +39,7 @@ import { DatabaseModule } from "./database/database.module";
     HealthModule,
     GeocodingModule,
     AuthModule,
+    ClassifierModule,
     AsrModule,
     DebriefModule,
     DdsExerciseModule,

@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -11,6 +12,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { callStates } from "./call.schema";
+import {
+  classifierEntries,
+  type ClassifierRoutingSnapshot,
+} from "./classifier.schema";
 
 /**
  * Службы так, как они подписаны в АРМ.
@@ -94,6 +99,20 @@ export const incidentCards = pgTable(
     placeNotes: text("place_notes"),
 
     // ── О происшествии ───────────────────────────────────────────
+    classifierEntryId: text("classifier_entry_id").references(
+      () => classifierEntries.id,
+      { onDelete: "restrict" },
+    ),
+    classifierQualifierCodes: text("classifier_qualifier_codes")
+      .array()
+      .notNull()
+      .default([]),
+    /**
+     * Snapshot of the immutable version used for this call. A later classifier
+     * activation must not rewrite the operator's completed incident card.
+     */
+    classifierRouting:
+      jsonb("classifier_routing").$type<ClassifierRoutingSnapshot>(),
     incidentType: text("incident_type"),
     categories: incidentCategory("categories").array().notNull().default([]),
     startedAt: timestamp("started_at", { withTimezone: true }),
