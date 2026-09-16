@@ -165,11 +165,13 @@ ssh -N -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 user@server
 ```
 
 - `http://localhost:3001` — Grafana. Логин и пароль — `GRAFANA_ADMIN_USER` и
-  `GRAFANA_ADMIN_PASSWORD` из `.env`. Дашборд «Тренажёр 112 — backend» лежит в
-  папке «Тренажёр 112».
+  `GRAFANA_ADMIN_PASSWORD` из `.env`. Dashboard состояния системы, backend и
+  ASR лежат в папке «Тренажёр 112».
 - `http://localhost:9090/targets` — цели Prometheus. `system112-backend` должен
-  быть в состоянии UP. `system112-asr` останется DOWN, пока ASR-сервис не
-  начнёт отдавать `/metrics`.
+  быть в состоянии UP. После развёртывания ветки ASR с `/metrics` цель
+  `system112-asr` также должна быть UP.
+- `http://localhost:9090/alerts` — pending/firing alerts с порогами и ссылками
+  на runbook.
 
 ## Что показывает дашборд
 
@@ -184,9 +186,12 @@ ssh -N -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 user@server
 | Запросы по статусу, p95 по маршруту | нагрузка и медленные маршруты API |
 | Задержка цикла событий, память, процессор | выдерживает ли процесс параллельные звонки: при занятом цикле событий кадры звука стоят в очереди, и речь рвётся |
 
-Дашборд и источник данных заводятся из файлов в `observability/grafana`.
+Dashboard и источник данных заводятся из файлов в `observability/grafana`.
 Правки в интерфейсе Grafana не сохраняются: меняйте JSON в репозитории и
 перезапускайте сервис.
+
+Полный список ASR/system панелей, alert thresholds, команды проверки и runbook
+находятся в [`observability.md`](observability.md).
 
 ## 6. Подключение приложения
 
