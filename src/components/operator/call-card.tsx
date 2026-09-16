@@ -10,8 +10,8 @@ import {
 import { MapPin } from "lucide-react";
 
 import { MOSCOW } from "../../config/map";
-import type { CallState } from "../../hooks/use-call";
-import type { IncidentLocation } from "../map/incident-map";
+import type { CallState } from "../../contracts/call";
+import type { IncidentLocation } from "../../contracts/geo";
 
 interface CallCardProps {
   state: CallState;

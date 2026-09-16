@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router";
 
 import type { ScenarioSummary } from "../../contracts/call";
 import { useScenarios } from "../../hooks/use-scenarios";
+import { SCENARIO_QUERY_PARAM } from "../../config/routes";
 
 interface ScenarioPickerProps {
   disabled: boolean;
@@ -21,7 +22,7 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
   // Каталог сценариев открывает рабочее место уже с выбранным сценарием.
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState(
-    () => searchParams.get("scenario") ?? undefined,
+    () => searchParams.get(SCENARIO_QUERY_PARAM) ?? undefined,
   );
   const { data, isPending } = useScenarios();
 

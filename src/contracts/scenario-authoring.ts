@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { EARTH_RADIUS_METERS } from "../config/map";
+
 export const SCENARIO_CATEGORIES = [
   "fire",
   "road_accident",
@@ -194,7 +196,6 @@ const distanceBetweenCoordinates = (
   [fromLatitude, fromLongitude]: [number, number],
   [toLatitude, toLongitude]: [number, number],
 ): number => {
-  const earthRadiusMeters = 6_371_000;
   const toRadians = (value: number) => (value * Math.PI) / 180;
   const latitudeDelta = toRadians(toLatitude - fromLatitude);
   const longitudeDelta = toRadians(toLongitude - fromLongitude);
@@ -206,7 +207,7 @@ const distanceBetweenCoordinates = (
       Math.cos(toLatitudeRadians) *
       Math.sin(longitudeDelta / 2) ** 2;
 
-  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(haversine));
 };
 
 export const DisclosureRuleSchema = z.discriminatedUnion("type", [

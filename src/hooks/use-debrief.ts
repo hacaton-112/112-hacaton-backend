@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import { QUERY_KEYS } from "../config/query-keys";
 import type { CallSummary, Debrief } from "../contracts/debrief";
 import { debriefService } from "../services/debrief.service";
 
@@ -15,13 +16,13 @@ export interface DebriefState {
 /** Данные списка вызовов или одного разбора в зависимости от маршрута. */
 export function useDebrief(trainingSessionId?: string): DebriefState {
   const callsQuery = useQuery({
-    queryKey: ["calls"],
+    queryKey: QUERY_KEYS.calls(),
     queryFn: debriefService.listCalls,
     enabled: trainingSessionId === undefined,
   });
 
   const debriefQuery = useQuery({
-    queryKey: ["debrief", trainingSessionId],
+    queryKey: QUERY_KEYS.debrief(trainingSessionId),
     queryFn: () => {
       if (!trainingSessionId) {
         throw new Error("Не указана учебная сессия");

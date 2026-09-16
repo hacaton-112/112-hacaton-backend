@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { QUERY_KEY_PREFIXES } from "../config/query-keys";
 import {
   scenarioAuthoringService,
   type ScenarioPublicationInput,
@@ -17,8 +18,12 @@ export function useScenarioAuthoring() {
   // Новая версия меняет и каталог, и брифинг: оба перечитываются.
   const invalidateCatalog = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
-      queryClient.invalidateQueries({ queryKey: ["scenario-version"] }),
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEY_PREFIXES.scenarios,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEY_PREFIXES.scenarioVersion,
+      }),
     ]);
   const publication = useMutation({
     mutationFn: (input: ScenarioPublicationInput) =>

@@ -10,19 +10,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
 import { INCIDENT_ZOOM, type CityPreset } from "../../config/map";
-import type { GeoPoint } from "../../services/incident-location";
+import type { GeoPoint, IncidentLocation } from "../../contracts/geo";
 import { createCircleZone } from "./geo-circle";
 
 const ZONE_RADIUS_METERS = 400;
 const ZONE_SOURCE_ID = "incident-zone";
 const ZONE_FILL_LAYER_ID = "incident-zone-fill";
 const ZONE_OUTLINE_LAYER_ID = "incident-zone-outline";
-
-export interface IncidentLocation {
-  longitude: number;
-  latitude: number;
-  address: string;
-}
 
 interface IncidentMapProps {
   city: CityPreset;

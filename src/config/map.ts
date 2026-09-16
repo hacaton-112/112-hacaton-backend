@@ -20,3 +20,6 @@ export const CITY_PRESETS: readonly CityPreset[] = [MOSCOW];
 
 /** Зум, на который карта приближается после определения адреса вызова. */
 export const INCIDENT_ZOOM = 15.5;
+
+/** Средний радиус Земли: и круг зоны, и расстояние между точками считают по нему. */
+export const EARTH_RADIUS_METERS = 6_371_000;

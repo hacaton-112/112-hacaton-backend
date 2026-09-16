@@ -58,14 +58,14 @@ import {
 } from "../../contracts/scenario-authoring";
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
+import { ROUTES } from "../../config/routes";
 import { useScenarios } from "../../hooks/use-scenarios";
 import { ApiError } from "../../lib/api";
+import { messageFrom } from "../../lib/error-message";
 import type { ScenarioAuthoringSource } from "../../services/scenario-authoring.service";
 
-const messageFrom = (error: unknown): string =>
-  error instanceof ApiError || error instanceof Error
-    ? error.message
-    : "Не удалось выполнить запрос";
+/** Запасной текст, если ошибка пришла без сообщения. */
+const REQUEST_ERROR = "Не удалось выполнить запрос";
 
 const FIELD_LABELS: Record<string, string> = {
   code: "Код сценария",
@@ -135,12 +135,13 @@ function ScenarioVersionEditor({
             <AlertTriangle size={18} />
           </Callout.Icon>
           <Callout.Text>
-            Не удалось открыть сценарий на правку: {messageFrom(version.error)}{" "}
+            Не удалось открыть сценарий на правку:{" "}
+            {messageFrom(version.error, REQUEST_ERROR)}{" "}
             <Button
               size="1"
               variant="soft"
               color="red"
-              onClick={() => navigate("/scenarios")}
+              onClick={() => navigate(ROUTES.scenarios())}
             >
               К сценариям
             </Button>
@@ -270,8 +271,8 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
 
     navigate(
       latest
-        ? `/scenarios/${encodeURIComponent(latest.scenarioVersionId)}/edit`
-        : "/scenarios",
+        ? ROUTES.scenarioEdit(latest.scenarioVersionId)
+        : ROUTES.scenarios(),
     );
   };
 
@@ -317,7 +318,10 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       });
     } catch (error) {
       if (requestId !== geocodingRequestRef.current) return;
-      setGeocodingFeedback({ status: "error", message: messageFrom(error) });
+      setGeocodingFeedback({
+        status: "error",
+        message: messageFrom(error, REQUEST_ERROR),
+      });
     }
   };
 
@@ -352,7 +356,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
           "Проверьте факты, условия раскрытия и эталон перед публикацией.",
       });
     } catch (error) {
-      setHelperError(messageFrom(error));
+      setHelperError(messageFrom(error, REQUEST_ERROR));
       setHelperOpen(true);
     }
   };
@@ -409,7 +413,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
         revealFeedback();
       } else {
         toast.error("Сценарий не опубликован", {
-          description: messageFrom(error),
+          description: messageFrom(error, REQUEST_ERROR),
           duration: 8_000,
         });
       }
