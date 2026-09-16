@@ -1,11 +1,14 @@
 import {
+  Activity,
   BookOpen,
   ClipboardList,
   Headphones,
+  GraduationCap,
   RadioTower,
   LogOut,
   Settings,
   UserRound,
+  Users,
 } from "lucide-react";
 import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
@@ -16,6 +19,7 @@ import { useAuthLogout } from "../hooks/use-auth";
 import {
   ROLE_LABELS,
   canAuthorScenarios,
+  canManageTraining,
   canTrainAsDds,
 } from "../config/roles";
 import { ROUTES } from "../config/routes";
@@ -119,6 +123,43 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               >
                 Разбор звонков
               </SidebarNavItem>
+              {canManageTraining(user?.role) ? (
+                <>
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.monitoring())}
+                    icon={Activity}
+                    label="Мониторинг"
+                    onClick={() => goTo(ROUTES.monitoring())}
+                  >
+                    Мониторинг
+                  </SidebarNavItem>
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.groups())}
+                    icon={Users}
+                    label="Группы"
+                    onClick={() => goTo(ROUTES.groups())}
+                  >
+                    Группы
+                  </SidebarNavItem>
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.students())}
+                    icon={GraduationCap}
+                    label="Ученики"
+                    onClick={() => goTo(ROUTES.students())}
+                  >
+                    Ученики
+                  </SidebarNavItem>
+                </>
+              ) : (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.assignments())}
+                  icon={GraduationCap}
+                  label="Мои назначения"
+                  onClick={() => goTo(ROUTES.assignments())}
+                >
+                  Мои назначения
+                </SidebarNavItem>
+              )}
               {showDds && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.dds())}

@@ -19,12 +19,23 @@ export function ThemeWithPanel({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", update);
   }, []);
 
+  const appearance =
+    settings.theme === "system" ? systemAppearance : settings.theme;
+
+  // Тема таблиц Bolid задана отдельно для светлого и тёмного режима и выбирает
+  // его по этому атрибуту. Без него таблица остаётся на базовых белых цветах
+  // даже в тёмной теме приложения.
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      "data-data-table-theme-mode",
+      appearance,
+    );
+  }, [appearance]);
+
   return (
     <I18nProvider locale="ru-RU">
       <Theme
-        appearance={
-          settings.theme === "system" ? systemAppearance : settings.theme
-        }
+        appearance={appearance}
         accentColor={settings.accentColor}
         grayColor="gray"
         radius={settings.radius}

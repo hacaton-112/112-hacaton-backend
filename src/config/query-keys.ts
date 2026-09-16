@@ -10,6 +10,19 @@ export const QUERY_KEYS = {
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,
+  trainingGroups: () => ["training-groups"] as const,
+  trainingGroup: (groupId: string) => ["training-groups", groupId] as const,
+  groupStudents: (groupId: string) =>
+    ["training-groups", groupId, "students"] as const,
+  students: () => ["students"] as const,
+  studentProfile: (userId: string) => ["student-profile", userId] as const,
+  trainingOperators: () => ["training-operators"] as const,
+  users: (role?: string) => ["users", role] as const,
+  trainingAssignments: () => ["training-assignments"] as const,
+  myAssignments: () => ["my-assignments"] as const,
+  liveTrainingSessions: (groupId?: string) =>
+    ["live-training-sessions", groupId] as const,
+  instructorCalls: () => ["instructor-calls"] as const,
   scenarioVersion: (scenarioVersionId?: string) =>
     ["scenario-version", scenarioVersionId] as const,
   calls: () => ["calls"] as const,

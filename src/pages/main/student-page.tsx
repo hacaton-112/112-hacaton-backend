@@ -1,0 +1,151 @@
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Flex,
+  Heading,
+  Skeleton,
+  Tabs,
+  Text,
+} from "@bolid-ui/themes";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { useNavigate, useParams } from "react-router";
+
+import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
+import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
+import {
+  formatDateTime,
+  formatDuration,
+  formatScore,
+} from "../../components/training/training-labels";
+import { ROUTES } from "../../config/routes";
+import type { StudentProfile } from "../../contracts/training";
+import {
+  useStudentProfile,
+  useTrainingMutations,
+} from "../../hooks/use-training";
+
+/** Ученик: успеваемость по всем занятиям и разборы его звонков. */
+export default function StudentPage() {
+  const { groupId, userId = "" } = useParams();
+  const navigate = useNavigate();
+  const profile = useStudentProfile(userId);
+
+  return (
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+      <Button
+        variant="ghost"
+        color="gray"
+        className="self-start"
+        onClick={() =>
+          navigate(groupId ? ROUTES.group(groupId) : ROUTES.students())
+        }
+      >
+        <ArrowLeft size={16} /> {groupId ? "К группе" : "Все ученики"}
+      </Button>
+
+      {profile.error && !profile.data && (
+        <Callout.Root color="red" role="alert">
+          <Callout.Icon>
+            <AlertTriangle size={16} />
+          </Callout.Icon>
+          <Callout.Text>
+            Не удалось открыть ученика: {profile.error.message}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
+      {profile.isPending && <Skeleton height="360px" className="rounded-xl" />}
+
+      {profile.data && <StudentContent profile={profile.data} />}
+    </main>
+  );
+}
+
+function StudentContent({ profile }: { profile: StudentProfile }) {
+  const { student, stats, calls } = profile;
+  const mutations = useTrainingMutations();
+
+  const tiles = [
+    { label: "Попыток", value: String(stats.attempts) },
+    { label: "Завершено", value: String(stats.completedAttempts) },
+    { label: "Средний балл", value: formatScore(stats.averageScore) },
+    { label: "Лучший балл", value: formatScore(stats.bestScore) },
+    {
+      label: "Сдано выше порога",
+      value: `${stats.passedCalls} из ${stats.evaluatedCalls}`,
+    },
+    {
+      label: "Время ответа, сред.",
+      value:
+        stats.averageAnswerSeconds === null
+          ? "—"
+          : formatDuration(stats.averageAnswerSeconds),
+    },
+  ];
+
+  return (
+    <>
+      <div>
+        <Heading size="6">{student.fullName}</Heading>
+        <Flex align="center" gap="2" wrap="wrap" mt="1">
+          <Text size="2" color="gray">
+            {student.email}
+          </Text>
+          {student.groups.map((group) => (
+            <Badge key={group.groupId} variant="soft">
+              {group.groupName} · {group.serviceTag}
+            </Badge>
+          ))}
+        </Flex>
+        {stats.lastAttemptAt && (
+          <Text as="p" size="1" color="gray" mt="1">
+            Последний звонок {formatDateTime(stats.lastAttemptAt)}
+          </Text>
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {tiles.map((tile) => (
+          <Card key={tile.label} size="2">
+            <Text as="p" size="1" color="gray">
+              {tile.label}
+            </Text>
+            <Text as="p" size="5" weight="bold">
+              {tile.value}
+            </Text>
+          </Card>
+        ))}
+      </div>
+
+      <Tabs.Root defaultValue="calls" className="flex min-h-0 flex-1 flex-col">
+        <Tabs.List size="2">
+          <Tabs.Trigger value="calls">Разборы</Tabs.Trigger>
+          <Tabs.Trigger value="assignments">
+            Индивидуальные занятия
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content
+          value="calls"
+          className="flex min-h-0 flex-1 flex-col pt-4"
+        >
+          <InstructorCallsTable calls={calls} backLabel="К ученику" />
+        </Tabs.Content>
+        <Tabs.Content
+          value="assignments"
+          className="flex min-h-0 flex-1 flex-col pt-4"
+        >
+          <TrainingAssignmentsPanel
+            target={{
+              kind: "student",
+              student: { id: student.id, fullName: student.fullName },
+            }}
+            mutations={mutations}
+          />
+        </Tabs.Content>
+      </Tabs.Root>
+    </>
+  );
+}

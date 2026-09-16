@@ -5,6 +5,7 @@
     "": {
       "name": "trainer-client",
       "dependencies": {
+        "@bolid-ui/data-table": "^0.2.7",
         "@bolid-ui/primitives": "^0.1.2",
         "@bolid-ui/themes": "^0.3.0",
         "@hookform/resolvers": "^5.9.1",
@@ -40,6 +41,8 @@
   },
   "packages": {
     "@bolid-ui/colors": ["@bolid-ui/colors@0.1.0", "", {}, "sha512-7tj1UeNlJR0dk52uCARBQ/GS+FuN2gNfnKcbXBiXV1giiWXGjfWHONu6WhF6FtyumXtIys5mfek7r8k4S9C4KQ=="],
+
+    "@bolid-ui/data-table": ["@bolid-ui/data-table@0.2.7", "", { "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-rwrz/H7vRwBfL0WdEf4v3wFMrPWYfcUCnQfBKOf1bfWbNLrPmCyfINbWQ2M6+BAMh3vnm+vxpS00SH9JQPAAkQ=="],
 
     "@bolid-ui/primitives": ["@bolid-ui/primitives@0.1.2", "", { "dependencies": { "@floating-ui/react-dom": "^2.1.2", "aria-hidden": "^1.2.4", "classnames": "^2.5.1", "intl-messageformat": "^10.7.16", "react-remove-scroll": "^2.6.3", "use-sync-external-store": "^1.4.0" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-txK52ABuQbrhUfpyo+YGdupN9K0siI36IfHk9jLjqJlSOhf9bE7NU/ffO3jM13AO93bT0ldx3L5PlPysk0SESA=="],
 
