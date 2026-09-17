@@ -6,8 +6,8 @@ async function main(): Promise<void> {
   try {
     const query =
       "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations';";
-    const res = await client.query(query);
-    const tableNames = res.rows.map((r: any) => `"${r.tablename}"`).join(", ");
+    const res = await client.query<{ tablename: string }>(query);
+    const tableNames = res.rows.map((r) => `"${r.tablename}"`).join(", ");
     if (tableNames.length > 0) {
       await client.query(`TRUNCATE TABLE ${tableNames} CASCADE;`);
       console.log(`Truncated tables: ${tableNames}`);
