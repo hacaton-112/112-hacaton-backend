@@ -7,7 +7,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type { Response } from "express";
+import type { FastifyReply } from "fastify";
 import { ZodValidationException } from "nestjs-zod";
 
 import { ErrorCodes } from "@/contracts/error-codes";
@@ -27,17 +27,27 @@ interface ErrorResponse {
   timestamp: string;
 }
 
+interface FastifyHttpError extends Error {
+  statusCode: number;
+}
+
+const isFastifyHttpError = (error: unknown): error is FastifyHttpError =>
+  error instanceof Error &&
+  typeof (error as Partial<FastifyHttpError>).statusCode === "number" &&
+  (error as FastifyHttpError).statusCode >= 400 &&
+  (error as FastifyHttpError).statusCode <= 599;
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
+    const response = ctx.getResponse<FastifyReply>();
 
     const errorResponse = this.buildErrorResponse(exception);
 
-    response.status(errorResponse.statusCode).json(errorResponse);
+    void response.code(errorResponse.statusCode).send(errorResponse);
   }
 
   private buildErrorResponse(exception: unknown): ErrorResponse {
@@ -121,7 +131,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // 5. Unknown errors
+    // 5. Fastify parser and lifecycle errors (malformed JSON, oversized body,
+    // unsupported content type, and similar failures before a controller).
+    if (isFastifyHttpError(exception)) {
+      const statusCode = exception.statusCode;
+      return {
+        statusCode,
+        code: ErrorCodes.INTERNAL_ERROR,
+        message:
+          statusCode >= HttpStatus.INTERNAL_SERVER_ERROR
+            ? "Internal server error"
+            : exception.message,
+        errors: [],
+        timestamp,
+      };
+    }
+
+    // 6. Unknown errors
     this.logger.error(
       "Unhandled exception",
       exception instanceof Error ? exception.stack : String(exception),

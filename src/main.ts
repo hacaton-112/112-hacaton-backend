@@ -1,30 +1,42 @@
 import { Logger, VersioningType } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { WsAdapter } from "@nestjs/platform-ws";
-import helmet from "helmet";
 import { WinstonModule } from "nest-winston";
 
 import { env } from "@/core/config/env.config";
+import {
+  configureFastifyRequestLifecycle,
+  createFastifyAdapter,
+  type FastifyNestApplication,
+  registerFastifyPlugins,
+} from "@/core/http/fastify.adapter";
 import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
+import { HttpMetrics } from "@/modules/metrics/application/http-metrics";
 
 const GLOBAL_API_PREFIX = "api";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("Bootstrap");
-  const app = await NestFactory.create(CoreModule, {
-    logger: WinstonModule.createLogger({
-      instance: winstonLogger,
-    }),
-  });
+  const adapter = createFastifyAdapter();
+  const app = await NestFactory.create<FastifyNestApplication>(
+    CoreModule,
+    adapter,
+    {
+      logger: WinstonModule.createLogger({
+        instance: winstonLogger,
+      }),
+    },
+  );
 
   const host = env.HOST;
   const port = env.PORT;
 
+  configureFastifyRequestLifecycle(adapter, app.get(HttpMetrics));
   app.useWebSocketAdapter(new WsAdapter(app));
 
-  // ── Security Headers ─────────────────────────────────────────
-  app.use(helmet());
+  // ── Fastify-native security and multipart plugins ────────────
+  await registerFastifyPlugins(app);
 
   app.setGlobalPrefix(GLOBAL_API_PREFIX);
 
@@ -60,9 +72,8 @@ async function bootstrap(): Promise<void> {
     logger.error(`Unhandled Rejection: ${message}`, stack);
   });
 
-  await app.listen(port, host, () => {
-    logger.log(`Listening at http://${host}:${port}/${GLOBAL_API_PREFIX}`);
-  });
+  await app.listen({ host, port });
+  logger.log(`Listening at http://${host}:${port}/${GLOBAL_API_PREFIX}`);
 }
 
 bootstrap();

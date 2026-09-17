@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { FastifyRequest } from "fastify";
 
 import type { ClientMetadata } from "./auth-session.service";
 
@@ -21,10 +21,12 @@ const normalise = (
  * Session metadata for incident review only — it is never used to authorise a
  * request, because a desktop client legitimately roams between networks.
  *
- * Note that `main.ts` does not enable Express' trust proxy setting, so behind a
- * reverse proxy this records the proxy's address rather than the client's.
+ * `trustProxy` deliberately remains disabled, so behind a reverse proxy this
+ * records the proxy's address rather than trusting a caller-controlled header.
  */
-export const readClientMetadata = (request: Request): ClientMetadata => ({
+export const readClientMetadata = (
+  request: Pick<FastifyRequest, "headers" | "ip">,
+): ClientMetadata => ({
   userAgent: normalise(request.headers["user-agent"], MAX_USER_AGENT_LENGTH),
   ipAddress: normalise(request.ip, MAX_IP_ADDRESS_LENGTH),
 });
