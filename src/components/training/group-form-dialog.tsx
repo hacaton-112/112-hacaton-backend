@@ -44,7 +44,7 @@ export function GroupFormDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="520px">
+      <Dialog.Content maxWidth="680px" className="w-[calc(100vw-2rem)] sm:max-w-[680px]">
         {open && (
           <GroupForm
             group={group}
@@ -115,11 +115,10 @@ function GroupForm({
     <form onSubmit={submit}>
       <Dialog.Title>{isEdit ? "Изменить группу" : "Новая группа"}</Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
-        Группа объединяет учеников одного потока. Занятия назначаются группе
-        целиком.
+        Группа объединяет обучающихся (операторов) одного потока или дежурной смены ДДС. Занятия назначаются группе целиком или по службам реагирования.
       </Dialog.Description>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="Название" className="sm:col-span-2">
           <TextField.Root
             required

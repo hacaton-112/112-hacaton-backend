@@ -35,7 +35,7 @@ export function MemberAddDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="460px">
+      <Dialog.Content maxWidth="600px" className="w-[calc(100vw-2rem)] sm:max-w-[600px]">
         {open && (
           <MemberAddForm
             group={group}
@@ -75,7 +75,7 @@ function MemberAddForm({
         userId,
         serviceTag: serviceTag.trim(),
       });
-      toast.success("Ученик добавлен в группу");
+      toast.success("Обучающийся добавлен в группу");
       onDone();
     } catch {
       // Причина остаётся в диалоге.
@@ -84,19 +84,19 @@ function MemberAddForm({
 
   return (
     <form onSubmit={submit}>
-      <Dialog.Title>Добавить ученика</Dialog.Title>
+      <Dialog.Title>Добавить обучающегося в группу</Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
-        Служба определяет, какие занятия группы увидит ученик.
+        Служба определяет, какие занятия группы увидит обучающийся оператор.
       </Dialog.Description>
 
       <div className="grid gap-3">
-        <TrainingField label="Ученик">
+        <TrainingField label="Обучающийся (оператор)">
           <Select.Root value={userId} onValueChange={setUserId}>
             <Select.Trigger
               placeholder={
                 candidates.length === 0
-                  ? "Все ученики уже в группе"
-                  : "Выберите ученика"
+                  ? "Все операторы уже в группе"
+                  : "Выберите обучающегося"
               }
             />
             <Select.Content>

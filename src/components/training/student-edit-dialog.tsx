@@ -49,7 +49,7 @@ export function StudentEditDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="520px">
+      <Dialog.Content maxWidth="680px" className="w-[calc(100vw-2rem)] sm:max-w-[680px]">
         {open && student && (
           <StudentEditForm
             groupId={groupId}
@@ -126,14 +126,14 @@ function StudentEditForm({
 
   return (
     <form onSubmit={submit}>
-      <Dialog.Title>Изменить ученика</Dialog.Title>
+      <Dialog.Title>Изменить данные обучающегося</Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
         {canManage
-          ? "Новый пароль завершит все прежние входы ученика."
-          : "Служба определяет, какие занятия группы увидит ученик."}
+          ? "Новый пароль завершит все прежние входы обучающегося."
+          : "Служба определяет, какие занятия группы увидит обучающийся."}
       </Dialog.Description>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="ФИО" className="sm:col-span-2">
           <TextField.Root
             required

@@ -36,7 +36,7 @@ export function UserFormDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="540px">
+      <Dialog.Content maxWidth="680px" className="w-[calc(100vw-2rem)] sm:max-w-[680px]">
         {open && (
           <UserForm
             key={user?.id ?? "new"}
@@ -126,7 +126,7 @@ function UserForm({
           : "Публичной регистрации нет: доступ выдаёт администратор."}
       </Dialog.Description>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="ФИО" className="sm:col-span-2">
           <TextField.Root
             required

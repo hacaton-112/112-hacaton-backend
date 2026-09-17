@@ -38,7 +38,7 @@ export function StudentCreateDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="520px">
+      <Dialog.Content maxWidth="680px" className="w-[calc(100vw-2rem)] sm:max-w-[680px]">
         {open && (
           <StudentCreateForm
             {...rest}
@@ -93,12 +93,12 @@ function StudentCreateForm({
 
   return (
     <form onSubmit={submit}>
-      <Dialog.Title>Новый ученик</Dialog.Title>
+      <Dialog.Title>Новый обучающийся (оператор)</Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
-        Учётная запись с ролью оператора. Пароль ученик получает от вас.
+        Учётная запись с ролью оператора Системы-112 / ДДС. Пароль передаётся обучающемуся.
       </Dialog.Description>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="ФИО" className="sm:col-span-2">
           <TextField.Root
             required

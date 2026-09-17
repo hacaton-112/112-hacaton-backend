@@ -28,7 +28,7 @@ export function ScenarioDeleteDialog({
 }: ScenarioDeleteDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={pending ? undefined : onOpenChange}>
-      <Dialog.Content maxWidth="460px">
+      <Dialog.Content maxWidth="540px" className="w-[calc(100vw-2rem)] sm:max-w-[540px]">
         <Dialog.Title>Удалить сценарий?</Dialog.Title>
         <Dialog.Description size="2" mb="3">
           <strong>

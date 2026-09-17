@@ -201,7 +201,7 @@ export function GroupAnalyticsTab({
 
       {/* Диалог официального протокола занятия */}
       <Dialog.Root open={protocolOpen} onOpenChange={setProtocolOpen}>
-        <Dialog.Content maxWidth="800px">
+        <Dialog.Content maxWidth="960px" className="w-[calc(100vw-2rem)] sm:max-w-[960px]">
           <Dialog.Title>
             <Flex justify="between" align="center">
               <span>Протокол учебного занятия</span>
