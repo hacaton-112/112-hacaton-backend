@@ -4,6 +4,7 @@ import {
   LibraryBig,
   ClipboardList,
   FileSpreadsheet,
+  FileChartColumn,
   Headphones,
   GraduationCap,
   RadioTower,
@@ -178,6 +179,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.monitoring())}
                 >
                   Мониторинг
+                </SidebarNavItem>
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.reports())}
+                  icon={FileChartColumn}
+                  label="Отчёты"
+                  onClick={() => goTo(ROUTES.reports())}
+                >
+                  Отчёты
                 </SidebarNavItem>
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.groups())}

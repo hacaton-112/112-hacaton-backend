@@ -64,6 +64,8 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   ASSIGNMENT_HAS_ACTIVE_ATTEMPTS:
     "Сначала завершите активные попытки операторов",
   TRAINING_SESSION_NOT_ACTIVE: "Сессия уже завершена",
+  REPORT_INVALID_PERIOD: "Начало периода отчёта позже его окончания",
+  REPORT_TOO_LARGE: "Слишком много попыток — сократите период отчёта",
   CLASSIFIER_IMPORT_INVALID:
     "Файл не соответствует формату классификатора происшествий",
   CLASSIFIER_FILE_REQUIRED: "Выберите XLSX-файл классификатора",
@@ -240,6 +242,19 @@ class Api {
     return this.instance
       .get<Blob>(url, { ...config, responseType: "blob" })
       .then((response) => response.data);
+  }
+
+  /** Файл и серверное имя attachment для отчётов и других экспортов. */
+  getDownload(url: string, config?: AxiosRequestConfig) {
+    return this.instance
+      .get<Blob>(url, { ...config, responseType: "blob" })
+      .then((response) => ({
+        blob: response.data,
+        contentDisposition:
+          typeof response.headers["content-disposition"] === "string"
+            ? response.headers["content-disposition"]
+            : null,
+      }));
   }
 
   put<T>(url: string, body?: unknown, config?: AxiosRequestConfig) {

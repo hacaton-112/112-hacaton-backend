@@ -139,6 +139,7 @@ export const InstructorCallSchema = z.object({
   durationSeconds: z.number().int().nullable(),
   attemptNumber: z.number().int().positive(),
   attemptStatus: TrainingAttemptStatusSchema,
+  answerNormSeconds: z.number().int().positive(),
   passThreshold: z.number().int(),
   score: z.number().int().nullable(),
 });

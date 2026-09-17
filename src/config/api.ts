@@ -40,6 +40,8 @@ export const API_CONFIG = {
     `/instructor/sessions/${trainingSessionId}/end`,
   getInstructorDebriefUrl: (trainingSessionId: string) =>
     `/instructor/calls/${encodeURIComponent(trainingSessionId)}/debrief`,
+  getInstructorReportUrl: () => `/instructor/reports`,
+  getInstructorReportExportUrl: () => `/instructor/reports/export`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
   getScenarioPublishUrl: () => `/scenarios`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,

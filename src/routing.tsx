@@ -29,6 +29,7 @@ const ScenarioCatalogPage = lazy(
 );
 const AssignmentsPage = lazy(() => import("./pages/main/assignments-page"));
 const MonitoringPage = lazy(() => import("./pages/main/monitoring-page"));
+const ReportsPage = lazy(() => import("./pages/main/reports-page"));
 const GroupsPage = lazy(() => import("./pages/main/groups-page"));
 const GroupPage = lazy(() => import("./pages/main/group-page"));
 const StudentPage = lazy(() => import("./pages/main/student-page"));
@@ -87,6 +88,10 @@ export function Routing() {
               <Route
                 path={ROUTE_PATTERNS.monitoring}
                 element={lazyPage(<MonitoringPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.reports}
+                element={lazyPage(<ReportsPage />)}
               />
               <Route
                 path={ROUTE_PATTERNS.groups}

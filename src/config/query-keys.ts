@@ -23,6 +23,8 @@ export const QUERY_KEYS = {
   liveTrainingSessions: (groupId?: string) =>
     ["live-training-sessions", groupId] as const,
   instructorCalls: () => ["instructor-calls"] as const,
+  instructorReport: (filters: object | null) =>
+    ["instructor-report", filters] as const,
   classifierVersions: () => ["classifier", "versions"] as const,
   activeClassifierTree: () => ["classifier", "active", "tree"] as const,
   classifierRoute: (entryId?: string, qualifierCodes: readonly string[] = []) =>
