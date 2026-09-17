@@ -1,4 +1,4 @@
-﻿import {
+import {
   Badge,
   Card,
   Flex,
@@ -97,11 +97,11 @@ export function StudentMethodicalMaterialsTab({
               </div>
 
               <div
-                className="h-2 w-full overflow-hidden rounded-full bg-(--gray-a4)"
+                className="h-2 w-full overflow-hidden rounded-(--radius-full) bg-(--gray-a4)"
                 aria-label={`Прогресс ${percent}%`}
               >
                 <div
-                  className="h-full rounded-full bg-(--accent-9) transition-[width]"
+                  className="h-full rounded-(--radius-full) bg-(--accent-9) transition-[width]"
                   style={{ width: `${percent}%` }}
                 />
               </div>

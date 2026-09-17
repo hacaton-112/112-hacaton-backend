@@ -41,7 +41,7 @@ export default function MethodicalMaterialsPage() {
 
   return (
     <ScrollArea className="h-full" type="auto" scrollbars="vertical">
-      <main className="mx-auto grid w-full max-w-[1380px] gap-5 p-4 md:p-6">
+      <main className="grid w-full gap-4 p-4 md:p-6">
         <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <Flex align="center" gap="2">
@@ -161,7 +161,7 @@ function MaterialNavCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-rx-3 border p-4 text-left transition-colors ${selected ? "border-(--accent-a8) bg-(--accent-a3)" : "border-(--gray-a5) bg-(--color-panel-solid) hover:bg-(--gray-a2)"}`}
+      className={`rounded-(--radius-4) border p-4 text-left transition-colors ${selected ? "border-(--accent-a8) bg-(--accent-a3)" : "border-(--gray-a5) bg-(--color-panel-solid) hover:bg-(--gray-a2)"}`}
     >
       <Text as="div" size="2" weight="bold">
         {material.title}
@@ -170,11 +170,11 @@ function MaterialNavCard({
         {material.description}
       </Text>
       <div
-        className="mt-3 h-1.5 overflow-hidden rounded-full bg-(--gray-a4)"
+        className="mt-3 h-1.5 overflow-hidden rounded-(--radius-full) bg-(--gray-a4)"
         aria-label={`Прогресс ${percent}%`}
       >
         <div
-          className="h-full rounded-full bg-(--accent-9) transition-[width]"
+          className="h-full rounded-(--radius-full) bg-(--accent-9) transition-[width]"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -241,7 +241,7 @@ function MaterialContent({
           return (
             <section
               key={section.id}
-              className={`rounded-rx-3 overflow-hidden border ${section.completed ? "border-(--green-a6)" : "border-(--gray-a5)"}`}
+              className={`rounded-(--radius-3) overflow-hidden border ${section.completed ? "border-(--green-a6)" : "border-(--gray-a5)"}`}
             >
               <button
                 type="button"
