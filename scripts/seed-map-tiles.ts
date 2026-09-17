@@ -82,7 +82,7 @@ async function main() {
       "system112secret",
     upstreamUrl:
       process.env.MAP_TILES_UPSTREAM_URL ||
-      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt",
     cacheOnDemand: true,
   };
 
@@ -97,9 +97,21 @@ async function main() {
     allTiles.push(...tiles);
   }
 
-  // 2. Moscow & metropolitan region zooms (6 to 13)
-  for (let z = 6; z <= 13; z++) {
+  // 2. Moscow & metropolitan region zooms (6 to 12)
+  for (let z = 6; z <= 12; z++) {
     const tiles = getTilesForBbox(MOSCOW_BBOX, z);
+    allTiles.push(...tiles);
+  }
+
+  // 3. Central Moscow detail zooms (13 to 14)
+  const CENTRAL_MOSCOW_BBOX: BoundingBox = {
+    minLon: 37.3,
+    minLat: 55.55,
+    maxLon: 37.85,
+    maxLat: 55.9,
+  };
+  for (let z = 13; z <= 14; z++) {
+    const tiles = getTilesForBbox(CENTRAL_MOSCOW_BBOX, z);
     allTiles.push(...tiles);
   }
 
@@ -112,17 +124,17 @@ async function main() {
     return true;
   });
 
-  console.log(`Total tiles planned: ${uniqueTiles.length}`);
+  console.log(`Total vector tiles planned: ${uniqueTiles.length}`);
 
   let uploaded = 0;
   let skipped = 0;
   let failed = 0;
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 10;
 
   const downloadAndStore = async (tile: TileCoord): Promise<void> => {
     try {
       // Check if already in MinIO
-      const existing = await storage.getTile(tile.z, tile.x, tile.y);
+      const existing = await storage.getTile(tile.z, tile.x, tile.y, "mvt");
       if (existing && existing.length > 0) {
         skipped++;
         return;
@@ -144,7 +156,14 @@ async function main() {
       }
 
       const buf = new Uint8Array(await res.arrayBuffer());
-      await storage.putTile(tile.z, tile.x, tile.y, buf, "image/png");
+      await storage.putTile(
+        tile.z,
+        tile.x,
+        tile.y,
+        buf,
+        "application/x-protobuf",
+        "mvt",
+      );
       uploaded++;
     } catch (err) {
       failed++;

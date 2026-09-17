@@ -34,8 +34,13 @@ export class S3MapTileStorage implements MapTileStorage {
 
   constructor(private readonly config: MapConfig) {}
 
-  async getTile(z: number, x: number, y: number): Promise<Uint8Array | null> {
-    const key = `${z}/${x}/${y}.png`;
+  async getTile(
+    z: number,
+    x: number,
+    y: number,
+    ext = "mvt",
+  ): Promise<Uint8Array | null> {
+    const key = `${z}/${x}/${y}.${ext}`;
     try {
       const response = await this.send("GET", key);
       if (response.status === 404) {
@@ -59,9 +64,10 @@ export class S3MapTileStorage implements MapTileStorage {
     x: number,
     y: number,
     data: Uint8Array,
-    contentType = "image/png",
+    contentType = "application/x-protobuf",
+    ext = "mvt",
   ): Promise<void> {
-    const key = `${z}/${x}/${y}.png`;
+    const key = `${z}/${x}/${y}.${ext}`;
     const response = await this.send("PUT", key, {
       payload: data,
       contentType,

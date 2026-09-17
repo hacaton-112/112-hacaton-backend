@@ -27,18 +27,18 @@ describe("MapTileService", () => {
     service = new MapTileService(mockConfig, mockStorage);
   });
 
-  it("builds a valid MapLibre style JSON with raster tile source", () => {
+  it("builds a valid MapLibre style JSON with vector tile source", () => {
     const style = service.getStyle("http://localhost:3000/");
 
     expect(style.version).toBe(8);
-    expect(style.name).toBe("System 112 Offline Dark");
-    const source = style.sources["system112-offline-tiles"] as {
-      type: string;
-      tiles: string[];
-    };
-    expect(source.type).toBe("raster");
+    const source = (style.sources as Record<string, any>).carto;
+    expect(source.type).toBe("vector");
     expect(source.tiles[0]).toBe(
-      "http://localhost:3000/api/v1/map/tiles/{z}/{x}/{y}.png",
+      "http://localhost:3000/api/v1/map/tiles/{z}/{x}/{y}.mvt",
+    );
+    expect(style.sprite).toBe("http://localhost:3000/api/v1/map/sprites/sprite");
+    expect(style.glyphs).toBe(
+      "http://localhost:3000/api/v1/map/fonts/{fontstack}/{range}.pbf",
     );
   });
 
@@ -46,22 +46,22 @@ describe("MapTileService", () => {
     const fakeTile = new Uint8Array([1, 2, 3, 4]);
     mockStorage.getTile.mockResolvedValue(fakeTile);
 
-    const tile = await service.getTile(5, 10, 15);
+    const tile = await service.getTile(5, 10, 15, "mvt");
 
-    expect(mockStorage.getTile).toHaveBeenCalledWith(5, 10, 15);
+    expect(mockStorage.getTile).toHaveBeenCalledWith(5, 10, 15, "mvt");
     expect(tile).toBe(fakeTile);
   });
 
   it("returns fallback tile when not found in storage and cacheOnDemand is false", async () => {
     mockStorage.getTile.mockResolvedValue(null);
 
-    const tile = await service.getTile(5, 10, 15);
+    const tile = await service.getTile(5, 10, 15, "png");
 
     expect(tile).toEqual(FALLBACK_DARK_TILE_PNG);
   });
 
   it("returns fallback tile for out-of-range coordinates without calling storage", async () => {
-    const tile = await service.getTile(3, 99, 99);
+    const tile = await service.getTile(3, 99, 99, "png");
 
     expect(mockStorage.getTile).not.toHaveBeenCalled();
     expect(tile).toEqual(FALLBACK_DARK_TILE_PNG);

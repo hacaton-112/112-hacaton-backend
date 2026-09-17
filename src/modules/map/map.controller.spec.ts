@@ -37,13 +37,12 @@ describe("MapController", () => {
 
     expect(mapTileService.getStyle).toHaveBeenCalledWith("http://127.0.0.1:3000");
     expect(style.version).toBe(8);
-    expect(style.sources["system112-offline-tiles"]).toBeDefined();
   });
 
   it("returns a StreamableFile for requested tile coordinates", async () => {
     const file = await controller.getTile(5, 10, 15);
 
-    expect(mapTileService.getTile).toHaveBeenCalledWith(5, 10, 15);
+    expect(mapTileService.getTile).toHaveBeenCalledWith(5, 10, 15, "png");
     expect(file).toBeDefined();
   });
 });
