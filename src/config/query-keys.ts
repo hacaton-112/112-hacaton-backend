@@ -32,6 +32,7 @@ export const QUERY_KEYS = {
   calls: () => ["calls"] as const,
   debrief: (trainingSessionId?: string) =>
     ["debrief", trainingSessionId] as const,
+  methodicalMaterials: () => ["methodical-materials"] as const,
 } as const;
 
 /**

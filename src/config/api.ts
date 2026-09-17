@@ -9,6 +9,9 @@ export const API_CONFIG = {
   getRefreshUrl: () => `/auth/refresh`,
   getLogoutUrl: () => `/auth/logout`,
   getCurrentUserUrl: () => `/auth/me`,
+  getMethodicalMaterialsUrl: () => `/methodical-materials`,
+  getMethodicalSectionCompletionUrl: (materialId: string, sectionId: string) =>
+    `/methodical-materials/${encodeURIComponent(materialId)}/sections/${encodeURIComponent(sectionId)}/completion`,
   getScenariosUrl: () => `/scenarios`,
   getTrainingGroupsUrl: () => `/groups`,
   getTrainingGroupUrl: (groupId: string) => `/groups/${groupId}`,

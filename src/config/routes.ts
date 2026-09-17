@@ -18,6 +18,7 @@ export const ROUTE_PATTERNS = {
   assignments: "/assignments",
   monitoring: "/monitoring",
   classifier: "/classifier",
+  methodicalMaterials: "/methodical-materials",
   groups: "/groups",
   group: "/groups/:groupId",
   groupStudent: "/groups/:groupId/students/:userId",
@@ -40,6 +41,7 @@ export const ROUTES = {
   assignments: () => "/assignments",
   monitoring: () => "/monitoring",
   classifier: () => "/classifier",
+  methodicalMaterials: () => "/methodical-materials",
   groups: () => "/groups",
   group: (groupId: string) => `/groups/${encodeURIComponent(groupId)}`,
   groupStudent: (groupId: string, userId: string) =>
