@@ -65,9 +65,9 @@ function GroupForm({
   onDone: () => void;
 }) {
   const isEdit = group !== undefined;
-  // Передать группу другому преподавателю может только администратор.
+  // Назначить или передать группу преподавателю может администратор.
   const isAdmin = canCreateUsers(useAuthStore((state) => state.user?.role));
-  const instructors = useUsers("instructor", isEdit && isAdmin);
+  const instructors = useUsers("instructor", isAdmin);
   const [name, setName] = useState(group?.name ?? "");
   const [code, setCode] = useState(group?.code ?? "");
   const [organization, setOrganization] = useState(group?.organization ?? "");
@@ -97,7 +97,12 @@ function GroupForm({
         }
         toast.success("Группа сохранена", { description: name });
       } else {
-        await mutations.createGroup.mutateAsync({ name, code, organization });
+        await mutations.createGroup.mutateAsync({
+          name,
+          code,
+          organization,
+          ...(isAdmin && instructorId ? { instructorId } : {}),
+        });
         toast.success("Группа создана", { description: name });
       }
       onDone();
@@ -159,8 +164,11 @@ function GroupForm({
             </Select.Root>
           </TrainingField>
         )}
-        {isEdit && isAdmin && (
-          <TrainingField label="Преподаватель">
+        {isAdmin && (
+          <TrainingField
+            label="Преподаватель"
+            className={!isEdit ? "sm:col-span-2" : undefined}
+          >
             <Select.Root value={instructorId} onValueChange={setInstructorId}>
               <Select.Trigger placeholder="Выберите преподавателя" />
               <Select.Content>
