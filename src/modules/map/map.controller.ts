@@ -17,6 +17,7 @@ import {
   type MapStyleSpecification,
 } from "./application/map-tile.service";
 
+@SkipThrottle({ short: true, medium: true, long: true })
 @Controller(ApiRoutes.Map)
 export class MapController {
   constructor(private readonly mapTileService: MapTileService) {}
@@ -27,6 +28,8 @@ export class MapController {
   @Get("style.json")
   @Header("Content-Type", "application/json")
   @Header("Cache-Control", "public, max-age=3600")
+  @Header("Access-Control-Allow-Origin", "*")
+  @Header("Cross-Origin-Resource-Policy", "cross-origin")
   getStyle(@Req() req: Request): MapStyleSpecification {
     const forwardedProto = req.headers["x-forwarded-proto"];
     const protocol = Array.isArray(forwardedProto)
@@ -43,6 +46,8 @@ export class MapController {
   @SkipThrottle()
   @Header("Content-Type", "image/png")
   @Header("Cache-Control", "public, max-age=31536000, immutable")
+  @Header("Access-Control-Allow-Origin", "*")
+  @Header("Cross-Origin-Resource-Policy", "cross-origin")
   async getTile(
     @Param("z", ParseIntPipe) z: number,
     @Param("x", ParseIntPipe) x: number,

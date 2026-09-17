@@ -24,7 +24,11 @@ async function bootstrap(): Promise<void> {
   app.useWebSocketAdapter(new WsAdapter(app));
 
   // ── Security Headers ─────────────────────────────────────────
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    }),
+  );
 
   app.setGlobalPrefix(GLOBAL_API_PREFIX);
 
