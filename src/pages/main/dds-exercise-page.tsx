@@ -67,18 +67,20 @@ export default function DdsExercisePage() {
 
   return (
     <ScrollArea className="h-full" scrollbars="vertical" type="auto">
-      <div className="mx-auto grid w-full max-w-[1500px] gap-4 p-4">
-        <Flex align="center" justify="between" gap="3" wrap="wrap">
-          <div>
-            <Flex align="center" gap="2">
-              <RadioTower size={22} />
-              <Heading size="6">Рабочее место ДДС</Heading>
-            </Flex>
-            <Text as="p" size="2" color="gray" mt="1">
-              Принимайте карточки Системы‑112 и фиксируйте этапы реагирования.
-            </Text>
-          </div>
-        </Flex>
+      <main className="grid w-full gap-4 p-4 md:p-6">
+        <header>
+          <Flex align="center" justify="between" gap="3" wrap="wrap">
+            <div>
+              <Flex align="center" gap="2">
+                <RadioTower size={22} />
+                <Heading size="6">Рабочее место ДДС</Heading>
+              </Flex>
+              <Text as="p" size="2" color="gray" mt="1">
+                Принимайте карточки Системы‑112 и фиксируйте этапы реагирования.
+              </Text>
+            </div>
+          </Flex>
+        </header>
 
         {(dds.exercises.error || scenarios.error) && (
           <Callout.Root color="red" role="alert">
@@ -91,7 +93,7 @@ export default function DdsExercisePage() {
           </Callout.Root>
         )}
 
-        <div className="grid items-start gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid items-start gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]">
           <div className="grid gap-4 lg:sticky lg:top-4">
             <DdsStartPanel
               scenarios={scenarios.data ?? []}
@@ -133,7 +135,7 @@ export default function DdsExercisePage() {
             onTransition={transition}
           />
         </div>
-      </div>
+      </main>
     </ScrollArea>
   );
 }

@@ -22,36 +22,43 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
-  ArrowLeft,
   ArrowRight,
   Eye,
+  FileSpreadsheet,
   Pencil,
   Plus,
   Trash2,
   UserMinus,
   UserPlus,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import { GroupAnalyticsTab } from "../../components/training/group-analytics-tab";
 import { LiveSessionsPanel } from "../../components/training/live-sessions-panel";
 import { MemberAddDialog } from "../../components/training/member-add-dialog";
 import { GroupFormDialog } from "../../components/training/group-form-dialog";
 import { StudentEditDialog } from "../../components/training/student-edit-dialog";
 import { StudentCreateDialog } from "../../components/training/student-create-dialog";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
+import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { TrainingConfirmDialog } from "../../components/training/training-confirm-dialog";
 import {
   formatDateTime,
   formatDuration,
   formatScore,
 } from "../../components/training/training-labels";
-import { canCreateUsers } from "../../config/roles";
+import { canCreateStudents } from "../../config/roles";
 import { ROUTES } from "../../config/routes";
-import type { GroupStudent, TrainingGroup } from "../../contracts/training";
+import {
+  isAssignmentForTarget,
+  type GroupStudent,
+  type TrainingGroup,
+} from "../../contracts/training";
 import {
   useGroupStudents,
   useLiveTrainingSessions,
+  useTrainingAssignments,
   useTrainingGroup,
   useTrainingGroups,
   useTrainingMutations,
@@ -62,25 +69,27 @@ import {
   DATA_TABLE_DEFAULTS,
   menuIcon,
 } from "../../lib/data-table";
+import { downloadFile, generateGroupProtocolCsv } from "../../lib/group-protocol-export";
 import { useAuthStore } from "../../stores/auth.store";
 
 /** Группа: её ученики с успеваемостью, занятия и идущие звонки. */
 export default function GroupPage() {
   const { groupId = "" } = useParams();
-  const navigate = useNavigate();
   const group = useTrainingGroup(groupId);
   const mutations = useTrainingMutations();
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
-      <Button
-        variant="ghost"
-        color="gray"
-        className="self-start"
-        onClick={() => navigate(ROUTES.groups())}
-      >
-        <ArrowLeft size={16} /> Все группы
-      </Button>
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
+      <Breadcrumbs
+        items={[
+          { label: "Группы", to: ROUTES.groups() },
+          {
+            label: group.data
+              ? `${group.data.name} (${group.data.code})`
+              : "Группа",
+          },
+        ]}
+      />
 
       {group.error && !group.data && (
         <Callout.Root color="red" role="alert">
@@ -93,7 +102,7 @@ export default function GroupPage() {
         </Callout.Root>
       )}
 
-      {group.isPending && <Skeleton height="320px" className="rounded-xl" />}
+      {group.isPending && <Skeleton height="320px" className="rounded-(--radius-4)" />}
 
       {group.data && <GroupContent group={group.data} mutations={mutations} />}
     </main>
@@ -108,11 +117,34 @@ function GroupContent({
   mutations: TrainingMutations;
 }) {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.user);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const liveSessions = useLiveTrainingSessions(group.id);
   const liveCount = liveSessions.data?.length ?? 0;
   const isActive = group.status === "active";
+
+  const students = useGroupStudents(group.id);
+  const allAssignments = useTrainingAssignments();
+  const groupAssignments = useMemo(
+    () =>
+      (allAssignments.data ?? []).filter((assignment) =>
+        isAssignmentForTarget(assignment, { kind: "group", group }),
+      ),
+    [allAssignments.data, group],
+  );
+
+  const handleExportProtocol = () => {
+    const csvContent = generateGroupProtocolCsv({
+      group,
+      students: students.data ?? [],
+      assignments: groupAssignments,
+      instructorName: currentUser?.fullName,
+    });
+    const filename = `protocol_${group.code || group.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadFile(csvContent, filename);
+    toast.success("Протокол группы экспортирован в Excel / CSV");
+  };
 
   const setStatus = async (status: TrainingGroup["status"]) => {
     try {
@@ -151,7 +183,15 @@ function GroupContent({
             {group.code} · {group.organization} · {group.members.length} уч.
           </Text>
         </div>
-        <Flex gap="2">
+        <Flex gap="2" wrap="wrap">
+          <Button
+            variant="soft"
+            color="green"
+            onClick={handleExportProtocol}
+            title="Экспорт ведомости и протокола группы в Excel (CSV)"
+          >
+            <FileSpreadsheet size={16} /> Экспорт отчёта
+          </Button>
           <Button
             variant="soft"
             onClick={() => {
@@ -199,6 +239,7 @@ function GroupContent({
         <Tabs.List size="2">
           <Tabs.Trigger value="students">Ученики</Tabs.Trigger>
           <Tabs.Trigger value="assignments">Занятия</Tabs.Trigger>
+          <Tabs.Trigger value="analytics">Аналитика</Tabs.Trigger>
           <Tabs.Trigger value="live">
             Идут звонки
             {liveCount > 0 && (
@@ -222,6 +263,17 @@ function GroupContent({
           <TrainingAssignmentsPanel
             target={{ kind: "group", group }}
             mutations={mutations}
+          />
+        </Tabs.Content>
+        <Tabs.Content
+          value="analytics"
+          className="flex min-h-0 flex-1 flex-col pt-4"
+        >
+          <GroupAnalyticsTab
+            group={group}
+            students={students.data ?? []}
+            assignments={groupAssignments}
+            instructorName={currentUser?.fullName}
           />
         </Tabs.Content>
         <Tabs.Content value="live" className="pt-4">
@@ -409,7 +461,7 @@ function GroupStudents({
           Балл учитывает звонки, по которым уже есть оценка.
         </Text>
         <Flex gap="2" className="shrink-0">
-          {canCreateUsers(role) && (
+          {canCreateStudents(role) && (
             <Button
               variant="soft"
               disabled={!isActive}
@@ -446,7 +498,7 @@ function GroupStudents({
 
       <div className="min-h-80 flex-1">
         {students.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<GroupStudent>
             {...DATA_TABLE_DEFAULTS}

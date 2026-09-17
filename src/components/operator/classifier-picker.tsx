@@ -300,7 +300,7 @@ export function ClassifierPicker({
 
 function RoutingSummary({ routing }: { routing: ClassifierRouting }) {
   return (
-    <div className="rounded-rx-2 border border-(--gray-a5) bg-(--gray-a2) p-3">
+    <div className="rounded-(--radius-2) border border-(--gray-a5) bg-(--gray-a2) p-3">
       <Flex align="center" gap="2" wrap="wrap">
         <Text size="2" weight="bold">
           {routing.finalType}

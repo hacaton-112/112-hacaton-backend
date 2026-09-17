@@ -182,7 +182,7 @@ export default function AdminPage() {
     summary.filter(({ role: itemRole }) => itemRole === wanted).length;
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <div>
           <Heading size="6">Администрирование</Heading>
@@ -205,7 +205,7 @@ export default function AdminPage() {
       {allUsers.isPending ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} height="88px" className="rounded-xl" />
+            <Skeleton key={index} height="88px" className="rounded-(--radius-3)" />
           ))}
         </div>
       ) : (
@@ -225,51 +225,49 @@ export default function AdminPage() {
         </div>
       )}
 
-      <Card size="2" variant="surface">
-        <Flex gap="3" wrap="wrap">
-          <TextField.Root
-            className="min-w-64 flex-1"
-            aria-label="Поиск пользователей"
-            placeholder="Поиск по ФИО или email"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          >
-            <TextField.Slot>
-              <Search size={16} />
-            </TextField.Slot>
-          </TextField.Root>
-          <Select.Root
-            value={role}
-            onValueChange={(value) => setRole(value as UserRole | typeof ALL)}
-          >
-            <Select.Trigger className="min-w-44" aria-label="Фильтр по роли" />
-            <Select.Content>
-              <Select.Item value={ALL}>Все роли</Select.Item>
-              {(Object.keys(ROLE_LABELS) as UserRole[]).map((value) => (
-                <Select.Item key={value} value={value}>
-                  {ROLE_LABELS[value]}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Select.Root
-            value={status}
-            onValueChange={(value) =>
-              setStatus(value as UserStatus | typeof ALL)
-            }
-          >
-            <Select.Trigger
-              className="min-w-44"
-              aria-label="Фильтр по доступу"
-            />
-            <Select.Content>
-              <Select.Item value={ALL}>Любой доступ</Select.Item>
-              <Select.Item value="active">Активные</Select.Item>
-              <Select.Item value="inactive">Отключённые</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        </Flex>
-      </Card>
+      <Flex gap="3" wrap="wrap">
+        <TextField.Root
+          className="min-w-64 flex-1"
+          aria-label="Поиск пользователей"
+          placeholder="Поиск по ФИО или email"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        >
+          <TextField.Slot>
+            <Search size={16} />
+          </TextField.Slot>
+        </TextField.Root>
+        <Select.Root
+          value={role}
+          onValueChange={(value) => setRole(value as UserRole | typeof ALL)}
+        >
+          <Select.Trigger className="min-w-44" aria-label="Фильтр по роли" />
+          <Select.Content>
+            <Select.Item value={ALL}>Все роли</Select.Item>
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map((value) => (
+              <Select.Item key={value} value={value}>
+                {ROLE_LABELS[value]}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+        <Select.Root
+          value={status}
+          onValueChange={(value) =>
+            setStatus(value as UserStatus | typeof ALL)
+          }
+        >
+          <Select.Trigger
+            className="min-w-44"
+            aria-label="Фильтр по доступу"
+          />
+          <Select.Content>
+            <Select.Item value={ALL}>Любой доступ</Select.Item>
+            <Select.Item value="active">Активные</Select.Item>
+            <Select.Item value="inactive">Отключённые</Select.Item>
+          </Select.Content>
+        </Select.Root>
+      </Flex>
 
       {(allUsers.error || users.error) && (
         <Callout.Root color="red" role="alert">
@@ -285,7 +283,7 @@ export default function AdminPage() {
 
       <div className="min-h-80 flex-1">
         {users.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<AuthUser>
             {...DATA_TABLE_DEFAULTS}

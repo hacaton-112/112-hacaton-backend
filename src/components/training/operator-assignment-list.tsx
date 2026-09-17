@@ -31,7 +31,7 @@ export function OperatorAssignmentList() {
 
   return (
     <ScrollArea className="h-full" type="auto" scrollbars="vertical">
-      <main className="mx-auto grid max-w-6xl gap-4 p-4">
+      <main className="grid w-full gap-4 p-4 md:p-6">
         <header>
           <Heading size="6">Мои назначения</Heading>
           <Text as="p" color="gray" size="2">
@@ -56,10 +56,14 @@ export function OperatorAssignmentList() {
           </Card>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {assignments.isPending
-            ? [0, 1, 2].map((index) => (
-                <Skeleton key={index} height="260px" className="rounded-xl" />
+            ? [0, 1, 2, 3].map((index) => (
+                <Skeleton
+                  key={index}
+                  height="260px"
+                  className="rounded-(--radius-4)"
+                />
               ))
             : assignments.data?.map((assignment) => (
                 <OperatorAssignmentCard

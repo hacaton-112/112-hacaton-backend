@@ -1,6 +1,5 @@
 import {
   Badge,
-  Button,
   Callout,
   Card,
   Flex,
@@ -9,10 +8,12 @@ import {
   Tabs,
   Text,
 } from "@bolid-ui/themes";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
+import { AlertTriangle } from "lucide-react";
+import { useParams } from "react-router";
 
+import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
+import { StudentMethodicalMaterialsTab } from "../../components/training/student-methodical-materials";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
 import {
   formatDateTime,
@@ -29,21 +30,29 @@ import {
 /** Ученик: успеваемость по всем занятиям и разборы его звонков. */
 export default function StudentPage() {
   const { groupId, userId = "" } = useParams();
-  const navigate = useNavigate();
   const profile = useStudentProfile(userId);
 
+  const groupInfo = groupId
+    ? profile.data?.student.groups.find((g) => g.groupId === groupId)
+    : undefined;
+
+  const breadcrumbItems = groupId
+    ? [
+        { label: "Группы", to: ROUTES.groups() },
+        {
+          label: groupInfo?.groupName ?? "Группа",
+          to: ROUTES.group(groupId),
+        },
+        { label: profile.data?.student.fullName ?? "Ученик" },
+      ]
+    : [
+        { label: "Ученики", to: ROUTES.students() },
+        { label: profile.data?.student.fullName ?? "Ученик" },
+      ];
+
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
-      <Button
-        variant="ghost"
-        color="gray"
-        className="self-start"
-        onClick={() =>
-          navigate(groupId ? ROUTES.group(groupId) : ROUTES.students())
-        }
-      >
-        <ArrowLeft size={16} /> {groupId ? "К группе" : "Все ученики"}
-      </Button>
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
+      <Breadcrumbs items={breadcrumbItems} />
 
       {profile.error && !profile.data && (
         <Callout.Root color="red" role="alert">
@@ -56,7 +65,7 @@ export default function StudentPage() {
         </Callout.Root>
       )}
 
-      {profile.isPending && <Skeleton height="360px" className="rounded-xl" />}
+      {profile.isPending && <Skeleton height="360px" className="rounded-(--radius-4)" />}
 
       {profile.data && <StudentContent profile={profile.data} />}
     </main>
@@ -98,6 +107,29 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
               {group.groupName} · {group.serviceTag}
             </Badge>
           ))}
+          {profile.methodicalMaterials && (
+            <Badge
+              color={
+                profile.methodicalMaterials.every(
+                  (m) => m.completedSections === m.totalSections,
+                )
+                  ? "green"
+                  : "blue"
+              }
+              variant="soft"
+            >
+              Методички:{" "}
+              {profile.methodicalMaterials.reduce(
+                (sum, m) => sum + m.completedSections,
+                0,
+              )}
+              /
+              {profile.methodicalMaterials.reduce(
+                (sum, m) => sum + m.totalSections,
+                0,
+              )}
+            </Badge>
+          )}
         </Flex>
         {stats.lastAttemptAt && (
           <Text as="p" size="1" color="gray" mt="1">
@@ -125,6 +157,9 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
           <Tabs.Trigger value="assignments">
             Индивидуальные занятия
           </Tabs.Trigger>
+          <Tabs.Trigger value="materials">
+            Методические материалы
+          </Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content
@@ -143,6 +178,14 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
               student: { id: student.id, fullName: student.fullName },
             }}
             mutations={mutations}
+          />
+        </Tabs.Content>
+        <Tabs.Content
+          value="materials"
+          className="flex min-h-0 flex-1 flex-col pt-4"
+        >
+          <StudentMethodicalMaterialsTab
+            materials={profile.methodicalMaterials}
           />
         </Tabs.Content>
       </Tabs.Root>

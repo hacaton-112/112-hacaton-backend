@@ -19,6 +19,7 @@ export const ROUTE_PATTERNS = {
   monitoring: "/monitoring",
   reports: "/reports",
   classifier: "/classifier",
+  methodicalMaterials: "/methodical-materials",
   groups: "/groups",
   group: "/groups/:groupId",
   groupStudent: "/groups/:groupId/students/:userId",
@@ -42,6 +43,7 @@ export const ROUTES = {
   monitoring: () => "/monitoring",
   reports: () => "/reports",
   classifier: () => "/classifier",
+  methodicalMaterials: () => "/methodical-materials",
   groups: () => "/groups",
   group: (groupId: string) => `/groups/${encodeURIComponent(groupId)}`,
   groupStudent: (groupId: string, userId: string) =>

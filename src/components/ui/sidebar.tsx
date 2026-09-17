@@ -13,7 +13,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "12rem";
+const SIDEBAR_WIDTH = "14.5rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -284,13 +284,33 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <Box
       className={cn(
-        "px-rx-2 pt-rx-2 relative flex w-full min-w-0 flex-col",
+        "px-rx-2 pt-1 pb-0.5 relative flex w-full min-w-0 flex-col",
         className,
       )}
       data-sidebar="group"
       data-slot="sidebar-group"
       {...props}
     />
+  );
+}
+
+function SidebarGroupLabel({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "duration-(--app-transition-duration-base) text-gray-9 group-data-[collapsible=icon]:hidden flex h-5 shrink-0 items-center px-rx-2 text-[10px] font-semibold tracking-wider uppercase select-none truncate whitespace-nowrap",
+        className,
+      )}
+      data-sidebar="group-label"
+      data-slot="sidebar-group-label"
+      {...props}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -389,6 +409,7 @@ export {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,

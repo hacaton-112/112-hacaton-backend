@@ -5,11 +5,13 @@ import type { ReactNode } from "react";
 export function TrainingField({
   label,
   hint,
+  reserveHintSpace = false,
   className,
   children,
 }: {
   label: string;
   hint?: string;
+  reserveHintSpace?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -19,10 +21,14 @@ export function TrainingField({
         {label}
       </Text>
       {children}
-      {hint && (
-        <Text size="1" color="red">
-          {hint}
-        </Text>
+      {(hint || reserveHintSpace) && (
+        <span className="h-4 overflow-hidden" aria-live="polite">
+          {hint && (
+            <Text size="1" color="red" className="block truncate" title={hint}>
+              {hint}
+            </Text>
+          )}
+        </span>
       )}
     </Label>
   );
