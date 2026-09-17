@@ -1,0 +1,1 @@
+ALTER TABLE "call_states" ADD COLUMN "recovery_expires_at" timestamp with time zone;

@@ -105,10 +105,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
       CALL_RECORDING_S3_BUCKET: ${CALL_RECORDING_S3_BUCKET:-call-recordings}
+      MAP_TILES_S3_BUCKET: ${MAP_TILES_S3_BUCKET:-map-tiles}
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
-      mc mb --ignore-existing local/$${CALL_RECORDING_S3_BUCKET}
+      mc mb --ignore-existing local/$${CALL_RECORDING_S3_BUCKET} &&
+      mc mb --ignore-existing local/$${MAP_TILES_S3_BUCKET}
       "
   pgadmin:
     image: dpage/pgadmin4:8.14
@@ -213,6 +215,10 @@ services:
       CALL_RECORDING_S3_ENDPOINT: http://minio:9000
       CALL_RECORDING_S3_ACCESS_KEY_ID: ${CALL_RECORDING_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
       CALL_RECORDING_S3_SECRET_ACCESS_KEY: ${CALL_RECORDING_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
+      MAP_TILES_S3_ENDPOINT: http://minio:9000
+      MAP_TILES_S3_ACCESS_KEY_ID: ${MAP_TILES_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
+      MAP_TILES_S3_SECRET_ACCESS_KEY: ${MAP_TILES_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
+      MAP_TILES_S3_BUCKET: ${MAP_TILES_S3_BUCKET:-map-tiles}
     ports:
       # API и WebSocket голосового канала — единственный вход, который нужен
       # приложению. За обратным прокси с TLS задайте BACKEND_BIND_ADDRESS=127.0.0.1.

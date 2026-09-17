@@ -190,6 +190,45 @@ export const env = createEnv({
       .min(1_000)
       .max(300_000)
       .default(60_000),
+
+    // ── Offline Map & Tiles ──────────────────────────────────────
+    MAP_TILES_S3_ENDPOINT: z
+      .url()
+      .refine((url) => /^https?:\/\//.test(url), {
+        message:
+          "MAP_TILES_S3_ENDPOINT must use the http:// or https:// scheme",
+      })
+      .default("http://127.0.0.1:9000"),
+    MAP_TILES_S3_REGION: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .default("us-east-1"),
+    MAP_TILES_S3_BUCKET: z
+      .string()
+      .trim()
+      .min(3)
+      .max(63)
+      .regex(/^[a-z0-9][a-z0-9.-]*$/)
+      .default("map-tiles"),
+    MAP_TILES_S3_ACCESS_KEY_ID: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional(),
+    MAP_TILES_S3_SECRET_ACCESS_KEY: z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .optional(),
+    MAP_TILES_UPSTREAM_URL: z
+      .string()
+      .trim()
+      .default("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"),
+    MAP_CACHE_ON_DEMAND: BooleanEnvironmentSchema,
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

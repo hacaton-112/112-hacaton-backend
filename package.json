@@ -47,7 +47,8 @@
     "db:seed": "bun run db:seed:admin && bun run db:seed:classifier && bun run db:seed:scenarios && bun run db:seed:groups",
     "db:reset": "bun run db:clean && bun run db:seed",
     "db:studio": "drizzle-kit studio --config=drizzle/drizzle.config.ts",
-    "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts"
+    "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts",
+    "map:seed": "bun --env-file=.env scripts/seed-map-tiles.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans": "^5.3.0",
