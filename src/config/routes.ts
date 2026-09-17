@@ -17,6 +17,7 @@ export const ROUTE_PATTERNS = {
   scenarios: "/scenarios",
   assignments: "/assignments",
   monitoring: "/monitoring",
+  classifier: "/classifier",
   groups: "/groups",
   group: "/groups/:groupId",
   groupStudent: "/groups/:groupId/students/:userId",
@@ -37,6 +38,7 @@ export const ROUTES = {
   scenarios: () => "/scenarios",
   assignments: () => "/assignments",
   monitoring: () => "/monitoring",
+  classifier: () => "/classifier",
   groups: () => "/groups",
   group: (groupId: string) => `/groups/${encodeURIComponent(groupId)}`,
   groupStudent: (groupId: string, userId: string) =>

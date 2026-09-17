@@ -19,10 +19,13 @@ export const incidentCardService = {
   async saveIncidentCard(
     trainingSessionId: string,
     card: IncidentCard,
-  ): Promise<void> {
-    await api.put<unknown>(
+  ): Promise<IncidentCard> {
+    const { classifierRouting: _serverOwned, ...body } = card;
+    const payload = await api.put<unknown>(
       API_CONFIG.getIncidentCardUrl(trainingSessionId),
-      card,
+      body,
     );
+
+    return IncidentCardSchema.parse(payload);
   },
 };

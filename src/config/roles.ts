@@ -34,6 +34,16 @@ export const canTrainAsDds = (role?: UserRole): boolean =>
 /** Учётные записи создаёт только администратор (ТЗ, стр. 9). */
 export const canCreateUsers = (role?: UserRole): boolean => role === "admin";
 
+/** Преподаватель сверяет версию, администратор также импортирует и активирует. */
+export const CLASSIFIER_VIEWER_ROLES: readonly UserRole[] = [
+  "instructor",
+  "admin",
+];
+export const canViewClassifier = (role?: UserRole): boolean =>
+  role !== undefined && CLASSIFIER_VIEWER_ROLES.includes(role);
+export const canManageClassifier = (role?: UserRole): boolean =>
+  role === "admin";
+
 /** Подписи ролей в интерфейсе. */
 export const ROLE_LABELS: Record<UserRole, string> = {
   operator: "Оператор",

@@ -5,7 +5,6 @@ import {
   DatePicker,
   Flex,
   NumberField,
-  Select,
   Text,
   TextArea,
   TextField,
@@ -24,7 +23,6 @@ import {
   EMPTY_INCIDENT_CARD,
   INCIDENT_CATEGORIES,
   INCIDENT_CATEGORY_LABELS,
-  INCIDENT_TYPE_OPTIONS,
   type IncidentCard,
   type IncidentCardInput,
   type IncidentCardPatch,
@@ -32,6 +30,7 @@ import {
 } from "../../contracts/incident";
 import type { IncidentLocationFill } from "../../contracts/geo";
 import { FormField } from "../auth/form-field";
+import { ClassifierPicker } from "./classifier-picker";
 import { DuplicateSuspicion } from "./duplicate-suspicion";
 
 /** Те же три параметра, что у формы: вход, контекст резолвера и результат. */
@@ -235,33 +234,14 @@ export function IncidentForm({
           О происшествии
         </Text>
 
-        <FormField label="Тип происшествия" htmlFor="incidentType">
-          <Controller
-            control={control}
-            name="incidentType"
-            render={({ field }) => (
-              <Select.Root
-                size="1"
-                value={field.value ?? ""}
-                onValueChange={field.onChange}
-                disabled={disabled}
-              >
-                <Select.Trigger
-                  id="incidentType"
-                  className="w-full"
-                  placeholder="Выберите тип"
-                />
-                <Select.Content>
-                  {INCIDENT_TYPE_OPTIONS.map((type) => (
-                    <Select.Item key={type} value={type}>
-                      {type}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
-            )}
-          />
-        </FormField>
+        <ClassifierPicker
+          entryId={card?.classifierEntryId ?? null}
+          qualifierCodes={card?.classifierQualifierCodes ?? []}
+          routing={card?.classifierRouting ?? null}
+          incidentType={card?.incidentType ?? null}
+          disabled={disabled}
+          onChange={onChange}
+        />
 
         <div className="incident-meta-grid mt-3 grid items-end gap-2">
           <div className="min-w-0">
@@ -370,7 +350,6 @@ const pickIncidentDetails = (card: IncidentCard): IncidentCardPatch => ({
   longitude: card.longitude,
   nearby: card.nearby,
   placeNotes: card.placeNotes,
-  incidentType: card.incidentType,
   categories: card.categories,
   startedAt: card.startedAt,
   victimsTotal: card.victimsTotal,

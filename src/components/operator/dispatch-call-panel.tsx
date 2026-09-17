@@ -22,11 +22,14 @@ import {
 import type { CallSnapshot } from "../../hooks/use-call";
 import type { IncidentPointStatus } from "../../hooks/use-incident-point";
 import type { GeoPoint } from "../../contracts/geo";
+import type { ClassifierRouting } from "../../contracts/classifier";
 
 interface ServicesProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
   services: DispatchService[];
   onToggleService: (service: DispatchService) => void;
+  /** Рассчитаны backend и не снимаются кнопками ручного выбора. */
+  requiredServices: ClassifierRouting["requiredServices"];
 }
 
 interface IncidentPointProps {
@@ -57,6 +60,32 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
       >
         <Text id="services-title" size="2" weight="bold">
           ДДС / Службы
+        </Text>
+
+        {props.requiredServices.length > 0 && (
+          <div className="mt-2 grid gap-1.5">
+            <Text size="1" color="gray">
+              Обязательные по классификатору
+            </Text>
+            {props.requiredServices.map((service) => (
+              <div
+                key={service.code}
+                className="rounded-rx-2 border border-(--blue-a5) bg-(--blue-a2) px-2 py-1.5"
+              >
+                <Text as="div" size="1" weight="bold">
+                  {service.name}
+                </Text>
+                <Text as="div" size="1" color="gray">
+                  {service.routeLabel}
+                </Text>
+              </div>
+            ))}
+            <Separator className="my-1" size="4" />
+          </div>
+        )}
+
+        <Text as="div" size="1" color="gray" mt="2">
+          Дополнительный ручной выбор
         </Text>
 
         <div className="mt-2 flex flex-wrap gap-1.5">
