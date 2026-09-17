@@ -10,6 +10,7 @@ import {
   GROUP_STATUSES,
   SCENARIO_CATEGORIES,
 } from "@/drizzle/schema";
+import { MethodicalMaterialSchema } from "@/modules/methodical-materials/dto/methodical-materials.dto";
 
 const IdSchema = z.uuid();
 const DateTimeSchema = z.iso.datetime();
@@ -317,6 +318,7 @@ export const StudentProfileSchema = z
     student: StudentSchema,
     stats: StudentStatsSchema,
     calls: z.array(InstructorCallSchema),
+    methodicalMaterials: z.array(MethodicalMaterialSchema).optional(),
   })
   .strict();
 export class StudentProfileDto extends createZodDto(StudentProfileSchema) {}

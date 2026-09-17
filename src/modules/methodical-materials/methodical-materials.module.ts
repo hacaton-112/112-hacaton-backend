@@ -9,5 +9,6 @@ import { MethodicalMaterialsService } from "./methodical-materials.service";
   imports: [AuthModule],
   controllers: [MethodicalMaterialsController],
   providers: [MethodicalMaterialsService],
+  exports: [MethodicalMaterialsService],
 })
 export class MethodicalMaterialsModule {}
