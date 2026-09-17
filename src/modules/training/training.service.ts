@@ -294,7 +294,7 @@ export class TrainingService {
     return this.db
       .select({ id: users.id, fullName: users.fullName, email: users.email })
       .from(users)
-      .where(eq(users.role, "operator"))
+      .where(and(eq(users.role, "operator"), eq(users.isActive, true)))
       .orderBy(asc(users.fullName));
   }
 
@@ -356,7 +356,11 @@ export class TrainingService {
         .select({ id: users.id })
         .from(users)
         .where(
-          and(eq(users.id, input.instructorId), eq(users.role, "instructor")),
+          and(
+            eq(users.id, input.instructorId),
+            eq(users.role, "instructor"),
+            eq(users.isActive, true),
+          ),
         )
         .limit(1);
       if (!instructor) {
@@ -431,7 +435,13 @@ export class TrainingService {
     const [operator] = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.id, input.userId), eq(users.role, "operator")))
+      .where(
+        and(
+          eq(users.id, input.userId),
+          eq(users.role, "operator"),
+          eq(users.isActive, true),
+        ),
+      )
       .limit(1);
     if (!operator) {
       throw new AppNotFoundException(
@@ -1128,7 +1138,13 @@ export class TrainingService {
     const [student] = await this.db
       .select({ id: users.id, fullName: users.fullName, email: users.email })
       .from(users)
-      .where(and(eq(users.id, userId), eq(users.role, "operator")))
+      .where(
+        and(
+          eq(users.id, userId),
+          eq(users.role, "operator"),
+          eq(users.isActive, true),
+        ),
+      )
       .limit(1);
     if (!student) {
       throw new AppNotFoundException(

@@ -13,9 +13,6 @@ import {
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
-import { USER_ROLES, type UserRole } from "@/drizzle/schema";
-import { AppBadRequestException } from "@/common/exceptions/app.exception";
-import { ErrorCodes } from "@/contracts";
 import {
   type AuthenticatedRequest,
   JwtAuthGuard,
@@ -25,6 +22,7 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import {
   CreateUserDto,
+  ListUsersQueryDto,
   UpdateUserDto,
   UserDto,
   UserListDto,
@@ -46,14 +44,8 @@ export class UsersController {
   /** Список для выбора, например преподавателя группы: `?role=instructor`. */
   @Get()
   @ZodSerializerDto(UserListDto)
-  async list(@Query("role") role?: string) {
-    if (role !== undefined && !USER_ROLES.includes(role as UserRole)) {
-      throw new AppBadRequestException(
-        ErrorCodes.VALIDATION_FAILED,
-        "Unknown user role",
-      );
-    }
-    return { users: await this.users.list(role as UserRole | undefined) };
+  async list(@Query() query: ListUsersQueryDto) {
+    return { users: await this.users.list(query) };
   }
 
   @Patch(":userId")
