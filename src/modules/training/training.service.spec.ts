@@ -555,7 +555,7 @@ describe(TrainingService.name, () => {
     });
 
     it("lets an administrator assign a group instructor on creation", async () => {
-      const { service, calls, audit } = createService([
+      const { service, audit } = createService([
         [], // duplicate check: no existing group with code
         [{ id: "instructor-2" }], // active instructor lookup
         [

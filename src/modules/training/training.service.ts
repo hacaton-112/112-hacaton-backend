@@ -334,9 +334,9 @@ export class TrainingService {
         )
         .limit(1);
       if (!instructor) {
-        throw new AppBadRequestException(
-          ErrorCodes.USER_NOT_FOUND,
-          "Target instructor not found or inactive",
+        throw new AppNotFoundException(
+          ErrorCodes.AUTH_USER_NOT_FOUND,
+          "The instructor does not exist",
         );
       }
       instructorId = instructor.id;
