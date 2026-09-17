@@ -1,0 +1,36 @@
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
+
+import { GrammarService } from "./application/grammar.service";
+import { AliceAiGrammarReview } from "./infrastructure/alice-ai-grammar.review";
+import { GRAMMAR_REVIEW_PORT } from "./ports/grammar-review.port";
+
+/**
+ * Проверка грамотности текста.
+ *
+ * Правила работают всегда и без сети. Углублённая проверка моделью включается
+ * переменной `GRAMMAR_MODEL_REVIEW_ENABLED`: в изолированном контуре внешнего
+ * провайдера может не быть, и учебный комплекс обязан работать без него.
+ */
+@Module({
+  imports: [ConfigModule, AliceAiAdapterModule],
+  providers: [
+    AliceAiGrammarReview,
+    {
+      provide: GRAMMAR_REVIEW_PORT,
+      inject: [ConfigService, AliceAiGrammarReview],
+      useFactory: (
+        configService: ConfigService,
+        review: AliceAiGrammarReview,
+      ) =>
+        configService.get("GRAMMAR_MODEL_REVIEW_ENABLED") === "true"
+          ? review
+          : null,
+    },
+    GrammarService,
+  ],
+  exports: [GrammarService],
+})
+export class GrammarModule {}
