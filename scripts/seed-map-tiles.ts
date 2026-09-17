@@ -82,7 +82,7 @@ async function main() {
       "system112secret",
     upstreamUrl:
       process.env.MAP_TILES_UPSTREAM_URL ||
-      "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     cacheOnDemand: true,
   };
 

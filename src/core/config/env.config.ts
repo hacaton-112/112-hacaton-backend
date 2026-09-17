@@ -227,7 +227,7 @@ export const env = createEnv({
     MAP_TILES_UPSTREAM_URL: z
       .string()
       .trim()
-      .default("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"),
+      .default("https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
     MAP_CACHE_ON_DEMAND: BooleanEnvironmentSchema,
   },
   runtimeEnv: process.env,
