@@ -75,7 +75,7 @@ export default function ClassifierPage() {
 
   return (
     <ScrollArea className="h-full" type="auto" scrollbars="vertical">
-      <main className="mx-auto grid w-full max-w-[1180px] gap-4 p-4 md:p-6">
+      <main className="grid w-full gap-4 p-4 md:p-6">
         <header>
           <Text as="div" role="heading" aria-level={1} size="6" weight="bold">
             Классификатор происшествий
@@ -149,9 +149,9 @@ export default function ClassifierPage() {
           </Callout.Root>
         )}
 
-        <Card size="3" variant="classic">
-          <Flex align="center" justify="between" gap="3" mb="3">
-            <Text size="3" weight="bold">
+        <div className="grid gap-3">
+          <Flex align="center" justify="between" gap="3">
+            <Text size="4" weight="bold">
               Версии
             </Text>
             {versions.isFetching && <Spinner size="1" />}
@@ -222,7 +222,7 @@ export default function ClassifierPage() {
           )}
 
           {management.activateVersion.error && (
-            <Callout.Root color="red" size="1" mt="3" role="alert">
+            <Callout.Root color="red" size="1" mt="1" role="alert">
               <Callout.Icon>
                 <AlertTriangle size={15} />
               </Callout.Icon>
@@ -231,7 +231,7 @@ export default function ClassifierPage() {
               </Callout.Text>
             </Callout.Root>
           )}
-        </Card>
+        </div>
       </main>
     </ScrollArea>
   );
@@ -307,7 +307,7 @@ function VersionRows({
       {expanded && version.warningCount > 0 && (
         <Table.Row>
           <Table.Cell colSpan={6}>
-            <div className="rounded-rx-2 max-h-56 overflow-y-auto bg-(--gray-a2) p-3">
+            <div className="rounded-(--radius-2) max-h-56 overflow-y-auto bg-(--gray-a2) p-3">
               <Text size="1" weight="bold">
                 Что нужно проверить в исходном файле
               </Text>

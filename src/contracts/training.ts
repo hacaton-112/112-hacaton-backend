@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MethodicalMaterialSchema } from "./methodical-materials";
+
 export const TrainingGroupStatusSchema = z.enum(["active", "archived"]);
 export const TrainingAssignmentStatusSchema = z.enum([
   "draft",
@@ -196,6 +198,7 @@ export const StudentProfileSchema = z.object({
   }),
   stats: StudentStatsSchema,
   calls: z.array(InstructorCallSchema),
+  methodicalMaterials: z.array(MethodicalMaterialSchema).optional(),
 });
 
 export type TrainingGroup = z.infer<typeof TrainingGroupSchema>;
