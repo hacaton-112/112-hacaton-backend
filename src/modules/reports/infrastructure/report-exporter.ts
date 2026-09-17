@@ -1,0 +1,333 @@
+import { Injectable } from "@nestjs/common";
+import { Workbook } from "exceljs";
+import { join } from "node:path";
+import PDFDocument from "pdfkit";
+
+import type {
+  InstructorReport,
+  InstructorReportAttempt,
+  InstructorReportFormat,
+  InstructorReportStats,
+} from "../dto/instructor-report.dto";
+
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const FONT_PATH = join(
+  process.cwd(),
+  "node_modules",
+  "@fontsource",
+  "noto-sans",
+  "files",
+  "noto-sans-cyrillic-400-normal.woff",
+);
+
+export interface ReportArtifact {
+  buffer: Buffer;
+  contentType: string;
+  filename: string;
+}
+
+const text = (value: string | number | boolean | null): string => {
+  if (value === null) return "—";
+  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  return String(value);
+};
+
+const csvCell = (value: string | number | boolean | null): string => {
+  const valueText = text(value);
+  return `"${valueText.replaceAll('"', '""')}"`;
+};
+
+const csvRow = (values: readonly (string | number | boolean | null)[]) =>
+  values.map(csvCell).join(";");
+
+const percent = (value: number | null): string =>
+  value === null ? "—" : `${value}%`;
+
+const statsRows = (stats: InstructorReportStats) =>
+  [
+    ["Попыток", stats.attempts],
+    ["Завершено", stats.completedAttempts],
+    ["Оценено", stats.evaluatedAttempts],
+    ["Сдано", stats.passedAttempts],
+    ["Процент сдачи", percent(stats.passRate)],
+    ["Средний балл", stats.averageScore],
+    ["Лучший балл", stats.bestScore],
+    ["Среднее время ответа, сек.", stats.averageAnswerSeconds],
+    ["Средняя длительность, сек.", stats.averageDurationSeconds],
+    ["Последняя попытка", stats.lastAttemptAt],
+  ] as const;
+
+const reportFilename = (
+  report: InstructorReport,
+  format: InstructorReportFormat,
+) =>
+  `instructor-report-${report.scope}-${report.target.id.slice(0, 8)}-${report.generatedAt.slice(0, 10)}.${format}`;
+
+const attemptRow = (attempt: InstructorReportAttempt) =>
+  [
+    attempt.trainingSessionId,
+    attempt.operatorName,
+    attempt.groupName,
+    attempt.assignmentTitle,
+    `${attempt.scenarioCode} — ${attempt.scenarioTitle}`,
+    attempt.attemptNumber,
+    attempt.status,
+    attempt.offeredAt,
+    attempt.endedAt,
+    attempt.answerSeconds,
+    attempt.answerNormSeconds,
+    attempt.answeredWithinNorm,
+    attempt.durationSeconds,
+    attempt.score,
+    attempt.passThreshold,
+    attempt.passed,
+    attempt.analysis.questionsSatisfied,
+    attempt.analysis.questionsTotal,
+    attempt.analysis.criticalQuestionsMissed,
+    attempt.analysis.requiredFieldsMissing,
+    attempt.analysis.incorrectFields,
+    attempt.analysis.recommendations.join(" | "),
+    attempt.grammar.status,
+  ] as const;
+
+const ATTEMPT_HEADERS = [
+  "ID сессии",
+  "Ученик",
+  "Группа",
+  "Назначение",
+  "Сценарий",
+  "Попытка",
+  "Статус",
+  "Начало",
+  "Завершение",
+  "Ответ, сек.",
+  "Норматив ответа, сек.",
+  "Норматив соблюдён",
+  "Длительность, сек.",
+  "Балл",
+  "Порог",
+  "Сдано",
+  "Вопросов закрыто",
+  "Вопросов всего",
+  "Критических вопросов пропущено",
+  "Обязательных полей пропущено",
+  "Некорректных полей",
+  "Рекомендации",
+  "Грамматика",
+] as const;
+
+@Injectable()
+export class ReportExporter {
+  async export(
+    report: InstructorReport,
+    format: InstructorReportFormat,
+  ): Promise<ReportArtifact> {
+    if (format === "csv") {
+      return {
+        buffer: Buffer.from(this.csv(report), "utf8"),
+        contentType: "text/csv; charset=utf-8",
+        filename: reportFilename(report, format),
+      };
+    }
+    if (format === "xlsx") {
+      return {
+        buffer: await this.xlsx(report),
+        contentType: XLSX_MIME,
+        filename: reportFilename(report, format),
+      };
+    }
+    return {
+      buffer: await this.pdf(report),
+      contentType: "application/pdf",
+      filename: reportFilename(report, format),
+    };
+  }
+
+  private csv(report: InstructorReport): string {
+    const rows: string[] = [
+      csvRow(["Отчёт преподавателя"]),
+      csvRow(["Сформирован", report.generatedAt]),
+      csvRow(["Объект", report.target.name]),
+      csvRow(["Тип", report.scope]),
+      csvRow(["Период с", report.period.from]),
+      csvRow(["Период по", report.period.to]),
+      csvRow(["Грамматика", report.grammar.message]),
+      "",
+      csvRow(["Показатель", "Значение"]),
+      ...statsRows(report.stats).map((row) => csvRow(row)),
+      "",
+      csvRow(ATTEMPT_HEADERS),
+      ...report.attempts.map((attempt) => csvRow(attemptRow(attempt))),
+    ];
+    // BOM помогает Excel корректно открыть кириллицу в UTF-8 CSV.
+    return `\uFEFF${rows.join("\r\n")}\r\n`;
+  }
+
+  private async xlsx(report: InstructorReport): Promise<Buffer> {
+    const workbook = new Workbook();
+    workbook.creator = "System 112 Training";
+    workbook.created = new Date(report.generatedAt);
+
+    const summary = workbook.addWorksheet("Сводка");
+    summary.addRows([
+      ["Отчёт преподавателя"],
+      ["Сформирован", report.generatedAt],
+      ["Объект", report.target.name],
+      ["Тип", report.scope],
+      ["Период с", report.period.from ?? "—"],
+      ["Период по", report.period.to ?? "—"],
+      ["Грамматика", report.grammar.message],
+      [],
+      ["Показатель", "Значение"],
+      ...statsRows(report.stats),
+    ]);
+    summary.getColumn(1).width = 34;
+    summary.getColumn(2).width = 58;
+    summary.getRow(1).font = { bold: true, size: 16 };
+    summary.getRow(9).font = { bold: true };
+
+    const students = workbook.addWorksheet("Ученики", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    students.columns = [
+      { header: "Ученик", key: "name", width: 30 },
+      { header: "Email", key: "email", width: 32 },
+      { header: "Службы", key: "services", width: 24 },
+      { header: "Попыток", key: "attempts", width: 12 },
+      { header: "Завершено", key: "completed", width: 14 },
+      { header: "Оценено", key: "evaluated", width: 12 },
+      { header: "Сдано", key: "passed", width: 10 },
+      { header: "Сдача, %", key: "passRate", width: 12 },
+      { header: "Средний балл", key: "averageScore", width: 16 },
+      { header: "Лучший балл", key: "bestScore", width: 14 },
+    ];
+    students.addRows(
+      report.students.map((student) => ({
+        name: student.operatorName,
+        email: student.email ?? "—",
+        services: student.serviceTags.join(", ") || "—",
+        attempts: student.stats.attempts,
+        completed: student.stats.completedAttempts,
+        evaluated: student.stats.evaluatedAttempts,
+        passed: student.stats.passedAttempts,
+        passRate: student.stats.passRate,
+        averageScore: student.stats.averageScore,
+        bestScore: student.stats.bestScore,
+      })),
+    );
+    this.styleTableHeader(students.getRow(1));
+
+    const attempts = workbook.addWorksheet("Попытки", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    attempts.addRow([...ATTEMPT_HEADERS]);
+    attempts.addRows(
+      report.attempts.map((attempt) => [...attemptRow(attempt)]),
+    );
+    this.styleTableHeader(attempts.getRow(1));
+    attempts.columns.forEach((column, index) => {
+      column.width = index === 21 ? 48 : index < 5 ? 24 : 16;
+      column.alignment = { vertical: "top", wrapText: true };
+    });
+    attempts.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: ATTEMPT_HEADERS.length },
+    };
+
+    const output = await workbook.xlsx.writeBuffer();
+    return Buffer.from(output);
+  }
+
+  private styleTableHeader(row: import("exceljs").Row): void {
+    row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    row.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF2457A7" },
+    };
+    row.alignment = { vertical: "middle", wrapText: true };
+  }
+
+  private pdf(report: InstructorReport): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const document = new PDFDocument({
+        size: "A4",
+        margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        info: { Title: `Отчёт преподавателя — ${report.target.name}` },
+      });
+      const chunks: Buffer[] = [];
+      document.on("data", (chunk: Buffer) => chunks.push(chunk));
+      document.on("end", () => resolve(Buffer.concat(chunks)));
+      document.on("error", reject);
+      document.registerFont("NotoSans", FONT_PATH).font("NotoSans");
+
+      document.fontSize(18).text("Отчёт преподавателя");
+      document.moveDown(0.4).fontSize(10);
+      document.text(`Объект: ${report.target.name}`);
+      document.text(`Сформирован: ${report.generatedAt}`);
+      document.text(
+        `Период: ${report.period.from ?? "без ограничения"} — ${report.period.to ?? "без ограничения"}`,
+      );
+      document.fillColor("#7A3E00").text(report.grammar.message);
+      document.fillColor("#111111").moveDown(0.5);
+
+      document.fontSize(13).text("Сводка");
+      document.fontSize(9);
+      for (const [label, value] of statsRows(report.stats)) {
+        document.text(`${label}: ${text(value)}`);
+      }
+
+      if (report.students.length > 0) {
+        document.moveDown().fontSize(13).text("Ученики");
+        document.fontSize(9);
+        for (const student of report.students) {
+          this.ensurePdfSpace(document, 28);
+          document.text(
+            `${student.operatorName}: попыток ${student.stats.attempts}, средний балл ${text(student.stats.averageScore)}, сдача ${percent(student.stats.passRate)}`,
+          );
+        }
+      }
+
+      document.moveDown().fontSize(13).text("Попытки");
+      if (report.attempts.length === 0) {
+        document.fontSize(9).text("За выбранный период попыток нет.");
+      }
+      for (const attempt of report.attempts) {
+        this.ensurePdfSpace(document, 92);
+        document
+          .moveDown(0.5)
+          .fontSize(10)
+          .text(
+            `${attempt.operatorName} · ${attempt.scenarioCode} · попытка ${attempt.attemptNumber}`,
+          );
+        document.fontSize(8.5);
+        document.text(
+          `Назначение: ${attempt.assignmentTitle}; статус: ${attempt.status}; балл: ${text(attempt.score)}/${attempt.passThreshold}`,
+        );
+        document.text(
+          `Ответ: ${text(attempt.answerSeconds)} сек. при нормативе ${attempt.answerNormSeconds}; длительность: ${text(attempt.durationSeconds)} сек.`,
+        );
+        document.text(
+          `Ошибки: критические вопросы ${text(attempt.analysis.criticalQuestionsMissed)}, обязательные поля ${text(attempt.analysis.requiredFieldsMissing)}, некорректные поля ${text(attempt.analysis.incorrectFields)}.`,
+        );
+        if (attempt.analysis.recommendations.length > 0) {
+          document.text(
+            `Рекомендации: ${attempt.analysis.recommendations.join("; ")}`,
+          );
+        }
+      }
+
+      document.end();
+    });
+  }
+
+  private ensurePdfSpace(document: PDFKit.PDFDocument, height: number): void {
+    if (
+      document.y + height >
+      document.page.height - document.page.margins.bottom
+    ) {
+      document.addPage();
+    }
+  }
+}

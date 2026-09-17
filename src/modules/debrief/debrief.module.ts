@@ -24,5 +24,6 @@ import { DEBRIEF_STORE } from "./ports/debrief.store.port";
     DrizzleDebriefStore,
     { provide: DEBRIEF_STORE, useExisting: DrizzleDebriefStore },
   ],
+  exports: [DebriefService],
 })
 export class DebriefModule {}
