@@ -4,6 +4,7 @@ import { Outlet, Route, Routes } from "react-router";
 
 import { ROUTE_PATTERNS } from "./config/routes";
 import {
+  ADMIN_ROLES,
   DDS_TRAINEE_ROLES,
   SCENARIO_AUTHOR_ROLES,
   TRAINEE_ROLES,
@@ -31,6 +32,7 @@ const GroupsPage = lazy(() => import("./pages/main/groups-page"));
 const GroupPage = lazy(() => import("./pages/main/group-page"));
 const StudentPage = lazy(() => import("./pages/main/student-page"));
 const StudentsPage = lazy(() => import("./pages/main/students-page"));
+const AdminPage = lazy(() => import("./pages/main/admin-page"));
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -113,6 +115,12 @@ export function Routing() {
               <Route
                 path={ROUTE_PATTERNS.scenarioEdit}
                 element={scenarioConstructor}
+              />
+            </Route>
+            <Route element={<RoleLayout allowed={ADMIN_ROLES} />}>
+              <Route
+                path={ROUTE_PATTERNS.admin}
+                element={lazyPage(<AdminPage />)}
               />
             </Route>
           </Route>

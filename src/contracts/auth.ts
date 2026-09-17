@@ -10,7 +10,9 @@ export const AuthUserSchema = z.object({
   email: z.email(),
   fullName: z.string(),
   role: UserRoleSchema,
+  isActive: z.boolean(),
   createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export const AuthSessionSchema = z.object({

@@ -17,7 +17,7 @@ export const QUERY_KEYS = {
   students: () => ["students"] as const,
   studentProfile: (userId: string) => ["student-profile", userId] as const,
   trainingOperators: () => ["training-operators"] as const,
-  users: (role?: string) => ["users", role] as const,
+  users: (filters: object = {}) => ["users", filters] as const,
   trainingAssignments: () => ["training-assignments"] as const,
   myAssignments: () => ["my-assignments"] as const,
   liveTrainingSessions: (groupId?: string) =>
@@ -37,4 +37,5 @@ export const QUERY_KEYS = {
 export const QUERY_KEY_PREFIXES = {
   scenarios: ["scenarios"] as const,
   scenarioVersion: ["scenario-version"] as const,
+  users: ["users"] as const,
 } as const;

@@ -1,5 +1,13 @@
 import type { UserRole } from "./auth";
 
+export type UserStatus = "active" | "inactive";
+
+export interface UserListFilters {
+  role?: UserRole;
+  status?: UserStatus;
+  search?: string;
+}
+
 /** Учётную запись создаёт администратор (ТЗ, стр. 9): публичной регистрации нет. */
 export interface CreateUser {
   fullName: string;
@@ -9,7 +17,7 @@ export interface CreateUser {
 }
 
 /** Правка учётной записи: передаются только изменённые поля. */
-export type UpdateUser = Partial<CreateUser>;
+export type UpdateUser = Partial<CreateUser> & { isActive?: boolean };
 
 /** Те же правила, что у backend: иначе ошибка приходила бы только после отправки. */
 export const passwordProblem = (password: string): string | null => {
