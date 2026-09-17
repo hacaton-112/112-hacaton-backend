@@ -48,7 +48,7 @@ import {
   formatDuration,
   formatScore,
 } from "../../components/training/training-labels";
-import { canCreateUsers } from "../../config/roles";
+import { canCreateStudents } from "../../config/roles";
 import { ROUTES } from "../../config/routes";
 import {
   isAssignmentForTarget,
@@ -460,7 +460,7 @@ function GroupStudents({
           Балл учитывает звонки, по которым уже есть оценка.
         </Text>
         <Flex gap="2" className="shrink-0">
-          {canCreateUsers(role) && (
+          {canCreateStudents(role) && (
             <Button
               variant="soft"
               disabled={!isActive}

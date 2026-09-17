@@ -294,6 +294,26 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+function SidebarGroupLabel({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "duration-(--app-transition-duration-base) text-gray-10 group-data-[collapsible=icon]:hidden flex h-7 shrink-0 items-center px-rx-3 text-xs font-medium tracking-wider uppercase select-none",
+        className,
+      )}
+      data-sidebar="group-label"
+      data-slot="sidebar-group-label"
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
 function SidebarGroupContent({
   className,
   ...props
@@ -389,6 +409,7 @@ export {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,

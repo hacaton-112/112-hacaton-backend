@@ -10,7 +10,7 @@ import {
 import { AlertTriangle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-import { canCreateUsers } from "../../config/roles";
+import { canManageStudentAccount } from "../../config/roles";
 import type { TrainingGroup } from "../../contracts/training";
 import { passwordProblem, type UpdateUser } from "../../contracts/users";
 import type { TrainingMutations } from "../../hooks/use-training";
@@ -74,7 +74,9 @@ function StudentEditForm({
   mutations: TrainingMutations;
   onDone: () => void;
 }) {
-  const isAdmin = canCreateUsers(useAuthStore((state) => state.user?.role));
+  const canManage = canManageStudentAccount(
+    useAuthStore((state) => state.user?.role),
+  );
   const [fullName, setFullName] = useState(student.fullName);
   const [email, setEmail] = useState(student.email);
   const [password, setPassword] = useState("");
@@ -92,7 +94,7 @@ function StudentEditForm({
     event.preventDefault();
     if (!canSubmit) return;
 
-    const account: UpdateUser = isAdmin
+    const account: UpdateUser = canManage
       ? {
           ...(fullName.trim() !== student.fullName && {
             fullName: fullName.trim(),
@@ -118,7 +120,7 @@ function StudentEditForm({
       });
       onDone();
     } catch {
-      // Причина остаётся в диалоге.
+      // Понятная ошибка остаётся в форме.
     }
   };
 
@@ -126,17 +128,17 @@ function StudentEditForm({
     <form onSubmit={submit}>
       <Dialog.Title>Изменить ученика</Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
-        {isAdmin
-          ? "Новый пароль завершит все входы ученика."
-          : "ФИО, email и пароль меняет администратор. Служба определяет, какие занятия группы увидит ученик."}
+        {canManage
+          ? "Новый пароль завершит все прежние входы ученика."
+          : "Служба определяет, какие занятия группы увидит ученик."}
       </Dialog.Description>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <TrainingField label="ФИО" className="sm:col-span-2">
           <TextField.Root
             required
-            autoFocus={isAdmin}
-            disabled={!isAdmin}
+            autoFocus={canManage}
+            disabled={!canManage}
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
           />
@@ -145,12 +147,12 @@ function StudentEditForm({
           <TextField.Root
             required
             type="email"
-            disabled={!isAdmin}
+            disabled={!canManage}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
         </TrainingField>
-        {isAdmin ? (
+        {canManage ? (
           <TrainingField
             label="Новый пароль"
             hint={passwordHint ?? undefined}
@@ -168,7 +170,7 @@ function StudentEditForm({
         ) : (
           <TrainingField label="Пароль" className="sm:col-span-2">
             <Text size="2" color="gray">
-              Меняет администратор
+              Меняет преподаватель или администратор
             </Text>
           </TrainingField>
         )}
@@ -176,7 +178,7 @@ function StudentEditForm({
           <TrainingField label="Служба ученика" className="sm:col-span-2">
             <TextField.Root
               required
-              autoFocus={!isAdmin}
+              autoFocus={!canManage}
               placeholder="FIRE_101"
               value={serviceTag}
               onChange={(event) => setServiceTag(event.target.value)}

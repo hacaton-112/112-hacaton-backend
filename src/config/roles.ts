@@ -25,13 +25,24 @@ export const TRAINEE_ROLES: readonly UserRole[] = ["operator"];
 export const canManageTraining = (role?: UserRole): boolean =>
   role !== undefined && TRAINING_MANAGER_ROLES.includes(role);
 
-/** Карточки ДДС сейчас предназначены только для обучающихся-операторов. */
-export const DDS_TRAINEE_ROLES: readonly UserRole[] = TRAINEE_ROLES;
+/** Отработка карточек ДДС доступна операторам, а также для проверки преподавателям и администраторам. */
+export const DDS_TRAINEE_ROLES: readonly UserRole[] = [
+  "operator",
+  "instructor",
+  "admin",
+];
 
 export const canTrainAsDds = (role?: UserRole): boolean =>
   role !== undefined && DDS_TRAINEE_ROLES.includes(role);
 
-/** Учётные записи создаёт только администратор (ТЗ, стр. 9). */
+/** Создавать и вести учётные записи учеников (операторов) могут преподаватель и администратор. */
+export const canCreateStudents = (role?: UserRole): boolean =>
+  role === "instructor" || role === "admin";
+
+export const canManageStudentAccount = (role?: UserRole): boolean =>
+  role === "instructor" || role === "admin";
+
+/** Учётные записи любых ролей (включая преподавателей) создаёт администратор. */
 export const canCreateUsers = (role?: UserRole): boolean => role === "admin";
 
 /** Кабинет администратора закрыт для преподавателей и операторов. */

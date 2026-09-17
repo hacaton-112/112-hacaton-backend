@@ -26,7 +26,7 @@ import {
   formatDuration,
   formatScore,
 } from "../../components/training/training-labels";
-import { canCreateUsers } from "../../config/roles";
+import { canCreateStudents } from "../../config/roles";
 import { ROUTES } from "../../config/routes";
 import type { StudentListItem } from "../../contracts/training";
 import {
@@ -48,7 +48,7 @@ import { useAuthStore } from "../../stores/auth.store";
 export default function StudentsPage() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.user?.role);
-  const isAdmin = canCreateUsers(role);
+  const canCreate = canCreateStudents(role);
   const students = useStudents();
   const groups = useTrainingGroups();
   const mutations = useTrainingMutations();
@@ -56,11 +56,11 @@ export default function StudentsPage() {
   const [studentToEdit, setStudentToEdit] = useState<StudentListItem>();
 
   // Службу можно поправить, только когда группа однозначна; иначе — учётную
-  // запись, а это делает администратор.
+  // запись, а это делают преподаватель и администратор.
   const soleGroup = (student: StudentListItem) =>
     student.groups.length === 1 ? student.groups[0] : undefined;
   const canEdit = (student: StudentListItem) =>
-    isAdmin || soleGroup(student) !== undefined;
+    canCreate || soleGroup(student) !== undefined;
 
   const openEditor = (student: StudentListItem) => {
     mutations.updateStudent.reset();
@@ -181,7 +181,7 @@ export default function StudentsPage() {
             занятиям.
           </Text>
         </div>
-        {isAdmin && (
+        {canCreate && (
           <Button
             onClick={() => {
               mutations.createStudent.reset();
