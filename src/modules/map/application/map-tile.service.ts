@@ -65,6 +65,7 @@ export class MapTileService {
           maxzoom: 19,
           paint: {
             "raster-opacity": 1.0,
+            "raster-saturation": -1.0,
           },
         },
       ],
