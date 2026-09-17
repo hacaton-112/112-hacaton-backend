@@ -127,6 +127,13 @@
       "when": 1789621720226,
       "tag": "0017_public_iron_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789621720227,
+      "tag": "0018_long_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

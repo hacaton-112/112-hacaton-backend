@@ -22,6 +22,7 @@ import {
   StudentProfileDto,
   type InstructorCallView,
 } from "@/modules/training/dto/training.dto";
+import { MethodicalMaterialsService } from "@/modules/methodical-materials/methodical-materials.service";
 import {
   summarizeStudentCalls,
   TrainingService,
@@ -48,6 +49,7 @@ export class InstructorCallsController {
   constructor(
     private readonly training: TrainingService,
     private readonly debrief: DebriefService,
+    private readonly materials: MethodicalMaterialsService,
   ) {}
 
   @Get("calls")
@@ -95,7 +97,13 @@ export class InstructorCallsController {
         operatorId: userId,
       }),
     );
-    return { student, stats: summarizeStudentCalls(calls), calls };
+    const methodicalMaterials = await this.materials.list(userId, "operator");
+    return {
+      student,
+      stats: summarizeStudentCalls(calls),
+      calls,
+      methodicalMaterials,
+    };
   }
 
   /**

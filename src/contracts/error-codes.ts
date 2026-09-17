@@ -83,6 +83,10 @@ export const ErrorCodes = {
   DDS_STATUS_COMMENT_REQUIRED: "DDS_STATUS_COMMENT_REQUIRED",
   DDS_STATUS_TRANSITION_INVALID: "DDS_STATUS_TRANSITION_INVALID",
   DDS_STATUS_TRANSITION_CONFLICT: "DDS_STATUS_TRANSITION_CONFLICT",
+
+  // ── Методические материалы ───────────────────────────────────────────────
+  METHODICAL_MATERIAL_NOT_FOUND: "METHODICAL_MATERIAL_NOT_FOUND",
+  METHODICAL_SECTION_NOT_FOUND: "METHODICAL_SECTION_NOT_FOUND",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

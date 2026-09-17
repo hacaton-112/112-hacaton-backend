@@ -39,7 +39,10 @@
     "user:create": "bun --env-file=.env test/manual/create-user.ts",
     "db:generate": "drizzle-kit generate --config=drizzle/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle/drizzle.config.ts",
-    "db:seed": "bun --env-file=.env drizzle/seed/seed-scenarios.ts",
+    "db:seed:admin": "bun --env-file=.env drizzle/seed/seed-admin.ts",
+    "db:seed:classifier": "bun --env-file=.env drizzle/seed/seed-classifier.ts",
+    "db:seed:scenarios": "bun --env-file=.env drizzle/seed/seed-scenarios.ts",
+    "db:seed": "bun run db:seed:admin && bun run db:seed:classifier && bun run db:seed:scenarios",
     "db:studio": "drizzle-kit studio --config=drizzle/drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts"
   },
