@@ -9,11 +9,15 @@ import { LoggingInterceptor } from "@/common/interceptors/logging.interceptor";
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuditLogModule } from "@/modules/audit-log/audit-log.module";
 import { AuthModule } from "@/modules/auth/auth.module";
+import { ClassifierModule } from "@/modules/classifier";
 import { DebriefModule } from "@/modules/debrief/debrief.module";
+import { DdsExerciseModule } from "@/modules/dds-exercise";
 import { HealthModule } from "@/modules/health/health.module";
 import { GeocodingModule } from "@/modules/geocoding/geocoding.module";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { MetricsModule } from "@/modules/metrics";
+import { ReportsModule } from "@/modules/reports/reports.module";
+import { MethodicalMaterialsModule } from "@/modules/methodical-materials/methodical-materials.module";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { TrainingModule } from "@/modules/training/training.module";
 import { UsersModule } from "@/modules/users/users.module";
@@ -33,14 +37,18 @@ import { DatabaseModule } from "./database/database.module";
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
     MetricsModule,
+    MethodicalMaterialsModule,
     AuditLogModule,
     HealthModule,
     GeocodingModule,
     AuthModule,
+    ClassifierModule,
     AsrModule,
     DebriefModule,
+    DdsExerciseModule,
     IncidentCardModule,
     ScenarioCatalogModule,
+    ReportsModule,
     TrainingModule,
     UsersModule,
     VoicePipelineModule,

@@ -13,9 +13,6 @@ import {
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
-import { USER_ROLES, type UserRole } from "@/drizzle/schema";
-import { AppBadRequestException } from "@/common/exceptions/app.exception";
-import { ErrorCodes } from "@/contracts";
 import {
   type AuthenticatedRequest,
   JwtAuthGuard,
@@ -25,35 +22,38 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import {
   CreateUserDto,
+  ListUsersQueryDto,
   UpdateUserDto,
   UserDto,
   UserListDto,
 } from "./dto/users.dto";
 import { UsersService } from "./users.service";
 
+const actor = (request: AuthenticatedRequest) => ({
+  id: request.user.sub,
+  role: request.user.role,
+});
+
 @Controller(ApiRoutes.Users)
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("admin")
+@Roles("admin", "instructor")
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Post()
   @ZodSerializerDto(UserDto)
   create(@Req() request: AuthenticatedRequest, @Body() body: CreateUserDto) {
-    return this.users.create(request.user.sub, body);
+    return this.users.create(actor(request), body);
   }
 
   /** Список для выбора, например преподавателя группы: `?role=instructor`. */
   @Get()
   @ZodSerializerDto(UserListDto)
-  async list(@Query("role") role?: string) {
-    if (role !== undefined && !USER_ROLES.includes(role as UserRole)) {
-      throw new AppBadRequestException(
-        ErrorCodes.VALIDATION_FAILED,
-        "Unknown user role",
-      );
-    }
-    return { users: await this.users.list(role as UserRole | undefined) };
+  async list(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: ListUsersQueryDto,
+  ) {
+    return { users: await this.users.list(actor(request), query) };
   }
 
   @Patch(":userId")
@@ -63,6 +63,6 @@ export class UsersController {
     @Param("userId", new ParseUUIDPipe()) userId: string,
     @Body() body: UpdateUserDto,
   ) {
-    return this.users.update(request.user.sub, userId, body);
+    return this.users.update(actor(request), userId, body);
   }
 }

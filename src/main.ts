@@ -35,7 +35,7 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── CORS ─────────────────────────────────────────────────────
-  const corsOrigins = env.CORS_ORIGINS.split(",").map((origin) =>
+  const corsOrigins = env.CORS_ORIGINS.split(",").map((origin: string) =>
     origin.trim(),
   );
 

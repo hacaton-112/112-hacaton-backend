@@ -2,6 +2,7 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import { DISPATCH_SERVICES, INCIDENT_CATEGORIES } from "@/drizzle/schema";
+import { ClassifierRoutingSchema } from "@/modules/classifier/dto/classifier.dto";
 
 const MAX_VICTIMS = 20;
 const MAX_TEXT = 500;
@@ -57,6 +58,8 @@ export const SaveIncidentCardSchema = z
     nearby: z.boolean(),
     placeNotes: nullableText(MAX_NOTES),
 
+    classifierEntryId: z.string().uuid().nullable(),
+    classifierQualifierCodes: z.array(z.string().min(3).max(64)).max(32),
     incidentType: nullableText(200),
     categories: z.array(z.enum(INCIDENT_CATEGORIES)).max(4),
     startedAt: z.iso.datetime().nullable(),
@@ -77,10 +80,14 @@ export const IncidentCardSchema = SaveIncidentCardSchema.required({
   callerAnonymous: true,
   nearby: true,
   categories: true,
+  classifierEntryId: true,
+  classifierQualifierCodes: true,
   services: true,
   victims: true,
 }).extend({
   trainingSessionId: z.string().min(1),
+  /** Deterministic result produced by the backend, never accepted from input. */
+  classifierRouting: ClassifierRoutingSchema.nullable(),
   /** Заполнено — карточка закрыта вместе со звонком и только читается. */
   submittedAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime(),

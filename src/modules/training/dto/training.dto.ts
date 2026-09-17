@@ -10,6 +10,7 @@ import {
   GROUP_STATUSES,
   SCENARIO_CATEGORIES,
 } from "@/drizzle/schema";
+import { MethodicalMaterialSchema } from "@/modules/methodical-materials/dto/methodical-materials.dto";
 
 const IdSchema = z.uuid();
 const DateTimeSchema = z.iso.datetime();
@@ -25,6 +26,7 @@ export const CreateTrainingGroupSchema = z
       .regex(/^[A-Za-z0-9_-]+$/)
       .transform((value) => value.toUpperCase()),
     organization: z.string().trim().min(2).max(160),
+    instructorId: IdSchema.optional(),
   })
   .strict();
 
@@ -215,6 +217,9 @@ export const LiveTrainingSessionSchema = z
     assignmentId: IdSchema,
     assignmentTitle: z.string(),
     groupId: IdSchema.nullable(),
+    groupName: z.string().nullable(),
+    scenarioCode: z.string(),
+    scenarioTitle: z.string(),
     operatorId: IdSchema,
     operatorName: z.string(),
     stage: z.enum(CALL_STAGES),
@@ -251,6 +256,7 @@ export const InstructorCallSchema = z
     durationSeconds: z.number().int().nullable(),
     attemptNumber: z.number().int().positive(),
     attemptStatus: z.enum(ATTEMPT_STATUSES),
+    answerNormSeconds: z.number().int().positive(),
     passThreshold: z.number().int(),
     score: z.number().int().nullable(),
   })
@@ -314,6 +320,7 @@ export const StudentProfileSchema = z
     student: StudentSchema,
     stats: StudentStatsSchema,
     calls: z.array(InstructorCallSchema),
+    methodicalMaterials: z.array(MethodicalMaterialSchema).optional(),
   })
   .strict();
 export class StudentProfileDto extends createZodDto(StudentProfileSchema) {}

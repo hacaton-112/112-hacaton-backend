@@ -85,13 +85,16 @@ const createDb = (results: unknown[]) => {
   return { db, calls };
 };
 
-const createService = (results: unknown[]) => {
+const createService = (
+  results: unknown[],
+  engine: Partial<ScenarioEngineService> = {},
+) => {
   const { db, calls } = createDb(results);
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const service = new TrainingService(
     db as never,
     audit as unknown as AuditLogService,
-    {} as ScenarioEngineService,
+    engine as ScenarioEngineService,
   );
   return { service, calls, audit };
 };
@@ -258,6 +261,53 @@ describe(TrainingService.name, () => {
   };
   const membership = [{ groupId: "group-1", serviceTag: "FIRE_101" }];
 
+  it("returns the group and scenario context for live monitoring", async () => {
+    const startedAt = new Date("2026-09-15T11:59:00.000Z");
+    const getSnapshot = jest.fn().mockResolvedValue({
+      checklistSatisfied: 2,
+      checklistTotal: 5,
+    });
+    const { service } = createService(
+      [
+        [
+          {
+            trainingSessionId: "session-1",
+            assignmentId: "assignment-1",
+            assignmentTitle: "Пожар в жилом доме",
+            groupId: "group-1",
+            groupName: "Смена А",
+            scenarioCode: "FIRE-01",
+            scenarioTitle: "Пожар в жилом доме",
+            operatorId: "operator-1",
+            operatorName: "Анна Оператор",
+            attemptStatus: "active",
+            stage: "conversation",
+            panicLevel: 3,
+            startedAt,
+          },
+        ],
+      ],
+      { getSnapshot },
+    );
+
+    await expect(
+      service.listLiveSessions(
+        { id: "instructor-1", role: "instructor" },
+        "group-1",
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        groupName: "Смена А",
+        scenarioCode: "FIRE-01",
+        scenarioTitle: "Пожар в жилом доме",
+        checklistSatisfied: 2,
+        checklistTotal: 5,
+        startedAt: startedAt.toISOString(),
+      }),
+    ]);
+    expect(getSnapshot).toHaveBeenCalledWith("session-1");
+  });
+
   describe("reserveAttempt", () => {
     it("numbers the attempt after the operator's previous ones under a row lock", async () => {
       const { service, calls } = createService([
@@ -405,6 +455,7 @@ describe(TrainingService.name, () => {
   });
 
   describe("assignment lifecycle", () => {
+    const admin = { id: "admin-1", role: "admin" } as const;
     const instructor = { id: "instructor-1", role: "instructor" } as const;
     const managed = (overrides: Partial<TrainingAssignmentRecord> = {}) => [
       { assignment: assignment(overrides), groupInstructorId: "instructor-1" },
@@ -497,6 +548,54 @@ describe(TrainingService.name, () => {
 
       const error = await rejection(
         service.updateGroup(instructor, "group-1", {
+          instructorId: "instructor-2",
+        }),
+      );
+      expect(error.code).toBe(ErrorCodes.AUTH_ROLE_FORBIDDEN);
+    });
+
+    it("lets an administrator assign a group instructor on creation", async () => {
+      const { service, audit } = createService([
+        [], // duplicate check: no existing group with code
+        [{ id: "instructor-2" }], // active instructor lookup
+        [
+          {
+            id: "group-new",
+            name: "Поток 2",
+            code: "GRP-02",
+            organization: "ГБУ 112",
+            instructorId: "instructor-2",
+            status: "active",
+            createdAt: NOW,
+            updatedAt: NOW,
+          },
+        ],
+      ]);
+
+      const created = await service.createGroup(admin, {
+        name: "Поток 2",
+        code: "GRP-02",
+        organization: "ГБУ 112",
+        instructorId: "instructor-2",
+      });
+
+      expect(created.instructorId).toBe("instructor-2");
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "training.group.created",
+          resourceId: "group-new",
+        }),
+      );
+    });
+
+    it("forbids non-admin from assigning a group to another instructor on creation", async () => {
+      const { service } = createService([[]]);
+
+      const error = await rejection(
+        service.createGroup(instructor, {
+          name: "Поток 2",
+          code: "GRP-02",
+          organization: "ГБУ 112",
           instructorId: "instructor-2",
         }),
       );

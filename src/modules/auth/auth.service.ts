@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import bcrypt from "bcryptjs";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, ilike, ne, or } from "drizzle-orm";
 
 import {
   AppConflictException,
@@ -56,11 +56,17 @@ export class AuthService {
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
 
-    if (!user || !passwordMatches) {
+    if (!user || !passwordMatches || !user.isActive) {
       // Logged without the address: the entry exists so a burst of failures is
       // visible in the server log, not to record who tried to sign in.
       this.logger.warn(
-        `Rejected a login attempt: ${user ? "wrong password" : "unknown account"}`,
+        `Rejected a login attempt: ${
+          !user
+            ? "unknown account"
+            : !user.isActive
+              ? "inactive account"
+              : "wrong password"
+        }`,
       );
 
       throw new AppUnauthorizedException(
@@ -81,7 +87,10 @@ export class AuthService {
     const rotated = await this.sessions.rotate(refreshToken);
     const user = await this.findById(rotated.userId);
 
-    if (!user) {
+    if (!user || !user.isActive) {
+      if (user && !user.isActive) {
+        await this.sessions.revokeAllForUser(user.id);
+      }
       // Deliberately the refresh error rather than AUTH_USER_NOT_FOUND: a
       // deleted account must not be observable through this endpoint.
       throw new AppUnauthorizedException(
@@ -105,7 +114,7 @@ export class AuthService {
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new AppUnauthorizedException(
         ErrorCodes.AUTH_USER_NOT_FOUND,
         "Account no longer exists",
@@ -115,11 +124,32 @@ export class AuthService {
     return this.toAuthUser(user);
   }
 
-  async listUsers(role?: UserRole): Promise<AuthUser[]> {
+  async listUsers(
+    filters: {
+      role?: UserRole;
+      status?: "active" | "inactive";
+      search?: string;
+    } = {},
+  ): Promise<AuthUser[]> {
+    const search = filters.search?.trim();
+    const conditions = [
+      ...(filters.role ? [eq(users.role, filters.role)] : []),
+      ...(filters.status
+        ? [eq(users.isActive, filters.status === "active")]
+        : []),
+      ...(search
+        ? [
+            or(
+              ilike(users.fullName, `%${search}%`),
+              ilike(users.email, `%${search}%`),
+            ),
+          ]
+        : []),
+    ];
     const rows = await this.db
       .select()
       .from(users)
-      .where(role ? eq(users.role, role) : undefined)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(users.fullName));
     return rows.map((user) => this.toAuthUser(user));
   }
@@ -145,7 +175,7 @@ export class AuthService {
 
     const { password, ...rest } = input;
     const [before] = await this.db
-      .select({ role: users.role })
+      .select({ role: users.role, isActive: users.isActive })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
@@ -154,6 +184,26 @@ export class AuthService {
         ErrorCodes.AUTH_USER_NOT_FOUND,
         "The user does not exist",
       );
+    }
+
+    const nextRole = input.role ?? before.role;
+    const nextIsActive = input.isActive ?? before.isActive;
+    if (
+      before.role === "admin" &&
+      before.isActive &&
+      (nextRole !== "admin" || !nextIsActive)
+    ) {
+      const [{ activeAdmins }] = await this.db
+        .select({ activeAdmins: count() })
+        .from(users)
+        .where(and(eq(users.role, "admin"), eq(users.isActive, true)));
+
+      if (activeAdmins <= 1) {
+        throw new AppConflictException(
+          ErrorCodes.AUTH_LAST_ADMIN_REQUIRED,
+          "At least one active administrator must remain",
+        );
+      }
     }
 
     const [user] = await this.db
@@ -168,7 +218,11 @@ export class AuthService {
       .where(eq(users.id, userId))
       .returning();
 
-    if (password || (input.role && input.role !== before.role)) {
+    if (
+      password ||
+      (input.role && input.role !== before.role) ||
+      (input.isActive !== undefined && input.isActive !== before.isActive)
+    ) {
       await this.sessions.revokeAllForUser(userId);
     }
 
@@ -244,7 +298,9 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     };
   }
 }
