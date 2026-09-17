@@ -26,6 +26,7 @@ import {
   RecommendationsSection,
   ReferenceSection,
 } from "./debrief-questions";
+import { GrammarSection } from "./debrief-grammar";
 import { AnswerStatsSection, ScoreSection, TimeSection } from "./debrief-score";
 import { GroupSection, SkillsSection } from "./debrief-skills";
 import { Transcript } from "./debrief-transcript";
@@ -216,6 +217,12 @@ export function DebriefDetails({
                 <CallStateSection debrief={debrief} />
                 <Separator size="4" />
                 <IncidentCardSection debrief={debrief} />
+                {debrief.grammar && (
+                  <>
+                    <Separator size="4" />
+                    <GrammarSection grammar={debrief.grammar} />
+                  </>
+                )}
               </DebriefScroll>
             </Tabs.Content>
 
