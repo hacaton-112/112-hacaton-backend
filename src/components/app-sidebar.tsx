@@ -110,9 +110,9 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Раздел: Обучение и практика */}
+        {/* Раздел: Обучение */}
         <SidebarGroup>
-          <SidebarGroupLabel>Обучение и практика</SidebarGroupLabel>
+          <SidebarGroupLabel>Обучение</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarNavItem
