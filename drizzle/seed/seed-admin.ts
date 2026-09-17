@@ -32,6 +32,12 @@ const readUsersToSeed = () => [
     role: "instructor",
   }),
   CreateUserSchema.parse({
+    email: "petrov.instructor@system112.local",
+    password: "System112Instructor2026!",
+    fullName: "Петров Алексей Сергеевич",
+    role: "instructor",
+  }),
+  CreateUserSchema.parse({
     email: process.env.SEED_OPERATOR_EMAIL ?? "operator@system112.local",
     password:
       process.env.SEED_OPERATOR_PASSWORD ??
@@ -39,6 +45,30 @@ const readUsersToSeed = () => [
         ? undefined
         : "System112Operator2026!"),
     fullName: process.env.SEED_OPERATOR_FULL_NAME ?? "Оператор-стажер",
+    role: "operator",
+  }),
+  CreateUserSchema.parse({
+    email: "smirnov.operator@system112.local",
+    password: "System112Operator2026!",
+    fullName: "Смирнов Дмитрий Иванович",
+    role: "operator",
+  }),
+  CreateUserSchema.parse({
+    email: "ivanova.operator@system112.local",
+    password: "System112Operator2026!",
+    fullName: "Иванова Елена Васильевна",
+    role: "operator",
+  }),
+  CreateUserSchema.parse({
+    email: "kuznetsov.operator@system112.local",
+    password: "System112Operator2026!",
+    fullName: "Кузнецов Михаил Павлович",
+    role: "operator",
+  }),
+  CreateUserSchema.parse({
+    email: "vasilieva.operator@system112.local",
+    password: "System112Operator2026!",
+    fullName: "Васильева Анна Сергеевна",
     role: "operator",
   }),
 ];
