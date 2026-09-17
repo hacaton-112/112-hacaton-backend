@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CallStageSchema } from "./call";
+import { GrammarReportSchema } from "./grammar";
 import { IncidentCardSchema } from "./incident";
 
 export const CallSummarySchema = z.object({
@@ -95,6 +96,13 @@ export const DebriefSchema = z.object({
   questions: z.array(DebriefQuestionSchema),
   incidentCard: IncidentCardSchema.nullable(),
   evaluation: DebriefEvaluationSchema.nullable(),
+  /**
+   * Замечания к тексту карточки: на балл не влияют, в отчёт входят.
+   *
+   * Поле необязательно: backend старой версии его не присылает, и разбор
+   * должен открыться без него, а не упасть на разборе ответа.
+   */
+  grammar: GrammarReportSchema.optional(),
   recording: z.array(DebriefRecordingSegmentSchema),
   /** Разговор одной дорожкой; `null`, когда записывать было нечего. */
   recordingUrl: z.string().nullable(),
