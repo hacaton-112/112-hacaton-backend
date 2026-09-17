@@ -39,6 +39,7 @@ export const API_CONFIG = {
     `/instructor/calls/${encodeURIComponent(trainingSessionId)}/debrief`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
   getScenarioPublishUrl: () => `/scenarios`,
+  getScenarioGrammarCheckUrl: () => `/scenarios/grammar-check`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,
   getScenarioVersionUrl: (scenarioVersionId: string) =>
     `/scenarios/versions/${scenarioVersionId}`,
