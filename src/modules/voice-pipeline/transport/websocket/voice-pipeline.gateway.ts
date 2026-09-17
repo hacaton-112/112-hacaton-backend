@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 
-import { Inject, Logger } from "@nestjs/common";
+import { Inject, Logger, type OnModuleInit } from "@nestjs/common";
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -65,6 +65,11 @@ const TICK_INTERVAL_MS = 1_000;
  * идёт: тикает время, копится паника и тратится квота на генерацию.
  */
 const HEARTBEAT_INTERVAL_MS = 15_000;
+const SESSION_RECOVERY_WINDOW_MS = 30_000;
+const CONNECTED_RECOVERY_LEASE_MS =
+  SESSION_RECOVERY_WINDOW_MS + HEARTBEAT_INTERVAL_MS;
+const SESSION_RECOVERY_WINDOW_SECONDS = SESSION_RECOVERY_WINDOW_MS / 1_000;
+const MAX_RECOVERY_LEASES_ON_STARTUP = 1_000;
 /** Учебные звонки идут по-русски: распознавание не гадает язык по звуку. */
 const OPERATOR_LANGUAGE = "ru";
 /** Формат, в котором клиент шлёт кадры: тот же, что принимает распознавание. */
@@ -119,6 +124,11 @@ interface ConnectionState {
   user: VerifiedJwtPayload;
 }
 
+interface RecoverableSession {
+  state: ConnectionState;
+  timeout: NodeJS.Timeout;
+}
+
 type WithoutEventMetadata<T> = T extends unknown
   ? Omit<T, "eventId" | "sessionId" | "timestamp">
   : never;
@@ -128,11 +138,16 @@ type VoicePipelineServerEventInput =
 
 @WebSocketGateway({ path: GATEWAY_PATH, maxPayload: MAX_COMMAND_BYTES })
 export class VoicePipelineGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
 {
   private readonly logger = new Logger(VoicePipelineGateway.name);
   private readonly connections = new WeakMap<WebSocket, ConnectionState>();
   private readonly sessionClients = new Map<string, WebSocket>();
+  private readonly recoverableSessions = new Map<string, RecoverableSession>();
+  private readonly persistedRecoveryTimeouts = new Map<
+    string,
+    NodeJS.Timeout
+  >();
 
   constructor(
     private readonly voicePipeline: VoicePipelineService,
@@ -149,6 +164,26 @@ export class VoicePipelineGateway
     @Inject(VOICE_PIPELINE_METRICS)
     private readonly metrics: VoicePipelineMetrics,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      const leases = await this.engine.listRecoveryLeases(
+        MAX_RECOVERY_LEASES_ON_STARTUP,
+      );
+      for (const lease of leases) {
+        this.schedulePersistedRecovery(
+          lease.trainingSessionId,
+          lease.expiresAt,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not restore recovery leases: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }
 
   /**
    * The handshake carries the same Bearer token as the REST surface: without
@@ -222,6 +257,9 @@ export class VoicePipelineGateway
         return;
       }
 
+      if (state.callStarted) {
+        void this.persistRecoveryLease(state, CONNECTED_RECOVERY_LEASE_MS);
+      }
       state.alive = false;
       client.ping();
     }, HEARTBEAT_INTERVAL_MS);
@@ -236,21 +274,18 @@ export class VoicePipelineGateway
       this.metrics.sessionClosed();
       this.stopTicking(state);
       this.abortListening(state);
-      this.recorder.finishCall(state.sessionId);
 
       if (state.heartbeat !== null) {
         clearInterval(state.heartbeat);
         state.heartbeat = null;
       }
 
-      // Оператор закрыл окно или потерял сеть — для звонка это конец, а не
-      // пауза. Без этого звонок навсегда оставался в разговоре: без
-      // длительности, без оценки и с открытой на запись карточкой.
+      // Короткий обрыв не завершает звонок: даём клиенту переподключиться к
+      // той же сессии. По истечении окна восстановление завершит её как
+      // брошенную, чтобы не оставить открытыми попытку, запись и карточку.
       this.sessionClients.delete(state.sessionId);
       if (state.callStarted) {
-        void this.endAbandonedCall(state).finally(() =>
-          this.training.finishAttempt(state.sessionId, "abandoned"),
-        );
+        this.scheduleRecovery(state);
       }
     }
 
@@ -258,6 +293,119 @@ export class VoicePipelineGateway
       new DOMException("WebSocket disconnected", "AbortError"),
     );
     this.connections.delete(client);
+  }
+
+  private scheduleRecovery(state: ConnectionState): void {
+    const sessionId = state.sessionId;
+    const existing = this.recoverableSessions.get(sessionId);
+    if (existing) clearTimeout(existing.timeout);
+
+    const timeout = setTimeout(() => {
+      void this.expireRecovery(sessionId, state).catch((error) => {
+        this.logger.error(
+          `Could not expire recovery for session ${sessionId}: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      });
+    }, SESSION_RECOVERY_WINDOW_MS);
+    timeout.unref();
+    this.recoverableSessions.set(sessionId, { state, timeout });
+    void this.persistRecoveryLease(state, SESSION_RECOVERY_WINDOW_MS);
+  }
+
+  private clearRecovery(sessionId: string): void {
+    const recoverable = this.recoverableSessions.get(sessionId);
+    if (recoverable) clearTimeout(recoverable.timeout);
+    this.recoverableSessions.delete(sessionId);
+  }
+
+  private clearPersistedRecoveryTimer(sessionId: string): void {
+    const timeout = this.persistedRecoveryTimeouts.get(sessionId);
+    if (timeout) clearTimeout(timeout);
+    this.persistedRecoveryTimeouts.delete(sessionId);
+  }
+
+  private schedulePersistedRecovery(sessionId: string, expiresAt: Date): void {
+    this.clearPersistedRecoveryTimer(sessionId);
+    const delay = Math.max(0, expiresAt.getTime() - Date.now());
+    const timeout = setTimeout(() => {
+      this.persistedRecoveryTimeouts.delete(sessionId);
+      void this.expirePersistedRecovery(sessionId).catch((error) => {
+        this.logger.error(
+          `Could not expire persisted recovery for session ${sessionId}: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      });
+    }, delay);
+    timeout.unref();
+    this.persistedRecoveryTimeouts.set(sessionId, timeout);
+  }
+
+  private async expirePersistedRecovery(sessionId: string): Promise<void> {
+    const now = new Date();
+    const retryAt = new Date(now.getTime() + SESSION_RECOVERY_WINDOW_MS);
+    const claimed = await this.engine.claimExpiredRecoveryLease(
+      sessionId,
+      now,
+      retryAt,
+    );
+    if (!claimed) return;
+
+    try {
+      // Побочные проекции закрываются до источника истины. Если любой шаг
+      // оборвётся, звонок всё ещё active и сохранённая retry-lease позволит
+      // следующему процессу безопасно повторить идемпотентную уборку.
+      await this.incidentCards.close(sessionId);
+      await this.training.finishAttempt(sessionId, "abandoned");
+      this.recorder.finishCall(sessionId);
+      await this.engine.endCall({
+        trainingSessionId: sessionId,
+        eventId: generateId(),
+        reason: "disconnected",
+      });
+    } catch (error) {
+      this.schedulePersistedRecovery(sessionId, retryAt);
+      throw error;
+    }
+  }
+
+  private async persistRecoveryLease(
+    state: ConnectionState,
+    lifetimeMs: number,
+  ): Promise<void> {
+    try {
+      await this.engine.renewRecoveryLease(
+        state.sessionId,
+        state.user.sub,
+        new Date(Date.now() + lifetimeMs),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not persist recovery lease for session ${state.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }
+
+  private async expireRecovery(
+    sessionId: string,
+    state: ConnectionState,
+  ): Promise<void> {
+    const recoverable = this.recoverableSessions.get(sessionId);
+    if (!recoverable || recoverable.state !== state) return;
+
+    this.recoverableSessions.delete(sessionId);
+    this.clearPersistedRecoveryTimer(sessionId);
+    try {
+      await this.endAbandonedCall(state);
+      await this.training.finishAttempt(sessionId, "abandoned");
+    } finally {
+      state.callStarted = false;
+      this.recorder.finishCall(sessionId);
+    }
   }
 
   /** Тот же путь, что и команда `end`, только причина другая. */
@@ -399,6 +547,11 @@ export class VoicePipelineGateway
       return;
     }
 
+    if (parsed.data.type === "resume") {
+      await this.resumeSession(client, state, parsed.data);
+      return;
+    }
+
     if (parsed.data.type === "cancel") {
       await this.cancelActiveRequest(client, state);
       return;
@@ -427,13 +580,140 @@ export class VoicePipelineGateway
     await this.startRequest(client, state, parsed.data);
   }
 
+  private async resumeSession(
+    client: WebSocket,
+    connectionState: ConnectionState,
+    command: Extract<VoicePipelineClientCommand, { type: "resume" }>,
+  ): Promise<void> {
+    const recoverable = this.recoverableSessions.get(command.sessionId);
+    let recoveredFromPersistence = false;
+    let state: ConnectionState;
+
+    if (recoverable?.state.user.sub === connectionState.user.sub) {
+      clearTimeout(recoverable.timeout);
+      this.recoverableSessions.delete(command.sessionId);
+      state = recoverable.state;
+    } else {
+      let claimed = false;
+      try {
+        claimed = await this.engine.claimRecoveryLease(
+          command.sessionId,
+          connectionState.user.sub,
+          new Date(),
+          new Date(Date.now() + CONNECTED_RECOVERY_LEASE_MS),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not claim recovery lease for session ${command.sessionId}: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      }
+
+      if (!claimed) {
+        await this.sendError(
+          client,
+          connectionState,
+          null,
+          "session-recovery-unavailable",
+        );
+        return;
+      }
+
+      recoveredFromPersistence = true;
+      state = {
+        ...connectionState,
+        sessionId: command.sessionId,
+        callStarted: true,
+        heartbeat: null,
+      };
+    }
+
+    this.clearPersistedRecoveryTimer(command.sessionId);
+    if (connectionState.heartbeat !== null) {
+      clearInterval(connectionState.heartbeat);
+      connectionState.heartbeat = null;
+    }
+
+    state.user = connectionState.user;
+    state.alive = true;
+    state.lastSnapshotKey = null;
+    this.connections.set(client, state);
+    this.sessionClients.set(state.sessionId, client);
+    this.startHeartbeat(client);
+
+    try {
+      const [snapshot, dialogue] = await Promise.all([
+        this.engine.getSnapshot(state.sessionId),
+        this.engine.getRecentTurns(state.sessionId),
+      ]);
+
+      if (snapshot.stage === "ended" || snapshot.stage === "declined") {
+        state.callStarted = false;
+        this.sessionClients.delete(state.sessionId);
+        this.recorder.finishCall(state.sessionId);
+        await this.sendError(
+          client,
+          state,
+          null,
+          "session-recovery-unavailable",
+        );
+        return;
+      }
+
+      if (recoveredFromPersistence && snapshot.answeredAt !== null) {
+        this.recorder.resumeCall(state.sessionId, snapshot.answeredAt);
+      }
+      await this.persistRecoveryLease(state, CONNECTED_RECOVERY_LEASE_MS);
+
+      await this.sendEvent(client, state, {
+        type: "call.resumed",
+        scenarioCode: snapshot.scenarioCode,
+        title: snapshot.title,
+        locator: snapshot.locator,
+        revealedFactKeys: [...snapshot.revealedFactKeys],
+        dialogue: dialogue.map((turn) => ({ ...turn })),
+        offeredAt: snapshot.offeredAt.toISOString(),
+        answeredAt: snapshot.answeredAt?.toISOString() ?? null,
+        recoveryWindowSeconds: SESSION_RECOVERY_WINDOW_SECONDS,
+        ...this.snapshotFields(snapshot),
+      });
+
+      if (snapshot.stage === "conversation") {
+        this.startTicking(client, state);
+        if (command.resumeListening) {
+          await this.startListening(client, state);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not recover session ${command.sessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      this.sessionClients.delete(state.sessionId);
+      await this.sendError(client, state, null, "session-recovery-unavailable");
+      if (state.heartbeat !== null) {
+        clearInterval(state.heartbeat);
+        state.heartbeat = null;
+      }
+      if (state.callStarted) this.scheduleRecovery(state);
+      connectionState.alive = true;
+      this.connections.set(client, connectionState);
+      this.startHeartbeat(client);
+    }
+  }
+
   /** Команды жизненного цикла звонка идут прямо в движок сценария. */
   private async handleCallCommand(
     client: WebSocket,
     state: ConnectionState,
     command: Exclude<
       VoicePipelineClientCommand,
-      { type: "speak" } | { type: "cancel" } | { type: `listen.${string}` }
+      | { type: "speak" }
+      | { type: "cancel" }
+      | { type: "resume" }
+      | { type: `listen.${string}` }
     >,
   ): Promise<void> {
     try {
@@ -471,6 +751,7 @@ export class VoicePipelineGateway
         }
         state.callStarted = true;
         this.sessionClients.set(state.sessionId, client);
+        await this.persistRecoveryLease(state, CONNECTED_RECOVERY_LEASE_MS);
 
         await this.sendEvent(client, state, {
           type: "call.offered",
@@ -524,6 +805,8 @@ export class VoicePipelineGateway
         state.sessionId,
         command.type === "decline" ? "declined" : "completed",
       );
+      this.clearRecovery(state.sessionId);
+      this.clearPersistedRecoveryTimer(state.sessionId);
       this.sessionClients.delete(state.sessionId);
       this.stopTicking(state);
       this.abortListening(state);
@@ -577,6 +860,7 @@ export class VoicePipelineGateway
   ): Promise<Date> {
     const client = this.sessionClients.get(trainingSessionId);
     const state = client ? this.connections.get(client) : undefined;
+    const recoverable = this.recoverableSessions.get(trainingSessionId);
     const endedAt = new Date();
     let snapshot: CallSnapshot | null = null;
     try {
@@ -618,7 +902,15 @@ export class VoicePipelineGateway
       state.callStarted = false;
     }
 
+    if (recoverable) {
+      recoverable.state.callStarted = false;
+      this.recorder.finishCall(trainingSessionId);
+      await this.incidentCards.close(trainingSessionId);
+    }
+
     this.sessionClients.delete(trainingSessionId);
+    this.clearRecovery(trainingSessionId);
+    this.clearPersistedRecoveryTimer(trainingSessionId);
     await this.training.auditInstructorEnd(
       instructorId,
       trainingSessionId,
@@ -1280,6 +1572,8 @@ export class VoicePipelineGateway
       "assignment-attempts-exhausted":
         "Every attempt of this assignment has been used",
       "assignment-attempt-active": "Another training attempt is still active",
+      "session-recovery-unavailable":
+        "The training session can no longer be recovered",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
     await this.sendEvent(client, state, {

@@ -67,6 +67,19 @@ export class CallRecordingService implements CallRecorder {
     });
   }
 
+  resumeCall(sessionId: string, startedAt: Date): void {
+    if (this.calls.has(sessionId)) return;
+
+    this.calls.set(sessionId, {
+      startedAt,
+      startedAtMs: startedAt.getTime(),
+      // Старые объекты могли загрузиться до crash без итогового манифеста.
+      // Временной индекс не перезапишет их нумерацию, начатую с единицы.
+      nextIndex: Date.now(),
+      uploads: [],
+    });
+  }
+
   openSegment(input: {
     sessionId: string;
     track: RecordingTrack;
@@ -213,6 +226,10 @@ export class CallRecordingService implements CallRecorder {
 @Injectable()
 export class NoopCallRecordingService implements CallRecorder {
   startCall(_sessionId: string): void {
+    return undefined;
+  }
+
+  resumeCall(_sessionId: string, _startedAt: Date): void {
     return undefined;
   }
 
