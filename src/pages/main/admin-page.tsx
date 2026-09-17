@@ -225,51 +225,49 @@ export default function AdminPage() {
         </div>
       )}
 
-      <Card size="2" variant="surface">
-        <Flex gap="3" wrap="wrap">
-          <TextField.Root
-            className="min-w-64 flex-1"
-            aria-label="Поиск пользователей"
-            placeholder="Поиск по ФИО или email"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          >
-            <TextField.Slot>
-              <Search size={16} />
-            </TextField.Slot>
-          </TextField.Root>
-          <Select.Root
-            value={role}
-            onValueChange={(value) => setRole(value as UserRole | typeof ALL)}
-          >
-            <Select.Trigger className="min-w-44" aria-label="Фильтр по роли" />
-            <Select.Content>
-              <Select.Item value={ALL}>Все роли</Select.Item>
-              {(Object.keys(ROLE_LABELS) as UserRole[]).map((value) => (
-                <Select.Item key={value} value={value}>
-                  {ROLE_LABELS[value]}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Select.Root
-            value={status}
-            onValueChange={(value) =>
-              setStatus(value as UserStatus | typeof ALL)
-            }
-          >
-            <Select.Trigger
-              className="min-w-44"
-              aria-label="Фильтр по доступу"
-            />
-            <Select.Content>
-              <Select.Item value={ALL}>Любой доступ</Select.Item>
-              <Select.Item value="active">Активные</Select.Item>
-              <Select.Item value="inactive">Отключённые</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        </Flex>
-      </Card>
+      <Flex gap="3" wrap="wrap">
+        <TextField.Root
+          className="min-w-64 flex-1"
+          aria-label="Поиск пользователей"
+          placeholder="Поиск по ФИО или email"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        >
+          <TextField.Slot>
+            <Search size={16} />
+          </TextField.Slot>
+        </TextField.Root>
+        <Select.Root
+          value={role}
+          onValueChange={(value) => setRole(value as UserRole | typeof ALL)}
+        >
+          <Select.Trigger className="min-w-44" aria-label="Фильтр по роли" />
+          <Select.Content>
+            <Select.Item value={ALL}>Все роли</Select.Item>
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map((value) => (
+              <Select.Item key={value} value={value}>
+                {ROLE_LABELS[value]}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+        <Select.Root
+          value={status}
+          onValueChange={(value) =>
+            setStatus(value as UserStatus | typeof ALL)
+          }
+        >
+          <Select.Trigger
+            className="min-w-44"
+            aria-label="Фильтр по доступу"
+          />
+          <Select.Content>
+            <Select.Item value={ALL}>Любой доступ</Select.Item>
+            <Select.Item value="active">Активные</Select.Item>
+            <Select.Item value="inactive">Отключённые</Select.Item>
+          </Select.Content>
+        </Select.Root>
+      </Flex>
 
       {(allUsers.error || users.error) && (
         <Callout.Root color="red" role="alert">
