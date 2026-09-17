@@ -11,6 +11,7 @@ interface TileCoord {
 }
 
 interface BoundingBox {
+  name: string;
   minLon: number;
   minLat: number;
   maxLon: number;
@@ -32,10 +33,24 @@ const lat2tile = (lat: number, zoom: number): number => {
   return Math.max(0, Math.min(n - 1, y));
 };
 
+/**
+ * Generates all tiles for the entire globe at zoom level z.
+ */
+const getAllTilesForWorldZoom = (zoom: number): TileCoord[] => {
+  const max = Math.pow(2, zoom);
+  const tiles: TileCoord[] = [];
+  for (let x = 0; x < max; x++) {
+    for (let y = 0; y < max; y++) {
+      tiles.push({ z: zoom, x, y });
+    }
+  }
+  return tiles;
+};
+
 const getTilesForBbox = (bbox: BoundingBox, zoom: number): TileCoord[] => {
   const xMin = lon2tile(bbox.minLon, zoom);
   const xMax = lon2tile(bbox.maxLon, zoom);
-  const yMin = lat2tile(bbox.maxLat, zoom); // Note: tile Y is inverted (0 is North)
+  const yMin = lat2tile(bbox.maxLat, zoom);
   const yMax = lat2tile(bbox.minLat, zoom);
 
   const tiles: TileCoord[] = [];
@@ -47,26 +62,26 @@ const getTilesForBbox = (bbox: BoundingBox, zoom: number): TileCoord[] => {
   return tiles;
 };
 
-// Russia mainland bounding box
-const RUSSIA_BBOX: BoundingBox = {
-  minLon: 20.0,
-  minLat: 41.5,
-  maxLon: 180.0,
-  maxLat: 76.0,
-};
-
-// Moscow & surrounding region bounding box
-const MOSCOW_BBOX: BoundingBox = {
+const MOSCOW_REGION_BBOX: BoundingBox = {
+  name: "Москва и Московская область",
   minLon: 36.8,
   minLat: 55.15,
   maxLon: 38.3,
   maxLat: 56.1,
 };
 
+const MOSCOW_CITY_BBOX: BoundingBox = {
+  name: "Москва (внутри МКАД + ключевые центры)",
+  minLon: 37.3,
+  minLat: 55.55,
+  maxLon: 37.85,
+  maxLat: 55.9,
+};
+
 async function main() {
-  console.log("==========================================");
-  console.log("  System-112 Offline Map Tile Seeder     ");
-  console.log("==========================================");
+  console.log("=================================================");
+  console.log("  System-112 Offline Global DarkMatter Seeder    ");
+  console.log("=================================================");
 
   const config: MapConfig = {
     s3Endpoint: process.env.MAP_TILES_S3_ENDPOINT || "http://127.0.0.1:9000",
@@ -86,36 +101,34 @@ async function main() {
     cacheOnDemand: true,
   };
 
-  console.log(`Connecting to S3/MinIO: ${config.s3Endpoint}, bucket: ${config.s3Bucket}`);
-  const storage = new S3MapTileStorage(config);
+  console.log(`MinIO: ${config.s3Endpoint}, Bucket: ${config.s3Bucket}`);
+  console.log(`Source: ${config.upstreamUrl}`);
 
+  const storage = new S3MapTileStorage(config);
   const allTiles: TileCoord[] = [];
 
-  // 1. Overview zooms (0 to 5) for world/Russia
-  for (let z = 0; z <= 5; z++) {
-    const tiles = getTilesForBbox(RUSSIA_BBOX, z);
+  // 1. Весь мир — обзорные зумы z0..z6 (100% покрытие планеты)
+  console.log("Планирование: весь мир (зумы 0..6)...");
+  for (let z = 0; z <= 6; z++) {
+    const tiles = getAllTilesForWorldZoom(z);
     allTiles.push(...tiles);
   }
 
-  // 2. Moscow & metropolitan region zooms (6 to 12)
-  for (let z = 6; z <= 12; z++) {
-    const tiles = getTilesForBbox(MOSCOW_BBOX, z);
+  // 2. Московская область — средние зумы z7..z12
+  console.log(`Планирование: ${MOSCOW_REGION_BBOX.name} (зумы 7..12)...`);
+  for (let z = 7; z <= 12; z++) {
+    const tiles = getTilesForBbox(MOSCOW_REGION_BBOX, z);
     allTiles.push(...tiles);
   }
 
-  // 3. Central Moscow detail zooms (13 to 14)
-  const CENTRAL_MOSCOW_BBOX: BoundingBox = {
-    minLon: 37.3,
-    minLat: 55.55,
-    maxLon: 37.85,
-    maxLat: 55.9,
-  };
+  // 3. Москва детально — детальные зумы z13..z14
+  console.log(`Планирование: ${MOSCOW_CITY_BBOX.name} (зумы 13..14)...`);
   for (let z = 13; z <= 14; z++) {
-    const tiles = getTilesForBbox(CENTRAL_MOSCOW_BBOX, z);
+    const tiles = getTilesForBbox(MOSCOW_CITY_BBOX, z);
     allTiles.push(...tiles);
   }
 
-  // Deduplicate
+  // Дедупликация
   const seen = new Set<string>();
   const uniqueTiles = allTiles.filter((t) => {
     const key = `${t.z}/${t.x}/${t.y}`;
@@ -124,16 +137,16 @@ async function main() {
     return true;
   });
 
-  console.log(`Total vector tiles planned: ${uniqueTiles.length}`);
+  console.log(`Всего уникальных векторных тайлов: ${uniqueTiles.length}`);
+  console.log("Запуск параллельной загрузки в MinIO...\n");
 
   let uploaded = 0;
   let skipped = 0;
   let failed = 0;
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 16;
 
   const downloadAndStore = async (tile: TileCoord): Promise<void> => {
     try {
-      // Check if already in MinIO
       const existing = await storage.getTile(tile.z, tile.x, tile.y, "mvt");
       if (existing && existing.length > 0) {
         skipped++;
@@ -165,43 +178,37 @@ async function main() {
         "mvt",
       );
       uploaded++;
-    } catch (err) {
+    } catch {
       failed++;
     }
   };
 
   const queue = [...uniqueTiles];
-  const workers: Promise<void>[] = [];
-
   const updateProgress = () => {
     const totalDone = uploaded + skipped + failed;
     const pct = ((totalDone / uniqueTiles.length) * 100).toFixed(1);
     process.stdout.write(
-      `\rProgress: ${totalDone}/${uniqueTiles.length} (${pct}%) | Uploaded: ${uploaded} | Skipped: ${skipped} | Failed: ${failed}`,
+      `\rПрогресс: ${totalDone}/${uniqueTiles.length} (${pct}%) | Загружено: ${uploaded} | Пропущено: ${skipped} | Ошибок: ${failed}`,
     );
   };
 
   const timer = setInterval(updateProgress, 500);
 
-  for (let i = 0; i < CONCURRENCY; i++) {
-    workers.push(
-      (async () => {
-        while (queue.length > 0) {
-          const item = queue.shift();
-          if (!item) break;
-          await downloadAndStore(item);
-        }
-      })(),
-    );
-  }
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (!item) break;
+      await downloadAndStore(item);
+    }
+  });
 
   await Promise.all(workers);
   clearInterval(timer);
   updateProgress();
-  console.log("\nFinished map tile seeding!");
+  console.log("\n\nСинхронизация карты завершена успешно!");
 }
 
 main().catch((err) => {
-  console.error("Fatal error during tile seeding:", err);
+  console.error("Критическая ошибка сидера карт:", err);
   process.exit(1);
 });
