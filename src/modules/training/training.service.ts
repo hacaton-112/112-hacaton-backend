@@ -314,9 +314,39 @@ export class TrainingService {
       );
     }
 
+    let instructorId = actor.id;
+    if (input.instructorId !== undefined) {
+      if (actor.role !== "admin") {
+        throw new AppForbiddenException(
+          ErrorCodes.AUTH_ROLE_FORBIDDEN,
+          "Only an administrator can assign a group to another instructor",
+        );
+      }
+      const [instructor] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, input.instructorId),
+            eq(users.role, "instructor"),
+            eq(users.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!instructor) {
+        throw new AppBadRequestException(
+          ErrorCodes.USER_NOT_FOUND,
+          "Target instructor not found or inactive",
+        );
+      }
+      instructorId = instructor.id;
+    }
+
+    const { instructorId: _, ...groupFields } = input;
+
     const [created] = await this.db
       .insert(trainingGroups)
-      .values({ ...input, id: generateId(), instructorId: actor.id })
+      .values({ ...groupFields, id: generateId(), instructorId })
       .returning();
     if (!created)
       throw new Error("The inserted training group was not returned");

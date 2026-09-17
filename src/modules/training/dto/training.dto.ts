@@ -26,6 +26,7 @@ export const CreateTrainingGroupSchema = z
       .regex(/^[A-Za-z0-9_-]+$/)
       .transform((value) => value.toUpperCase()),
     organization: z.string().trim().min(2).max(160),
+    instructorId: IdSchema.optional(),
   })
   .strict();
 

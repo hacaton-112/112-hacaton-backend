@@ -455,6 +455,7 @@ describe(TrainingService.name, () => {
   });
 
   describe("assignment lifecycle", () => {
+    const admin = { id: "admin-1", role: "admin" } as const;
     const instructor = { id: "instructor-1", role: "instructor" } as const;
     const managed = (overrides: Partial<TrainingAssignmentRecord> = {}) => [
       { assignment: assignment(overrides), groupInstructorId: "instructor-1" },
@@ -547,6 +548,54 @@ describe(TrainingService.name, () => {
 
       const error = await rejection(
         service.updateGroup(instructor, "group-1", {
+          instructorId: "instructor-2",
+        }),
+      );
+      expect(error.code).toBe(ErrorCodes.AUTH_ROLE_FORBIDDEN);
+    });
+
+    it("lets an administrator assign a group instructor on creation", async () => {
+      const { service, calls, audit } = createService([
+        [], // duplicate check: no existing group with code
+        [{ id: "instructor-2" }], // active instructor lookup
+        [
+          {
+            id: "group-new",
+            name: "Поток 2",
+            code: "GRP-02",
+            organization: "ГБУ 112",
+            instructorId: "instructor-2",
+            status: "active",
+            createdAt: NOW,
+            updatedAt: NOW,
+          },
+        ],
+      ]);
+
+      const created = await service.createGroup(admin, {
+        name: "Поток 2",
+        code: "GRP-02",
+        organization: "ГБУ 112",
+        instructorId: "instructor-2",
+      });
+
+      expect(created.instructorId).toBe("instructor-2");
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "training.group.created",
+          resourceId: "group-new",
+        }),
+      );
+    });
+
+    it("forbids non-admin from assigning a group to another instructor on creation", async () => {
+      const { service } = createService([[]]);
+
+      const error = await rejection(
+        service.createGroup(instructor, {
+          name: "Поток 2",
+          code: "GRP-02",
+          organization: "ГБУ 112",
           instructorId: "instructor-2",
         }),
       );
