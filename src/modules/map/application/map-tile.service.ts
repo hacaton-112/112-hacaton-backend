@@ -7,6 +7,7 @@ import {
   MAP_TILE_STORAGE,
   type MapTileStorage,
 } from "../ports/map-tile-storage.port";
+import { DARK_MATTER_STYLE_SPEC } from "../assets/dark-matter-style.constant.js";
 
 /**
  * 1x1 dark slate `#0b0f19` PNG tile for raster fallback.
@@ -37,71 +38,26 @@ export class MapTileService {
    */
   getStyle(baseUrl: string): MapStyleSpecification {
     const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
-    const stylePath = path.resolve(
-      __dirname,
-      "../assets/dark-matter-gl-style.json",
-    );
 
-    if (fs.existsSync(stylePath)) {
-      try {
-        const raw = fs.readFileSync(stylePath, "utf8");
-        const style = JSON.parse(raw);
+    // Deep-clone the compiled-in constant so we don't mutate it
+    const style = JSON.parse(
+      JSON.stringify(DARK_MATTER_STYLE_SPEC),
+    ) as Record<string, unknown>;
 
-        style.name = "System 112 Offline Dark Matter";
-        style.sources = {
-          carto: {
-            type: "vector",
-            tiles: [`${normalizedBaseUrl}/api/v1/map/tiles/{z}/{x}/{y}.mvt`],
-            minzoom: 0,
-            maxzoom: 14,
-            attribution: "© CARTO, © OpenStreetMap contributors",
-          },
-        };
-        style.sprite = `${normalizedBaseUrl}/api/v1/map/sprites/sprite`;
-        style.glyphs = `${normalizedBaseUrl}/api/v1/map/fonts/{fontstack}/{range}.pbf`;
-
-        return style;
-      } catch (error) {
-        this.logger.error(
-          `Failed to parse dark-matter-gl-style.json: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-
-    // Fallback simple raster style if asset file is missing
-    const tileUrl = `${normalizedBaseUrl}/api/v1/map/tiles/{z}/{x}/{y}.png`;
-    return {
-      version: 8,
-      name: "System 112 Offline Dark",
-      sources: {
-        "system112-offline-tiles": {
-          type: "raster",
-          tiles: [tileUrl],
-          tileSize: 256,
-          attribution: "© Система-112 Офлайн-карта",
-        },
+    style.name = "System 112 Offline Dark Matter";
+    style.sources = {
+      carto: {
+        type: "vector",
+        tiles: [`${normalizedBaseUrl}/api/v1/map/tiles/{z}/{x}/{y}.mvt`],
+        minzoom: 0,
+        maxzoom: 14,
+        attribution: "© CARTO, © OpenStreetMap contributors",
       },
-      layers: [
-        {
-          id: "background",
-          type: "background",
-          paint: {
-            "background-color": "#090d16",
-          },
-        },
-        {
-          id: "offline-raster-layer",
-          type: "raster",
-          source: "system112-offline-tiles",
-          minzoom: 0,
-          maxzoom: 19,
-          paint: {
-            "raster-opacity": 1.0,
-            "raster-saturation": -1.0,
-          },
-        },
-      ],
     };
+    style.sprite = `${normalizedBaseUrl}/api/v1/map/sprites/sprite`;
+    style.glyphs = `${normalizedBaseUrl}/api/v1/map/fonts/{fontstack}/{range}.pbf`;
+
+    return style;
   }
 
   /**

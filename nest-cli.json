@@ -3,6 +3,18 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "modules/map/assets/sprites/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
+      },
+      {
+        "include": "modules/map/assets/fonts/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
+      }
+    ]
   }
 }
