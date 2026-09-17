@@ -161,7 +161,7 @@ function MaterialNavCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-(--radius-4) border p-4 text-left transition-colors ${selected ? "border-(--accent-a8) bg-(--accent-a3)" : "border-(--gray-a5) bg-(--color-panel-solid) hover:bg-(--gray-a2)"}`}
+      className={`cursor-pointer rounded-(--radius-4) border p-4 text-left transition-colors ${selected ? "border-(--accent-a8) bg-(--accent-a3)" : "border-(--gray-a5) bg-(--color-panel-solid) hover:bg-(--gray-a2)"}`}
     >
       <Text as="div" size="2" weight="bold">
         {material.title}
@@ -245,7 +245,7 @@ function MaterialContent({
             >
               <button
                 type="button"
-                className="flex w-full items-start gap-3 bg-(--gray-a2) p-4 text-left hover:bg-(--gray-a3)"
+                className="flex w-full cursor-pointer items-start gap-3 bg-(--gray-a2) p-4 text-left hover:bg-(--gray-a3)"
                 aria-expanded={expanded}
                 onClick={() => onToggleExpanded(section.id)}
               >

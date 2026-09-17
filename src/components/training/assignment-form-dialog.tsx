@@ -51,7 +51,7 @@ export function AssignmentFormDialog(props: AssignmentFormDialogProps) {
       open={props.open}
       onOpenChange={props.pending ? undefined : props.onOpenChange}
     >
-      <Dialog.Content maxWidth="640px">
+      <Dialog.Content maxWidth="820px" className="w-[calc(100vw-2rem)] sm:max-w-[820px]">
         {/* Форма монтируется заново на каждое открытие со своим черновиком. */}
         {props.open && <AssignmentForm {...props} />}
       </Dialog.Content>
@@ -144,11 +144,11 @@ function AssignmentForm({
       </Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
         {target.kind === "group"
-          ? `Группа «${target.group.name}». Занятие создаётся черновиком: ученики увидят его, когда вы запустите занятие.`
-          : `Индивидуальное занятие для ученика ${target.student.fullName}. Оно создаётся черновиком: ученик увидит его, когда вы запустите занятие.`}
+          ? `Группа «${target.group.name}». Занятие создаётся черновиком: обучающиеся увидят его, когда вы запустите занятие.`
+          : `Индивидуальное занятие для обучающегося ${target.student.fullName}. Оно создаётся черновиком: обучающийся увидит его, когда вы запустите занятие.`}
       </Dialog.Description>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="Название занятия" className="sm:col-span-2">
           <TextField.Root
             required
@@ -180,7 +180,7 @@ function AssignmentForm({
         )}
 
         {target.kind === "group" && (
-          <TrainingField label="Служба учеников">
+          <TrainingField label="Служба обучающихся">
             <Select.Root value={serviceTag} onValueChange={setServiceTag}>
               <Select.Trigger />
               <Select.Content>

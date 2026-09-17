@@ -18,7 +18,7 @@ export default function MonitoringPage() {
     ) ?? [];
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">
       <div>
         <Heading size="6">Мониторинг занятий</Heading>
         <Text as="p" size="2" color="gray" mt="1">
@@ -66,7 +66,7 @@ export default function MonitoringPage() {
           )}
 
           {calls.isPending ? (
-            <Skeleton height="320px" className="rounded-xl" />
+            <Skeleton height="320px" className="rounded-(--radius-4)" />
           ) : (
             <InstructorCallsTable
               calls={finishedCalls}

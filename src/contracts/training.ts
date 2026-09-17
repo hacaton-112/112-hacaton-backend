@@ -221,6 +221,7 @@ export interface CreateTrainingGroup {
   name: string;
   code: string;
   organization: string;
+  instructorId?: string;
 }
 
 export interface UpdateTrainingGroup {

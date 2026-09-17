@@ -35,6 +35,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -109,7 +110,9 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Раздел: Обучение */}
         <SidebarGroup>
+          <SidebarGroupLabel>Обучение</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarNavItem
@@ -120,6 +123,16 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               >
                 Рабочее место
               </SidebarNavItem>
+              {showDds && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.dds())}
+                  icon={RadioTower}
+                  label="Карточки ДДС"
+                  onClick={() => goTo(ROUTES.dds())}
+                >
+                  Карточки ДДС
+                </SidebarNavItem>
+              )}
               <SidebarNavItem
                 active={location.pathname.startsWith(ROUTES.debrief())}
                 icon={ClipboardList}
@@ -138,34 +151,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               >
                 Методические материалы
               </SidebarNavItem>
-              {canManageTraining(user?.role) ? (
-                <>
-                  <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.monitoring())}
-                    icon={Activity}
-                    label="Мониторинг"
-                    onClick={() => goTo(ROUTES.monitoring())}
-                  >
-                    Мониторинг
-                  </SidebarNavItem>
-                  <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.groups())}
-                    icon={Users}
-                    label="Группы"
-                    onClick={() => goTo(ROUTES.groups())}
-                  >
-                    Группы
-                  </SidebarNavItem>
-                  <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.students())}
-                    icon={GraduationCap}
-                    label="Ученики"
-                    onClick={() => goTo(ROUTES.students())}
-                  >
-                    Ученики
-                  </SidebarNavItem>
-                </>
-              ) : (
+              {user?.role === "operator" && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.assignments())}
                   icon={GraduationCap}
@@ -175,49 +161,85 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Мои назначения
                 </SidebarNavItem>
               )}
-              {showDds && (
-                <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.dds())}
-                  icon={RadioTower}
-                  label="Карточки ДДС"
-                  onClick={() => goTo(ROUTES.dds())}
-                >
-                  Карточки ДДС
-                </SidebarNavItem>
-              )}
-              {showScenarios && (
-                <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.scenarios())}
-                  icon={BookOpen}
-                  label="Учебные сценарии"
-                  onClick={() => goTo(ROUTES.scenarios())}
-                >
-                  Учебные сценарии
-                </SidebarNavItem>
-              )}
-              {canAdministerUsers(user?.role) && (
-                <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.admin())}
-                  icon={ShieldCheck}
-                  label="Администрирование"
-                  onClick={() => goTo(ROUTES.admin())}
-                >
-                  Администрирование
-                </SidebarNavItem>
-              )}
-              {canViewClassifier(user?.role) && (
-                <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.classifier())}
-                  icon={FileSpreadsheet}
-                  label="Классификатор"
-                  onClick={() => goTo(ROUTES.classifier())}
-                >
-                  Классификатор
-                </SidebarNavItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Раздел: Учебный процесс (Преподаватель и Администратор) */}
+        {canManageTraining(user?.role) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Учебный процесс</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.monitoring())}
+                  icon={Activity}
+                  label="Мониторинг"
+                  onClick={() => goTo(ROUTES.monitoring())}
+                >
+                  Мониторинг
+                </SidebarNavItem>
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.groups())}
+                  icon={Users}
+                  label="Группы"
+                  onClick={() => goTo(ROUTES.groups())}
+                >
+                  Группы
+                </SidebarNavItem>
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.students())}
+                  icon={GraduationCap}
+                  label="Ученики"
+                  onClick={() => goTo(ROUTES.students())}
+                >
+                  Ученики
+                </SidebarNavItem>
+                {showScenarios && (
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.scenarios())}
+                    icon={BookOpen}
+                    label="Учебные сценарии"
+                    onClick={() => goTo(ROUTES.scenarios())}
+                  >
+                    Учебные сценарии
+                  </SidebarNavItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Раздел: Система и администрирование */}
+        {(canAdministerUsers(user?.role) || canViewClassifier(user?.role)) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Система</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {canViewClassifier(user?.role) && (
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.classifier())}
+                    icon={FileSpreadsheet}
+                    label="Классификатор"
+                    onClick={() => goTo(ROUTES.classifier())}
+                  >
+                    Классификатор
+                  </SidebarNavItem>
+                )}
+                {canAdministerUsers(user?.role) && (
+                  <SidebarNavItem
+                    active={location.pathname.startsWith(ROUTES.admin())}
+                    icon={ShieldCheck}
+                    label="Администрирование"
+                    onClick={() => goTo(ROUTES.admin())}
+                  >
+                    Администрирование
+                  </SidebarNavItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarSeparator />

@@ -40,7 +40,7 @@ export function UserStatusDialog({
       open={user !== undefined}
       onOpenChange={pending ? undefined : onOpenChange}
     >
-      <Dialog.Content maxWidth="460px">
+      <Dialog.Content maxWidth="540px" className="w-[calc(100vw-2rem)] sm:max-w-[540px]">
         <Dialog.Title>
           {activate ? "Восстановить доступ?" : "Отключить пользователя?"}
         </Dialog.Title>
