@@ -255,6 +255,7 @@ export const InstructorCallSchema = z
     durationSeconds: z.number().int().nullable(),
     attemptNumber: z.number().int().positive(),
     attemptStatus: z.enum(ATTEMPT_STATUSES),
+    answerNormSeconds: z.number().int().positive(),
     passThreshold: z.number().int(),
     score: z.number().int().nullable(),
   })

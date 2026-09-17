@@ -28,6 +28,7 @@ const call = (
   durationSeconds: 115,
   attemptNumber: 1,
   attemptStatus: "completed",
+  answerNormSeconds: 30,
   passThreshold: 75,
   score: null,
   ...overrides,

@@ -16,6 +16,7 @@ import { HealthModule } from "@/modules/health/health.module";
 import { GeocodingModule } from "@/modules/geocoding/geocoding.module";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { MetricsModule } from "@/modules/metrics";
+import { ReportsModule } from "@/modules/reports/reports.module";
 import { MethodicalMaterialsModule } from "@/modules/methodical-materials/methodical-materials.module";
 import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catalog.module";
 import { TrainingModule } from "@/modules/training/training.module";
@@ -47,6 +48,7 @@ import { DatabaseModule } from "./database/database.module";
     DdsExerciseModule,
     IncidentCardModule,
     ScenarioCatalogModule,
+    ReportsModule,
     TrainingModule,
     UsersModule,
     VoicePipelineModule,

@@ -321,6 +321,11 @@ Backend повторяет расчёт при сохранении карточ
 - `GET /api/v1/instructor/calls/:sessionId/debrief` — разбор такого звонка.
   Запись разговора по ссылкам из разбора преподаватель тоже слушает. Чужой
   звонок неотличим от несуществующего (`404 CALL_NOT_FOUND`).
+- `GET /api/v1/instructor/reports` — отчёт по группе или ученику с итогами,
+  нормативами, ошибками карточки и рекомендациями;
+- `GET /api/v1/instructor/reports/export` — тот же снимок в `csv`, `xlsx` или
+  `pdf`. Фильтры, лимиты и форматы описаны в
+  [`docs/instructor-reports.md`](docs/instructor-reports.md).
 
 Учётные записи ведёт только администратор. `POST /api/v1/users` создаёт
 учётную запись с ФИО, email, паролем и ролью, `PATCH /api/v1/users/:userId`

@@ -5,8 +5,10 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
+  lte,
   lt,
   notExists,
   or,
@@ -996,8 +998,12 @@ export class TrainingService {
     filter: {
       groupId?: string;
       operatorId?: string;
+      from?: Date;
+      to?: Date;
       /** Статистике нужны все звонки, списку разборов — последние. */
       everyCall?: boolean;
+      /** Отчёты читают на одну строку больше лимита, чтобы не обрезать молча. */
+      limit?: number;
     } = {},
   ): Promise<InstructorCallView[]> {
     const query = this.db
@@ -1017,6 +1023,7 @@ export class TrainingService {
         endedAt: callStates.endedAt,
         attemptNumber: trainingAttempts.attemptNumber,
         attemptStatus: trainingAttempts.status,
+        answerNormSeconds: trainingAssignments.answerNormSeconds,
         passThreshold: trainingAssignments.passThreshold,
         score: callEvaluations.score,
       })
@@ -1055,13 +1062,17 @@ export class TrainingService {
           filter.operatorId
             ? eq(trainingAttempts.operatorId, filter.operatorId)
             : undefined,
+          filter.from ? gte(callStates.offeredAt, filter.from) : undefined,
+          filter.to ? lte(callStates.offeredAt, filter.to) : undefined,
         ),
       )
       .orderBy(desc(callStates.offeredAt))
       .$dynamic();
-    const rows = await (filter.everyCall
-      ? query
-      : query.limit(MAX_INSTRUCTOR_CALLS));
+    const rows = await (filter.limit !== undefined
+      ? query.limit(filter.limit)
+      : filter.everyCall
+        ? query
+        : query.limit(MAX_INSTRUCTOR_CALLS));
 
     return rows.map((row) => ({
       ...row,

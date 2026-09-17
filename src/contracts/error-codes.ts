@@ -61,6 +61,10 @@ export const ErrorCodes = {
   ASSIGNMENT_HAS_ACTIVE_ATTEMPTS: "ASSIGNMENT_HAS_ACTIVE_ATTEMPTS",
   TRAINING_SESSION_NOT_ACTIVE: "TRAINING_SESSION_NOT_ACTIVE",
 
+  // ── Отчёты преподавателя ──────────────────────────────────────────────
+  REPORT_INVALID_PERIOD: "REPORT_INVALID_PERIOD",
+  REPORT_TOO_LARGE: "REPORT_TOO_LARGE",
+
   // ── Геокодирование ─────────────────────────────────────────
   GEOCODING_ADDRESS_NOT_FOUND: "GEOCODING_ADDRESS_NOT_FOUND",
   GEOCODING_UNAVAILABLE: "GEOCODING_UNAVAILABLE",
