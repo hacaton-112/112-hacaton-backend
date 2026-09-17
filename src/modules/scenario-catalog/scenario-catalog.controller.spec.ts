@@ -21,6 +21,12 @@ const createController = () => {
     loadVersion: jest.fn().mockResolvedValue({ scenarioVersionId: "v1" }),
     publishVersion: jest.fn().mockResolvedValue({ version: 2 }),
     archive: jest.fn().mockResolvedValue(undefined),
+    checkGrammar: jest.fn().mockResolvedValue({
+      fields: [],
+      errorCount: 0,
+      styleCount: 0,
+      reviewedByModel: false,
+    }),
   };
   const catalog = { listPublished: jest.fn().mockResolvedValue([]) };
   const training = {
@@ -106,5 +112,15 @@ describe(ScenarioCatalogController.name, () => {
         ScenarioCatalogController.prototype.archive,
       ),
     ).toBe(HttpStatus.NO_CONTENT);
+  });
+
+  it("checks the grammar of a draft without saving anything", async () => {
+    const { controller, authoring } = createController();
+    const scenario = { version: { openingLine: "Горит квартира!" } };
+
+    await controller.checkGrammar({ scenario, deepReview: true } as never);
+
+    expect(authoring.checkGrammar).toHaveBeenCalledWith(scenario, true);
+    expect(authoring.publishVersion).not.toHaveBeenCalled();
   });
 });
