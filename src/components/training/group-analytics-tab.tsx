@@ -223,64 +223,123 @@ export function GroupAnalyticsTab({
           <div className="mt-4 flex flex-col gap-4 text-sm print:m-0 print:p-0">
             {/* Паспортная часть */}
             <div className="rounded-(--radius-2) border p-3 bg-(--gray-a2)">
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                 <div><strong>Группа:</strong> {group.name} ({group.code})</div>
                 <div><strong>Организация:</strong> {group.organization}</div>
                 <div><strong>Преподаватель:</strong> {instructorName ?? "—"}</div>
                 <div><strong>Дата формирования:</strong> {formatDateTime(new Date().toISOString())}</div>
                 <div><strong>Всего обучающихся:</strong> {students.length} чел.</div>
+                <div><strong>Сдано выше порога:</strong> {totalPassed} из {totalEvaluated} ({passPercent}%)</div>
                 <div><strong>Средний балл группы:</strong> {formatScore(avgScore)}</div>
+                <div><strong>Среднее время ответа:</strong> {avgAnswerTime !== null ? formatDuration(avgAnswerTime) : "—"}</div>
+                <div><strong>Статус группы:</strong> {group.status === "active" ? "Активна" : "В архиве"}</div>
               </div>
             </div>
+
+            {/* Назначенные занятия и нормативы */}
+            {assignments.length > 0 && (
+              <div>
+                <Text size="2" weight="bold" mb="2" as="p">Назначенные практические занятия</Text>
+                <div className="overflow-x-auto rounded-(--radius-2) border">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className="border-b bg-(--gray-a3)">
+                        <th className="p-2">Занятие</th>
+                        <th className="p-2">Сценарий</th>
+                        <th className="p-2 text-center">Сложность</th>
+                        <th className="p-2 text-center">Норматив</th>
+                        <th className="p-2 text-center">Порог</th>
+                        <th className="p-2 text-center">Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignments.map((a) => (
+                        <tr key={a.id} className="border-b">
+                          <td className="p-2 font-medium">{a.title}</td>
+                          <td className="p-2">{a.scenarioCode} · {a.scenarioTitle}</td>
+                          <td className="p-2 text-center">{a.difficulty} из 5</td>
+                          <td className="p-2 text-center">{formatDuration(a.answerNormSeconds)}</td>
+                          <td className="p-2 text-center">{a.passThreshold} б.</td>
+                          <td className="p-2 text-center">
+                            <Badge size="1" variant="soft">
+                              {a.status === "in_progress" ? "Запущено" : a.status === "completed" ? "Завершено" : a.status === "draft" ? "Черновик" : "В архиве"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Таблица обучающихся */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="border-b bg-(--gray-a3)">
-                    <th className="p-2">№</th>
-                    <th className="p-2">ФИО обучающегося</th>
-                    <th className="p-2">Служба</th>
-                    <th className="p-2 text-center">Попыток</th>
-                    <th className="p-2 text-center">Сдано</th>
-                    <th className="p-2 text-center">Ср. балл</th>
-                    <th className="p-2 text-center">Статус</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((student, idx) => {
-                    const score = student.stats.averageScore;
-                    const passed = score !== null && score >= 75;
-                    return (
-                      <tr key={student.userId} className="border-b">
-                        <td className="p-2">{idx + 1}</td>
-                        <td className="p-2 font-medium">{student.fullName}</td>
-                        <td className="p-2">{student.serviceTag}</td>
-                        <td className="p-2 text-center">{student.stats.attempts}</td>
-                        <td className="p-2 text-center">{student.stats.passedCalls}</td>
-                        <td className="p-2 text-center font-bold">{formatScore(score)}</td>
-                        <td className="p-2 text-center">
-                          {score === null ? (
-                            <span className="text-gray-500">Не сдавал</span>
-                          ) : passed ? (
-                            <span className="text-green-600 font-semibold">Зачтено</span>
-                          ) : (
-                            <span className="text-red-600 font-semibold">Повтор</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div>
+              <Text size="2" weight="bold" mb="2" as="p">Сводная ведомость успеваемости обучающихся</Text>
+              <div className="overflow-x-auto rounded-(--radius-2) border">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b bg-(--gray-a3)">
+                      <th className="p-2">№</th>
+                      <th className="p-2">ФИО обучающегося</th>
+                      <th className="p-2">Служба</th>
+                      <th className="p-2 text-center">Попыток</th>
+                      <th className="p-2 text-center">Сдано</th>
+                      <th className="p-2 text-center">Ср. балл</th>
+                      <th className="p-2 text-center">Лучший</th>
+                      <th className="p-2 text-center">Ср. время</th>
+                      <th className="p-2 text-center">Решение</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((student, idx) => {
+                      const score = student.stats.averageScore;
+                      const passed = score !== null && score >= 75;
+                      return (
+                        <tr key={student.userId} className="border-b">
+                          <td className="p-2">{idx + 1}</td>
+                          <td className="p-2 font-medium">{student.fullName}</td>
+                          <td className="p-2">{student.serviceTag}</td>
+                          <td className="p-2 text-center">{student.stats.attempts}</td>
+                          <td className="p-2 text-center">{student.stats.passedCalls}</td>
+                          <td className="p-2 text-center font-bold">{formatScore(score)}</td>
+                          <td className="p-2 text-center">{formatScore(student.stats.bestScore)}</td>
+                          <td className="p-2 text-center">
+                            {student.stats.averageAnswerSeconds !== null
+                              ? formatDuration(student.stats.averageAnswerSeconds)
+                              : "—"}
+                          </td>
+                          <td className="p-2 text-center">
+                            {score === null ? (
+                              <span className="text-gray-500">Не приступал</span>
+                            ) : passed ? (
+                              <span className="text-green-600 font-semibold">Зачтено</span>
+                            ) : (
+                              <span className="text-red-600 font-semibold">Повтор</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            {/* Подписи */}
+            {/* Подписи и заключение */}
             <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-xs">
               <div>
-                <p>Преподаватель: ___________________ / {instructorName ?? "___________________"} /</p>
+                <p className="font-semibold mb-1">Решение преподавателя по группе:</p>
+                <p className="text-gray-600">
+                  [ ] Занятие зачтено &nbsp;&nbsp;&nbsp; [ ] Требуется повторное занятие &nbsp;&nbsp;&nbsp; [ ] Назначить доп. подготовку
+                </p>
+                <p className="mt-3">Преподаватель: ___________________ / {instructorName ?? "___________________"} /</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex flex-col justify-between">
+                <div>
+                  <p className="font-semibold mb-1">Печать учебного центра</p>
+                  <p className="text-gray-400">М.П.</p>
+                </div>
                 <p>Дата: «___» ____________ 2026 г.</p>
               </div>
             </div>
