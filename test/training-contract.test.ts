@@ -127,6 +127,7 @@ describe("training contract", () => {
           durationSeconds: 240,
           attemptNumber: 2,
           attemptStatus: "cancelled_by_instructor",
+          answerNormSeconds: 240,
           passThreshold: 75,
           score: 74,
         },
