@@ -24,6 +24,7 @@ import {
   ScenarioAiHelper,
   SupportIcon,
 } from "../../components/scenario-authoring/scenario-ai-helper";
+import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import {
   describeIssue,
   fieldErrorsFrom,
@@ -437,6 +438,17 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
 
   return (
     <Box p="4" className="min-h-full">
+      <Breadcrumbs
+        className="mb-4"
+        items={[
+          { label: "Каталог сценариев", to: ROUTES.scenarios() },
+          {
+            label: base
+              ? `${base.scenario.code} · Редактирование версии ${base.version}`
+              : "Новый сценарий",
+          },
+        ]}
+      />
       <Grid
         ref={feedbackRef}
         gap="4"

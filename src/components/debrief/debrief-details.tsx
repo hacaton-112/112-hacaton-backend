@@ -30,6 +30,7 @@ import { AnswerStatsSection, ScoreSection, TimeSection } from "./debrief-score";
 import { GroupSection, SkillsSection } from "./debrief-skills";
 import { Transcript } from "./debrief-transcript";
 import { ROUTES } from "../../config/routes";
+import { Breadcrumbs } from "../ui/breadcrumbs";
 
 interface DebriefDetailsProps {
   debrief?: Debrief;
@@ -106,8 +107,23 @@ export function DebriefDetails({
    * поэтому своей обёртки со скроллом здесь нет: колонки внутри неё не смогли
    * бы взять высоту окна.
    */
+  const backBreadcrumbLabel =
+    back.to === ROUTES.debrief()
+      ? "Разбор звонков"
+      : back.label === "К ученику"
+        ? "Ученик"
+        : back.label.startsWith("К ")
+          ? back.label.slice(2)
+          : back.label;
+
   return (
     <Flex direction="column" gap="4" p="4" className="min-h-full lg:h-full">
+      <Breadcrumbs
+        items={[
+          { label: backBreadcrumbLabel, to: back.to },
+          { label: `${debrief.call.scenarioCode} · ${debrief.call.title}` },
+        ]}
+      />
       <Flex
         align="center"
         justify="between"

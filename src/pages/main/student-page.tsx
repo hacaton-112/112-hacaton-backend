@@ -1,6 +1,5 @@
 import {
   Badge,
-  Button,
   Callout,
   Card,
   Flex,
@@ -9,9 +8,10 @@ import {
   Tabs,
   Text,
 } from "@bolid-ui/themes";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
+import { AlertTriangle } from "lucide-react";
+import { useParams } from "react-router";
 
+import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { StudentMethodicalMaterialsTab } from "../../components/training/student-methodical-materials";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
@@ -30,21 +30,29 @@ import {
 /** Ученик: успеваемость по всем занятиям и разборы его звонков. */
 export default function StudentPage() {
   const { groupId, userId = "" } = useParams();
-  const navigate = useNavigate();
   const profile = useStudentProfile(userId);
+
+  const groupInfo = groupId
+    ? profile.data?.student.groups.find((g) => g.groupId === groupId)
+    : undefined;
+
+  const breadcrumbItems = groupId
+    ? [
+        { label: "Группы", to: ROUTES.groups() },
+        {
+          label: groupInfo?.groupName ?? "Группа",
+          to: ROUTES.group(groupId),
+        },
+        { label: profile.data?.student.fullName ?? "Ученик" },
+      ]
+    : [
+        { label: "Ученики", to: ROUTES.students() },
+        { label: profile.data?.student.fullName ?? "Ученик" },
+      ];
 
   return (
     <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <Button
-        variant="ghost"
-        color="gray"
-        className="self-start"
-        onClick={() =>
-          navigate(groupId ? ROUTES.group(groupId) : ROUTES.students())
-        }
-      >
-        <ArrowLeft size={16} /> {groupId ? "К группе" : "Все ученики"}
-      </Button>
+      <Breadcrumbs items={breadcrumbItems} />
 
       {profile.error && !profile.data && (
         <Callout.Root color="red" role="alert">

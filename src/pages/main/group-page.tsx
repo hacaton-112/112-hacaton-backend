@@ -22,7 +22,6 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
-  ArrowLeft,
   ArrowRight,
   Eye,
   FileSpreadsheet,
@@ -42,6 +41,7 @@ import { GroupFormDialog } from "../../components/training/group-form-dialog";
 import { StudentEditDialog } from "../../components/training/student-edit-dialog";
 import { StudentCreateDialog } from "../../components/training/student-create-dialog";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
+import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { TrainingConfirmDialog } from "../../components/training/training-confirm-dialog";
 import {
   formatDateTime,
@@ -75,20 +75,21 @@ import { useAuthStore } from "../../stores/auth.store";
 /** Группа: её ученики с успеваемостью, занятия и идущие звонки. */
 export default function GroupPage() {
   const { groupId = "" } = useParams();
-  const navigate = useNavigate();
   const group = useTrainingGroup(groupId);
   const mutations = useTrainingMutations();
 
   return (
     <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <Button
-        variant="ghost"
-        color="gray"
-        className="self-start"
-        onClick={() => navigate(ROUTES.groups())}
-      >
-        <ArrowLeft size={16} /> Все группы
-      </Button>
+      <Breadcrumbs
+        items={[
+          { label: "Группы", to: ROUTES.groups() },
+          {
+            label: group.data
+              ? `${group.data.name} (${group.data.code})`
+              : "Группа",
+          },
+        ]}
+      />
 
       {group.error && !group.data && (
         <Callout.Root color="red" role="alert">
