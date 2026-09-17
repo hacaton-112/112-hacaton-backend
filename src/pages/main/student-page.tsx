@@ -13,6 +13,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
+import { StudentMethodicalMaterialsTab } from "../../components/training/student-methodical-materials";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
 import {
   formatDateTime,
@@ -98,6 +99,29 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
               {group.groupName} · {group.serviceTag}
             </Badge>
           ))}
+          {profile.methodicalMaterials && (
+            <Badge
+              color={
+                profile.methodicalMaterials.every(
+                  (m) => m.completedSections === m.totalSections,
+                )
+                  ? "green"
+                  : "blue"
+              }
+              variant="soft"
+            >
+              Методички:{" "}
+              {profile.methodicalMaterials.reduce(
+                (sum, m) => sum + m.completedSections,
+                0,
+              )}
+              /
+              {profile.methodicalMaterials.reduce(
+                (sum, m) => sum + m.totalSections,
+                0,
+              )}
+            </Badge>
+          )}
         </Flex>
         {stats.lastAttemptAt && (
           <Text as="p" size="1" color="gray" mt="1">
@@ -125,6 +149,9 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
           <Tabs.Trigger value="assignments">
             Индивидуальные занятия
           </Tabs.Trigger>
+          <Tabs.Trigger value="materials">
+            Методические материалы
+          </Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content
@@ -143,6 +170,14 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
               student: { id: student.id, fullName: student.fullName },
             }}
             mutations={mutations}
+          />
+        </Tabs.Content>
+        <Tabs.Content
+          value="materials"
+          className="flex min-h-0 flex-1 flex-col pt-4"
+        >
+          <StudentMethodicalMaterialsTab
+            materials={profile.methodicalMaterials}
           />
         </Tabs.Content>
       </Tabs.Root>
