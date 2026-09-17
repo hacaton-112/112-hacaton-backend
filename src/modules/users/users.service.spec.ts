@@ -48,6 +48,9 @@ const codeOf = async (action: () => Promise<unknown>): Promise<string> => {
   return "none";
 };
 
+const adminActor = { id: actorId, role: "admin" as const };
+const instructorActor = { id: actorId, role: "instructor" as const };
+
 describe(UsersService.name, () => {
   it("forwards explicit list filters", async () => {
     const { service, auth } = createService();
@@ -57,16 +60,67 @@ describe(UsersService.name, () => {
       search: "иванов",
     };
 
-    await service.list(filters);
+    await service.list(adminActor, filters);
 
     expect(auth.listUsers).toHaveBeenCalledWith(filters);
+  });
+
+  it("forces operator role filter when an instructor lists users", async () => {
+    const { service, auth } = createService();
+
+    await service.list(instructorActor, {});
+
+    expect(auth.listUsers).toHaveBeenCalledWith({ role: "operator" });
+  });
+
+  it("allows an instructor to create an operator", async () => {
+    const { service, auth, audit } = createService();
+
+    await service.create(instructorActor, {
+      email: "student@example.test",
+      password: "Password123!",
+      fullName: "Студент Петров",
+      role: "operator",
+    });
+
+    expect(auth.createUser).toHaveBeenCalled();
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "user.created" }),
+    );
+  });
+
+  it("forbids an instructor from creating an admin or instructor", async () => {
+    const { service } = createService();
+
+    await expect(
+      codeOf(() =>
+        service.create(instructorActor, {
+          email: "admin2@example.test",
+          password: "Password123!",
+          fullName: "Новый Админ",
+          role: "admin",
+        }),
+      ),
+    ).resolves.toBe(ErrorCodes.AUTH_ROLE_FORBIDDEN);
+  });
+
+  it("forbids an instructor from changing a user role", async () => {
+    const { service } = createService();
+
+    await expect(
+      codeOf(() =>
+        service.update(instructorActor, otherId, {
+          role: "instructor",
+        }),
+      ),
+    ).resolves.toBe(ErrorCodes.AUTH_ROLE_FORBIDDEN);
   });
 
   it("does not let an administrator deactivate themselves", async () => {
     const { service, auth } = createService();
 
     await expect(
-      codeOf(() => service.update(actorId, actorId, { isActive: false })),
+      codeOf(() => service.update(adminActor, actorId, { isActive: false })),
     ).resolves.toBe(ErrorCodes.AUTH_ROLE_FORBIDDEN);
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
@@ -74,7 +128,7 @@ describe(UsersService.name, () => {
   it("audits deactivation without storing a password", async () => {
     const { service, audit } = createService();
 
-    await service.update(actorId, otherId, {
+    await service.update(adminActor, otherId, {
       isActive: false,
       password: "NewPassword1",
     });

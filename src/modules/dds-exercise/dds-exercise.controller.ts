@@ -34,7 +34,7 @@ import {
 
 @Controller(ApiRoutes.DdsExercises)
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("operator")
+@Roles("operator", "instructor", "admin")
 export class DdsExerciseController {
   constructor(private readonly exercises: DdsExerciseService) {}
 

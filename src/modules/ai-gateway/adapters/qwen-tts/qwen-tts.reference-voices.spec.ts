@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 
 import {
   loadQwenTtsReferenceVoiceRegistry,
@@ -6,8 +7,8 @@ import {
   type QwenTtsReferenceVoiceFileReader,
 } from "./qwen-tts.reference-voices";
 
-const REGISTRY_PATH = "/config/reference-voices.json";
-const AUDIO_PATH = "/config/dylan.wav";
+const REGISTRY_PATH = resolve("/config/reference-voices.json");
+const AUDIO_PATH = resolve("/config/dylan.wav");
 
 const wave = (): Uint8Array => {
   const audio = new Uint8Array(44);

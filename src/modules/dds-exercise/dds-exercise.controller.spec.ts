@@ -9,13 +9,13 @@ import type { DdsExerciseService } from "./application/dds-exercise.service";
 import { DdsExerciseController } from "./dds-exercise.controller";
 
 describe(DdsExerciseController.name, () => {
-  it("authenticates every route and restricts the workspace to operators", () => {
+  it("authenticates every route and allows operators, instructors, and admins", () => {
     expect(Reflect.getMetadata(GUARDS_METADATA, DdsExerciseController)).toEqual(
       [JwtAuthGuard, RolesGuard],
     );
     expect(
       Reflect.getMetadata(ROLES_METADATA_KEY, DdsExerciseController),
-    ).toEqual(["operator"]);
+    ).toEqual(["operator", "instructor", "admin"]);
   });
 
   it("starts an exercise on behalf of the authenticated operator", async () => {
