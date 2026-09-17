@@ -274,7 +274,7 @@ export default function GroupsPage() {
   );
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <div>
           <Heading size="6">Группы</Heading>
@@ -308,7 +308,7 @@ export default function GroupsPage() {
 
       <div className="min-h-80 flex-1">
         {groups.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<GroupTableRow>
             {...DATA_TABLE_DEFAULTS}

@@ -182,7 +182,7 @@ export default function AdminPage() {
     summary.filter(({ role: itemRole }) => itemRole === wanted).length;
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <div>
           <Heading size="6">Администрирование</Heading>
@@ -205,7 +205,7 @@ export default function AdminPage() {
       {allUsers.isPending ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} height="88px" className="rounded-xl" />
+            <Skeleton key={index} height="88px" className="rounded-(--radius-3)" />
           ))}
         </div>
       ) : (
@@ -285,7 +285,7 @@ export default function AdminPage() {
 
       <div className="min-h-80 flex-1">
         {users.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<AuthUser>
             {...DATA_TABLE_DEFAULTS}

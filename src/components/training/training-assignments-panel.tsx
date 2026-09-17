@@ -300,7 +300,7 @@ export function TrainingAssignmentsPanel({
 
       <div className="min-h-80 flex-1">
         {assignments.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<TrainingAssignment>
             {...DATA_TABLE_DEFAULTS}

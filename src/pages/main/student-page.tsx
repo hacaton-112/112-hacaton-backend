@@ -34,7 +34,7 @@ export default function StudentPage() {
   const profile = useStudentProfile(userId);
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
       <Button
         variant="ghost"
         color="gray"
@@ -57,7 +57,7 @@ export default function StudentPage() {
         </Callout.Root>
       )}
 
-      {profile.isPending && <Skeleton height="360px" className="rounded-xl" />}
+      {profile.isPending && <Skeleton height="360px" className="rounded-(--radius-4)" />}
 
       {profile.data && <StudentContent profile={profile.data} />}
     </main>

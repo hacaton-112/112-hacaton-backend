@@ -81,7 +81,7 @@ export function LiveSessionsPanel({
         </Callout.Root>
       )}
 
-      {sessions.isPending && <Skeleton height="220px" className="rounded-xl" />}
+      {sessions.isPending && <Skeleton height="220px" className="rounded-(--radius-4)" />}
 
       {sessions.data?.length === 0 && (
         <Card size="3">

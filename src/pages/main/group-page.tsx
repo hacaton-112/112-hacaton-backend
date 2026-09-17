@@ -80,7 +80,7 @@ export default function GroupPage() {
   const mutations = useTrainingMutations();
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
       <Button
         variant="ghost"
         color="gray"
@@ -101,7 +101,7 @@ export default function GroupPage() {
         </Callout.Root>
       )}
 
-      {group.isPending && <Skeleton height="320px" className="rounded-xl" />}
+      {group.isPending && <Skeleton height="320px" className="rounded-(--radius-4)" />}
 
       {group.data && <GroupContent group={group.data} mutations={mutations} />}
     </main>
@@ -497,7 +497,7 @@ function GroupStudents({
 
       <div className="min-h-80 flex-1">
         {students.isPending ? (
-          <Skeleton height="100%" className="rounded-xl" />
+          <Skeleton height="100%" className="rounded-(--radius-4)" />
         ) : (
           <DataTableReact<GroupStudent>
             {...DATA_TABLE_DEFAULTS}
