@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "@/modules/auth/auth.module";
 import { CallRecordingModule } from "@/modules/call-recording";
+import { GrammarModule } from "@/modules/grammar";
 import { IncidentCardModule } from "@/modules/incident-card";
 import { TrainingModule } from "@/modules/training/training.module";
 
@@ -15,6 +16,7 @@ import { DEBRIEF_STORE } from "./ports/debrief.store.port";
   imports: [
     AuthModule,
     CallRecordingModule,
+    GrammarModule,
     IncidentCardModule,
     TrainingModule,
   ],

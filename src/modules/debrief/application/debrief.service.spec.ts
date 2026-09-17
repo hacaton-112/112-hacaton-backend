@@ -3,6 +3,7 @@ import { ErrorCodes } from "@/contracts";
 import { toPcmBytes } from "@/modules/call-recording/domain/mixdown";
 import { encodeWav } from "@/modules/call-recording/domain/wav";
 import type { RecordingStorage } from "@/modules/call-recording/ports/recording-storage.port";
+import { GrammarService } from "@/modules/grammar";
 import type { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 
 import type { DebriefCall, DebriefStore } from "../ports/debrief.store.port";
@@ -117,6 +118,7 @@ const createService = (
       mocks.store as unknown as DebriefStore,
       mocks.storage as unknown as RecordingStorage,
       mocks.cards as unknown as IncidentCardService,
+      new GrammarService(),
     ),
     mocks,
   };
@@ -224,6 +226,50 @@ describe(DebriefService.name, () => {
     );
   });
 
+  it("reads the text the operator typed into the card", async () => {
+    const { service, mocks } = createService();
+    mocks.cards.get.mockResolvedValue({
+      trainingSessionId: "session-1",
+      callerAnonymous: false,
+      addressText: "Улицa Учебная, дом 12",
+      description: "Горит крыша , дым в подъезде.",
+      categories: [],
+      nearby: false,
+      services: [],
+      victims: [],
+      submittedAt: null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    // Отчёт о занятии по ТЗ включает грамматику, но на балл она не влияет.
+    expect(debrief.grammar).toMatchObject({
+      errorCount: 1,
+      styleCount: 1,
+      reviewedByModel: false,
+    });
+    expect(
+      debrief.grammar.fields.map((field) => [field.id, field.issues.length]),
+    ).toEqual([
+      ["addressText", 1],
+      ["description", 1],
+    ]);
+  });
+
+  it("keeps the grammar section empty when the card has no text", async () => {
+    const { service } = createService();
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    expect(debrief.grammar).toEqual({
+      fields: [],
+      errorCount: 0,
+      styleCount: 0,
+      reviewedByModel: false,
+    });
+  });
+
   it("scores a finished call and keeps the score", async () => {
     const { service, mocks } = createService({
       loadReferenceCard: jest.fn().mockResolvedValue([
@@ -286,7 +332,9 @@ describe(DebriefService.name, () => {
     const { service } = createService();
     const withRecording = await service.get("session-1", "operator-1");
 
-    expect(withRecording.recordingUrl).toBe("/api/v1/calls/session-1/recording");
+    expect(withRecording.recordingUrl).toBe(
+      "/api/v1/calls/session-1/recording",
+    );
 
     const { service: silent } = createService(
       {},
@@ -297,7 +345,9 @@ describe(DebriefService.name, () => {
         ),
     );
 
-    expect((await silent.get("session-1", "operator-1")).recordingUrl).toBeNull();
+    expect(
+      (await silent.get("session-1", "operator-1")).recordingUrl,
+    ).toBeNull();
   });
 
   it("hands the client an address of its own for every segment", async () => {
@@ -315,7 +365,10 @@ describe(DebriefService.name, () => {
   });
 
   it("assembles one recording of the whole call and keeps it", async () => {
-    const utterance = encodeWav(toPcmBytes(new Int16Array(1_600).fill(800)), 16_000);
+    const utterance = encodeWav(
+      toPcmBytes(new Int16Array(1_600).fill(800)),
+      16_000,
+    );
     const { service, mocks } = createService(
       {},
       jest.fn().mockImplementation((key: string) => {
@@ -362,13 +415,15 @@ describe(DebriefService.name, () => {
   it("refuses a whole recording for a call where nobody spoke", async () => {
     const { service } = createService(
       {},
-      jest.fn().mockImplementation((key: string) =>
-        Promise.resolve(
-          key.endsWith("manifest.json")
-            ? new TextEncoder().encode(JSON.stringify({ segments: [] }))
-            : null,
+      jest
+        .fn()
+        .mockImplementation((key: string) =>
+          Promise.resolve(
+            key.endsWith("manifest.json")
+              ? new TextEncoder().encode(JSON.stringify({ segments: [] }))
+              : null,
+          ),
         ),
-      ),
     );
 
     expect(
