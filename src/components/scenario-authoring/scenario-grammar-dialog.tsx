@@ -9,6 +9,7 @@ import {
 } from "@bolid-ui/themes";
 
 import type { GrammarReport } from "../../contracts/grammar";
+import { shortenFragment } from "../../lib/grammar-text";
 
 interface ScenarioGrammarDialogProps {
   open: boolean;
@@ -65,8 +66,13 @@ export function ScenarioGrammarDialog({
                 </Badge>
               )}
               {report.errorCount === 0 && report.styleCount === 0 && (
-                <Badge color="green" variant="soft">
-                  замечаний нет
+                <Badge
+                  color={report.fields.length === 0 ? "gray" : "green"}
+                  variant="soft"
+                >
+                  {report.fields.length === 0
+                    ? "проверять нечего: текста в сценарии нет"
+                    : "замечаний нет"}
                 </Badge>
               )}
             </Flex>
@@ -101,9 +107,9 @@ export function ScenarioGrammarDialog({
                           </Badge>
                           <Grid gap="1" flexGrow="1" className="min-w-0">
                             <Text size="2">
-                              «{issue.fragment}»
+                              «{shortenFragment(issue.fragment)}»
                               {issue.suggestion !== null &&
-                                ` → «${issue.suggestion}»`}
+                                ` → «${shortenFragment(issue.suggestion)}»`}
                             </Text>
                             <Text size="1" color="gray">
                               {issue.message}
