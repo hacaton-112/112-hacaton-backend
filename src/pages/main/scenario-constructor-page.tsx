@@ -648,7 +648,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
               size="2"
               variant="soft"
               color="gray"
-              disabled={busy}
+              disabled={busy || grammarCheck.isPending}
               onClick={() => {
                 setGrammarOpen(true);
                 grammarCheck.mutate(scenario);
