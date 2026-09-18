@@ -107,7 +107,9 @@ export class DebriefService {
       isCritical: question.isCritical,
       // Вопрос закрыт, когда прозвучали все сведения, которыми он
       // считается закрытым: назвать улицу — ещё не назвать адрес.
-      satisfied: question.satisfiedByFactKeys.every((key) => revealed.has(key)),
+      satisfied: question.satisfiedByFactKeys.every((key) =>
+        revealed.has(key),
+      ),
       satisfiedByFactKeys: [...question.satisfiedByFactKeys],
     }));
 
@@ -189,9 +191,7 @@ export class DebriefService {
       passThreshold: call.passThreshold,
     });
 
-    if (
-      (await this.store.loadScore(call.trainingSessionId)) !== evaluation.score
-    ) {
+    if ((await this.store.loadScore(call.trainingSessionId)) !== evaluation.score) {
       await this.store.saveScore(
         call.trainingSessionId,
         call.scenarioVersionId,
@@ -221,7 +221,8 @@ export class DebriefService {
   private forbiddenPhrases(journal: readonly JournalEntry[]): number {
     return journal.filter(
       (entry) =>
-        (entry.type === "escalation.fired" || entry.type === "panic.changed") &&
+        (entry.type === "escalation.fired" ||
+          entry.type === "panic.changed") &&
         entry.payload?.trigger === "forbidden_phrase",
     ).length;
   }

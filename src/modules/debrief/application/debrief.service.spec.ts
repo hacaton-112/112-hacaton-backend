@@ -332,9 +332,7 @@ describe(DebriefService.name, () => {
     const { service } = createService();
     const withRecording = await service.get("session-1", "operator-1");
 
-    expect(withRecording.recordingUrl).toBe(
-      "/api/v1/calls/session-1/recording",
-    );
+    expect(withRecording.recordingUrl).toBe("/api/v1/calls/session-1/recording");
 
     const { service: silent } = createService(
       {},
@@ -345,9 +343,7 @@ describe(DebriefService.name, () => {
         ),
     );
 
-    expect(
-      (await silent.get("session-1", "operator-1")).recordingUrl,
-    ).toBeNull();
+    expect((await silent.get("session-1", "operator-1")).recordingUrl).toBeNull();
   });
 
   it("hands the client an address of its own for every segment", async () => {
@@ -365,10 +361,7 @@ describe(DebriefService.name, () => {
   });
 
   it("assembles one recording of the whole call and keeps it", async () => {
-    const utterance = encodeWav(
-      toPcmBytes(new Int16Array(1_600).fill(800)),
-      16_000,
-    );
+    const utterance = encodeWav(toPcmBytes(new Int16Array(1_600).fill(800)), 16_000);
     const { service, mocks } = createService(
       {},
       jest.fn().mockImplementation((key: string) => {
@@ -415,15 +408,13 @@ describe(DebriefService.name, () => {
   it("refuses a whole recording for a call where nobody spoke", async () => {
     const { service } = createService(
       {},
-      jest
-        .fn()
-        .mockImplementation((key: string) =>
-          Promise.resolve(
-            key.endsWith("manifest.json")
-              ? new TextEncoder().encode(JSON.stringify({ segments: [] }))
-              : null,
-          ),
+      jest.fn().mockImplementation((key: string) =>
+        Promise.resolve(
+          key.endsWith("manifest.json")
+            ? new TextEncoder().encode(JSON.stringify({ segments: [] }))
+            : null,
         ),
+      ),
     );
 
     expect(
