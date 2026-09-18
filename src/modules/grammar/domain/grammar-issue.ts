@@ -1,32 +1,16 @@
+import type { GrammarIssueContract } from "@/contracts";
+
 /**
  * Что именно не так с текстом.
  *
  * Набор узкий и проверяется правилами, а не моделью: отчёт о занятии должен
  * повторяться на тех же данных, а стажёру нужно объяснение, а не вердикт.
+ *
+ * Виды и их описания живут в контракте: одну и ту же форму читают разбор,
+ * конструктор и настольное приложение. Новый вид, добавленный только здесь,
+ * не дошёл бы до клиента и упал бы уже на выдаче отчёта.
  */
-export const GRAMMAR_ISSUE_KINDS = [
-  /** Латиница внутри русского слова: «пoжар» с латинской «o». */
-  "mixed-alphabet",
-  /** Слово повторено подряд: «на на улице». */
-  "repeated-word",
-  "double-space",
-  "space-before-punctuation",
-  "missing-space-after-punctuation",
-  /** Предложение начинается со строчной буквы. */
-  "lowercase-sentence-start",
-  /** Текст набран заглавными. */
-  "caps-lock",
-  /** Цифра слиплась со словом: «5этаж». */
-  "digit-letter-glue",
-  "unbalanced-bracket",
-  "unbalanced-quote",
-  /** Подряд несколько знаков: «!!!». */
-  "repeated-punctuation",
-  /** Нашла модель при углублённой проверке. */
-  "model-review",
-] as const;
-
-export type GrammarIssueKind = (typeof GRAMMAR_ISSUE_KINDS)[number];
+export type GrammarIssueKind = GrammarIssueContract["kind"];
 
 /**
  * Ошибка мешает понять запись, замечание — только портит её вид.
@@ -34,12 +18,12 @@ export type GrammarIssueKind = (typeof GRAMMAR_ISSUE_KINDS)[number];
  * Разделение нужно отчёту: преподавателю важно, сколько раз стажёр написал
  * непонятное, а не сколько раз поставил два пробела.
  */
-export type GrammarSeverity = "error" | "style";
+export type GrammarSeverity = GrammarIssueContract["severity"];
 
 export interface GrammarIssue {
   readonly kind: GrammarIssueKind;
   readonly severity: GrammarSeverity;
-  /** Смещение фрагмента в символах от начала текста. */
+  /** Смещение фрагмента от начала текста в кодовых единицах UTF-16. */
   readonly offset: number;
   readonly length: number;
   readonly fragment: string;
@@ -59,7 +43,7 @@ export interface GrammarIssue {
 export type GrammarTextStyle = "terse" | "prose";
 
 export interface GrammarText {
-  /** Идентификатор поля: по нему интерфейс подсвечивает нужное место. */
+  /** Идентификатор поля: путь до него в карточке или в сценарии. */
   readonly id: string;
   readonly label: string;
   readonly value: string;
