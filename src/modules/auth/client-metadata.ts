@@ -21,8 +21,8 @@ const normalise = (
  * Session metadata for incident review only — it is never used to authorise a
  * request, because a desktop client legitimately roams between networks.
  *
- * Note that `main.ts` does not enable Express' trust proxy setting, so behind a
- * reverse proxy this records the proxy's address rather than the client's.
+ * Production trusts exactly the configured number of proxy hops. Direct
+ * development keeps proxy trust disabled so a client cannot spoof this value.
  */
 export const readClientMetadata = (request: Request): ClientMetadata => ({
   userAgent: normalise(request.headers["user-agent"], MAX_USER_AGENT_LENGTH),

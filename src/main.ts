@@ -1,5 +1,6 @@
 import { Logger, VersioningType } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { WsAdapter } from "@nestjs/platform-ws";
 import helmet from "helmet";
 import { WinstonModule } from "nest-winston";
@@ -12,7 +13,7 @@ const GLOBAL_API_PREFIX = "api";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("Bootstrap");
-  const app = await NestFactory.create(CoreModule, {
+  const app = await NestFactory.create<NestExpressApplication>(CoreModule, {
     logger: WinstonModule.createLogger({
       instance: winstonLogger,
     }),
@@ -20,6 +21,10 @@ async function bootstrap(): Promise<void> {
 
   const host = env.HOST;
   const port = env.PORT;
+
+  if (env.TRUST_PROXY_HOPS > 0) {
+    app.set("trust proxy", env.TRUST_PROXY_HOPS);
+  }
 
   app.useWebSocketAdapter(new WsAdapter(app));
 
