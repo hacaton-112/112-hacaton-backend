@@ -6,7 +6,6 @@ import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callerPersonas,
-  DISPATCH_SERVICES,
   ddsExerciseEvents,
   ddsExercises,
   referenceCardFields,
@@ -18,6 +17,7 @@ import {
   type DispatchService,
 } from "@/drizzle/schema";
 
+import { normalizeDdsServiceTag } from "../domain/dds-service-access";
 import type { DdsExerciseEvent } from "../dto/dds-exercise.dto";
 import type {
   AppendDdsTransitionInput,
@@ -378,15 +378,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           eq(trainingGroups.status, "active"),
         ),
       );
-    const allowed = new Set<string>(DISPATCH_SERVICES);
-
     return [
       ...new Set(
         rows
-          .map(({ serviceTag }) => serviceTag.trim().toLowerCase())
-          .filter((service): service is DispatchService =>
-            allowed.has(service),
-          ),
+          .map(({ serviceTag }) => normalizeDdsServiceTag(serviceTag))
+          .filter((service): service is DispatchService => service !== null),
       ),
     ];
   }
