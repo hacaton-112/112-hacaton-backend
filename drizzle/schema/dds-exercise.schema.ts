@@ -10,11 +10,12 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 import { DDS_RESPONSE_STATUSES } from "@/modules/dds-exercise/domain/dds-response-status";
 
-import { dispatchService } from "./incident-card.schema";
+import { dispatchService, incidentCards } from "./incident-card.schema";
 import { scenarioVersions } from "./scenario.schema";
 import { users } from "./user.schema";
 
@@ -41,6 +42,14 @@ export const ddsExercises = pgTable(
       onDelete: "set null",
     }),
     trainingAttemptId: text("training_attempt_id"),
+    /**
+     * Карточка оператора 112, из которой создана входящая доставка. Старые
+     * автономные упражнения не имеют источника и остаются совместимыми.
+     */
+    sourceTrainingSessionId: text("source_training_session_id").references(
+      () => incidentCards.trainingSessionId,
+      { onDelete: "restrict" },
+    ),
     addressedService: dispatchService("addressed_service").notNull(),
     status: ddsResponseStatus("status").notNull().default("pending"),
     card: jsonb("card").$type<DdsCardSnapshot>().notNull(),
@@ -72,6 +81,9 @@ export const ddsExercises = pgTable(
     ),
     index("dds_exercises_status_idx").on(table.status),
     index("dds_exercises_training_attempt_idx").on(table.trainingAttemptId),
+    uniqueIndex("dds_exercises_source_service_unique_idx")
+      .on(table.sourceTrainingSessionId, table.addressedService)
+      .where(sql`${table.sourceTrainingSessionId} is not null`),
   ],
 );
 

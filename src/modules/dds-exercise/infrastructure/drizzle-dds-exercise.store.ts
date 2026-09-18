@@ -1,17 +1,21 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callerPersonas,
+  DISPATCH_SERVICES,
   ddsExerciseEvents,
   ddsExercises,
   referenceCardFields,
   scenarioLocations,
   scenarios,
   scenarioVersions,
+  trainingGroupMembers,
+  trainingGroups,
+  type DispatchService,
 } from "@/drizzle/schema";
 
 import type { DdsExerciseEvent } from "../dto/dds-exercise.dto";
@@ -32,6 +36,7 @@ type EventRow = typeof ddsExerciseEvents.$inferSelect;
 const eventFromRow = (row: EventRow): DdsExerciseEvent => ({
   sequence: row.sequence,
   eventId: row.eventId,
+  actorId: row.actorId,
   fromStatus: row.fromStatus,
   toStatus: row.toStatus,
   comment: row.comment,
@@ -46,6 +51,7 @@ const exerciseFromRows = (
   scenarioVersionId: row.scenarioVersionId,
   operatorId: row.operatorId,
   trainingAttemptId: row.trainingAttemptId,
+  sourceTrainingSessionId: row.sourceTrainingSessionId,
   addressedService: row.addressedService,
   status: row.status,
   card: row.card,
@@ -142,6 +148,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     operatorId: string,
     eventId: string,
   ): Promise<StoredDdsExercise | null> {
+    const access = await this.accessCondition(operatorId);
     const [row] = await this.db
       .select({ exercise: ddsExercises })
       .from(ddsExerciseEvents)
@@ -153,7 +160,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         and(
           eq(ddsExerciseEvents.exerciseId, exerciseId),
           eq(ddsExerciseEvents.eventId, eventId),
-          eq(ddsExercises.operatorId, operatorId),
+          access,
         ),
       )
       .limit(1);
@@ -169,6 +176,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           id: input.id,
           scenarioVersionId: input.scenarioVersionId,
           operatorId: input.operatorId,
+          sourceTrainingSessionId: input.sourceTrainingSessionId,
           addressedService: input.addressedService,
           card: input.card,
           acknowledgementDeadlineAt: input.acknowledgementDeadlineAt,
@@ -218,10 +226,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
   async listByOperator(
     operatorId: string,
   ): Promise<readonly StoredDdsExercise[]> {
+    const access = await this.accessCondition(operatorId);
     const rows = await this.db
       .select()
       .from(ddsExercises)
-      .where(eq(ddsExercises.operatorId, operatorId))
+      .where(access)
       .orderBy(desc(ddsExercises.createdAt));
 
     return Promise.all(rows.map((row) => this.withEvents(row)));
@@ -231,15 +240,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     exerciseId: string,
     operatorId: string,
   ): Promise<StoredDdsExercise | null> {
+    const access = await this.accessCondition(operatorId);
     const [row] = await this.db
       .select()
       .from(ddsExercises)
-      .where(
-        and(
-          eq(ddsExercises.id, exerciseId),
-          eq(ddsExercises.operatorId, operatorId),
-        ),
-      )
+      .where(and(eq(ddsExercises.id, exerciseId), access))
       .limit(1);
 
     return row ? this.withEvents(row) : null;
@@ -261,11 +266,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         .limit(1);
 
       if (repeated) {
-        const existing = await this.loadOwnInTransaction(
-          tx,
-          input.exerciseId,
-          input.operatorId,
-        );
+        const existing = await this.loadByIdInTransaction(tx, input.exerciseId);
 
         return existing
           ? { kind: "duplicate", exercise: existing }
@@ -288,7 +289,6 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         .where(
           and(
             eq(ddsExercises.id, input.exerciseId),
-            eq(ddsExercises.operatorId, input.operatorId),
             eq(ddsExercises.status, input.expectedStatus),
             eq(ddsExercises.lastSequence, input.expectedSequence),
           ),
@@ -339,22 +339,55 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     return exerciseFromRows(row, events);
   }
 
-  private async loadOwnInTransaction(
+  private async loadByIdInTransaction(
     tx: Transaction,
     exerciseId: string,
-    operatorId: string,
   ): Promise<StoredDdsExercise | null> {
     const [row] = await tx
       .select()
       .from(ddsExercises)
-      .where(
-        and(
-          eq(ddsExercises.id, exerciseId),
-          eq(ddsExercises.operatorId, operatorId),
-        ),
-      )
+      .where(eq(ddsExercises.id, exerciseId))
       .limit(1);
 
     return row ? this.withEventsInTransaction(tx, row) : null;
+  }
+
+  private async accessCondition(operatorId: string) {
+    const services = await this.servicesForOperator(operatorId);
+    return services.length === 0
+      ? eq(ddsExercises.operatorId, operatorId)
+      : or(
+          eq(ddsExercises.operatorId, operatorId),
+          inArray(ddsExercises.addressedService, services),
+        );
+  }
+
+  private async servicesForOperator(
+    operatorId: string,
+  ): Promise<DispatchService[]> {
+    const rows = await this.db
+      .select({ serviceTag: trainingGroupMembers.serviceTag })
+      .from(trainingGroupMembers)
+      .innerJoin(
+        trainingGroups,
+        eq(trainingGroups.id, trainingGroupMembers.groupId),
+      )
+      .where(
+        and(
+          eq(trainingGroupMembers.userId, operatorId),
+          eq(trainingGroups.status, "active"),
+        ),
+      );
+    const allowed = new Set<string>(DISPATCH_SERVICES);
+
+    return [
+      ...new Set(
+        rows
+          .map(({ serviceTag }) => serviceTag.trim().toLowerCase())
+          .filter((service): service is DispatchService =>
+            allowed.has(service),
+          ),
+      ),
+    ];
   }
 }
