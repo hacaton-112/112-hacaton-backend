@@ -55,6 +55,7 @@ export const DdsCardSnapshotSchema = z.object({
 export const DdsExerciseEventSchema = z.object({
   sequence: z.number().int().positive(),
   eventId: z.uuid(),
+  actorId: z.uuid().nullable(),
   fromStatus: DdsResponseStatusSchema.nullable(),
   toStatus: DdsResponseStatusSchema,
   comment: z.string().nullable(),
@@ -73,6 +74,7 @@ export const DdsExerciseSchema = z.object({
   id: z.uuid(),
   scenarioVersionId: z.uuid(),
   trainingAttemptId: z.string().nullable(),
+  sourceTrainingSessionId: z.string().nullable(),
   addressedService: DdsServiceCodeSchema,
   status: DdsResponseStatusSchema,
   allowedTransitions: z.array(DdsResponseStatusSchema),

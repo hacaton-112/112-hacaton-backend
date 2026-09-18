@@ -1,5 +1,10 @@
 import { API_CONFIG } from "../config/api";
-import { IncidentCardSchema, type IncidentCard } from "../contracts/incident";
+import {
+  IncidentCardDispatchReceiptSchema,
+  IncidentCardSchema,
+  type IncidentCard,
+  type IncidentCardDispatchReceipt,
+} from "../contracts/incident";
 import { api } from "../lib/api";
 
 export const incidentCardService = {
@@ -20,12 +25,28 @@ export const incidentCardService = {
     trainingSessionId: string,
     card: IncidentCard,
   ): Promise<IncidentCard> {
-    const { classifierRouting: _serverOwned, ...body } = card;
+    const {
+      classifierRouting: _serverOwned,
+      submittedAt: _submittedAt,
+      ...body
+    } = card;
     const payload = await api.put<unknown>(
       API_CONFIG.getIncidentCardUrl(trainingSessionId),
       body,
     );
 
     return IncidentCardSchema.parse(payload);
+  },
+
+  async dispatchIncidentCard(
+    trainingSessionId: string,
+    eventId: string,
+  ): Promise<IncidentCardDispatchReceipt> {
+    const payload = await api.post<unknown>(
+      API_CONFIG.getIncidentCardDispatchUrl(trainingSessionId),
+      { eventId },
+    );
+
+    return IncidentCardDispatchReceiptSchema.parse(payload);
   },
 };

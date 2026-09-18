@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { IncidentCardSchema } from "../src/contracts/incident";
+import {
+  IncidentCardDispatchReceiptSchema,
+  IncidentCardSchema,
+} from "../src/contracts/incident";
 
 const emptyBackendCard = {
   trainingSessionId: "session-1",
@@ -99,6 +102,33 @@ describe("IncidentCardSchema", () => {
         birthDate: "2012-04-03",
         notes: "В сознании",
       },
+    ]);
+  });
+});
+
+describe("IncidentCardDispatchReceiptSchema", () => {
+  it("accepts one independent delivery per addressed service", () => {
+    const receipt = IncidentCardDispatchReceiptSchema.parse({
+      trainingSessionId: "session-1",
+      eventId: "e29a7c15-c910-4ae9-a778-d9a3d76e0bc7",
+      dispatchedAt: "2026-09-18T12:00:00.000Z",
+      deliveries: [
+        {
+          id: "68e4085a-a84f-435e-804f-8a242db80385",
+          addressedService: "dds_01",
+          acknowledgementDeadlineAt: "2026-09-18T12:00:30.000Z",
+        },
+        {
+          id: "a95237ec-cf7c-4139-a96f-c6201800fd4f",
+          addressedService: "dds_03",
+          acknowledgementDeadlineAt: "2026-09-18T12:00:30.000Z",
+        },
+      ],
+    });
+
+    expect(receipt.deliveries.map((item) => item.addressedService)).toEqual([
+      "dds_01",
+      "dds_03",
     ]);
   });
 });

@@ -55,9 +55,9 @@ export function DdsCardPanel({
         className="arm-dds-card-empty grid place-content-center gap-2 text-center"
       >
         <ClipboardCheck className="text-gray-8 mx-auto" size={34} />
-        <Heading size="4">Выберите учебную карточку</Heading>
+        <Heading size="4">Выберите входящую карточку</Heading>
         <Text size="2" color="gray">
-          Новая карточка появится здесь после запуска упражнения.
+          Новая карточка появится автоматически после отправки оператором 112.
         </Text>
       </Card>
     );
@@ -173,7 +173,7 @@ export function DdsCardPanel({
                 <span>
                   {active
                     ? DDS_STATUS_LABELS[exercise.status]
-                    : "Карточка добавлена"}
+                    : "Отдельная доставка"}
                 </span>
               </div>
             );
@@ -245,6 +245,9 @@ export function DdsCardPanel({
                 </Text>
                 <Text as="p" size="1" color="gray">
                   {new Date(event.occurredAt).toLocaleString("ru-RU")}
+                  {event.actorId
+                    ? ` · оператор ${event.actorId.slice(-8).toUpperCase()}`
+                    : " · система"}
                   {event.comment ? ` · ${event.comment}` : ""}
                 </Text>
               </div>

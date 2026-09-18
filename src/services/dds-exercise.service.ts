@@ -13,14 +13,6 @@ export const ddsExerciseService = {
     return DdsExerciseListSchema.parse(payload).exercises;
   },
 
-  async start(scenarioVersionId: string): Promise<DdsExercise> {
-    const payload = await api.post<unknown>(API_CONFIG.getDdsExercisesUrl(), {
-      scenarioVersionId,
-      eventId: crypto.randomUUID(),
-    });
-    return DdsExerciseSchema.parse(payload);
-  },
-
   async transition(
     exerciseId: string,
     status: Exclude<DdsResponseStatus, "pending">,

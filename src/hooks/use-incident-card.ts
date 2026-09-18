@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  IncidentCardSchema,
   type IncidentCard,
+  type IncidentCardDispatchReceipt,
   type IncidentCardPatch,
 } from "../contracts/incident";
 import {
@@ -20,10 +22,12 @@ export interface IncidentCardState {
   card?: IncidentCard;
   services: IncidentCard["services"];
   isSaving: boolean;
+  isDispatching: boolean;
   error?: string;
   update: (patch: IncidentCardPatch) => void;
   toggleService: (service: IncidentCard["services"][number]) => void;
   flush: () => Promise<void>;
+  dispatch: () => Promise<IncidentCardDispatchReceipt>;
 }
 
 /**
@@ -41,12 +45,17 @@ export function useIncidentCard({
   const [card, setCard] = useState<IncidentCard>();
   const [loadedSessionId, setLoadedSessionId] = useState<string>();
   const [savingSessionId, setSavingSessionId] = useState<string>();
+  const [dispatchingSessionId, setDispatchingSessionId] = useState<string>();
   const [failure, setFailure] = useState<{
     sessionId: string;
     message: string;
   }>();
   const draft = useRef<IncidentCardDraft | null>(null);
   const terminalSessionId = useRef<string | null>(null);
+  const dispatchCommand = useRef<{
+    sessionId: string;
+    eventId: string;
+  } | undefined>(undefined);
   const defaultsRef = useRef(locationDefaults);
 
   useEffect(() => {
@@ -62,7 +71,15 @@ export function useIncidentCard({
   useEffect(() => {
     if (!trainingSessionId) {
       draft.current = null;
+      dispatchCommand.current = undefined;
       return;
+    }
+
+    if (dispatchCommand.current?.sessionId !== trainingSessionId) {
+      dispatchCommand.current = {
+        sessionId: trainingSessionId,
+        eventId: crypto.randomUUID(),
+      };
     }
 
     let cancelled = false;
@@ -145,6 +162,49 @@ export function useIncidentCard({
     await draft.current.flush();
   }, [isCallOver]);
 
+  const dispatch = useCallback(async () => {
+    if (!trainingSessionId || !draft.current || isCallOver) {
+      throw new Error("Нет активной карточки для отправки");
+    }
+
+    await draft.current.flush();
+    const command = dispatchCommand.current;
+    if (!command || command.sessionId !== trainingSessionId) {
+      throw new Error("Команда отправки карточки не подготовлена");
+    }
+
+    setDispatchingSessionId(trainingSessionId);
+    try {
+      const receipt = await incidentCardService.dispatchIncidentCard(
+        trainingSessionId,
+        command.eventId,
+      );
+      const snapshot = draft.current?.getSnapshot();
+      if (snapshot) {
+        const submitted = IncidentCardSchema.parse({
+          ...snapshot,
+          submittedAt: receipt.dispatchedAt,
+        });
+        draft.current?.load(submitted);
+        setCard(submitted);
+      }
+      setFailure((current) =>
+        current?.sessionId === trainingSessionId ? undefined : current,
+      );
+      return receipt;
+    } catch (reason) {
+      setFailure({
+        sessionId: trainingSessionId,
+        message: reason instanceof Error ? reason.message : String(reason),
+      });
+      throw reason;
+    } finally {
+      setDispatchingSessionId((current) =>
+        current === trainingSessionId ? undefined : current,
+      );
+    }
+  }, [isCallOver, trainingSessionId]);
+
   const belongsToCurrentSession =
     Boolean(trainingSessionId) && loadedSessionId === trainingSessionId;
 
@@ -153,6 +213,8 @@ export function useIncidentCard({
     services: belongsToCurrentSession ? (card?.services ?? []) : [],
     isSaving:
       Boolean(trainingSessionId) && savingSessionId === trainingSessionId,
+    isDispatching:
+      Boolean(trainingSessionId) && dispatchingSessionId === trainingSessionId,
     error:
       failure && failure.sessionId === trainingSessionId
         ? failure.message
@@ -160,5 +222,6 @@ export function useIncidentCard({
     update,
     toggleService,
     flush,
+    dispatch,
   };
 }

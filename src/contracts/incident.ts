@@ -115,12 +115,29 @@ export const IncidentCardSchema = z.object({
 
   services: z.array(DispatchServiceSchema).max(DISPATCH_SERVICES.length),
   victims: z.array(IncidentCardVictimSchema).max(20),
+  submittedAt: z.iso.datetime().nullable().default(null),
+});
+
+export const IncidentCardDispatchReceiptSchema = z.object({
+  trainingSessionId: z.string().min(1),
+  eventId: z.uuid(),
+  dispatchedAt: z.iso.datetime(),
+  deliveries: z.array(
+    z.object({
+      id: z.uuid(),
+      addressedService: DispatchServiceSchema,
+      acknowledgementDeadlineAt: z.iso.datetime(),
+    }),
+  ),
 });
 
 export type DispatchService = z.infer<typeof DispatchServiceSchema>;
 export type IncidentCategory = z.infer<typeof IncidentCategorySchema>;
 export type IncidentCardVictim = z.infer<typeof IncidentCardVictimSchema>;
 export type IncidentCard = z.infer<typeof IncidentCardSchema>;
+export type IncidentCardDispatchReceipt = z.infer<
+  typeof IncidentCardDispatchReceiptSchema
+>;
 /** Значения полей до валидации: в DOM всё приходит строками. */
 export type IncidentCardInput = z.input<typeof IncidentCardSchema>;
 export type IncidentCardPatch = Partial<IncidentCardInput>;
@@ -155,6 +172,7 @@ export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
   description: "",
   services: [],
   victims: [],
+  submittedAt: null,
 };
 
 export const INCIDENT_CATEGORY_LABELS: Record<IncidentCategory, string> = {
