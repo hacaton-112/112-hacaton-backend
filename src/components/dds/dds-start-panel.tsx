@@ -17,14 +17,13 @@ export function DdsStartPanel({
   onStart: () => void;
 }) {
   return (
-    <Card size="2" variant="classic" className="grid gap-3">
+    <Card size="1" variant="classic" className="arm-dds-start-panel grid gap-2">
       <div>
         <Text as="p" size="2" weight="bold">
-          Новая учебная карточка
+          Учебная подача карточки
         </Text>
         <Text as="p" size="1" color="gray">
-          До подключения назначений преподавателя карточка создаётся из
-          опубликованного сценария.
+          Источник для автономной тренировки ДДС
         </Text>
       </div>
       <Select.Root
@@ -51,7 +50,7 @@ export function DdsStartPanel({
         onClick={onStart}
       >
         {pending ? <Spinner size="1" /> : <Play size={16} />}
-        {pending ? "Создаём…" : "Начать упражнение"}
+        {pending ? "Создаём…" : "Подать карточку"}
       </Button>
     </Card>
   );

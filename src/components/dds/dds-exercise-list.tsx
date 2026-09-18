@@ -1,5 +1,5 @@
-import { Badge, Button, Card, Flex, Text } from "@bolid-ui/themes";
-import { ChevronRight, Inbox } from "lucide-react";
+import { Badge, Text } from "@bolid-ui/themes";
+import { ChevronDown, Inbox, Link2, TimerReset } from "lucide-react";
 
 import type { DdsExercise } from "../../contracts/dds-exercise";
 import { DDS_SERVICE_LABELS, DDS_STATUS_LABELS } from "./dds-formatters";
@@ -15,56 +15,73 @@ export function DdsExerciseList({
 }) {
   if (exercises.length === 0) {
     return (
-      <Card size="2" variant="surface">
-        <Flex align="center" gap="2">
-          <Inbox size={18} />
-          <Text size="2" color="gray">
-            Поступивших учебных карточек пока нет.
-          </Text>
-        </Flex>
-      </Card>
+      <div className="arm-dds-empty">
+        <Inbox size={24} />
+        <Text size="2">Поступивших карточек пока нет</Text>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="arm-dds-table" role="table" aria-label="Происшествия">
+      <div className="arm-dds-table-head" role="row">
+        <span>Связи</span>
+        <span>ЧС</span>
+        <span>Номер</span>
+        <span>Дата</span>
+        <span>Время</span>
+        <span>Тип происшествия</span>
+        <span>Поступивший адрес</span>
+        <span>Статус службы</span>
+      </div>
       {exercises.map((exercise) => {
         const terminal =
           exercise.status === "completed" || exercise.status === "refused";
+        const createdAt = new Date(exercise.createdAt);
 
         return (
-          <Button
+          <button
             key={exercise.id}
             type="button"
-            variant={selectedId === exercise.id ? "soft" : "ghost"}
-            color={terminal ? "gray" : "blue"}
-            className="h-auto! w-full justify-between! p-3! text-left"
+            className="arm-dds-table-row"
+            data-selected={selectedId === exercise.id || undefined}
+            data-terminal={terminal || undefined}
             onClick={() => onSelect(exercise.id)}
+            role="row"
           >
-            <span className="min-w-0">
-              <Text as="span" size="2" weight="medium" truncate>
-                {exercise.card.scenarioCode} · {exercise.card.title}
-              </Text>
-              <Text as="span" size="1" color="gray" className="block" truncate>
-                {DDS_SERVICE_LABELS[exercise.addressedService]}
-              </Text>
+            <span className="arm-dds-row-icons">
+              <ChevronDown size={14} />
+              <Link2 size={13} />
+              <TimerReset size={13} />
             </span>
-            <Flex align="center" gap="2" className="shrink-0">
+            <span>0</span>
+            <strong>{exercise.id.slice(-8).toUpperCase()}</strong>
+            <span>{createdAt.toLocaleDateString("ru-RU")}</span>
+            <strong>{createdAt.toLocaleTimeString("ru-RU")}</strong>
+            <span className="arm-dds-cell-main">
+              <strong>{exercise.card.incidentType}</strong>
+              <small>{exercise.card.description}</small>
+            </span>
+            <span className="arm-dds-cell-main">
+              <strong>{exercise.card.addressText}</strong>
+              <small>{DDS_SERVICE_LABELS[exercise.addressedService]}</small>
+            </span>
+            <span>
               <Badge
                 color={
                   exercise.status === "completed"
                     ? "green"
-                    : exercise.status === "refused"
+                    : exercise.status === "refused" ||
+                        exercise.status === "not_accepted"
                       ? "red"
-                      : "amber"
+                      : "orange"
                 }
                 variant="soft"
               >
                 {DDS_STATUS_LABELS[exercise.status]}
               </Badge>
-              <ChevronRight size={16} />
-            </Flex>
-          </Button>
+            </span>
+          </button>
         );
       })}
     </div>
