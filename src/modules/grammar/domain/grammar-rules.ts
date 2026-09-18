@@ -44,8 +44,10 @@ const CONFUSABLE_TO_CYRILLIC: Record<string, string> = {
 
 /** Короткое слово повторяют осмысленно: «по по́лю», «да да». */
 const MIN_REPEATED_WORD_LENGTH = 3;
-/** Ниже этой длины заглавные буквы — сокращение вроде «МЧС», а не крик. */
-const MIN_CAPS_LOCK_LETTERS = 6;
+/** Слово короче этого — сокращение вроде «МЧС» или «МОСГАЗ», а не крик. */
+const MIN_CAPS_LOCK_WORD_LENGTH = 4;
+/** Крик — это фраза: одно длинное слово заглавными встречается и в названии. */
+const MIN_CAPS_LOCK_WORDS = 2;
 /** «12А» — нормальный номер квартиры, «5этаж» — слипшееся слово. */
 const MIN_GLUED_WORD_LENGTH = 3;
 
@@ -176,11 +178,16 @@ const spaceBeforePunctuation = (text: string): GrammarIssue[] =>
     ),
   );
 
+/** «10:30» и «12,5» — время и дробное число, а не пропущенный пробел. */
+const insideNumber = (text: string, index: number): boolean =>
+  /\d/u.test(text.charAt(index - 1)) && /\d/u.test(text.charAt(index + 1));
+
 /**
  * Пропущенный пробел после знака.
  *
  * Точка проверяется только перед заглавной буквой: «т.е.», «д.12» и «кв.3» —
- * обычная запись адреса, а не ошибка.
+ * обычная запись адреса, а не ошибка. Знак между цифрами пропускается: время
+ * и дробные числа диспетчер пишет постоянно.
  */
 const missingSpaceAfterPunctuation = (text: string): GrammarIssue[] => [
   ...matches(text, /([,;:])(?=[\p{L}\p{N}])/gu, (match) =>
@@ -192,7 +199,7 @@ const missingSpaceAfterPunctuation = (text: string): GrammarIssue[] => [
       "После знака препинания нужен пробел.",
       `${match[1]!} `,
     ),
-  ),
+  ).filter((found) => !insideNumber(text, found.offset)),
   ...matches(text, /([.!?])(?=\p{Lu})/gu, (match) =>
     issue(
       "missing-space-after-punctuation",
@@ -204,6 +211,15 @@ const missingSpaceAfterPunctuation = (text: string): GrammarIssue[] => [
     ),
   ),
 ];
+
+/**
+ * Точка внутри сокращения: «т.е.», «и т.д.», «т.к.».
+ *
+ * Такая точка предложение не заканчивает, а слово после неё пишут со
+ * строчной буквы совершенно законно.
+ */
+const closesAbbreviation = (text: string, index: number): boolean =>
+  /\p{L}\.\p{L}\.\s*$/u.test(text.slice(0, index));
 
 const lowercaseSentenceStart = (text: string): GrammarIssue[] => {
   const found: GrammarIssue[] = [];
@@ -233,17 +249,28 @@ const lowercaseSentenceStart = (text: string): GrammarIssue[] => {
         "Предложение начинается со строчной буквы.",
         match[1]!.toUpperCase(),
       ),
-    ),
+    ).filter((found) => !closesAbbreviation(text, found.offset)),
   ];
 };
 
+/**
+ * Текст набран заглавными.
+ *
+ * Крик отличается от перечисления служб числом длинных слов: «МЧС, ДПС, СМП»
+ * — обычная запись, а «ГОРИТ КРЫША» — крик. Поэтому считаются не буквы, а
+ * слова, которые длиннее любого сокращения.
+ */
 const capsLock = (text: string): GrammarIssue[] => {
-  const letters = [...text].filter((character) => /\p{L}/u.test(character));
+  if (/\p{Ll}/u.test(text)) {
+    return [];
+  }
 
-  if (
-    letters.length < MIN_CAPS_LOCK_LETTERS ||
-    letters.some((character) => /\p{Ll}/u.test(character))
-  ) {
+  const written = words(text).filter(
+    ({ word }) =>
+      word.length >= MIN_CAPS_LOCK_WORD_LENGTH && /\p{Lu}/u.test(word),
+  );
+
+  if (written.length < MIN_CAPS_LOCK_WORDS) {
     return [];
   }
 

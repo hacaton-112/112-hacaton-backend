@@ -69,6 +69,22 @@ describe("checkGrammar", () => {
     expect(checkGrammar(value, "terse")).toEqual([]);
   });
 
+  it.each([
+    "Вызов поступил в 10:30, бригада выехала",
+    "Пожар на площади 12,5 метра",
+    "Пострадавших нет, т.е. помощь не нужна",
+    "МЧС, ДПС, СМП",
+    "Горит на 3 этаже, кв. 12",
+  ])("leaves a normal note of a dispatcher alone: %s", (value) => {
+    // Правила prose читают адрес, примечания и описание: время, дробное
+    // число, сокращение и перечисление служб там обычная запись.
+    expect(checkGrammar(value, "prose")).toEqual([]);
+  });
+
+  it("still hears shouting in a written-out phrase", () => {
+    expect(kinds("ГОРИТ КРЫША")).toContain("caps-lock");
+  });
+
   it("does not demand a capital letter or a full stop in a short field", () => {
     // «улица Учебная» в поле адреса — норма, а не ошибка.
     expect(kinds("улица Учебная", "terse")).toEqual([]);
