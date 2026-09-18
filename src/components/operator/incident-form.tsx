@@ -119,12 +119,16 @@ export function IncidentForm({
   }, [values, getValues, onChange, sessionId]);
 
   return (
-    <form className="grid content-start gap-4" data-tour="incident" noValidate>
+    <form
+      className="arm-incident-form grid content-start gap-2"
+      data-tour="incident"
+      noValidate
+    >
       <Card
         size="2"
         variant="classic"
         aria-labelledby="location-title"
-        className="isolate [--card-background-color:var(--color-panel-solid)]"
+        className="arm-location-card isolate [--card-background-color:var(--color-panel-solid)]"
       >
         <Text id="location-title" size="2" weight="bold">
           Место происшествия
@@ -229,7 +233,12 @@ export function IncidentForm({
         </FormField>
       </Card>
 
-      <Card size="2" variant="classic" aria-labelledby="incident-title">
+      <Card
+        size="2"
+        variant="classic"
+        aria-labelledby="incident-title"
+        className="arm-incident-card"
+      >
         <Text id="incident-title" size="2" weight="bold">
           О происшествии
         </Text>
@@ -463,8 +472,8 @@ function Tag({
     <Button
       type="button"
       size="1"
-      color={active ? "red" : "gray"}
-      variant="soft"
+      color={active ? "blue" : "gray"}
+      variant={active ? "solid" : "soft"}
       disabled={disabled}
       onClick={onClick}
     >

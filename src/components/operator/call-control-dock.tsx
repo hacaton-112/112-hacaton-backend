@@ -1,4 +1,4 @@
-import { Button, Card, IconButton, Text } from "@bolid-ui/themes";
+import { Button, IconButton, Text } from "@bolid-ui/themes";
 import { ClipboardList, Mic, MicOff, PhoneOff, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -26,16 +26,15 @@ export function CallControlDock(props: CallControlDockProps) {
   const debriefSessionId = props.trainingSessionId;
 
   return (
-    <Card
-      size="1"
-      variant="classic"
-      className="absolute bottom-3 left-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2"
+    <div
+      className="arm-operator-dock absolute inset-x-0 bottom-0 z-50"
       data-tour="call-controls"
       aria-label="Управление звонком"
     >
-      <div className="grid grid-cols-[4rem_minmax(12rem,1fr)_auto] items-center gap-2">
-        <div className="flex min-w-0 items-center">
-          <Text size="3" weight="bold" className="tabular-nums">
+      <div className="grid grid-cols-[7rem_minmax(10rem,1fr)_auto] items-center gap-3 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="arm-dock-label">Вызов</span>
+          <Text size="3" weight="bold" className="text-white! tabular-nums">
             {formatDuration(props.elapsedSeconds)}
           </Text>
         </div>
@@ -74,7 +73,6 @@ export function CallControlDock(props: CallControlDockProps) {
             <>
               <IconButton
                 size="2"
-                radius="full"
                 variant={props.isMuted ? "solid" : "soft"}
                 color={props.isMuted ? "red" : "gray"}
                 onClick={props.toggleMute}
@@ -87,13 +85,12 @@ export function CallControlDock(props: CallControlDockProps) {
               </IconButton>
               <IconButton
                 size="2"
-                radius="full"
                 color="red"
                 onClick={props.onEnd}
                 disabled={
                   !props.isCardReady || props.isEnding || props.isRecovering
                 }
-                aria-label="Завершить вызов"
+                aria-label="Сохранить карточку и завершить вызов"
               >
                 <PhoneOff size={17} />
               </IconButton>
@@ -105,7 +102,6 @@ export function CallControlDock(props: CallControlDockProps) {
               {debriefSessionId !== undefined && (
                 <Button
                   size="2"
-                  radius="full"
                   variant="soft"
                   onClick={() =>
                     navigate(ROUTES.debriefSession(debriefSessionId))
@@ -116,7 +112,6 @@ export function CallControlDock(props: CallControlDockProps) {
               )}
               <Button
                 size="2"
-                radius="full"
                 variant="soft"
                 color="gray"
                 onClick={props.reset}
@@ -127,7 +122,7 @@ export function CallControlDock(props: CallControlDockProps) {
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 

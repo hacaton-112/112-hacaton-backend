@@ -1015,3 +1015,340 @@ body,
     width: 110vw;
   }
 }
+
+/* Operator card ----------------------------------------------------------- */
+
+.arm-operator-page {
+  background: var(--arm-workspace);
+}
+
+.arm-telephone-strip {
+  display: grid;
+  min-height: 74px;
+  flex: none;
+  grid-template-columns: 150px repeat(3, minmax(170px, 1fr)) minmax(
+      210px,
+      0.8fr
+    ) 112px;
+  gap: 7px;
+  border-bottom: 1px solid var(--arm-line-dark);
+  background: #dde0e1;
+  padding: 7px;
+}
+
+.arm-phone-state,
+.arm-telephone-field,
+.arm-incident-identity {
+  min-width: 0;
+  border: 1px solid #c1c6c8;
+  background: #f5f5f3;
+}
+
+.arm-phone-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.arm-phone-state svg {
+  color: var(--arm-graphite);
+}
+
+.arm-telephone-field {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  align-items: center;
+}
+
+.arm-telephone-icon {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  border-right: 1px solid var(--arm-line);
+  background: #d9ddde;
+  color: var(--arm-muted);
+}
+
+.arm-telephone-value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.arm-telephone-value > span {
+  color: var(--arm-muted);
+}
+
+.arm-telephone-value strong {
+  overflow: hidden;
+  color: #3a4d66;
+  font-size: 17px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-telephone-field > svg {
+  color: var(--arm-graphite-3);
+}
+
+.arm-incident-identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+}
+
+.arm-incident-identity strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-incident-identity span {
+  margin-top: 3px;
+  color: var(--arm-muted);
+  font-size: 11px;
+}
+
+.arm-incident-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--arm-graphite);
+  color: white;
+}
+
+.arm-incident-timer[data-overdue="true"] {
+  background: var(--arm-danger);
+}
+
+.arm-incident-timer strong {
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm-incident-timer span {
+  margin-top: 7px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.operator-workspace {
+  height: auto !important;
+  min-height: 0 !important;
+  grid-template-areas:
+    "caller incident"
+    "dispatch dispatch";
+  grid-template-columns: minmax(360px, 0.82fr) minmax(560px, 1.35fr);
+  grid-template-rows: auto auto;
+}
+
+.operator-workspace > div[data-tour="caller"] {
+  grid-area: caller;
+}
+
+.operator-incident-column {
+  grid-area: incident;
+}
+
+.arm-dispatch-panel {
+  grid-area: dispatch;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(320px, 0.9fr) minmax(
+      420px,
+      1.2fr
+    );
+}
+
+.operator-caller-column,
+.arm-incident-form {
+  align-content: start;
+}
+
+.arm-operator-section,
+.arm-location-card,
+.arm-incident-card,
+.arm-duplicate-card,
+.dispatch-services-card,
+.dispatch-chat-card,
+.dispatch-map-card {
+  background: #f4f4f2 !important;
+}
+
+.arm-operator-section > :first-child,
+.arm-location-card > :first-child,
+.arm-incident-card > :first-child,
+.arm-duplicate-card > :first-child {
+  color: var(--arm-ink);
+  letter-spacing: 0.01em;
+}
+
+.arm-caller-summary {
+  border-top: 4px solid var(--arm-graphite-2) !important;
+}
+
+.arm-caller-details {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.arm-victims-panel,
+.arm-incident-card {
+  border-top: 4px solid var(--arm-graphite) !important;
+}
+
+.arm-location-card {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.arm-duplicate-card {
+  border-left: 4px solid var(--arm-orange) !important;
+}
+
+.arm-routing-summary {
+  border-color: #86bcd7;
+  background: var(--arm-blue-soft);
+}
+
+.arm-classifier
+  :where(button[data-state="checked"], button[aria-pressed="true"]) {
+  background: var(--arm-blue) !important;
+  color: white !important;
+}
+
+.arm-dialogue-operator,
+.arm-dialogue-caller {
+  border: 1px solid var(--arm-line);
+  border-radius: 1px;
+}
+
+.arm-dialogue-operator {
+  background: #eceeed;
+}
+
+.arm-dialogue-caller {
+  border-color: #9bc8dc;
+  background: var(--arm-blue-soft);
+}
+
+.dispatch-services-card {
+  border-top: 4px solid var(--arm-orange) !important;
+}
+
+.dispatch-chat-card {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.dispatch-map-card {
+  border-top: 4px solid var(--arm-graphite-2) !important;
+}
+
+.arm-operator-dock {
+  border-top: 1px solid #d84d28;
+  background: var(--arm-orange);
+  box-shadow: 0 -4px 12px rgb(45 49 52 / 18%);
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-SelectTrigger) {
+  border-color: rgb(255 255 255 / 45%);
+  background: rgb(111 49 32 / 32%);
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-BaseButton, .rt-IconButton) {
+  border: 1px solid rgb(255 255 255 / 58%);
+  background: transparent;
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-BaseButton, .rt-IconButton):hover {
+  background: rgb(116 47 28 / 30%);
+}
+
+.arm-dock-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.arm-operator-dock canvas,
+.arm-operator-dock [aria-hidden="true"] span {
+  filter: brightness(0) invert(1);
+}
+
+@media (max-width: 1439px) {
+  .arm-telephone-strip {
+    grid-template-columns: 132px repeat(2, minmax(160px, 1fr)) minmax(
+        200px,
+        0.8fr
+      ) 104px;
+  }
+
+  .arm-telephone-field:nth-of-type(4) {
+    display: none;
+  }
+
+  .arm-dispatch-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dispatch-map-card {
+    grid-column: 1 / -1;
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .operator-workspace {
+    grid-template-areas:
+      "caller"
+      "incident"
+      "dispatch";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm-telephone-strip {
+    grid-template-columns: 118px minmax(180px, 1fr) minmax(190px, 1fr) 100px;
+  }
+
+  .arm-telephone-field:nth-of-type(3),
+  .arm-telephone-field:nth-of-type(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .arm-telephone-strip {
+    min-height: 60px;
+    grid-template-columns: minmax(0, 1fr) 90px;
+  }
+
+  .arm-phone-state,
+  .arm-telephone-field,
+  .arm-incident-identity {
+    display: none;
+  }
+
+  .arm-dispatch-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dispatch-map-card {
+    grid-column: auto;
+  }
+
+  .arm-operator-dock > div {
+    grid-template-columns: auto minmax(80px, 1fr) auto;
+  }
+
+  .arm-dock-label {
+    display: none;
+  }
+}

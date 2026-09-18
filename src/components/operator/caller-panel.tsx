@@ -112,8 +112,8 @@ export function CallerPanel({
     : "Ожидание вызова";
 
   return (
-    <aside className="operator-caller-column flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-      <Section className="shrink-0">
+    <aside className="operator-caller-column flex min-h-0 flex-col gap-2">
+      <Section className="arm-caller-summary shrink-0">
         <Flex align="center" justify="between" gap="2">
           <Text size="3" weight="bold">
             {sessionLabel}
@@ -132,7 +132,7 @@ export function CallerPanel({
         <Info label="ФИО" value="Нет данных" />
       </Section>
 
-      <Section className="shrink-0">
+      <Section className="arm-caller-details shrink-0">
         <Flex align="center" justify="between" gap="2">
           <Text size="2" weight="bold">
             Заявитель
@@ -204,7 +204,7 @@ export function CallerPanel({
         </div>
       </Section>
 
-      <Section className="min-h-0 flex-1 overflow-hidden">
+      <Section className="arm-victims-panel min-h-0 flex-1 overflow-hidden">
         <div className="flex h-full min-h-0 flex-col gap-3">
           <Text size="2" weight="bold">
             Пострадавшие
@@ -364,7 +364,11 @@ function Section({
   className?: string;
 }) {
   return (
-    <Card size="2" variant="classic" className={className}>
+    <Card
+      size="2"
+      variant="classic"
+      className={`arm-operator-section ${className}`}
+    >
       {children}
     </Card>
   );
