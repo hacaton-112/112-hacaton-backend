@@ -51,6 +51,20 @@ import {
   type ScenarioCatalog,
 } from "./ports/scenario-catalog.port";
 
+/**
+ * Сигнал, который гаснет вместе с запросом.
+ *
+ * Преподаватель закрывает диалог, не дождавшись ответа: держать после этого
+ * обращение к модели незачем — оно занимает квоту и вернуть уже некуда.
+ */
+const abandonedWith = (request: AuthenticatedRequest): AbortSignal => {
+  const abort = new AbortController();
+
+  request.on("close", () => abort.abort());
+
+  return abort.signal;
+};
+
 @Controller(ApiRoutes.Scenarios)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ScenarioCatalogController {
@@ -100,9 +114,14 @@ export class ScenarioCatalogController {
   @Throttle({ short: { limit: 20, ttl: 60_000 } })
   @ZodSerializerDto(ScenarioGrammarReportDto)
   checkGrammar(
+    @Req() request: AuthenticatedRequest,
     @Body() body: CheckScenarioGrammarRequestDto,
   ): Promise<GrammarReport> {
-    return this.authoring.checkGrammar(body.scenario, body.deepReview);
+    return this.authoring.checkGrammar(
+      body.scenario,
+      body.deepReview,
+      abandonedWith(request),
+    );
   }
 
   /** Publishing is an explicit instructor action after the complete review. */

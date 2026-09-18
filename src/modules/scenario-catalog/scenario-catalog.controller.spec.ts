@@ -118,9 +118,20 @@ describe(ScenarioCatalogController.name, () => {
     const { controller, authoring } = createController();
     const scenario = { version: { openingLine: "Горит квартира!" } };
 
-    await controller.checkGrammar({ scenario, deepReview: true } as never);
+    const request = { on: jest.fn() };
 
-    expect(authoring.checkGrammar).toHaveBeenCalledWith(scenario, true);
+    await controller.checkGrammar(request as never, {
+      scenario,
+      deepReview: true,
+    } as never);
+
+    // Проверка идёт с сигналом запроса: ушёл преподаватель — ушла и модель.
+    expect(authoring.checkGrammar).toHaveBeenCalledWith(
+      scenario,
+      true,
+      expect.any(AbortSignal),
+    );
+    expect(request.on).toHaveBeenCalledWith("close", expect.any(Function));
     expect(authoring.publishVersion).not.toHaveBeenCalled();
   });
 });

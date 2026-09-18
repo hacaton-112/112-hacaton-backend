@@ -51,8 +51,12 @@ export class ScenarioAuthoringService {
    * новое условие. Черновик читается как есть, даже если он ещё не сходится
    * со схемой.
    */
-  checkGrammar(scenario: unknown, deepReview = false): Promise<GrammarReport> {
-    return this.grammar.check(scenarioTexts(scenario), { deepReview });
+  checkGrammar(
+    scenario: unknown,
+    deepReview = false,
+    signal?: AbortSignal,
+  ): Promise<GrammarReport> {
+    return this.grammar.check(scenarioTexts(scenario), { deepReview, signal });
   }
 
   async generateDraft(brief: string): Promise<GenerateScenarioDraftResponse> {
