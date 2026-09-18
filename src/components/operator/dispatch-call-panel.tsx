@@ -50,13 +50,13 @@ type DispatchCallPanelProps = CallSnapshot &
 
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
   return (
-    <aside className="dispatch-panel grid min-h-full grid-rows-[210px_263px_minmax(320px,418px)] content-start gap-4 min-[1480px]:h-full min-[1480px]:grid-cols-1 min-[1480px]:grid-rows-[210px_263px_minmax(418px,1fr)] md:grid-cols-2 md:grid-rows-[263px_minmax(320px,418px)]">
+    <aside className="arm-dispatch-panel dispatch-panel grid min-w-0 content-start gap-2">
       <Card
         size="2"
         variant="classic"
         aria-labelledby="services-title"
         data-tour="dispatch-services"
-        className="dispatch-services-card isolate h-[210px] overflow-x-hidden overflow-y-auto [--card-background-color:var(--color-panel-solid)] min-[1480px]:h-[210px] md:h-[263px]"
+        className="dispatch-services-card isolate min-h-64 overflow-x-hidden overflow-y-auto [--card-background-color:var(--color-panel-solid)]"
       >
         <Text id="services-title" size="2" weight="bold">
           ДДС / Службы
@@ -132,7 +132,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="1"
         variant="classic"
         data-tour="caller-chat"
-        className="dispatch-chat-card h-[263px] min-w-0 overflow-hidden p-0!"
+        className="dispatch-chat-card min-h-64 min-w-0 overflow-hidden p-0!"
       >
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
           <div>
@@ -167,7 +167,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="1"
         variant="classic"
         data-tour="incident-map"
-        className="dispatch-map-card relative min-h-[320px] overflow-hidden p-0! min-[1480px]:col-span-1 min-[1480px]:min-h-[418px] md:col-span-2"
+        className="dispatch-map-card relative min-h-64 overflow-hidden p-0!"
       >
         <IncidentMap
           city={MOSCOW}
@@ -175,7 +175,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
           controls={false}
           selectedPoint={props.selectedPoint}
           onSelectPoint={props.onSelectPoint}
-          className="dispatch-map operator-map h-full min-h-[320px]"
+          className="dispatch-map operator-map h-full min-h-64"
         />
         <div className="absolute top-2 right-2 left-2 z-30 flex items-start justify-between gap-2">
           <PointHint
@@ -305,8 +305,8 @@ function DialogueList({
             key={turn.id}
             className={
               turn.role === "operator"
-                ? "bg-grayA-3 rounded-3 max-w-full min-w-0 overflow-hidden px-3 py-2"
-                : "bg-blueA-3 rounded-3 max-w-full min-w-0 overflow-hidden px-3 py-2"
+                ? "arm-dialogue-operator max-w-full min-w-0 overflow-hidden px-3 py-2"
+                : "arm-dialogue-caller max-w-full min-w-0 overflow-hidden px-3 py-2"
             }
           >
             <Text size="1" color="gray">

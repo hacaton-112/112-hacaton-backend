@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  Callout,
   Dialog,
   Flex,
   Grid,
@@ -11,18 +12,10 @@ import {
   Text,
   Tooltip,
 } from "@bolid-ui/themes";
-import { Check, Headphones, Palette, RefreshCw } from "lucide-react";
+import { Headphones, Palette, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
-import {
-  ACCENT_COLORS,
-  ACCENT_LABELS,
-  RADIUS_LABELS,
-  RADIUS_OPTIONS,
-  SCALING_OPTIONS,
-  THEME_LABELS,
-  THEME_PREFERENCES,
-} from "../../config/theme";
+import { SCALING_OPTIONS } from "../../config/theme";
 import { useMicrophoneTest } from "../../hooks/use-microphone-test";
 import { ipc, type AudioDeviceInfo } from "../../lib/ipc";
 import {
@@ -150,7 +143,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <div className="p-rx-5">
                   <Text as="p" color="gray" size="2" mb="5">
                     {page === "appearance"
-                      ? "Настройте тему, цвет, скругление и масштаб интерфейса."
+                      ? "Масштабируйте рабочее место под размер монитора."
                       : "Выберите микрофон оператора и устройство воспроизведения заявителя."}
                   </Text>
                   {page === "appearance" ? (
@@ -201,78 +194,12 @@ function AppearanceSettings() {
 
   return (
     <Flex direction="column" gap="5">
-      <SettingRow
-        title="Тема"
-        description="Светлая, тёмная или системная цветовая схема."
-      >
-        <Select.Root
-          value={settings.theme}
-          onValueChange={(theme) =>
-            settingsService.update({ theme: theme as typeof settings.theme })
-          }
-        >
-          <Select.Trigger aria-label="Тема" className="w-48" />
-          <Select.Content>
-            {THEME_PREFERENCES.map((theme) => (
-              <Select.Item key={theme} value={theme}>
-                {THEME_LABELS[theme]}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-      </SettingRow>
-
-      <SettingRow
-        title="Акцентный цвет"
-        description="Используется для активных элементов и основных действий."
-      >
-        <div className="gap-rx-2 grid grid-cols-6">
-          {ACCENT_COLORS.map((color) => (
-            <Tooltip key={color} content={ACCENT_LABELS[color]}>
-              <button
-                aria-label={ACCENT_LABELS[color]}
-                aria-pressed={settings.accentColor === color}
-                className="size-rx-8 border-grayA-5 flex cursor-pointer items-center justify-center rounded-full border transition-transform hover:scale-105"
-                onClick={() => settingsService.update({ accentColor: color })}
-                style={{
-                  background: `var(--${color}-9)`,
-                  outline:
-                    settings.accentColor === color
-                      ? `2px solid var(--${color}-9)`
-                      : undefined,
-                  outlineOffset: 2,
-                }}
-                type="button"
-              >
-                {settings.accentColor === color ? (
-                  <Check className="size-rx-4 text-white" strokeWidth={3} />
-                ) : null}
-              </button>
-            </Tooltip>
-          ))}
-        </div>
-      </SettingRow>
-
-      <SettingRow
-        title="Скругление"
-        description="Радиус углов у кнопок, полей, карточек и панелей."
-      >
-        <Select.Root
-          value={settings.radius}
-          onValueChange={(radius) =>
-            settingsService.update({ radius: radius as typeof settings.radius })
-          }
-        >
-          <Select.Trigger aria-label="Скругление" className="w-48" />
-          <Select.Content>
-            {RADIUS_OPTIONS.map((radius) => (
-              <Select.Item key={radius} value={radius}>
-                {RADIUS_LABELS[radius]}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-      </SettingRow>
+      <Callout.Root color="orange" size="1">
+        <Callout.Text>
+          Цвета, контраст и геометрия зафиксированы по референсу АРМ-112, чтобы
+          все учебные места выглядели одинаково.
+        </Callout.Text>
+      </Callout.Root>
 
       <SettingRow
         title="Масштаб"

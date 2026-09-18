@@ -24,7 +24,12 @@ export function DdsAcknowledgementTimer({
       Date.parse(exercise.acknowledgementDeadlineAt);
 
     return (
-      <Badge color={met ? "green" : "red"} size="2" variant="soft">
+      <Badge
+        className="arm-dds-ack-badge"
+        color={met ? "green" : "red"}
+        size="2"
+        variant="soft"
+      >
         <Clock3 size={15} />
         {met ? "Подтверждено вовремя" : "Норматив нарушен"}
       </Badge>
@@ -37,8 +42,13 @@ export function DdsAcknowledgementTimer({
   );
 
   return (
-    <Flex align="center" gap="2">
-      <Badge color={seconds > 0 ? "amber" : "red"} size="2" variant="soft">
+    <Flex className="arm-dds-ack-timer" align="center" gap="2">
+      <Badge
+        className="arm-dds-ack-badge"
+        color={seconds > 0 ? "amber" : "red"}
+        size="2"
+        variant="soft"
+      >
         <Clock3 size={15} />
         {formatCountdown(seconds)}
       </Badge>

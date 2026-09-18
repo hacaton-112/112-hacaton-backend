@@ -2,11 +2,12 @@ import {
   Button,
   Callout,
   Flex,
+  Select,
   Spinner,
   Text,
-  TextArea,
+  TextField,
 } from "@bolid-ui/themes";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { useState } from "react";
 
 import type {
@@ -28,72 +29,82 @@ export function DdsStatusActions({
   error?: string;
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
 }) {
-  const [comment, setComment] = useState("");
   const available = exercise.allowedTransitions.filter(
     (status): status is TransitionStatus => status !== "pending",
   );
+  const [selected, setSelected] = useState<TransitionStatus | undefined>(
+    available[0],
+  );
+  const [comment, setComment] = useState("");
 
-  const run = async (status: TransitionStatus) => {
-    await onTransition(status, comment);
+  if (available.length === 0 || !selected) return null;
+
+  const commentMissing = requiresComment(selected) && !comment.trim();
+
+  const run = async () => {
+    await onTransition(selected, comment);
     setComment("");
   };
 
-  if (available.length === 0) return null;
-
   return (
-    <div className="grid gap-3">
-      <Text size="2" weight="bold">
-        Следующее действие
-      </Text>
-      <div className="grid gap-2">
-        <TextArea
-          value={comment}
-          onChange={(event) => setComment(event.target.value)}
-          rows={3}
-          maxLength={1_000}
-          placeholder="Комментарий к действию (для отказа обязателен)"
-          disabled={pending}
-        />
-        <Text size="1" color="gray">
-          Комментарий сохранится в хронологии. Для «Не принята» и отказа он
-          обязателен.
-        </Text>
-      </div>
-      <Flex gap="2" wrap="wrap">
-        {available.map((status) => (
-          <Button
-            key={status}
-            type="button"
-            color={
-              status === "not_accepted" || status === "refused"
-                ? "red"
-                : status === "completed"
-                  ? "green"
-                  : "blue"
-            }
-            variant={status === "accepted" ? "solid" : "soft"}
-            disabled={pending || (requiresComment(status) && !comment.trim())}
-            onClick={() => {
-              void run(status).catch(() => undefined);
-            }}
-          >
-            {status === "not_accepted" || status === "refused" ? (
-              <X size={16} />
-            ) : (
-              <Check size={16} />
-            )}
-            {DDS_STATUS_LABELS[status]}
-          </Button>
-        ))}
-      </Flex>
-
-      {pending && (
-        <Flex align="center" gap="2">
-          <Spinner size="1" />
-          <Text size="1" color="gray">
-            Сохраняем статус…
+    <div className="arm-dds-status-editor">
+      <div className="arm-dds-status-fields">
+        <label>
+          <Text as="span" size="1">
+            Статус
           </Text>
-        </Flex>
+          <Select.Root
+            value={selected}
+            onValueChange={(value) => setSelected(value as TransitionStatus)}
+            disabled={pending}
+          >
+            <Select.Trigger aria-label="Следующий статус" />
+            <Select.Content>
+              {available.map((status) => (
+                <Select.Item key={status} value={status}>
+                  {DDS_STATUS_LABELS[status]}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </label>
+
+        <label>
+          <Text as="span" size="1">
+            Номер наряда
+          </Text>
+          <TextField.Root placeholder="—" disabled />
+        </label>
+
+        <label className="arm-dds-comment-field">
+          <Text as="span" size="1">
+            Комментарий{requiresComment(selected) ? " *" : ""}
+          </Text>
+          <TextField.Root
+            value={comment}
+            onChange={(event) => setComment(event.currentTarget.value)}
+            maxLength={1_000}
+            placeholder="Введите результат реагирования"
+            disabled={pending}
+          />
+        </label>
+
+        <Button
+          type="button"
+          className="arm-dds-status-submit"
+          disabled={pending || commentMissing}
+          onClick={() => void run().catch(() => undefined)}
+          aria-label="Сохранить статус"
+        >
+          {pending ? <Spinner size="1" /> : <Check size={18} />}
+          Сохранить
+        </Button>
+      </div>
+
+      {commentMissing && (
+        <Text size="1" color="red">
+          Для выбранного статуса обязателен комментарий.
+        </Text>
       )}
 
       {error && (
@@ -103,6 +114,13 @@ export function DdsStatusActions({
           </Callout.Icon>
           <Callout.Text>{error}</Callout.Text>
         </Callout.Root>
+      )}
+
+      {pending && (
+        <Flex align="center" gap="2">
+          <Spinner size="1" />
+          <Text size="1">Сохраняем статус…</Text>
+        </Flex>
       )}
     </div>
   );

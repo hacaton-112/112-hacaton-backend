@@ -1,5 +1,6 @@
-import { ScrollArea, toast } from "@bolid-ui/themes";
+import { ScrollArea, Text, toast } from "@bolid-ui/themes";
 import { useQueryClient } from "@tanstack/react-query";
+import { CircleHelp, MapPin, MessageSquare, Phone } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { QUERY_KEYS } from "../../config/query-keys";
@@ -114,7 +115,7 @@ export default function OperatorPage() {
   }, [incidentCard.error]);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="arm-operator-page relative flex h-full min-h-0 flex-col overflow-hidden">
       {call.isRecovering && (
         <div
           className="bg-amber-3 text-amber-12 absolute inset-x-0 top-0 z-[60] px-4 py-2 text-center text-sm font-medium shadow-sm"
@@ -124,16 +125,20 @@ export default function OperatorPage() {
           {call.recoverySecondsRemaining} с
         </div>
       )}
+      <OperatorTelephoneStrip
+        callerNumber={call.callerNumber}
+        elapsedSeconds={call.elapsedSeconds}
+        operatorName={operatorName}
+        sessionId={call.trainingSessionId}
+        state={call.state}
+      />
       <ScrollArea
-        className="operator-page-scroll min-h-0 flex-1"
+        className="operator-page-scroll min-h-0 flex-1 pb-16"
         scrollbars="vertical"
         type="auto"
       >
-        <div className="operator-workspace grid min-h-full grid-cols-1 gap-4 p-4 min-[1480px]:h-full min-[1480px]:min-h-0 min-[1480px]:grid-cols-[minmax(360px,0.92fr)_minmax(650px,1.95fr)_minmax(380px,1fr)] min-[1480px]:grid-rows-1 md:grid-cols-[minmax(340px,0.47fr)_minmax(560px,1fr)]">
-          <div
-            className="h-[calc(100dvh_-_var(--app-titlebar-height)_-_var(--space-4)_-_var(--space-4))] min-h-[44rem] overflow-hidden"
-            data-tour="caller"
-          >
+        <div className="operator-workspace grid min-h-full min-w-0 gap-2 p-2">
+          <div className="min-w-0" data-tour="caller">
             <CallerPanel
               trainingSessionId={call.trainingSessionId}
               callerNumber={call.callerNumber}
@@ -144,46 +149,34 @@ export default function OperatorPage() {
               onChange={incidentCard.update}
             />
           </div>
-          <ScrollArea
-            className="operator-column-scroll operator-incident-scroll min-h-0"
-            scrollbars="vertical"
-            type="auto"
+          <main
+            className="operator-incident-column min-w-0"
+            aria-label="Карточка происшествия"
           >
-            <main
-              className="operator-incident-column min-h-full min-w-0"
-              aria-label="Карточка происшествия"
-            >
-              <IncidentForm
-                sessionId={call.trainingSessionId}
-                card={incidentCard.card}
-                // До приёма вызова заполнять нечего, после завершения карточку
-                // закрывает backend: дописанное после разговора не оценивается.
-                disabled={!isCardEditable}
-                onChange={incidentCard.update}
-                locationFill={incidentPoint.fill}
-              />
-            </main>
-          </ScrollArea>
-          <ScrollArea
-            className="operator-column-scroll min-h-0 min-[1480px]:col-span-1 md:col-span-2"
-            scrollbars="vertical"
-            type="auto"
-          >
-            <DispatchCallPanel
-              {...call}
-              selectedPoint={incidentPoint.point}
-              pointStatus={incidentPoint.status}
-              onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
-              services={incidentCard.services}
-              requiredServices={
-                incidentCard.card?.classifierRouting?.requiredServices ?? []
-              }
-              onToggleService={incidentCard.toggleService}
-              callerName={callerName}
-              isCardReady={Boolean(incidentCard.card)}
-              isEnding={isEnding}
+            <IncidentForm
+              sessionId={call.trainingSessionId}
+              card={incidentCard.card}
+              // До приёма вызова заполнять нечего, после завершения карточку
+              // закрывает backend: дописанное после разговора не оценивается.
+              disabled={!isCardEditable}
+              onChange={incidentCard.update}
+              locationFill={incidentPoint.fill}
             />
-          </ScrollArea>
+          </main>
+          <DispatchCallPanel
+            {...call}
+            selectedPoint={incidentPoint.point}
+            pointStatus={incidentPoint.status}
+            onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
+            services={incidentCard.services}
+            requiredServices={
+              incidentCard.card?.classifierRouting?.requiredServices ?? []
+            }
+            onToggleService={incidentCard.toggleService}
+            callerName={callerName}
+            isCardReady={Boolean(incidentCard.card)}
+            isEnding={isEnding}
+          />
         </div>
       </ScrollArea>
       <CallControlDock
@@ -192,6 +185,87 @@ export default function OperatorPage() {
         isEnding={isEnding}
         onEnd={() => void handleEnd()}
       />
+    </div>
+  );
+}
+
+function OperatorTelephoneStrip({
+  callerNumber,
+  elapsedSeconds,
+  operatorName,
+  sessionId,
+  state,
+}: {
+  callerNumber?: string;
+  elapsedSeconds: number;
+  operatorName: string;
+  sessionId?: string;
+  state: "idle" | "ringing" | "active" | "ended";
+}) {
+  const incidentNumber = sessionId?.slice(-8).toUpperCase() ?? "--------";
+  const duration = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
+
+  return (
+    <header className="arm-telephone-strip">
+      <div className="arm-phone-state">
+        <Phone size={22} aria-hidden />
+        <span>
+          {state === "active"
+            ? "Соединение"
+            : state === "ringing"
+              ? "Подключение"
+              : "Отключение"}
+        </span>
+      </div>
+      <TelephoneField
+        icon={<Phone size={17} />}
+        label="АОН"
+        value={callerNumber ?? "+7 (   )  --- -- --"}
+      />
+      <TelephoneField
+        icon={<MessageSquare size={17} />}
+        label="предоставленный"
+        value="+7 (   )  --- -- --"
+      />
+      <TelephoneField
+        icon={<MapPin size={17} />}
+        label="телефон на месте"
+        value="+7 (   )  --- -- --"
+      />
+      <div className="arm-incident-identity">
+        <strong>Происшествие {incidentNumber}</strong>
+        <span>{operatorName} · АРМ учебный</span>
+      </div>
+      <div
+        className="arm-incident-timer"
+        data-overdue={elapsedSeconds >= 240 || undefined}
+      >
+        <strong>{duration}</strong>
+        <span>МИНУТ · СЕКУНД</span>
+      </div>
+    </header>
+  );
+}
+
+function TelephoneField({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="arm-telephone-field">
+      <span className="arm-telephone-icon">{icon}</span>
+      <span className="arm-telephone-value">
+        <Text as="span" size="1">
+          {label}
+        </Text>
+        <strong>{value}</strong>
+      </span>
+      <CircleHelp size={14} aria-hidden />
     </div>
   );
 }

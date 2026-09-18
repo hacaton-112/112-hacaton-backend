@@ -86,8 +86,7 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
       </Select.Root>
 
       <Button
-        color="green"
-        radius="full"
+        color="orange"
         disabled={disabled || !chosen || blockedReason !== undefined}
         onClick={() =>
           chosen &&
@@ -101,7 +100,7 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
         className="shrink-0"
       >
         <PhoneIncoming size={17} />
-        <span className="hidden xl:inline">Начать звонок</span>
+        <span className="hidden xl:inline">ПРИНЯТЬ ВЫЗОВ</span>
       </Button>
     </div>
   );

@@ -25,7 +25,7 @@ type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="min-w-0">
+    <div className="arm-dds-field min-w-0">
       <Text as="p" size="1" color="gray">
         {label}
       </Text>
@@ -52,7 +52,7 @@ export function DdsCardPanel({
       <Card
         size="3"
         variant="classic"
-        className="grid place-content-center gap-2 text-center"
+        className="arm-dds-card-empty grid place-content-center gap-2 text-center"
       >
         <ClipboardCheck className="text-gray-8 mx-auto" size={34} />
         <Heading size="4">Выберите учебную карточку</Heading>
@@ -66,9 +66,15 @@ export function DdsCardPanel({
   const { card } = exercise;
 
   return (
-    <div className="grid content-start gap-4">
-      <Card size="3" variant="classic" className="grid gap-4">
-        <Flex align="start" justify="between" gap="3" wrap="wrap">
+    <div className="arm-dds-card-panel grid content-start gap-2">
+      <Card size="3" variant="classic" className="arm-dds-card grid gap-4">
+        <Flex
+          className="arm-dds-card-header"
+          align="start"
+          justify="between"
+          gap="3"
+          wrap="wrap"
+        >
           <div>
             <Flex align="center" gap="2" mb="1">
               <Badge variant="soft">{card.scenarioCode}</Badge>
@@ -96,8 +102,16 @@ export function DdsCardPanel({
 
         <Separator size="4" />
 
-        <Grid columns={{ initial: "1", sm: "2" }} gap="4">
-          <Card size="2" variant="surface" className="grid gap-3">
+        <Grid
+          className="arm-dds-info-grid"
+          columns={{ initial: "1", sm: "2" }}
+          gap="2"
+        >
+          <Card
+            size="2"
+            variant="surface"
+            className="arm-dds-info-block grid gap-3"
+          >
             <Flex align="center" gap="2">
               <MapPin size={17} />
               <Text size="2" weight="bold">
@@ -111,7 +125,11 @@ export function DdsCardPanel({
             </Text>
           </Card>
 
-          <Card size="2" variant="surface" className="grid gap-3">
+          <Card
+            size="2"
+            variant="surface"
+            className="arm-dds-info-block grid gap-3"
+          >
             <Flex align="center" gap="2">
               <UserRound size={17} />
               <Text size="2" weight="bold">
@@ -126,7 +144,11 @@ export function DdsCardPanel({
           </Card>
         </Grid>
 
-        <Card size="2" variant="surface" className="grid gap-3">
+        <Card
+          size="2"
+          variant="surface"
+          className="arm-dds-info-block arm-dds-incident-block grid gap-3"
+        >
           <Grid columns={{ initial: "1", sm: "2" }} gap="3">
             <Field label="Тип происшествия" value={card.incidentType} />
             <Field
@@ -139,21 +161,27 @@ export function DdsCardPanel({
             />
           </Grid>
           <Field label="Описание" value={card.description} />
-          <div>
-            <Text as="p" size="1" color="gray" mb="1">
-              Оповещённые службы
-            </Text>
-            <Flex gap="1" wrap="wrap">
-              {card.services.map((service) => (
-                <Badge key={service} color="blue" variant="soft">
-                  {DDS_SERVICE_LABELS[service]}
-                </Badge>
-              ))}
-            </Flex>
-          </div>
         </Card>
 
+        <div className="arm-dds-service-tabs" aria-label="Оповещённые службы">
+          {card.services.map((service) => {
+            const active = service === exercise.addressedService;
+
+            return (
+              <div key={service} data-active={active || undefined}>
+                <strong>{DDS_SERVICE_LABELS[service]}</strong>
+                <span>
+                  {active
+                    ? DDS_STATUS_LABELS[exercise.status]
+                    : "Карточка добавлена"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
         <DdsStatusActions
+          key={`${exercise.id}:${exercise.status}`}
           exercise={exercise}
           pending={pending}
           error={error}
@@ -162,7 +190,7 @@ export function DdsCardPanel({
       </Card>
 
       {exercise.result && (
-        <Card size="3" variant="classic">
+        <Card size="3" variant="classic" className="arm-dds-result">
           <Flex align="center" gap="3" wrap="wrap">
             <Trophy
               size={28}
@@ -200,11 +228,12 @@ export function DdsCardPanel({
         </Card>
       )}
 
-      <Card size="3" variant="classic">
-        <Heading size="3" mb="3">
-          Хронология реагирования
-        </Heading>
-        <div className="grid gap-3">
+      <Card size="3" variant="classic" className="arm-dds-history">
+        <div className="arm-dds-history-title">
+          <Heading size="3">Хронология реагирования</Heading>
+          <Text size="1">Событий: {exercise.events.length}</Text>
+        </div>
+        <div className="arm-dds-history-events grid gap-3">
           {exercise.events.map((event) => (
             <Flex key={event.sequence} align="start" gap="3">
               <Badge radius="full" variant="soft">

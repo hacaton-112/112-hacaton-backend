@@ -41,7 +41,7 @@ export function AuthForm() {
           <TextField.Root
             id="email"
             type="email"
-            placeholder="Введите логин"
+            placeholder="логин"
             autoComplete="username"
             autoFocus
             disabled={isPending}
@@ -57,7 +57,7 @@ export function AuthForm() {
         >
           <PasswordField
             id="password"
-            placeholder="Введите пароль"
+            placeholder="пароль"
             autoComplete="current-password"
             disabled={isPending}
             aria-invalid={Boolean(errors.password)}
@@ -65,8 +65,13 @@ export function AuthForm() {
           />
         </FormField>
 
-        <Button type="submit" loading={isPending} mt="2">
-          Войти
+        <Button
+          type="submit"
+          loading={isPending}
+          mt="3"
+          className="arm-login-submit w-full"
+        >
+          ВОЙТИ
         </Button>
       </Flex>
     </form>

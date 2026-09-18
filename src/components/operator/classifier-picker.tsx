@@ -163,7 +163,7 @@ export function ClassifierPicker({
   }
 
   return (
-    <div className="mt-3 grid gap-3">
+    <div className="arm-classifier mt-3 grid gap-3">
       <Flex align="center" justify="between" gap="2">
         <div>
           <Text size="1" color="gray">
@@ -300,7 +300,7 @@ export function ClassifierPicker({
 
 function RoutingSummary({ routing }: { routing: ClassifierRouting }) {
   return (
-    <div className="rounded-(--radius-2) border border-(--gray-a5) bg-(--gray-a2) p-3">
+    <div className="arm-routing-summary border p-3">
       <Flex align="center" gap="2" wrap="wrap">
         <Text size="2" weight="bold">
           {routing.finalType}

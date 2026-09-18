@@ -18,7 +18,10 @@ export function AppLayout() {
   const isMobile = useIsMobile();
 
   return (
-    <Flex className="h-screen-safe min-h-0 overflow-hidden" direction="column">
+    <Flex
+      className="arm-shell h-screen-safe min-h-0 overflow-hidden"
+      direction="column"
+    >
       <WindowTitlebar
         sidebarOpen={
           user ? (isMobile ? sidebarMobileOpen : sidebarOpen) : undefined
@@ -43,12 +46,12 @@ export function AppLayout() {
           <AppSidebar onOpenSettings={() => setSettingsOpen(true)} />
           {/* Фон страниц задаётся здесь один раз: страницы свой фон не красят,
               иначе при переходе между разделами он меняется. */}
-          <SidebarInset className="border-grayA-4 bg-gray-2 h-full min-w-0 overflow-auto border-l">
+          <SidebarInset className="arm-content h-full min-w-0 overflow-auto">
             <Outlet />
           </SidebarInset>
         </SidebarProvider>
       ) : (
-        <Box className="bg-gray-2 min-h-0 flex-1 overflow-auto" role="main">
+        <Box className="arm-content min-h-0 flex-1 overflow-auto" role="main">
           <Outlet />
         </Box>
       )}

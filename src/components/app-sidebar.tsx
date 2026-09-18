@@ -95,17 +95,17 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-0!">
+    <Sidebar className="arm-sidebar">
+      <SidebarHeader className="arm-sidebar-header p-0!">
         <div className="h-rx-12 relative w-full overflow-hidden select-none">
           <img
             alt=""
             aria-hidden="true"
-            className="left-rx-2 size-rx-9! group-data-[collapsible=icon]:left-rx-1_5 absolute top-1/2 max-w-none -translate-y-1/2 object-contain transition-[left] duration-(--app-transition-duration-base) ease-linear"
+            className="arm-sidebar-logo left-rx-2 size-rx-9! group-data-[collapsible=icon]:left-rx-1_5 absolute top-1/2 max-w-none -translate-y-1/2 object-contain transition-[left] duration-(--app-transition-duration-base) ease-linear"
             src="/logo.png"
           />
           <span className="absolute top-1/2 left-[calc(52px*var(--scaling))] -translate-y-1/2 text-sm font-semibold whitespace-nowrap">
-            Тренажёр 112
+            СИСТЕМА-112
           </span>
         </div>
       </SidebarHeader>
