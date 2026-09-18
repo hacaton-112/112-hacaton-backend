@@ -95,8 +95,49 @@ describe(AliceAiGrammarReview.name, () => {
     expect(finding!.suggestion).toBeNull();
   });
 
-  it("refuses an answer that does not match the schema", async () => {
-    const { review } = createReview([{ textId: "description" }]);
+  it("drops one bad finding instead of the whole answer", async () => {
+    // Одна негодная строка не должна стоить всей углублённой проверки:
+    // иначе отчёт скажет, что модель не участвовала, хотя она ответила.
+    const { review } = createReview([
+      { textId: "description" },
+      {
+        textId: "description",
+        fragment: "поехал бригада",
+        message: "Слова не согласованы.",
+        suggestion: "поехала бригада",
+      },
+    ]);
+
+    const found = await review.review(
+      [{ id: "description", value: "Горит крыша, поехал бригада" }],
+      signal(),
+    );
+
+    expect(found.map((finding) => finding.fragment)).toEqual([
+      "поехал бригада",
+    ]);
+  });
+
+  it("shortens an explanation nobody would read", async () => {
+    const { review } = createReview([
+      {
+        textId: "description",
+        fragment: "поехал бригада",
+        message: "а".repeat(400),
+        suggestion: null,
+      },
+    ]);
+
+    const found = await review.review(
+      [{ id: "description", value: "Горит крыша, поехал бригада" }],
+      signal(),
+    );
+
+    expect(found[0]!.message).toHaveLength(300);
+  });
+
+  it("refuses an answer without a list of findings", async () => {
+    const { review } = createReview("не список");
 
     await expect(
       review.review([{ id: "description", value: "Горит крыша" }], signal()),

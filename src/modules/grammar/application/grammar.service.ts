@@ -12,6 +12,37 @@ import {
   type GrammarReviewPort,
 } from "../ports/grammar-review.port";
 
+/**
+ * Место фрагмента, ещё не занятое находкой правил.
+ *
+ * Слово повторяется в тексте, а модель не говорит, о каком вхождении речь.
+ * Если первое уже разобрано правилами, берётся следующее: иначе настоящая
+ * ошибка во втором вхождении молча потеряется как дубль.
+ */
+const freeOccurrence = (
+  value: string,
+  fragment: string,
+  issues: readonly GrammarIssue[],
+): number => {
+  for (
+    let offset = value.indexOf(fragment);
+    offset >= 0;
+    offset = value.indexOf(fragment, offset + 1)
+  ) {
+    const taken = issues.some(
+      (issue) =>
+        offset < issue.offset + issue.length &&
+        issue.offset < offset + fragment.length,
+    );
+
+    if (!taken) {
+      return offset;
+    }
+  }
+
+  return -1;
+};
+
 export interface GrammarCheckOptions {
   /** Просить ли модель прочитать текст после правил. */
   readonly deepReview?: boolean;
@@ -93,22 +124,17 @@ export class GrammarService {
 
       for (const finding of findings) {
         const text = filled.find((item) => item.id === finding.textId);
-        // Фрагмент должен быть в тексте дословно: выдуманное место ошибки
-        // подсветить нельзя, а спорить со стажёром о несказанном — тем более.
-        const offset = text?.value.indexOf(finding.fragment) ?? -1;
 
-        if (text === undefined || finding.fragment.length === 0 || offset < 0) {
+        if (text === undefined || finding.fragment.length === 0) {
           continue;
         }
 
         const issues = byRules.get(text.id)!;
-        const alreadyFound = issues.some(
-          (issue) =>
-            offset < issue.offset + issue.length &&
-            issue.offset < offset + finding.fragment.length,
-        );
+        // Фрагмент должен быть в тексте дословно: выдуманное место ошибки
+        // подсветить нельзя, а спорить со стажёром о несказанном — тем более.
+        const offset = freeOccurrence(text.value, finding.fragment, issues);
 
-        if (alreadyFound) {
+        if (offset < 0) {
           continue;
         }
 

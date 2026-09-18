@@ -45,22 +45,26 @@ export const GRAMMAR_REVIEW_JSON_SCHEMA = {
 } as const;
 
 const MAX_FINDINGS = 40;
+/** Длинное объяснение стажёр всё равно не дочитает. */
+const MAX_MESSAGE_LENGTH = 300;
+
+/**
+ * Одна находка проверяется отдельно от остальных.
+ *
+ * Модель отвечает целым списком, и одна неудачная строка не должна стоить
+ * всей проверки: негодная находка отбрасывается, годные доходят до отчёта.
+ */
+const GrammarReviewFindingSchema = z
+  .object({
+    textId: z.string().trim().min(1),
+    fragment: z.string().min(1),
+    message: z.string().trim().min(1),
+    suggestion: z.string().nullable(),
+  })
+  .loose();
 
 const GrammarReviewResponseSchema = z
-  .object({
-    findings: z
-      .array(
-        z
-          .object({
-            textId: z.string().trim().min(1),
-            fragment: z.string().min(1),
-            message: z.string().trim().min(1).max(300),
-            suggestion: z.string().nullable(),
-          })
-          .loose(),
-      )
-      .max(MAX_FINDINGS),
-  })
+  .object({ findings: z.array(z.unknown()) })
   .loose();
 
 /** Проверка занимает больше времени, чем разбор вопроса: текста больше. */
@@ -95,15 +99,18 @@ export class AliceAiGrammarReview implements GrammarReviewPort {
     const known = new Set(texts.map((text) => text.id));
 
     return GrammarReviewResponseSchema.parse(raw)
-      .findings.filter((finding) => known.has(finding.textId))
-      .map((finding) => ({
+      .findings.map((finding) => GrammarReviewFindingSchema.safeParse(finding))
+      .filter((parsed) => parsed.success)
+      .map(({ data: finding }) => ({
         textId: finding.textId,
         fragment: finding.fragment,
-        message: finding.message,
+        message: finding.message.slice(0, MAX_MESSAGE_LENGTH),
         suggestion:
           finding.suggestion === null || finding.suggestion.trim().length === 0
             ? null
             : finding.suggestion,
-      }));
+      }))
+      .filter((finding) => known.has(finding.textId))
+      .slice(0, MAX_FINDINGS);
   }
 }
