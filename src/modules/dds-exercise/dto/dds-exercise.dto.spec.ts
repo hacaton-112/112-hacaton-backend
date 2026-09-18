@@ -1,4 +1,5 @@
 import {
+  DispatchIncidentCardRequestSchema,
   StartDdsExerciseRequestSchema,
   TransitionDdsExerciseRequestSchema,
 } from "./dds-exercise.dto";
@@ -19,6 +20,9 @@ describe("DDS exercise DTO", () => {
         eventId,
       }).success,
     ).toBe(false);
+    expect(
+      DispatchIncidentCardRequestSchema.safeParse({ eventId }).success,
+    ).toBe(true);
   });
 
   it("does not let the client transition an exercise back to pending", () => {

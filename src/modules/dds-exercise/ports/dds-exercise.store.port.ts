@@ -37,6 +37,7 @@ export interface StoredDdsExercise {
   readonly scenarioVersionId: string;
   readonly operatorId: string | null;
   readonly trainingAttemptId: string | null;
+  readonly sourceTrainingSessionId: string | null;
   readonly addressedService: DispatchService;
   readonly status: DdsResponseStatus;
   readonly card: DdsCardSnapshot;
@@ -55,6 +56,7 @@ export interface CreateDdsExerciseInput {
   readonly id: string;
   readonly scenarioVersionId: string;
   readonly operatorId: string;
+  readonly sourceTrainingSessionId?: string;
   readonly addressedService: DispatchService;
   readonly card: DdsCardSnapshot;
   readonly startEventId: string;

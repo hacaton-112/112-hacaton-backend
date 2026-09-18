@@ -75,6 +75,7 @@ export const ErrorCodes = {
   // сессий оператору незачем.
   CALL_NOT_FOUND: "CALL_NOT_FOUND",
   INCIDENT_CARD_CLOSED: "INCIDENT_CARD_CLOSED",
+  INCIDENT_CARD_NOT_READY: "INCIDENT_CARD_NOT_READY",
   RECORDING_NOT_FOUND: "RECORDING_NOT_FOUND",
 
   // ── Практическое занятие ДДС ───────────────────────────────

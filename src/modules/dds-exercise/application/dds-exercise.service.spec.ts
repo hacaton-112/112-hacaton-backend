@@ -38,6 +38,7 @@ const stored = (
   scenarioVersionId: VERSION_ID,
   operatorId: "operator-1",
   trainingAttemptId: null,
+  sourceTrainingSessionId: null,
   addressedService: "dds_01",
   status: "pending",
   card: {
@@ -67,6 +68,7 @@ const stored = (
     {
       sequence: 1,
       eventId: START_EVENT_ID,
+      actorId: "43bc0812-480f-4e99-b47e-e3b608249ca2",
       fromStatus: null,
       toStatus: "pending",
       comment: null,
