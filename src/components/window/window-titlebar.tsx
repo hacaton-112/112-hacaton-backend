@@ -78,7 +78,7 @@ export function WindowTitlebar({
   return (
     <Flex
       align="center"
-      className="h-rx-8 border-grayA-4 bg-background relative z-10 shrink-0 border-b select-none"
+      className="arm-titlebar h-rx-8 relative z-10 shrink-0 select-none"
       data-slot="window-titlebar"
       data-tauri-drag-region
       onDoubleClick={(event) => {
@@ -107,14 +107,12 @@ export function WindowTitlebar({
       >
         <RadioTower
           aria-hidden="true"
-          className="text-accent-9 pointer-events-none"
+          className="arm-titlebar-mark pointer-events-none"
           size={14}
           strokeWidth={1.5}
         />
         <Text
-          className="pointer-events-none"
-          color="gray"
-          highContrast
+          className="arm-titlebar-text pointer-events-none"
           size="1"
           weight="medium"
         >
@@ -179,8 +177,8 @@ function TitlebarButton({
           aria-label={label}
           className={
             close
-              ? "bg-background m-0! size-full! rounded-none! hover:bg-red-600! hover:text-white!"
-              : "bg-background hover:bg-gray-2! m-0! size-full! rounded-none!"
+              ? "arm-window-control arm-window-control-close m-0! size-full! rounded-none!"
+              : "arm-window-control m-0! size-full! rounded-none!"
           }
           highContrast
           onClick={onClick}

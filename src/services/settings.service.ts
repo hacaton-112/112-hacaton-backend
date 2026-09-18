@@ -35,9 +35,9 @@ export const MAX_VOLUME = 2;
 
 const STORAGE_KEY = "trainer-112-settings";
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "system",
-  accentColor: "blue",
-  radius: "medium",
+  theme: "light",
+  accentColor: "orange",
+  radius: "none",
   scaling: "100%",
   inputDevice: null,
   inputGain: 1,
