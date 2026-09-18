@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   RotateCcw,
+  SpellCheck,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -34,6 +35,7 @@ import {
   withoutFieldErrors,
   type ScenarioFieldErrors,
 } from "../../components/scenario-authoring/scenario-form-context";
+import { ScenarioGrammarDialog } from "../../components/scenario-authoring/scenario-grammar-dialog";
 import { ScenarioFormSkeleton } from "../../components/scenario-authoring/scenario-form-skeleton";
 import {
   ScenarioBasicsSection,
@@ -166,8 +168,14 @@ function ScenarioVersionEditor({
 function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const navigate = useNavigate();
   const scenarios = useScenarios();
-  const { draft, publication, versionPublication, reverseGeocoding } =
-    useScenarioAuthoring();
+  const {
+    draft,
+    grammarCheck,
+    publication,
+    versionPublication,
+    reverseGeocoding,
+  } = useScenarioAuthoring();
+  const [grammarOpen, setGrammarOpen] = useState(false);
   const initialScenario = () =>
     base ? scenarioForEditing(base.scenario) : createEmptyScenario();
   const [scenario, setScenario] = useState(initialScenario);
@@ -652,6 +660,19 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
               size="2"
               variant="soft"
               color="gray"
+              disabled={busy || grammarCheck.isPending}
+              onClick={() => {
+                setGrammarOpen(true);
+                grammarCheck.mutate(scenario);
+              }}
+            >
+              <SpellCheck size={16} /> Проверить грамматику
+            </Button>
+            <Button
+              type="button"
+              size="2"
+              variant="soft"
+              color="gray"
               disabled={busy}
               onClick={resetManual}
             >
@@ -673,6 +694,14 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
           </Flex>
         </Card>
       </Flex>
+
+      <ScenarioGrammarDialog
+        open={grammarOpen}
+        onOpenChange={setGrammarOpen}
+        report={grammarCheck.data ?? null}
+        pending={grammarCheck.isPending}
+        error={grammarCheck.error?.message}
+      />
 
       <ScenarioAiHelper
         open={helperOpen}

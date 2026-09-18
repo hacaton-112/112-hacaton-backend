@@ -44,6 +44,7 @@ export const API_CONFIG = {
   getInstructorReportExportUrl: () => `/instructor/reports/export`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
   getScenarioPublishUrl: () => `/scenarios`,
+  getScenarioGrammarCheckUrl: () => `/scenarios/grammar-check`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,
   getScenarioVersionUrl: (scenarioVersionId: string) =>
     `/scenarios/versions/${scenarioVersionId}`,

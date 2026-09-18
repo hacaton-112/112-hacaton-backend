@@ -10,6 +10,7 @@ import {
   type ReverseGeocodedAddress,
   type ScenarioSeed,
 } from "../contracts/scenario-authoring";
+import { type GrammarReport, GrammarReportSchema } from "../contracts/grammar";
 import { api } from "../lib/api";
 
 export type ScenarioAuthoringSource = "manual" | "assistant";
@@ -61,6 +62,22 @@ export const scenarioAuthoringService = {
     );
 
     return GenerateScenarioDraftResponseSchema.parse(payload);
+  },
+
+  /**
+   * Просит backend прочитать тексты сценария.
+   *
+   * Черновик уходит как есть: проверку просят после ручной правки, когда
+   * сценарий ещё может не сходиться со схемой. Ответ ничего не меняет и не
+   * мешает публикации.
+   */
+  async checkGrammar(scenario: unknown): Promise<GrammarReport> {
+    const payload = await api.post<unknown>(
+      API_CONFIG.getScenarioGrammarCheckUrl(),
+      { scenario },
+    );
+
+    return GrammarReportSchema.parse(payload);
   },
 
   async publish(input: ScenarioPublicationInput): Promise<PublishedScenario> {

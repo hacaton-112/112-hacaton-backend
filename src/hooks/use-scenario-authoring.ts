@@ -25,6 +25,10 @@ export function useScenarioAuthoring() {
         queryKey: QUERY_KEY_PREFIXES.scenarioVersion,
       }),
     ]);
+  const grammarCheck = useMutation({
+    mutationFn: (scenario: unknown) =>
+      scenarioAuthoringService.checkGrammar(scenario),
+  });
   const publication = useMutation({
     mutationFn: (input: ScenarioPublicationInput) =>
       scenarioAuthoringService.publish(input),
@@ -43,6 +47,7 @@ export function useScenarioAuthoring() {
   });
 
   return {
+    grammarCheck,
     draft,
     publication,
     versionPublication,
