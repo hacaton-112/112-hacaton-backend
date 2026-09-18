@@ -117,13 +117,17 @@ describe(ScenarioCatalogController.name, () => {
   it("checks the grammar of a draft without saving anything", async () => {
     const { controller, authoring } = createController();
     const scenario = { version: { openingLine: "Горит квартира!" } };
+    const request = {
+      raw: { aborted: false, once: jest.fn() },
+    };
 
-    const request = { on: jest.fn() };
-
-    await controller.checkGrammar(request as never, {
-      scenario,
-      deepReview: true,
-    } as never);
+    await controller.checkGrammar(
+      request as never,
+      {
+        scenario,
+        deepReview: true,
+      } as never,
+    );
 
     // Проверка идёт с сигналом запроса: ушёл преподаватель — ушла и модель.
     expect(authoring.checkGrammar).toHaveBeenCalledWith(
@@ -131,7 +135,65 @@ describe(ScenarioCatalogController.name, () => {
       true,
       expect.any(AbortSignal),
     );
-    expect(request.on).toHaveBeenCalledWith("close", expect.any(Function));
+    expect(request.raw.once).toHaveBeenCalledWith(
+      "close",
+      expect.any(Function),
+    );
     expect(authoring.publishVersion).not.toHaveBeenCalled();
+  });
+
+  it("aborts the grammar check when the Fastify raw request is abandoned", async () => {
+    const { controller, authoring } = createController();
+    let closeListener: (() => void) | undefined;
+    const request = {
+      raw: {
+        aborted: false,
+        once: jest.fn((_event: string, listener: () => void) => {
+          closeListener = listener;
+        }),
+      },
+    };
+
+    await controller.checkGrammar(
+      request as never,
+      {
+        scenario: {},
+        deepReview: true,
+      } as never,
+    );
+
+    const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    request.raw.aborted = true;
+    closeListener?.();
+
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("does not abort the grammar check after a normal request close", async () => {
+    const { controller, authoring } = createController();
+    let closeListener: (() => void) | undefined;
+    const request = {
+      raw: {
+        aborted: false,
+        once: jest.fn((_event: string, listener: () => void) => {
+          closeListener = listener;
+        }),
+      },
+    };
+
+    await controller.checkGrammar(
+      request as never,
+      {
+        scenario: {},
+        deepReview: true,
+      } as never,
+    );
+
+    const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
+    closeListener?.();
+
+    expect(signal.aborted).toBe(false);
   });
 });
