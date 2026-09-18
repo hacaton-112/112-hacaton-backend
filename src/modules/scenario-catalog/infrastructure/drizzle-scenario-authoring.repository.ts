@@ -13,6 +13,7 @@ import {
   scenarioLocations,
   scenarios,
   scenarioVersions,
+  scenarioAudioPacks,
 } from "@/drizzle/schema";
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 
@@ -337,6 +338,7 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
 
     await tx.insert(callerPersonas).values(rows.persona);
     await tx.insert(scenarioVersions).values(rows.version);
+    await tx.insert(scenarioAudioPacks).values({ scenarioVersionId });
     await tx.insert(scenarioLocations).values(rows.location);
     await tx.insert(scenarioFacts).values([...rows.facts]);
 

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 
 import {
   DialogueGenerationResultSchema,
@@ -19,6 +19,7 @@ import {
 } from "@/contracts";
 import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
+import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 
 import {
   VoicePipelineError,
@@ -59,6 +60,7 @@ export class VoicePipelineService {
   constructor(
     private readonly dialogueGeneration: DialogueGenerationService,
     private readonly speechSynthesis: SpeechSynthesisService,
+    @Optional() private readonly preparedAudio?: ScenarioAudioService,
   ) {}
 
   streamReply(
@@ -93,16 +95,21 @@ export class VoicePipelineService {
     await waitForDelay(request.minimumResponseDelayMs, signal);
     signal.throwIfAborted();
 
-    yield* this.speechSynthesis.synthesize(
-      TtsSynthesisRequestSchema.parse({
-        requestId: request.requestId,
-        sessionId: request.sessionId,
-        text: request.text,
-        language: request.language,
-        ...request.voice,
-      }),
+    const synthesisRequest = TtsSynthesisRequestSchema.parse({
+      requestId: request.requestId,
+      sessionId: request.sessionId,
+      text: request.text,
+      language: request.language,
+      ...request.voice,
+    });
+    const prepared = await this.preparedAudio?.lookupOpening(
+      request.sessionId,
+      synthesisRequest,
       signal,
     );
+    yield* prepared && this.preparedAudio
+      ? this.preparedAudio.replay(prepared, request.requestId, signal)
+      : this.speechSynthesis.synthesize(synthesisRequest, signal);
   }
 
   private async *streamValidatedReply(
@@ -112,11 +119,48 @@ export class VoicePipelineService {
   ): AsyncIterable<VoicePipelineStreamEvent> {
     const startedAt = performance.now();
     let generationResult: DialogueGenerationResult;
+    let prepared: Awaited<ReturnType<ScenarioAudioService["lookup"]>> = null;
 
     try {
-      generationResult = DialogueGenerationResultSchema.parse(
-        await this.dialogueGeneration.generate(request.generation, signal),
-      );
+      const fallback = request.generation.fallbackReply;
+      const reaction = request.generation.context.turnPlan?.reactionAct;
+      if (
+        request.preferPreparedReply &&
+        fallback &&
+        this.preparedAudio &&
+        reaction &&
+        (request.generation.context.turnPlan?.focusFactIds?.length ?? 0) <= 1 &&
+        ["answer", "repeat", "acknowledge"].includes(reaction)
+      ) {
+        const candidate: DialogueGenerationResult = {
+          reply: fallback,
+          source: "prepared",
+          attempts: [],
+        };
+        prepared = await this.preparedAudio.lookup(
+          request.generation.scenarioVersionId,
+          this.createSynthesisRequest(request, candidate),
+          signal,
+        );
+        generationResult = prepared
+          ? candidate
+          : await this.dialogueGeneration.generate(request.generation, signal);
+      } else {
+        generationResult = await this.dialogueGeneration.generate(
+          request.generation,
+          signal,
+        );
+      }
+      generationResult = DialogueGenerationResultSchema.parse(generationResult);
+      // A model/fallback may return an already approved phrase too. Reuse its
+      // audio without erasing the real generation attempts from the metrics.
+      if (!prepared && this.preparedAudio) {
+        prepared = await this.preparedAudio.lookup(
+          request.generation.scenarioVersionId,
+          this.createSynthesisRequest(request, generationResult),
+          signal,
+        );
+      }
     } catch {
       if (signal.aborted) {
         signal.throwIfAborted();
@@ -154,10 +198,14 @@ export class VoicePipelineService {
     let audioBytes = 0;
 
     try {
-      const synthesisStream = this.speechSynthesis.synthesize(
-        synthesisRequest,
-        signal,
-      );
+      const synthesisStream =
+        prepared && this.preparedAudio
+          ? this.preparedAudio.replay(
+              prepared,
+              synthesisRequest.requestId,
+              signal,
+            )
+          : this.speechSynthesis.synthesize(synthesisRequest, signal);
 
       for await (const rawEvent of synthesisStream) {
         signal.throwIfAborted();

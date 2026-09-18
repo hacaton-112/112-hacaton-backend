@@ -10,6 +10,7 @@ import {
   type QuestionUnderstandingPort,
 } from "@/modules/ai-gateway";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
+import { resolvePreparedQuestion } from "@/modules/scenario-audio/domain/prepared-dialogue";
 
 import type {
   CreateVoicePipelineRequestOptions,
@@ -61,16 +62,28 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     initiative,
   }: CreateVoicePipelineRequestOptions): Promise<VoicePipelineRequest> {
     signal.throwIfAborted();
+    let preferPreparedReply = false;
 
     const built = await this.engine.buildGenerationContext({
       trainingSessionId: sessionId,
       operatorText: command.operatorText,
       initiative,
-      resolveAskedFacts: (facts) =>
-        this.understand(requestId, command.operatorText, facts, signal),
+      resolveAskedFacts: async (facts) => {
+        const asked = await this.understand(
+          requestId,
+          command.operatorText,
+          facts,
+          signal,
+        );
+        // Exact questions need no model. Paraphrases may use the local intent
+        // parser once, but still reuse approved wording and recorded audio.
+        preferPreparedReply = asked.length > 0;
+        return asked;
+      },
     });
 
     return VoicePipelineRequestSchema.parse({
+      preferPreparedReply,
       generation: {
         requestId,
         sessionId,
@@ -97,7 +110,9 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
   ): Promise<readonly string[]> {
     // Версия сценария не меняется в пределах звонка, а факты приходят из неё,
     // поэтому их набор и служит ключом наравне с текстом.
-    const key = cacheKey(facts.map((fact) => fact.id).join(","), operatorText);
+    const prepared = resolvePreparedQuestion(operatorText, facts);
+    if (prepared !== null) return prepared;
+    const key = cacheKey(JSON.stringify(facts), operatorText);
     const remembered = this.understood.get(key);
 
     if (remembered !== undefined) {

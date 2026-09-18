@@ -7,7 +7,6 @@ import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthes
 
 import { AliceAiAdapterModule } from "./adapters/alice-ai/alice-ai-adapter.module";
 import { AliceAiStructuredOutputClient } from "./adapters/alice-ai/alice-ai-structured-output.client";
-import { AliceAiLlmAdapter } from "./adapters/alice-ai/alice-ai.adapter";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
 import { createQwenTtsAdapter } from "./adapters/qwen-tts/qwen-tts.factory";
 import {
@@ -36,10 +35,12 @@ describe("AI provider module registration", () => {
       QwenTtsAdapterModule,
     );
 
-    expect(aliceProviders).toContainEqual({
-      provide: LLM_PORT,
-      useExisting: AliceAiLlmAdapter,
-    });
+    expect(aliceProviders).toContainEqual(
+      expect.objectContaining({
+        provide: LLM_PORT,
+        useFactory: expect.any(Function),
+      }),
+    );
     expect(aliceProviders).not.toContainEqual(
       expect.objectContaining({ provide: TTS_PORT }),
     );

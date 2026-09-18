@@ -12,6 +12,6 @@ import { SCENARIO_STORE } from "./scenario-engine.tokens";
     DrizzleScenarioStore,
     { provide: SCENARIO_STORE, useExisting: DrizzleScenarioStore },
   ],
-  exports: [ScenarioEngineService],
+  exports: [ScenarioEngineService, SCENARIO_STORE],
 })
 export class ScenarioEngineModule {}
