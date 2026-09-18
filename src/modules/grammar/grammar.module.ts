@@ -5,6 +5,7 @@ import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/ali
 
 import { GrammarService } from "./application/grammar.service";
 import { AliceAiGrammarReview } from "./infrastructure/alice-ai-grammar.review";
+import { parseGrammarConfig } from "./infrastructure/grammar.config";
 import { GRAMMAR_REVIEW_PORT } from "./ports/grammar-review.port";
 
 /**
@@ -25,7 +26,11 @@ import { GRAMMAR_REVIEW_PORT } from "./ports/grammar-review.port";
         configService: ConfigService,
         review: AliceAiGrammarReview,
       ) =>
-        configService.get("GRAMMAR_MODEL_REVIEW_ENABLED") === "true"
+        parseGrammarConfig({
+          GRAMMAR_MODEL_REVIEW_ENABLED: configService.get(
+            "GRAMMAR_MODEL_REVIEW_ENABLED",
+          ),
+        }).modelReviewEnabled
           ? review
           : null,
     },
