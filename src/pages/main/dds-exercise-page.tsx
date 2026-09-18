@@ -5,36 +5,27 @@ import {
   Spinner,
   Text,
   TextField,
-  toast,
 } from "@bolid-ui/themes";
 import { AlertTriangle, Clock3, RadioTower, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { DdsCardPanel } from "../../components/dds/dds-card-panel";
 import { DdsExerciseList } from "../../components/dds/dds-exercise-list";
-import { DdsStartPanel } from "../../components/dds/dds-start-panel";
+import { DdsShiftPanel } from "../../components/dds/dds-shift-panel";
 import type {
   DdsExercise,
   DdsResponseStatus,
 } from "../../contracts/dds-exercise";
 import { useDdsExercises } from "../../hooks/use-dds-exercises";
-import { useScenarios } from "../../hooks/use-scenarios";
 
 type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
 const EMPTY_EXERCISES: readonly DdsExercise[] = [];
 
 export default function DdsExercisePage() {
-  const scenarios = useScenarios();
   const dds = useDdsExercises();
   const list = dds.exercises.data ?? EMPTY_EXERCISES;
   const [query, setQuery] = useState("");
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>();
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>();
-  const scenarioId = scenarios.data?.some(
-    (scenario) => scenario.scenarioVersionId === selectedScenarioId,
-  )
-    ? selectedScenarioId
-    : scenarios.data?.[0]?.scenarioVersionId;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ru-RU");
@@ -57,20 +48,6 @@ export default function DdsExercisePage() {
         exercise.status !== "completed" && exercise.status !== "refused",
     ) ??
     list[0];
-
-  const start = async () => {
-    if (!scenarioId) return;
-
-    try {
-      const exercise = await dds.start.mutateAsync(scenarioId);
-      setSelectedExerciseId(exercise.id);
-      toast.success("Учебная карточка поступила", {
-        description: `${exercise.card.scenarioCode} · ${exercise.card.title}`,
-      });
-    } catch {
-      // The mutation error remains in the source panel below.
-    }
-  };
 
   const transition = async (status: TransitionStatus, comment?: string) => {
     if (!selectedExercise) return;
@@ -113,25 +90,24 @@ export default function DdsExercisePage() {
               <Search size={17} />
             </TextField.Slot>
           </TextField.Root>
-          <DdsStartPanel
-            scenarios={scenarios.data ?? []}
-            selected={scenarioId}
-            pending={dds.start.isPending}
-            onSelect={setSelectedScenarioId}
-            onStart={() => void start()}
+          <DdsShiftPanel
+            fetching={dds.exercises.isFetching}
+            incoming={
+              list.filter(
+                (exercise) =>
+                  exercise.status !== "completed" &&
+                  exercise.status !== "refused",
+              ).length
+            }
           />
         </section>
 
-        {(dds.exercises.error || scenarios.error || dds.start.error) && (
+        {dds.exercises.error && (
           <Callout.Root color="red" role="alert" className="m-2">
             <Callout.Icon>
               <AlertTriangle size={16} />
             </Callout.Icon>
-            <Callout.Text>
-              {dds.exercises.error?.message ??
-                scenarios.error?.message ??
-                dds.start.error?.message}
-            </Callout.Text>
+            <Callout.Text>{dds.exercises.error.message}</Callout.Text>
           </Callout.Root>
         )}
 

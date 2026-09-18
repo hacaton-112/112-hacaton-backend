@@ -10,19 +10,9 @@ export function useDdsExercises() {
   const exercises = useQuery({
     queryKey,
     queryFn: ddsExerciseService.list,
-    refetchInterval: (query) =>
-      query.state.data?.some(
-        (exercise) =>
-          exercise.status !== "completed" && exercise.status !== "refused",
-      )
-        ? 2_000
-        : false,
-  });
-  const start = useMutation({
-    mutationFn: ddsExerciseService.start,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
-    },
+    // Смена должна увидеть первую входящую карточку даже при пустой очереди.
+    refetchInterval: 2_000,
+    refetchIntervalInBackground: true,
   });
   const transition = useMutation({
     mutationFn: (input: {
@@ -41,5 +31,5 @@ export function useDdsExercises() {
     },
   });
 
-  return { exercises, start, transition };
+  return { exercises, transition };
 }

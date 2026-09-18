@@ -11,6 +11,7 @@ const exercise = {
   id: "68e4085a-a84f-435e-804f-8a242db80385",
   scenarioVersionId: "a95237ec-cf7c-4139-a96f-c6201800fd4f",
   trainingAttemptId: null,
+  sourceTrainingSessionId: "session-1",
   addressedService: "dds_01",
   status: "pending",
   allowedTransitions: ["accepted", "not_accepted"],
@@ -38,6 +39,7 @@ const exercise = {
     {
       sequence: 1,
       eventId: "e29a7c15-c910-4ae9-a778-d9a3d76e0bc7",
+      actorId: null,
       fromStatus: null,
       toStatus: "pending",
       comment: null,
