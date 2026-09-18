@@ -14,6 +14,7 @@ import {
   RECORDING_STORAGE,
   type RecordingStorage,
 } from "@/modules/call-recording/ports/recording-storage.port";
+import { GrammarService } from "@/modules/grammar";
 import { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 import type { IncidentCard } from "@/modules/incident-card/dto/incident-card.dto";
 
@@ -22,6 +23,7 @@ import {
   cardValuesForReference,
   dispatchedServices,
 } from "../domain/card-mapping";
+import { incidentCardTexts } from "../domain/card-texts";
 import { evaluateCall } from "../domain/evaluation";
 
 import type {
@@ -71,6 +73,7 @@ export class DebriefService {
     @Inject(DEBRIEF_STORE) private readonly store: DebriefStore,
     @Inject(RECORDING_STORAGE) private readonly recordings: RecordingStorage,
     private readonly cards: IncidentCardService,
+    private readonly grammar: GrammarService,
   ) {}
 
   listCalls(operatorId: string): Promise<readonly CallSummary[]> {
@@ -88,6 +91,16 @@ export class DebriefService {
     ]);
 
     const revealed = new Set(call.revealedFactKeys);
+    // Только правила: отчёт обязан повторяться на тех же данных, поэтому
+    // модель сюда не зовут даже когда она доступна.
+    const report = await this.grammar.check(incidentCardTexts(card));
+    const grammar = {
+      ...report,
+      fields: report.fields.map((field) => ({
+        ...field,
+        issues: [...field.issues],
+      })),
+    };
     const revealedAt = this.revealTimes(journal);
     const debriefQuestions = questions.map((question): DebriefQuestion => ({
       text: question.text,
@@ -130,6 +143,7 @@ export class DebriefService {
         call.stage === "ended"
           ? await this.evaluate(call, debriefQuestions, journal, card, revealed)
           : null,
+      grammar,
     };
   }
 

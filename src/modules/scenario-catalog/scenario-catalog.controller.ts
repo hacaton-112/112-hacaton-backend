@@ -16,6 +16,7 @@ import { Throttle } from "@nestjs/throttler";
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
+import type { GrammarReport } from "@/modules/grammar";
 import {
   type AuthenticatedRequest,
   JwtAuthGuard,
@@ -36,6 +37,10 @@ import {
   PublishScenarioVersionRequestDto,
   PublishedScenarioDto,
 } from "./dto/scenario-authoring.dto";
+import {
+  CheckScenarioGrammarRequestDto,
+  ScenarioGrammarReportDto,
+} from "./dto/scenario-grammar.dto";
 import { type ScenarioList, ScenarioListDto } from "./dto/scenario-summary.dto";
 import type {
   EditableScenarioVersion,
@@ -45,6 +50,20 @@ import {
   SCENARIO_CATALOG,
   type ScenarioCatalog,
 } from "./ports/scenario-catalog.port";
+
+/**
+ * Сигнал, который гаснет вместе с запросом.
+ *
+ * Преподаватель закрывает диалог, не дождавшись ответа: держать после этого
+ * обращение к модели незачем — оно занимает квоту и вернуть уже некуда.
+ */
+const abandonedWith = (request: AuthenticatedRequest): AbortSignal => {
+  const abort = new AbortController();
+
+  request.on("close", () => abort.abort());
+
+  return abort.signal;
+};
 
 @Controller(ApiRoutes.Scenarios)
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -82,6 +101,27 @@ export class ScenarioCatalogController {
     @Body() body: GenerateScenarioDraftRequestDto,
   ): Promise<GenerateScenarioDraftResponse> {
     return this.authoring.generateDraft(body.brief);
+  }
+
+  /**
+   * Принудительная проверка грамотности сценария из ТЗ.
+   *
+   * Ничего не сохраняет: преподаватель просит её после ручной правки и сам
+   * решает, что исправлять.
+   */
+  @Post("grammar-check")
+  @Roles("instructor", "admin")
+  @Throttle({ short: { limit: 20, ttl: 60_000 } })
+  @ZodSerializerDto(ScenarioGrammarReportDto)
+  checkGrammar(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: CheckScenarioGrammarRequestDto,
+  ): Promise<GrammarReport> {
+    return this.authoring.checkGrammar(
+      body.scenario,
+      body.deepReview,
+      abandonedWith(request),
+    );
   }
 
   /** Publishing is an explicit instructor action after the complete review. */

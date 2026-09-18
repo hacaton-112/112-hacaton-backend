@@ -1,6 +1,8 @@
 import { ErrorCodes } from "@/contracts";
 
 import { validAssistantSuggestion } from "../domain/scenario-assistant-suggestion.fixture";
+import { GrammarService } from "@/modules/grammar";
+
 import { ScenarioAuthoringService } from "./scenario-authoring.service";
 import {
   type EditableScenarioVersion,
@@ -44,6 +46,7 @@ const createService = (responses: unknown[]) => {
         publishVersion,
         archive,
       } as ScenarioAuthoringRepository,
+      new GrammarService(),
     ),
     generate,
     publish,
@@ -238,5 +241,23 @@ describe(ScenarioAuthoringService.name, () => {
       code: ErrorCodes.SCENARIO_NOT_FOUND,
       status: 404,
     });
+  });
+
+  it("checks the texts of a draft the instructor is still editing", async () => {
+    const { service } = createService([]);
+
+    const report = await service.checkGrammar({
+      version: { openingLine: "Горит квартирa!" },
+      facts: [{ key: "incident_type", promptValue: "Горит  крыша." }],
+    });
+
+    // Проверка читает черновик как есть и ничего не сохраняет.
+    expect(
+      report.fields.map((field) => [field.id, field.issues.length]),
+    ).toEqual([
+      ["version.openingLine", 1],
+      ["facts.0.promptValue", 1],
+    ]);
+    expect(report).toMatchObject({ errorCount: 1, styleCount: 1 });
   });
 });

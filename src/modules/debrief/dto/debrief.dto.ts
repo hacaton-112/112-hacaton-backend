@@ -1,6 +1,8 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import { GrammarReportSchema } from "@/contracts";
+
 import { CALL_STAGES, FACT_SEVERITIES } from "@/drizzle/schema";
 import { IncidentCardSchema } from "@/modules/incident-card/dto/incident-card.dto";
 
@@ -129,6 +131,13 @@ export const DebriefSchema = z
     recordingUrl: z.string().nullable(),
     /** Оценка; `null`, пока звонок не закончен и оценивать нечего. */
     evaluation: DebriefEvaluationSchema.nullable(),
+    /**
+     * Замечания к тексту, который оператор набрал в карточке.
+     *
+     * Отчёт о занятии по ТЗ включает грамматику. На балл она не влияет:
+     * оценка считается по фактам, карточке, службам и нормативам.
+     */
+    grammar: GrammarReportSchema,
   })
   .strict();
 

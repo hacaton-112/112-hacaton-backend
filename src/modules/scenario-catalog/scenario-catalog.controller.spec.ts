@@ -21,6 +21,12 @@ const createController = () => {
     loadVersion: jest.fn().mockResolvedValue({ scenarioVersionId: "v1" }),
     publishVersion: jest.fn().mockResolvedValue({ version: 2 }),
     archive: jest.fn().mockResolvedValue(undefined),
+    checkGrammar: jest.fn().mockResolvedValue({
+      fields: [],
+      errorCount: 0,
+      styleCount: 0,
+      reviewedByModel: false,
+    }),
   };
   const catalog = { listPublished: jest.fn().mockResolvedValue([]) };
   const training = {
@@ -106,5 +112,26 @@ describe(ScenarioCatalogController.name, () => {
         ScenarioCatalogController.prototype.archive,
       ),
     ).toBe(HttpStatus.NO_CONTENT);
+  });
+
+  it("checks the grammar of a draft without saving anything", async () => {
+    const { controller, authoring } = createController();
+    const scenario = { version: { openingLine: "Горит квартира!" } };
+
+    const request = { on: jest.fn() };
+
+    await controller.checkGrammar(request as never, {
+      scenario,
+      deepReview: true,
+    } as never);
+
+    // Проверка идёт с сигналом запроса: ушёл преподаватель — ушла и модель.
+    expect(authoring.checkGrammar).toHaveBeenCalledWith(
+      scenario,
+      true,
+      expect.any(AbortSignal),
+    );
+    expect(request.on).toHaveBeenCalledWith("close", expect.any(Function));
+    expect(authoring.publishVersion).not.toHaveBeenCalled();
   });
 });
