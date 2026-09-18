@@ -64,6 +64,8 @@ export const API_CONFIG = {
     `/dds-exercises/${exerciseId}/transitions`,
   getIncidentCardUrl: (trainingSessionId: string) =>
     `/calls/${trainingSessionId}/incident-card`,
+  getIncidentCardDispatchUrl: (trainingSessionId: string) =>
+    `/calls/${trainingSessionId}/incident-card/dispatch`,
   getDebriefUrl: (trainingSessionId: string) =>
     `/calls/${trainingSessionId}/debrief`,
   getRecordingUrl: (trainingSessionId: string, index: number) =>

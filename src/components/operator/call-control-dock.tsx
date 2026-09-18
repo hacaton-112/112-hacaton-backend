@@ -1,5 +1,12 @@
-import { Button, IconButton, Text } from "@bolid-ui/themes";
-import { ClipboardList, Mic, MicOff, PhoneOff, RotateCcw } from "lucide-react";
+import { Button, IconButton, Spinner, Text } from "@bolid-ui/themes";
+import {
+  ClipboardList,
+  Mic,
+  MicOff,
+  PhoneOff,
+  RotateCcw,
+  Send,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -11,7 +18,10 @@ import { ROUTES } from "../../config/routes";
 
 type CallControlDockProps = Omit<CallSnapshot & CallControls, "end"> & {
   isCardReady: boolean;
+  isCardSubmitted: boolean;
+  isDispatching: boolean;
   isEnding: boolean;
+  onDispatch: () => void;
   onEnd: () => void;
 };
 
@@ -71,6 +81,25 @@ export function CallControlDock(props: CallControlDockProps) {
 
           {props.state === "active" && (
             <>
+              <Button
+                type="button"
+                size="2"
+                variant="soft"
+                onClick={props.onDispatch}
+                disabled={
+                  !props.isCardReady ||
+                  props.isCardSubmitted ||
+                  props.isDispatching ||
+                  props.isRecovering
+                }
+              >
+                {props.isDispatching ? (
+                  <Spinner size="1" />
+                ) : (
+                  <Send size={16} />
+                )}
+                {props.isCardSubmitted ? "Отправлена" : "Отправить карточку"}
+              </Button>
               <IconButton
                 size="2"
                 variant={props.isMuted ? "solid" : "soft"}
@@ -88,9 +117,9 @@ export function CallControlDock(props: CallControlDockProps) {
                 color="red"
                 onClick={props.onEnd}
                 disabled={
-                  !props.isCardReady || props.isEnding || props.isRecovering
+                  !props.isCardSubmitted || props.isEnding || props.isRecovering
                 }
-                aria-label="Сохранить карточку и завершить вызов"
+                aria-label="Завершить вызов после отправки карточки"
               >
                 <PhoneOff size={17} />
               </IconButton>

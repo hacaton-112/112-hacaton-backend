@@ -8,6 +8,7 @@ import { CallerPanel } from "../../components/operator/caller-panel";
 import { CallControlDock } from "../../components/operator/call-control-dock";
 import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
 import { IncidentForm } from "../../components/operator/incident-form";
+import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
 import { useCall } from "../../hooks/use-call";
 import { useIncidentCard } from "../../hooks/use-incident-card";
 import { useIncidentPoint } from "../../hooks/use-incident-point";
@@ -46,6 +47,22 @@ export default function OperatorPage() {
     }
   };
 
+  const handleDispatch = async () => {
+    try {
+      const receipt = await incidentCard.dispatch();
+      toast.success("Карточка направлена в ДДС", {
+        id: "incident-card-dispatched",
+        description: `${receipt.deliveries
+          .map(
+            ({ addressedService }) => DISPATCH_SERVICE_LABELS[addressedService],
+          )
+          .join(", ")}. Первичный статус ожидается в течение 30 секунд.`,
+      });
+    } catch {
+      // Предметная ошибка остаётся в состоянии карточки и показывается ниже.
+    }
+  };
+
   const callerName = (() => {
     if (incidentCard.card?.callerAnonymous) return "Анонимный заявитель";
 
@@ -67,8 +84,19 @@ export default function OperatorPage() {
   const isCardEditable =
     call.state === "active" &&
     Boolean(incidentCard.card) &&
+    !incidentCard.card?.submittedAt &&
     !isEnding &&
+    !incidentCard.isDispatching &&
     !call.isRecovering;
+  const isCardDispatchReady = Boolean(
+    incidentCard.card?.addressText &&
+    incidentCard.card.latitude !== null &&
+    incidentCard.card.longitude !== null &&
+    incidentCard.card.incidentType &&
+    incidentCard.card.classifierRouting &&
+    incidentCard.card.description &&
+    incidentCard.card.services.length > 0,
+  );
   // Точку на карте оператор отмечает только в своём идущем звонке: backend
   // определяет адрес по той же учебной сессии и чужую не примет.
   const incidentPoint = useIncidentPoint(call.trainingSessionId);
@@ -174,15 +202,18 @@ export default function OperatorPage() {
             }
             onToggleService={incidentCard.toggleService}
             callerName={callerName}
-            isCardReady={Boolean(incidentCard.card)}
+            isCardReady={isCardEditable}
             isEnding={isEnding}
           />
         </div>
       </ScrollArea>
       <CallControlDock
         {...call}
-        isCardReady={Boolean(incidentCard.card)}
+        isCardReady={isCardDispatchReady}
+        isCardSubmitted={Boolean(incidentCard.card?.submittedAt)}
+        isDispatching={incidentCard.isDispatching}
         isEnding={isEnding}
+        onDispatch={() => void handleDispatch()}
         onEnd={() => void handleEnd()}
       />
     </div>
