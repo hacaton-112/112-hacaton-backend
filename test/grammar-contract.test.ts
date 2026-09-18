@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { DebriefSchema } from "../src/contracts/debrief";
 import { GrammarReportSchema } from "../src/contracts/grammar";
+import { shortenFragment } from "../src/lib/grammar-text";
 
 const debrief = (overrides: Record<string, unknown> = {}) => ({
   call: {
@@ -98,5 +99,22 @@ describe("grammar in the debrief", () => {
     });
 
     expect(report.fields[0]?.issues[0]?.suggestion).toBeNull();
+  });
+});
+
+describe("показ замечания", () => {
+  it("обрезает фрагмент, которым стало всё поле", () => {
+    // Замечание к набранному заглавными описанию относится ко всему тексту.
+    const shouted = "ГОРИТ КРЫША ".repeat(20).trim();
+
+    const shown = shortenFragment(shouted);
+
+    expect(shown.length).toBeLessThanOrEqual(121);
+    expect(shown.endsWith("…")).toBe(true);
+    expect(shouted.startsWith(shown.slice(0, -1))).toBe(true);
+  });
+
+  it("оставляет короткий фрагмент как есть", () => {
+    expect(shortenFragment("пoжар")).toBe("пoжар");
   });
 });

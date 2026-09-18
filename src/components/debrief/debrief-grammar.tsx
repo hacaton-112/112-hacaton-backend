@@ -4,6 +4,7 @@ import type {
   GrammarFieldReport,
   GrammarReport,
 } from "../../contracts/grammar";
+import { shortenFragment } from "../../lib/grammar-text";
 
 import { DebriefSection } from "./debrief-primitives";
 
@@ -75,8 +76,9 @@ function GrammarField({ field }: { field: GrammarFieldReport }) {
           </Badge>
           <Grid gap="1" flexGrow="1" className="min-w-0">
             <Text size="2">
-              «{issue.fragment}»
-              {issue.suggestion !== null && ` → «${issue.suggestion}»`}
+              «{shortenFragment(issue.fragment)}»
+              {issue.suggestion !== null &&
+                ` → «${shortenFragment(issue.suggestion)}»`}
             </Text>
             <Text size="1" color="gray">
               {issue.message}
