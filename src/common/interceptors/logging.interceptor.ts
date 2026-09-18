@@ -6,15 +6,11 @@ import {
   Logger,
   NestInterceptor,
 } from "@nestjs/common";
-import type { Request, Response } from "express";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { Observable } from "rxjs";
 import { tap } from "rxjs/operators";
 
 import { generateId } from "@/common/utils/id";
-
-interface RequestWithMeta extends Request {
-  requestId?: string;
-}
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -23,17 +19,16 @@ export class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const now = Date.now();
 
-    const request = context.switchToHttp().getRequest<RequestWithMeta>();
-    const response = context.switchToHttp().getResponse<Response>();
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    const response = context.switchToHttp().getResponse<FastifyReply>();
 
     const { method, url, headers } = request;
-    const userAgent = (headers["user-agent"] as string) || "unknown";
+    const userAgentHeader = headers["user-agent"];
+    const userAgent = Array.isArray(userAgentHeader)
+      ? (userAgentHeader[0] ?? "unknown")
+      : (userAgentHeader ?? "unknown");
     const ip = this.getClientIp(request);
-
-    const requestId = (headers["x-request-id"] as string) || generateId();
-
-    // Propagate requestId on the request object so services can access it
-    request.requestId = requestId;
+    const requestId = request.id;
 
     const classRef = context.getClass();
     const handlerRef = context.getHandler();
@@ -74,8 +69,7 @@ export class LoggingInterceptor implements NestInterceptor {
           );
         },
         error: (error: unknown) => {
-          const statusCode =
-            error instanceof HttpException ? error.getStatus() : 500;
+          const statusCode = this.getErrorStatus(error);
           const responseTime = Date.now() - now;
           const errorId = generateId();
           const errorMessage =
@@ -103,9 +97,21 @@ export class LoggingInterceptor implements NestInterceptor {
     );
   }
 
-  private getClientIp(request: Request): string {
-    const forwarded = request.headers["x-forwarded-for"];
-    if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
-    return request.socket?.remoteAddress || "unknown";
+  private getClientIp(request: FastifyRequest): string {
+    return request.ip || request.raw.socket.remoteAddress || "unknown";
+  }
+
+  private getErrorStatus(error: unknown): number {
+    if (error instanceof HttpException) return error.getStatus();
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      typeof error.statusCode === "number"
+    ) {
+      return error.statusCode;
+    }
+
+    return 500;
   }
 }

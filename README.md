@@ -1,6 +1,6 @@
 # Backend тренажёра Системы-112
 
-Минимальный инфраструктурный каркас NestJS для desktop-тренажёра диспетчеров.
+Backend на NestJS 11 с HTTP runtime Fastify 5 для desktop-тренажёра диспетчеров.
 Старые домены шаблонного проекта удалены; сохранены только применимые к кейсу
 архитектурные паттерны и интеграция PostgreSQL через Drizzle ORM.
 
@@ -14,7 +14,7 @@
 
 ## Что уже есть
 
-- NestJS 11 и URI-версионирование API (`/api/v1`);
+- NestJS 11, Fastify 5 и URI-версионирование API (`/api/v1`);
 - централизованная конфигурация с проверкой переменных окружения;
 - PostgreSQL, Drizzle ORM и команды управления миграциями;
 - health check базы данных;
@@ -30,6 +30,9 @@
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
 - WebSocket transport для потоковой передачи validated reply и raw PCM клиенту;
 - rate limiting и security headers.
+
+Особенности Fastify runtime, ограничения multipart и правила добавления новых
+HTTP-интеграций описаны в [`docs/fastify-runtime.md`](docs/fastify-runtime.md).
 
 `AliceAiAdapterModule` предоставляет `LLM_PORT` только для
 `DialogueGenerationModule`, а `QwenTtsAdapterModule` предоставляет `TTS_PORT`
@@ -731,7 +734,7 @@ API vLLM-Omni не имеет авторизации проекта и по ум
 src/
   common/       # общие ошибки, фильтры, interceptors и утилиты
   contracts/    # публичные константы и типы API
-  core/         # конфигурация и подключение инфраструктуры
+  core/         # конфигурация, Fastify adapter и подключение инфраструктуры
   modules/      # изолированные NestJS-модули
 drizzle/
   schema/       # Drizzle-схемы

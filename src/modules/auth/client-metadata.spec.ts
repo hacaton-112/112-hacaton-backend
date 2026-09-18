@@ -1,9 +1,14 @@
-import type { Request } from "express";
+import type { FastifyRequest } from "fastify";
 
 import { readClientMetadata } from "./client-metadata";
 
-const createRequest = (userAgent?: string, ip?: string): Request =>
-  ({ headers: { "user-agent": userAgent }, ip }) as unknown as Request;
+const createRequest = (
+  userAgent?: string,
+  ip?: string,
+): Pick<FastifyRequest, "headers" | "ip"> => ({
+  headers: { "user-agent": userAgent },
+  ip: ip ?? "",
+});
 
 describe("readClientMetadata", () => {
   it("reads the user agent and the address", () => {

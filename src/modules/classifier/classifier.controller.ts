@@ -6,11 +6,8 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
@@ -32,7 +29,8 @@ import {
   RouteClassifierRequestDto,
   RouteClassifierResponseDto,
 } from "./dto/classifier.dto";
-import { ClassifierService, type ClassifierUpload } from "./classifier.service";
+import { ClassifierService } from "./classifier.service";
+import { readClassifierUpload } from "./infrastructure/fastify-classifier-upload";
 
 @Controller(ApiRoutes.Classifiers)
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,16 +46,11 @@ export class ClassifierController {
 
   @Post("versions/import")
   @Roles("admin")
-  @UseInterceptors(
-    FileInterceptor("file", {
-      limits: { files: 1, fileSize: 10 * 1024 * 1024 },
-    }),
-  )
   @ZodSerializerDto(ClassifierVersionDto)
-  importVersion(
-    @UploadedFile() file: ClassifierUpload | undefined,
+  async importVersion(
     @Req() request: AuthenticatedRequest,
   ): Promise<ClassifierVersion> {
+    const file = await readClassifierUpload(request);
     return this.classifier.importVersion(file, request.user.sub);
   }
 
