@@ -45,6 +45,7 @@ export class DdsExerciseController {
   }
 
   @Post()
+  @Roles("instructor", "admin")
   @ZodSerializerDto(DdsExerciseDto)
   start(
     @Body() body: StartDdsExerciseRequestDto,

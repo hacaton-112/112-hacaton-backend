@@ -30,6 +30,7 @@ export const DdsExerciseEventSchema = z
   .object({
     sequence: z.number().int().positive(),
     eventId: z.uuid(),
+    actorId: z.uuid().nullable(),
     fromStatus: z.enum(DDS_RESPONSE_STATUSES).nullable(),
     toStatus: z.enum(DDS_RESPONSE_STATUSES),
     comment: nullableText(1_000),
@@ -52,6 +53,7 @@ export const DdsExerciseSchema = z
     id: z.uuid(),
     scenarioVersionId: z.uuid(),
     trainingAttemptId: z.string().min(1).nullable(),
+    sourceTrainingSessionId: z.string().min(1).nullable(),
     addressedService: z.enum(DISPATCH_SERVICES),
     status: z.enum(DDS_RESPONSE_STATUSES),
     allowedTransitions: z.array(z.enum(DDS_RESPONSE_STATUSES)),
@@ -77,6 +79,27 @@ export const StartDdsExerciseRequestSchema = z
   })
   .strict();
 
+export const DispatchIncidentCardRequestSchema = z
+  .object({ eventId: z.uuid() })
+  .strict();
+
+export const DdsDispatchReceiptSchema = z
+  .object({
+    trainingSessionId: z.string().min(1),
+    eventId: z.uuid(),
+    dispatchedAt: z.iso.datetime(),
+    deliveries: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          addressedService: z.enum(DISPATCH_SERVICES),
+          acknowledgementDeadlineAt: z.iso.datetime(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 export const TransitionDdsExerciseRequestSchema = z
   .object({
     eventId: z.uuid(),
@@ -90,6 +113,12 @@ export class DdsExerciseListDto extends createZodDto(DdsExerciseListSchema) {}
 export class StartDdsExerciseRequestDto extends createZodDto(
   StartDdsExerciseRequestSchema,
 ) {}
+export class DispatchIncidentCardRequestDto extends createZodDto(
+  DispatchIncidentCardRequestSchema,
+) {}
+export class DdsDispatchReceiptDto extends createZodDto(
+  DdsDispatchReceiptSchema,
+) {}
 export class TransitionDdsExerciseRequestDto extends createZodDto(
   TransitionDdsExerciseRequestSchema,
 ) {}
@@ -102,6 +131,10 @@ export type DdsExerciseList = z.infer<typeof DdsExerciseListSchema>;
 export type StartDdsExerciseRequest = z.infer<
   typeof StartDdsExerciseRequestSchema
 >;
+export type DispatchIncidentCardRequest = z.infer<
+  typeof DispatchIncidentCardRequestSchema
+>;
+export type DdsDispatchReceipt = z.infer<typeof DdsDispatchReceiptSchema>;
 export type TransitionDdsExerciseRequest = z.infer<
   typeof TransitionDdsExerciseRequestSchema
 >;

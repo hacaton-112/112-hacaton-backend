@@ -196,6 +196,7 @@ export class DdsExerciseService {
       id: exercise.id,
       scenarioVersionId: exercise.scenarioVersionId,
       trainingAttemptId: exercise.trainingAttemptId,
+      sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
       allowedTransitions: [...allowedDdsTransitions(exercise.status)],

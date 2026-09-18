@@ -18,7 +18,14 @@ describe(DdsExerciseController.name, () => {
     ).toEqual(["operator", "instructor", "admin"]);
   });
 
-  it("starts an exercise on behalf of the authenticated operator", async () => {
+  it("reserves synthetic exercise starts for instructors and admins", async () => {
+    expect(
+      Reflect.getMetadata(
+        ROLES_METADATA_KEY,
+        DdsExerciseController.prototype.start,
+      ),
+    ).toEqual(["instructor", "admin"]);
+
     const exercises = {
       start: jest.fn().mockResolvedValue({ id: "exercise-1" }),
     };
@@ -33,11 +40,11 @@ describe(DdsExerciseController.name, () => {
     await controller.start(
       body as never,
       {
-        user: { sub: "operator-1", role: "operator" },
+        user: { sub: "instructor-1", role: "instructor" },
       } as never,
     );
 
-    expect(exercises.start).toHaveBeenCalledWith("operator-1", body);
+    expect(exercises.start).toHaveBeenCalledWith("instructor-1", body);
   });
 
   it("returns 200 for an idempotent status command", () => {
