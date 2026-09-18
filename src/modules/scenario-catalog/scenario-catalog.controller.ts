@@ -59,8 +59,12 @@ import {
  */
 const abandonedWith = (request: AuthenticatedRequest): AbortSignal => {
   const abort = new AbortController();
+  const abortIfAbandoned = () => {
+    if (request.raw.aborted) abort.abort();
+  };
 
-  request.on("close", () => abort.abort());
+  request.raw.once("close", abortIfAbandoned);
+  abortIfAbandoned();
 
   return abort.signal;
 };
