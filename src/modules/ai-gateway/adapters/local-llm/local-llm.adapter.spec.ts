@@ -7,6 +7,15 @@ const config = LocalLlmConfigSchema.parse({
   baseUrl: "http://127.0.0.1:8080/v1/",
   model: "training-model",
 });
+/**
+ * Запас на двоих: последний слот адаптер держит для живого звонка, поэтому
+ * инструменты преподавателя работают только когда слотов больше одного.
+ */
+const toolingConfig = LocalLlmConfigSchema.parse({
+  baseUrl: "http://127.0.0.1:8080/v1/",
+  model: "training-model",
+  concurrency: 2,
+});
 const request: StructuredOutputRequest = {
   schemaName: "test",
   schemaDescription: "Test",
@@ -24,7 +33,7 @@ describe(LocalLlmAdapter.name, () => {
     const fetcher = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
       .mockResolvedValue(response());
-    const adapter = new LocalLlmAdapter(config, fetcher);
+    const adapter = new LocalLlmAdapter(toolingConfig, fetcher);
     await expect(adapter.complete(request)).resolves.toEqual({ ok: true });
     const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe("http://127.0.0.1:8080/v1/chat/completions");
@@ -48,7 +57,7 @@ describe(LocalLlmAdapter.name, () => {
           }),
       )
       .mockResolvedValue(response());
-    const adapter = new LocalLlmAdapter(config, fetcher);
+    const adapter = new LocalLlmAdapter(toolingConfig, fetcher);
     const first = adapter.complete(request);
     await expect(adapter.complete(request)).rejects.toMatchObject({
       status: 429,
@@ -64,7 +73,7 @@ describe(LocalLlmAdapter.name, () => {
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValue(response());
-    const adapter = new LocalLlmAdapter(config, fetcher);
+    const adapter = new LocalLlmAdapter(toolingConfig, fetcher);
     await expect(adapter.complete(request)).rejects.toThrow("offline");
     await expect(adapter.complete(request)).resolves.toEqual({ ok: true });
     expect(
@@ -100,6 +109,19 @@ describe(LocalLlmAdapter.name, () => {
         signal: AbortSignal.abort(),
       }),
     ).rejects.toThrow();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("keeps the only slot for the live call", async () => {
+    // Проверка грамотности и помощник сценария ждут: заявитель не должен
+    // переходить на запасную реплику из-за действия в соседнем кабинете.
+    const fetcher = jest.fn<
+      ReturnType<typeof fetch>,
+      Parameters<typeof fetch>
+    >();
+
+    await expect(
+      new LocalLlmAdapter(config, fetcher).complete(request),
+    ).rejects.toMatchObject({ status: 429 });
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
