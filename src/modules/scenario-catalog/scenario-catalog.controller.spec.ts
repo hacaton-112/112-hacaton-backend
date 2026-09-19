@@ -114,85 +114,67 @@ describe(ScenarioCatalogController.name, () => {
     ).toBe(HttpStatus.NO_CONTENT);
   });
 
+  const replyStub = () => {
+    let closeListener: (() => void) | undefined;
+    const raw = {
+      writableEnded: false,
+      once: jest.fn((_event: string, listener: () => void) => {
+        closeListener = listener;
+      }),
+    };
+
+    return { reply: { raw }, raw, close: () => closeListener?.() };
+  };
+
   it("checks the grammar of a draft without saving anything", async () => {
     const { controller, authoring } = createController();
     const scenario = { version: { openingLine: "Горит квартира!" } };
-    const request = {
-      raw: { aborted: false, once: jest.fn() },
-    };
+    const { reply, raw } = replyStub();
 
-    await controller.checkGrammar(
-      request as never,
-      {
-        scenario,
-        deepReview: true,
-      } as never,
-    );
+    await controller.checkGrammar(reply as never, {
+      scenario,
+      deepReview: true,
+    } as never);
 
-    // Проверка идёт с сигналом запроса: ушёл преподаватель — ушла и модель.
+    // Проверка идёт с сигналом ответа: ушёл преподаватель — ушла и модель.
     expect(authoring.checkGrammar).toHaveBeenCalledWith(
       scenario,
       true,
       expect.any(AbortSignal),
     );
-    expect(request.raw.once).toHaveBeenCalledWith(
-      "close",
-      expect.any(Function),
-    );
+    expect(raw.once).toHaveBeenCalledWith("close", expect.any(Function));
     expect(authoring.publishVersion).not.toHaveBeenCalled();
   });
 
-  it("aborts the grammar check when the Fastify raw request is abandoned", async () => {
+  it("aborts the grammar check when the client leaves before the answer", async () => {
     const { controller, authoring } = createController();
-    let closeListener: (() => void) | undefined;
-    const request = {
-      raw: {
-        aborted: false,
-        once: jest.fn((_event: string, listener: () => void) => {
-          closeListener = listener;
-        }),
-      },
-    };
+    const { reply, close } = replyStub();
 
-    await controller.checkGrammar(
-      request as never,
-      {
-        scenario: {},
-        deepReview: true,
-      } as never,
-    );
+    await controller.checkGrammar(reply as never, {
+      scenario: {},
+      deepReview: true,
+    } as never);
 
     const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
     expect(signal.aborted).toBe(false);
 
-    request.raw.aborted = true;
-    closeListener?.();
+    close();
 
     expect(signal.aborted).toBe(true);
   });
 
-  it("does not abort the grammar check after a normal request close", async () => {
+  it("keeps the grammar check when the answer has been sent", async () => {
     const { controller, authoring } = createController();
-    let closeListener: (() => void) | undefined;
-    const request = {
-      raw: {
-        aborted: false,
-        once: jest.fn((_event: string, listener: () => void) => {
-          closeListener = listener;
-        }),
-      },
-    };
+    const { reply, raw, close } = replyStub();
 
-    await controller.checkGrammar(
-      request as never,
-      {
-        scenario: {},
-        deepReview: true,
-      } as never,
-    );
+    await controller.checkGrammar(reply as never, {
+      scenario: {},
+      deepReview: true,
+    } as never);
 
     const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
-    closeListener?.();
+    raw.writableEnded = true;
+    close();
 
     expect(signal.aborted).toBe(false);
   });
