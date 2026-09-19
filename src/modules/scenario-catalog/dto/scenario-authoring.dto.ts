@@ -53,6 +53,7 @@ const requireAuthoringPrompt = (
 
 export const PublishScenarioRequestSchema = z
   .object({
+    preparationId: z.uuid().optional(),
     scenario: ScenarioSeedSchema,
     authoringSource: z.enum(["manual", "assistant"]),
     authoringPrompt: z.string().trim().min(20).max(4_000).optional(),
@@ -86,6 +87,7 @@ export type PublishScenarioRequest = z.infer<
 
 export const PublishScenarioVersionRequestSchema = z
   .object({
+    preparationId: z.uuid().optional(),
     /** Версия, открытая в редакторе: если она уже не последняя, правка отклоняется. */
     baseVersionId: z.string().trim().min(1).max(64),
     scenario: ScenarioSeedSchema,
