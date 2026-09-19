@@ -5,6 +5,7 @@ import type { DdsExercise } from "../dto/dds-exercise.dto";
 import type {
   DdsExerciseStore,
   DdsScenarioSource,
+  StoredCrewHandoff,
   StoredDdsExercise,
 } from "../ports/dds-exercise.store.port";
 
@@ -86,9 +87,14 @@ interface StoreMocks {
   listByOperator: jest.Mock;
   loadOwn: jest.Mock;
   appendTransition: jest.Mock;
+  findAwaitingHandoff: jest.Mock;
+  loadCrewHandoffs: jest.Mock;
 }
 
-const createService = (overrides: Partial<StoreMocks> = {}) => {
+const createService = (
+  overrides: Partial<StoreMocks> = {},
+  handoffRequired = false,
+) => {
   const store: StoreMocks = {
     loadScenarioSource: jest.fn().mockResolvedValue(scenario()),
     findStartedByEvent: jest.fn().mockResolvedValue(null),
@@ -116,11 +122,16 @@ const createService = (overrides: Partial<StoreMocks> = {}) => {
         passed: input.passed ?? null,
       }),
     })),
+    findAwaitingHandoff: jest.fn().mockResolvedValue(null),
+    loadCrewHandoffs: jest.fn().mockResolvedValue(new Map()),
     ...overrides,
   };
 
   return {
-    service: new DdsExerciseService(store as unknown as DdsExerciseStore),
+    service: new DdsExerciseService(
+      store as unknown as DdsExerciseStore,
+      handoffRequired,
+    ),
     store,
   };
 };
@@ -309,6 +320,142 @@ describe(DdsExerciseService.name, () => {
       status: "pending",
       allowedTransitions: ["accepted", "not_accepted"],
       result: null,
+    });
+  });
+
+  describe("with a crew handoff over the phone", () => {
+    const crews = [{ callsign: "ПСЧ-12", phoneNumber: "1012" }];
+    const call = (
+      overrides: Partial<StoredCrewHandoff["calls"][number]> = {},
+    ): StoredCrewHandoff["calls"][number] => ({
+      dialedNumber: "1012",
+      callsign: "ПСЧ-12",
+      startedAt: new Date("2026-09-15T12:00:40.000Z"),
+      endedAt: new Date("2026-09-15T12:01:10.000Z"),
+      outcome: "completed",
+      correct: true,
+      acknowledgements: 3,
+      ...overrides,
+    });
+    const handoffs = (calls: StoredCrewHandoff["calls"]) =>
+      jest.fn().mockResolvedValue(new Map([[EXERCISE_ID, { crews, calls }]]));
+    const accepted = () =>
+      jest.fn().mockResolvedValue(
+        stored({
+          status: "accepted",
+          acknowledgedAt: new Date("2026-09-15T12:00:20.000Z"),
+        }),
+      );
+
+    it("does not let the crew respond before anyone called it", async () => {
+      const { service, store } = createService(
+        { loadOwn: accepted(), loadCrewHandoffs: handoffs([]) },
+        true,
+      );
+
+      expect(
+        await codeOf(() =>
+          service.transition(EXERCISE_ID, "operator-1", {
+            eventId: TRANSITION_EVENT_ID,
+            status: "responding",
+          }),
+        ),
+      ).toBe(ErrorCodes.DDS_CREW_NOT_NOTIFIED);
+      expect(store.appendTransition).not.toHaveBeenCalled();
+    });
+
+    it("does not count a call to the wrong service", async () => {
+      const { service } = createService(
+        {
+          loadOwn: accepted(),
+          loadCrewHandoffs: handoffs([
+            call({ dialedNumber: "1035", callsign: "СМП-35", correct: false }),
+          ]),
+        },
+        true,
+      );
+
+      expect(
+        await codeOf(() =>
+          service.transition(EXERCISE_ID, "operator-1", {
+            eventId: TRANSITION_EVENT_ID,
+            status: "responding",
+          }),
+        ),
+      ).toBe(ErrorCodes.DDS_CREW_NOT_NOTIFIED);
+    });
+
+    it("lets the crew respond once the right crew took the card", async () => {
+      const { service, store } = createService(
+        { loadOwn: accepted(), loadCrewHandoffs: handoffs([call()]) },
+        true,
+      );
+
+      await service.transition(EXERCISE_ID, "operator-1", {
+        eventId: TRANSITION_EVENT_ID,
+        status: "responding",
+      });
+
+      expect(store.appendTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ nextStatus: "responding" }),
+      );
+    });
+
+    it("still allows a refusal without a call", async () => {
+      const { service, store } = createService(
+        { loadOwn: accepted(), loadCrewHandoffs: handoffs([]) },
+        true,
+      );
+
+      await service.transition(EXERCISE_ID, "operator-1", {
+        eventId: TRANSITION_EVENT_ID,
+        status: "refused",
+        comment: "Карточка адресована не нашей службе",
+      });
+
+      expect(store.appendTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ nextStatus: "refused" }),
+      );
+    });
+
+    it("shows the crews of the service and the calls made", async () => {
+      const { service } = createService(
+        {
+          listByOperator: jest.fn().mockResolvedValue([stored()]),
+          loadCrewHandoffs: handoffs([
+            call({
+              dialedNumber: "1999",
+              callsign: null,
+              outcome: "unknown_number",
+              correct: false,
+            }),
+            call(),
+          ]),
+        },
+        true,
+      );
+
+      const [exercise] = await service.list("operator-1");
+
+      expect(exercise!.crewHandoff).toEqual({
+        notified: true,
+        crews,
+        calls: [
+          expect.objectContaining({ dialedNumber: "1999", correct: false }),
+          expect.objectContaining({ dialedNumber: "1012", correct: true }),
+        ],
+      });
+    });
+
+    it("stays silent about telephony when it is off", async () => {
+      const { service, store } = createService({
+        listByOperator: jest.fn().mockResolvedValue([stored()]),
+      });
+
+      const [exercise] = await service.list("operator-1");
+
+      expect(exercise!.crewHandoff).toBeNull();
+      expect(store.loadCrewHandoffs).not.toHaveBeenCalled();
     });
   });
 });

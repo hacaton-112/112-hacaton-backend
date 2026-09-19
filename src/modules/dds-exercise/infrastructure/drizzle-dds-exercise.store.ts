@@ -1,13 +1,25 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNotNull,
+  not,
+  or,
+} from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callerPersonas,
+  ddsCrewCalls,
   ddsExerciseEvents,
   ddsExercises,
+  rescueCrews,
   referenceCardFields,
   scenarioLocations,
   scenarios,
@@ -25,6 +37,7 @@ import type {
   CreateDdsExerciseInput,
   DdsExerciseStore,
   DdsScenarioSource,
+  StoredCrewHandoff,
   StoredDdsExercise,
 } from "../ports/dds-exercise.store.port";
 
@@ -350,6 +363,94 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       .limit(1);
 
     return row ? this.withEventsInTransaction(tx, row) : null;
+  }
+
+  async findAwaitingHandoff(operatorId: string) {
+    const access = await this.accessCondition(operatorId);
+    const handedOff = this.db
+      .select({ id: ddsCrewCalls.id })
+      .from(ddsCrewCalls)
+      .where(
+        and(
+          eq(ddsCrewCalls.exerciseId, ddsExercises.id),
+          eq(ddsCrewCalls.outcome, "completed"),
+          eq(ddsCrewCalls.correct, true),
+        ),
+      );
+    // Из нескольких принятых карточек звонок относится к последней принятой:
+    // по ней диспетчер и звонит, пока остальные ждут своей очереди.
+    const [row] = await this.db
+      .select({
+        id: ddsExercises.id,
+        addressedService: ddsExercises.addressedService,
+      })
+      .from(ddsExercises)
+      .where(
+        and(
+          access,
+          eq(ddsExercises.status, "accepted"),
+          not(exists(handedOff)),
+        ),
+      )
+      .orderBy(desc(ddsExercises.acknowledgedAt))
+      .limit(1);
+
+    return row ?? null;
+  }
+
+  async loadCrewHandoffs(
+    exercises: readonly Pick<StoredDdsExercise, "id" | "addressedService">[],
+  ): Promise<ReadonlyMap<string, StoredCrewHandoff>> {
+    if (exercises.length === 0) return new Map();
+
+    const services = [
+      ...new Set(exercises.map((item) => item.addressedService)),
+    ];
+    const [crews, calls] = await Promise.all([
+      this.db
+        .select({
+          service: rescueCrews.service,
+          callsign: rescueCrews.callsign,
+          phoneNumber: rescueCrews.phoneNumber,
+        })
+        .from(rescueCrews)
+        .where(inArray(rescueCrews.service, services))
+        .orderBy(asc(rescueCrews.callsign)),
+      this.db
+        .select({
+          exerciseId: ddsCrewCalls.exerciseId,
+          dialedNumber: ddsCrewCalls.dialedNumber,
+          callsign: rescueCrews.callsign,
+          startedAt: ddsCrewCalls.startedAt,
+          endedAt: ddsCrewCalls.endedAt,
+          outcome: ddsCrewCalls.outcome,
+          correct: ddsCrewCalls.correct,
+          acknowledgements: ddsCrewCalls.acknowledgements,
+        })
+        .from(ddsCrewCalls)
+        .leftJoin(rescueCrews, eq(rescueCrews.id, ddsCrewCalls.crewId))
+        .where(
+          inArray(
+            ddsCrewCalls.exerciseId,
+            exercises.map((item) => item.id),
+          ),
+        )
+        .orderBy(asc(ddsCrewCalls.startedAt)),
+    ]);
+
+    return new Map(
+      exercises.map((exercise) => [
+        exercise.id,
+        {
+          crews: crews
+            .filter((crew) => crew.service === exercise.addressedService)
+            .map(({ callsign, phoneNumber }) => ({ callsign, phoneNumber })),
+          calls: calls
+            .filter((call) => call.exerciseId === exercise.id)
+            .map(({ exerciseId: _exerciseId, ...call }) => call),
+        },
+      ]),
+    );
   }
 
   private async accessCondition(operatorId: string) {

@@ -1,17 +1,35 @@
 import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
+import {
+  parseTelephonyConfig,
+  TELEPHONY_ENVIRONMENT_KEYS,
+} from "@/modules/telephony/infrastructure/telephony.config";
 
 import { DdsDispatchService } from "./application/dds-dispatch.service";
-import { DdsExerciseService } from "./application/dds-exercise.service";
+import {
+  DDS_CREW_HANDOFF_REQUIRED,
+  DdsExerciseService,
+} from "./application/dds-exercise.service";
 import { DdsExerciseController } from "./dds-exercise.controller";
 import { DrizzleDdsExerciseStore } from "./infrastructure/drizzle-dds-exercise.store";
 import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ConfigModule],
   controllers: [DdsExerciseController],
   providers: [
+    {
+      provide: DDS_CREW_HANDOFF_REQUIRED,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        parseTelephonyConfig(
+          Object.fromEntries(
+            TELEPHONY_ENVIRONMENT_KEYS.map((key) => [key, config.get(key)]),
+          ),
+        ).enabled,
+    },
     DdsExerciseService,
     DdsDispatchService,
     DrizzleDdsExerciseStore,

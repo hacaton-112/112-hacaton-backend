@@ -22,6 +22,7 @@ import { ScenarioCatalogModule } from "@/modules/scenario-catalog/scenario-catal
 import { TrainingModule } from "@/modules/training/training.module";
 import { UsersModule } from "@/modules/users/users.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
+import { TelephonyModule } from "@/modules/telephony";
 
 import { IS_DEV_ENV } from "./config/app.config";
 import "./config/env.config";
@@ -46,6 +47,7 @@ import { DatabaseModule } from "./database/database.module";
     AsrModule,
     DebriefModule,
     DdsExerciseModule,
+    TelephonyModule,
     IncidentCardModule,
     ScenarioCatalogModule,
     ReportsModule,
