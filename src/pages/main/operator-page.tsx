@@ -81,10 +81,13 @@ export default function OperatorPage() {
       "Заявитель"
     );
   })();
+  // Карточка остаётся открытой до конца разговора: заявитель называет
+  // подъезд или пострадавшего уже после отправки в ДДС, и этим сведениям
+  // нужно место. Сама доставка от правок не меняется — ДДС получает снимок,
+  // сделанный в момент отправки.
   const isCardEditable =
     call.state === "active" &&
     Boolean(incidentCard.card) &&
-    !incidentCard.card?.submittedAt &&
     !isEnding &&
     !incidentCard.isDispatching &&
     !call.isRecovering;
