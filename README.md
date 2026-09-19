@@ -424,7 +424,7 @@ MVP-балл: 40 баллов за первичный статус в норма
 
 Приняв карточку, диспетчер ДДС передаёт её наряду так же, как на реальном
 рабочем месте: набирает номер наряда на SIP-телефоне и зачитывает карточку.
-Учебная IP-АТС — Asterisk в профиле compose `telephony`; рабочие места 201–204
+Учебная IP-АТС — Asterisk в compose; рабочие места 201–204
 регистрируются на ней аппаратным телефоном вроде РТУ Т16Р или софтфоном
 (сервер — адрес хоста, порт 5060, пароль `ASTERISK_SIP_PASSWORD`, кодек G.722).
 
@@ -462,7 +462,7 @@ MVP-балл: 40 баллов за первичный статус в норма
 
 ```bash
 ASTERISK_ARI_PASSWORD=… ASTERISK_SIP_PASSWORD=… \
-  docker compose --profile telephony up -d asterisk
+  docker compose up -d asterisk
 bun run db:seed:crews
 ```
 

@@ -15,3 +15,7 @@ var/tts-reference/
 
 # Реплики нарядов, озвученные для учебной АТС
 telephony-sounds/
+
+# Карты и тайлы
+maps/
+*.mbtiles

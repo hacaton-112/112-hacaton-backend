@@ -5,6 +5,7 @@ import {
   crewPhrases,
   crewPromptMedia,
   crewPromptName,
+  resamplePcm16,
   signedLinearExtension,
 } from "./crew-phrases";
 
@@ -47,5 +48,18 @@ describe("crew phrases", () => {
     expect(signedLinearExtension(24_000)).toBe("sln24");
     expect(signedLinearExtension(16_000)).toBe("sln16");
     expect(signedLinearExtension(22_050)).toBeNull();
+  });
+
+  it("resamples speech Asterisk has no format for", () => {
+    const input = new Uint8Array(22_050 * 2);
+    const view = new DataView(input.buffer);
+    for (let index = 0; index < 22_050; index += 1) {
+      view.setInt16(index * 2, 1_000, true);
+    }
+
+    const output = resamplePcm16(input, 22_050, 16_000);
+
+    expect(output.byteLength).toBe(16_000 * 2);
+    expect(new DataView(output.buffer).getInt16(2_000, true)).toBe(1_000);
   });
 });

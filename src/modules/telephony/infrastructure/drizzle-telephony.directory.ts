@@ -48,7 +48,13 @@ export class DrizzleTelephonyDirectory {
 
   listCrews(): Promise<RescueCrew[]> {
     return this.db
-      .select()
+      .select({
+        id: rescueCrews.id,
+        service: rescueCrews.service,
+        callsign: rescueCrews.callsign,
+        phoneNumber: rescueCrews.phoneNumber,
+        voiceId: rescueCrews.voiceId,
+      })
       .from(rescueCrews)
       .orderBy(asc(rescueCrews.service), asc(rescueCrews.callsign));
   }

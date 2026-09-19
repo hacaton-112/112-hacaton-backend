@@ -77,5 +77,40 @@ const SIGNED_LINEAR_EXTENSIONS: Readonly<Record<number, string>> = {
 export const signedLinearExtension = (sampleRate: number): string | null =>
   SIGNED_LINEAR_EXTENSIONS[sampleRate] ?? null;
 
+/** Частота, к которой приводится речь, если Asterisk не знает частоту синтеза. */
+export const FALLBACK_PROMPT_SAMPLE_RATE = 16_000;
+
+/**
+ * Линейное пересэмплирование моно PCM16 little-endian.
+ *
+ * Нужно синтезу с нестандартной частотой вроде 22 050 Гц у Piper. Звонок всё
+ * равно идёт узкополосным кодеком, поэтому линейной интерполяции достаточно.
+ */
+export const resamplePcm16 = (
+  audio: Uint8Array,
+  fromRate: number,
+  toRate: number,
+): Uint8Array => {
+  const input = new DataView(audio.buffer, audio.byteOffset, audio.byteLength);
+  const inputSamples = Math.floor(audio.byteLength / 2);
+  const outputSamples = Math.floor((inputSamples * toRate) / fromRate);
+  const output = new Uint8Array(outputSamples * 2);
+  const view = new DataView(output.buffer);
+  const step = fromRate / toRate;
+
+  for (let index = 0; index < outputSamples; index += 1) {
+    const position = index * step;
+    const left = Math.floor(position);
+    const right = Math.min(left + 1, inputSamples - 1);
+    const fraction = position - left;
+    const sample =
+      input.getInt16(left * 2, true) * (1 - fraction) +
+      input.getInt16(right * 2, true) * fraction;
+    view.setInt16(index * 2, Math.round(sample), true);
+  }
+
+  return output;
+};
+
 /** Asterisk выбирает файл по имени без расширения из каталога звуков. */
 export const crewPromptMedia = (name: string): string => `sound:crew/${name}`;

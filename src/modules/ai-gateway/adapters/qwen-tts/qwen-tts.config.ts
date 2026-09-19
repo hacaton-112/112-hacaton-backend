@@ -6,8 +6,13 @@ import {
   type QwenTtsReferenceVoiceRegistry,
 } from "./qwen-tts.reference-voices";
 import { VllmOmniTtsConfigSchema } from "./vllm-omni/vllm-omni-tts.config";
+import { PiperTtsConfigSchema } from "./piper/piper-tts.config";
 
-export const QwenTtsProviderSchema = z.enum(["mlx-audio", "vllm-omni"]);
+export const QwenTtsProviderSchema = z.enum([
+  "mlx-audio",
+  "vllm-omni",
+  "piper",
+]);
 export const QwenTtsModeSchema = z.enum(["custom-voice", "base-icl"]);
 
 export const DEFAULT_QWEN_TTS_PROVIDER = "mlx-audio";
@@ -18,8 +23,7 @@ export const DEFAULT_MLX_AUDIO_CUSTOM_VOICE_MODEL =
 export const DEFAULT_MLX_AUDIO_BASE_ICL_MODEL =
   "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit";
 /** @deprecated Use the mode-specific constant. */
-export const DEFAULT_MLX_AUDIO_TTS_MODEL =
-  DEFAULT_MLX_AUDIO_CUSTOM_VOICE_MODEL;
+export const DEFAULT_MLX_AUDIO_TTS_MODEL = DEFAULT_MLX_AUDIO_CUSTOM_VOICE_MODEL;
 export const DEFAULT_MLX_AUDIO_TTS_STREAMING_INTERVAL_SECONDS = 0.32;
 export const MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS = 0.08;
 export const MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS = 2;
@@ -72,12 +76,13 @@ export const MlxAudioCustomVoiceConfigSchema =
     model: QwenTtsModelSchema.default(DEFAULT_MLX_AUDIO_CUSTOM_VOICE_MODEL),
   }).strict();
 
-export const MlxAudioBaseIclConfigSchema =
-  MlxAudioTtsCommonConfigSchema.extend({
+export const MlxAudioBaseIclConfigSchema = MlxAudioTtsCommonConfigSchema.extend(
+  {
     mode: z.literal("base-icl"),
     model: QwenTtsBaseModelSchema.default(DEFAULT_MLX_AUDIO_BASE_ICL_MODEL),
     referenceVoices: QwenTtsReferenceVoiceRegistrySchema,
-  }).strict();
+  },
+).strict();
 
 export const MlxAudioTtsConfigSchema = z.discriminatedUnion("mode", [
   MlxAudioCustomVoiceConfigSchema,
@@ -87,6 +92,7 @@ export const MlxAudioTtsConfigSchema = z.discriminatedUnion("mode", [
 export const QwenTtsConfigSchema = z.union([
   MlxAudioTtsConfigSchema,
   VllmOmniTtsConfigSchema,
+  PiperTtsConfigSchema,
 ]);
 
 export const QwenTtsEnvironmentSchema = z
@@ -100,6 +106,9 @@ export const QwenTtsEnvironmentSchema = z
       .union([z.string(), z.number()])
       .optional(),
     QWEN_TTS_REQUEST_TIMEOUT_MS: z.union([z.string(), z.number()]).optional(),
+    PIPER_TTS_BASE_URL: z.string().optional(),
+    PIPER_TTS_MALE_VOICE: z.string().optional(),
+    PIPER_TTS_FEMALE_VOICE: z.string().optional(),
   })
   .strict();
 
@@ -115,18 +124,27 @@ export type QwenTtsReferenceVoiceRegistryLoader = (
 
 export const parseQwenTtsConfig = (
   input: unknown,
-  loadReferenceVoices: QwenTtsReferenceVoiceRegistryLoader =
-    loadQwenTtsReferenceVoiceRegistry,
+  loadReferenceVoices: QwenTtsReferenceVoiceRegistryLoader = loadQwenTtsReferenceVoiceRegistry,
 ): QwenTtsConfig => {
   const environment = QwenTtsEnvironmentSchema.parse(input);
   const provider = environment.QWEN_TTS_PROVIDER ?? DEFAULT_QWEN_TTS_PROVIDER;
   const mode = environment.QWEN_TTS_MODE ?? DEFAULT_QWEN_TTS_MODE;
   const referenceVoicesPath = environment.QWEN_TTS_REFERENCE_VOICES_PATH;
 
+  if (provider === "piper") {
+    return PiperTtsConfigSchema.parse({
+      provider,
+      mode: "custom-voice",
+      model: "piper",
+      baseUrl: environment.PIPER_TTS_BASE_URL,
+      maleVoice: environment.PIPER_TTS_MALE_VOICE,
+      femaleVoice: environment.PIPER_TTS_FEMALE_VOICE,
+      requestTimeoutMs: environment.QWEN_TTS_REQUEST_TIMEOUT_MS,
+    });
+  }
+
   if (mode === "base-icl" && referenceVoicesPath === undefined) {
-    throw new Error(
-      "Base ICL mode requires QWEN_TTS_REFERENCE_VOICES_PATH",
-    );
+    throw new Error("Base ICL mode requires QWEN_TTS_REFERENCE_VOICES_PATH");
   }
 
   const referenceVoices =

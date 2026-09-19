@@ -8,6 +8,8 @@ import { QWEN_TTS_VOICES, type SpeechSynthesisStreamEvent } from "@/contracts";
 import {
   crewPromptMedia,
   crewPromptName,
+  FALLBACK_PROMPT_SAMPLE_RATE,
+  resamplePcm16,
   signedLinearExtension,
 } from "../domain/crew-phrases";
 
@@ -135,18 +137,25 @@ export class FileCrewPromptStore {
       parts.push(event.chunk.audio);
     }
 
-    const extension = signedLinearExtension(sampleRate);
-    if (bytes === 0 || extension === null) {
+    if (bytes === 0 || sampleRate <= 0) {
       throw new Error(
         `Synthesis returned ${bytes} bytes at ${sampleRate} Hz, which Asterisk cannot play`,
       );
     }
 
-    const audio = new Uint8Array(bytes);
+    let audio: Uint8Array = new Uint8Array(bytes);
     let offset = 0;
     for (const part of parts) {
       audio.set(part, offset);
       offset += part.byteLength;
+    }
+
+    // Частоту, которой нет среди форматов Asterisk, приводим к 16 кГц, а не
+    // теряем реплику.
+    let extension = signedLinearExtension(sampleRate);
+    if (extension === null) {
+      audio = resamplePcm16(audio, sampleRate, FALLBACK_PROMPT_SAMPLE_RATE);
+      extension = signedLinearExtension(FALLBACK_PROMPT_SAMPLE_RATE)!;
     }
 
     // Файл появляется целиком или не появляется вовсе: АТС не должна начать

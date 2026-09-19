@@ -169,7 +169,9 @@ export const env = createEnv({
       .default(86_400),
 
     // ── Qwen TTS ────────────────────────────────────────────────
-    QWEN_TTS_PROVIDER: z.enum(["mlx-audio", "vllm-omni"]).default("mlx-audio"),
+    QWEN_TTS_PROVIDER: z
+      .enum(["mlx-audio", "vllm-omni", "piper"])
+      .default("mlx-audio"),
     QWEN_TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
     QWEN_TTS_BASE_URL: z
       .url()
@@ -201,6 +203,14 @@ export const env = createEnv({
       .min(1_000)
       .max(300_000)
       .default(60_000),
+    PIPER_TTS_BASE_URL: z
+      .url()
+      .refine((url) => /^https?:\/\//.test(url), {
+        message: "PIPER_TTS_BASE_URL must use the http:// or https:// scheme",
+      })
+      .optional(),
+    PIPER_TTS_MALE_VOICE: z.string().trim().min(1).max(128).optional(),
+    PIPER_TTS_FEMALE_VOICE: z.string().trim().min(1).max(128).optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

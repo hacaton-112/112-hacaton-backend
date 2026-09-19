@@ -30,6 +30,7 @@
     "tts:cuda:logs": "docker compose --profile tts-cuda logs -f qwen-tts",
     "tts:cuda:stop": "docker compose --profile tts-cuda stop qwen-tts",
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
+    "profile:pipeline": "bun --env-file=.env test/manual/pipeline-stage-profiler.ts",
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
     "smoke:training": "bun --env-file=.env test/manual/training.smoke.ts",
     "audit:dialogue": "bun --env-file=.env test/manual/dialogue-audit.ts",

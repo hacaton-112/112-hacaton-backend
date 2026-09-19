@@ -23,6 +23,10 @@ import {
   parseAliceAiConfig,
 } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai.config";
 import {
+  LocalLlmAdapter,
+  LocalLlmConfigSchema,
+} from "@/modules/ai-gateway/adapters/local-llm/local-llm.adapter";
+import {
   type QwenTtsEnvironment,
   parseQwenTtsConfig,
 } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
@@ -63,6 +67,14 @@ const ALICE_ENVIRONMENT_KEYS = [
   "YANDEX_AI_REQUEST_TIMEOUT_MS",
 ] as const satisfies readonly (keyof AliceAiEnvironment)[];
 
+const LOCAL_LLM_ENVIRONMENT_KEYS = [
+  "LOCAL_LLM_BASE_URL",
+  "LOCAL_LLM_MODEL",
+  "LOCAL_LLM_API_KEY",
+  "LOCAL_LLM_TIMEOUT_MS",
+  "LOCAL_LLM_CONCURRENCY",
+] as const;
+
 const QWEN_ENVIRONMENT_KEYS = [
   "QWEN_TTS_PROVIDER",
   "QWEN_TTS_MODE",
@@ -71,6 +83,9 @@ const QWEN_ENVIRONMENT_KEYS = [
   "QWEN_TTS_REFERENCE_VOICES_PATH",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
   "QWEN_TTS_REQUEST_TIMEOUT_MS",
+  "PIPER_TTS_BASE_URL",
+  "PIPER_TTS_MALE_VOICE",
+  "PIPER_TTS_FEMALE_VOICE",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];
 
 const selectEnvironment = (keys: readonly string[]): Record<string, unknown> =>
@@ -235,6 +250,26 @@ const createGenerationRequest = (
 });
 
 const createDialogueRuntime = () => {
+  if (process.env.LLM_PROVIDER === "local") {
+    const environment = selectEnvironment(LOCAL_LLM_ENVIRONMENT_KEYS);
+    const config = LocalLlmConfigSchema.parse({
+      baseUrl: environment.LOCAL_LLM_BASE_URL,
+      model: environment.LOCAL_LLM_MODEL,
+      apiKey: environment.LOCAL_LLM_API_KEY,
+      timeoutMs: environment.LOCAL_LLM_TIMEOUT_MS,
+      concurrency: environment.LOCAL_LLM_CONCURRENCY,
+    });
+    const port = new ObservedLlmPort(
+      new LocalLlmAdapter(config, globalThis.fetch.bind(globalThis)),
+    );
+    const service = new DialogueGenerationService(
+      port,
+      new LlmReplyStreamCollector(new CallerReplySafetyService()),
+    );
+
+    return { config, port, service };
+  }
+
   const config = parseAliceAiConfig(selectEnvironment(ALICE_ENVIRONMENT_KEYS));
   const port = new ObservedLlmPort(
     new AliceAiLlmAdapter(config, globalThis.fetch.bind(globalThis)),
@@ -271,7 +306,10 @@ const runGeneration = async () => {
     provider: {
       baseUrl: runtime.config.baseUrl,
       model: runtime.config.model,
-      requestTimeoutMs: runtime.config.requestTimeoutMs,
+      requestTimeoutMs:
+        "requestTimeoutMs" in runtime.config
+          ? runtime.config.requestTimeoutMs
+          : runtime.config.timeoutMs,
     },
     result,
     providerErrors: runtime.port.errors,
@@ -293,6 +331,7 @@ const runTts = async (voiceId: string) => {
         text: "На кухне пожар, идёт сильный дым.",
         language: "Russian",
         voiceId,
+        gender: "female",
         emotion: "panic",
         intensity: 0.8,
         speechRate: 1,
@@ -345,7 +384,16 @@ const runPipeline = async (voiceId: string) => {
 
   try {
     for await (const event of pipeline.streamReply(
-      { generation, voiceId },
+      {
+        generation,
+        voice: {
+          voiceId,
+          gender: "female",
+          emotion: "panic",
+          intensity: 0.8,
+          speechRate: 1,
+        },
+      },
       AbortSignal.timeout(300_000),
     )) {
       if (event.type === "voice.reply.ready") {
