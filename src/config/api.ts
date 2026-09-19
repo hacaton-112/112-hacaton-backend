@@ -59,6 +59,9 @@ export const API_CONFIG = {
   getActiveClassifierRouteUrl: () => `/classifiers/active/route`,
   getCallsUrl: () => `/calls`,
   getDdsExercisesUrl: () => `/dds-exercises`,
+  getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
+  getTelephonyWorkstationUrl: (extension: string) =>
+    `/telephony/workstations/${encodeURIComponent(extension)}`,
   getDdsExerciseUrl: (exerciseId: string) => `/dds-exercises/${exerciseId}`,
   getDdsExerciseTransitionsUrl: (exerciseId: string) =>
     `/dds-exercises/${exerciseId}/transitions`,

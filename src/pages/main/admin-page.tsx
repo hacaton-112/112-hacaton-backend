@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 
+import { TelephonyWorkstationsCard } from "../../components/admin/telephony-workstations-card";
 import { UserFormDialog } from "../../components/admin/user-form-dialog";
 import { UserStatusDialog } from "../../components/admin/user-status-dialog";
 import { formatDateTime } from "../../components/training/training-labels";
@@ -293,6 +294,8 @@ export default function AdminPage() {
           />
         )}
       </div>
+
+      <TelephonyWorkstationsCard users={allUsers.data ?? []} />
 
       <UserFormDialog
         currentUserId={currentUserId}
