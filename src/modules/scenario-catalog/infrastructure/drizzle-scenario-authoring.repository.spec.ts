@@ -6,6 +6,7 @@ import {
   scenarioLocations,
   scenarios,
   scenarioVersions,
+  scenarioAudioPacks,
 } from "@/drizzle/schema";
 import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import {
@@ -130,6 +131,11 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
 
     const persona = inserts.find((insert) => insert.table === callerPersonas);
     const version = inserts.find((insert) => insert.table === scenarioVersions);
+    expect(
+      inserts.find((insert) => insert.table === scenarioAudioPacks)?.values,
+    ).toEqual({
+      scenarioVersionId: published.scenarioVersionId,
+    });
 
     // Прошлые версии не трогаются: персонаж пишется новой строкой и
     // привязывается к новой версии.

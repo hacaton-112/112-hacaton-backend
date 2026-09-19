@@ -8,4 +8,5 @@ export * from "./incident-card.schema";
 export * from "./methodical-material.schema";
 export * from "./training.schema";
 export * from "./scenario.schema";
+export * from "./scenario-audio.schema";
 export * from "./user.schema";
