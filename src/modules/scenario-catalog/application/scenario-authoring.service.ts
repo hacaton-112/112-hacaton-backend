@@ -102,6 +102,7 @@ export class ScenarioAuthoringService {
   ): Promise<PublishedScenario> {
     try {
       return await this.repository.publish({
+        preparationId: request.preparationId,
         scenario: request.scenario,
         authorId,
         authoringSource: request.authoringSource,
@@ -141,6 +142,7 @@ export class ScenarioAuthoringService {
   ): Promise<PublishedScenario> {
     try {
       return await this.repository.publishVersion({
+        preparationId: request.preparationId,
         scenarioId,
         baseVersionId: request.baseVersionId,
         scenario: request.scenario,

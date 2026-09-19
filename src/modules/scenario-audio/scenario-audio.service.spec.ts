@@ -60,6 +60,37 @@ const setup = (row: unknown = pack) => {
 };
 
 describe(ScenarioAudioService.name, () => {
+  it("matches approved paraphrases exactly and only to known engine facts", () => {
+    const { service } = setup();
+    const entries = [
+      {
+        factKey: "address",
+        questions: ["Где это произошло?"],
+        acknowledge: false,
+      },
+      {
+        factKey: "unknown",
+        questions: ["Где это произошло?"],
+        acknowledge: false,
+      },
+    ];
+    const facts = [
+      { id: "address", label: "Адрес", question: "Назовите адрес?" },
+    ];
+    expect(
+      service.resolveApprovedQuestion("ГДЕ это произошло!", facts, entries),
+    ).toEqual(["address"]);
+    expect(
+      service.resolveApprovedQuestion(
+        "Не говорите, где это произошло",
+        facts,
+        entries,
+      ),
+    ).toBeNull();
+    expect(
+      service.resolveApprovedQuestion("Где это произошло?", [], entries),
+    ).toBeNull();
+  });
   it("uses only ready audio with a matching complete fingerprint and integrity hash", async () => {
     const { service, get } = setup();
     await expect(

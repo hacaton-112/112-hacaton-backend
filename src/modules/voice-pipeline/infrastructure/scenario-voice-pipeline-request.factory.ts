@@ -1,7 +1,10 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
 import {
   VoicePipelineRequestSchema,
+  CallerReplySchema,
   type FactQuestion,
   type VoicePipelineRequest,
 } from "@/contracts";
@@ -52,6 +55,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     private readonly engine: ScenarioEngineService,
     @Inject(QUESTION_UNDERSTANDING_PORT)
     private readonly questions: QuestionUnderstandingPort,
+    @Optional() private readonly audio?: ScenarioAudioService,
   ) {}
 
   async create({
@@ -63,6 +67,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
   }: CreateVoicePipelineRequestOptions): Promise<VoicePipelineRequest> {
     signal.throwIfAborted();
     let preferPreparedReply = false;
+    const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
 
     const built = await this.engine.buildGenerationContext({
       trainingSessionId: sessionId,
@@ -74,6 +79,8 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
           command.operatorText,
           facts,
           signal,
+          entries,
+          sessionId,
         );
         // Exact questions need no model. Paraphrases may use the local intent
         // parser once, but still reuse approved wording and recorded audio.
@@ -82,6 +89,29 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       },
     });
 
+    const focus = built.context.turnPlan?.focusFactIds ?? [];
+    const entry =
+      focus.length === 1
+        ? entries.find((item) => item.factKey === focus[0])
+        : undefined;
+    const fact =
+      entry &&
+      built.context.allowedFacts.find((item) => item.id === entry.factKey);
+    const reaction = built.context.turnPlan?.reactionAct;
+    // Engine selects the permitted fact and reaction FIRST; the bank only chooses wording.
+    const approvedReply =
+      entry &&
+      fact &&
+      ["answer", "repeat", "acknowledge"].includes(reaction ?? "")
+        ? CallerReplySchema.safeParse({
+            ...built.fallbackReply,
+            text: `${entry.acknowledge ? "Хорошо. " : ""}${fact.value}`,
+            revealedFactIds: [fact.id],
+          })
+        : null;
+    const fallbackReply = approvedReply?.success
+      ? approvedReply.data
+      : built.fallbackReply;
     return VoicePipelineRequestSchema.parse({
       preferPreparedReply,
       generation: {
@@ -90,7 +120,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         scenarioVersionId: built.scenarioVersionId,
         operatorText: command.operatorText,
         context: built.context,
-        fallbackReply: built.fallbackReply,
+        fallbackReply,
       },
       // Звучание задаёт сценарий; клиент может подменить только сам голос и
       // только осознанно, для отладки.
@@ -107,22 +137,27 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     operatorText: string,
     facts: readonly FactQuestion[],
     signal: AbortSignal,
+    entries: readonly DialogueEntry[] = [],
+    sessionId = "",
   ): Promise<readonly string[]> {
     // Версия сценария не меняется в пределах звонка, а факты приходят из неё,
     // поэтому их набор и служит ключом наравне с текстом.
-    const prepared = resolvePreparedQuestion(operatorText, facts);
-    if (prepared !== null) return prepared;
-    const key = cacheKey(JSON.stringify(facts), operatorText);
+    const key = cacheKey(JSON.stringify([sessionId, facts]), operatorText);
     const remembered = this.understood.get(key);
 
     if (remembered !== undefined) {
       return remembered;
     }
 
-    const asked = await this.questions.understand(
-      { requestId, operatorText, facts: [...facts] },
-      signal,
-    );
+    const prepared =
+      this.audio?.resolveApprovedQuestion(operatorText, facts, entries) ??
+      resolvePreparedQuestion(operatorText, facts);
+    const asked =
+      prepared ??
+      (await this.questions.understand(
+        { requestId, operatorText, facts: [...facts] },
+        signal,
+      ));
 
     if (this.understood.size >= MAX_CACHED_QUESTIONS) {
       this.understood.clear();
@@ -141,6 +176,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     generation,
     initiative,
   }: RecordCallerReplyOptions): Promise<void> {
+    const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
     await this.engine.applyCallerReply({
       trainingSessionId: sessionId,
       initiative,
@@ -158,6 +194,8 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
           operatorText,
           facts,
           new AbortController().signal,
+          entries,
+          sessionId,
         ),
     });
   }

@@ -6,6 +6,10 @@ import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "./scenario-audio.service";
 import { ScenarioAudioController } from "./scenario-audio.controller";
+import { DialoguePreparationService } from "./dialogue-preparation.service";
+import { DialoguePreparationWorker } from "./dialogue-preparation.worker";
+import { DialoguePreparationController } from "./dialogue-preparation.controller";
+import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
 
 @Module({
   imports: [
@@ -14,9 +18,14 @@ import { ScenarioAudioController } from "./scenario-audio.controller";
     CallRecordingModule,
     ScenarioEngineModule,
     SpeechSynthesisModule,
+    AliceAiAdapterModule,
   ],
-  providers: [ScenarioAudioService],
-  controllers: [ScenarioAudioController],
+  providers: [
+    ScenarioAudioService,
+    DialoguePreparationService,
+    DialoguePreparationWorker,
+  ],
+  controllers: [ScenarioAudioController, DialoguePreparationController],
   exports: [ScenarioAudioService],
 })
 export class ScenarioAudioModule {}

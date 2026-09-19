@@ -52,6 +52,7 @@ const emptyPack = (): Pack => ({
   completed: 0,
   total: 0,
   assets: {},
+  entries: [],
   leaseToken: null,
   leaseUntil: null,
   updatedAt: new Date(),
@@ -95,7 +96,7 @@ const chain = (result: unknown) => {
   return query;
 };
 
-const setup = (pack = emptyPack(), rows: unknown[] = [[], [], [pack]]) => {
+const setup = (pack = emptyPack(), rows: unknown[] = [[], [], [], [pack]]) => {
   const updates: Partial<Pack>[] = [];
   const tx = {
     execute: jest.fn().mockResolvedValue(undefined),
@@ -185,14 +186,15 @@ describe("durable scenario audio worker", () => {
     expect(runtime.updates.at(-1)).not.toHaveProperty("assets");
   });
 
-  it.each([[[{ id: "another-worker-lease" }]], [[], [{ id: "live-session" }]]])(
-    "defers work for an active lease or live call",
-    async (...rows) => {
-      const runtime = setup(emptyPack(), rows);
-      await runtime.service.tick();
-      expect(runtime.synthesize).not.toHaveBeenCalled();
-      expect(runtime.put).not.toHaveBeenCalled();
-      expect(runtime.updates).toHaveLength(0);
-    },
-  );
+  it.each([
+    [[{ id: "another-worker-lease" }]],
+    [[], [{ id: "draft-lease" }]],
+    [[], [], [{ id: "live-session" }]],
+  ])("defers work for an active lease or live call", async (...rows) => {
+    const runtime = setup(emptyPack(), rows);
+    await runtime.service.tick();
+    expect(runtime.synthesize).not.toHaveBeenCalled();
+    expect(runtime.put).not.toHaveBeenCalled();
+    expect(runtime.updates).toHaveLength(0);
+  });
 });

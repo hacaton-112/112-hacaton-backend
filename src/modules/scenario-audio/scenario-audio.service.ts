@@ -7,6 +7,7 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { and, eq, gt, lt, or, sql } from "drizzle-orm";
@@ -17,7 +18,15 @@ import type {
 } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
-import { callStates, scenarioAudioPacks } from "@/drizzle/schema";
+import {
+  callStates,
+  scenarioAudioPacks,
+  dialoguePreparations,
+} from "@/drizzle/schema";
+import { DialoguePreparationWorker } from "./dialogue-preparation.worker";
+import { normalizeQuestion } from "./domain/prepared-dialogue";
+import type { FactQuestion } from "@/contracts";
+import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 import {
   RECORDING_STORAGE,
   type RecordingStorage,
@@ -65,6 +74,7 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     private readonly synthesis: SpeechSynthesisService,
     private readonly config: ConfigService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly preparations?: DialoguePreparationWorker,
   ) {}
 
   /** Opt-in: enabling compilation may consume substantial local TTS resources. */
@@ -136,6 +146,42 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Miss/error is optional acceleration, never a reason to end a live call. */
+  async approvedEntries(sessionId: string): Promise<readonly DialogueEntry[]> {
+    try {
+      const call = await this.scenarios.loadCall(sessionId);
+      if (!call) return [];
+      const [pack] = await this.db
+        .select({
+          entries: scenarioAudioPacks.entries,
+          status: scenarioAudioPacks.status,
+        })
+        .from(scenarioAudioPacks)
+        .where(
+          eq(scenarioAudioPacks.scenarioVersionId, call.scenarioVersionId),
+        );
+      return pack?.status === "ready" ? pack.entries : [];
+    } catch {
+      return [];
+    }
+  }
+
+  resolveApprovedQuestion(
+    text: string,
+    facts: readonly FactQuestion[],
+    entries: readonly DialogueEntry[],
+  ): string[] | null {
+    const normalized = normalizeQuestion(text);
+    const ids = new Set(facts.map((fact) => fact.id));
+    const matches = entries.filter(
+      (entry) =>
+        ids.has(entry.factKey) &&
+        entry.questions.some(
+          (question) => normalizeQuestion(question) === normalized,
+        ),
+    );
+    return matches.length ? matches.map((entry) => entry.factKey) : null;
+  }
+
   async lookupOpening(
     sessionId: string,
     request: TtsSynthesisRequest,
@@ -247,6 +293,7 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     let livePoll: ReturnType<typeof setInterval> | undefined;
     const liveCall = new AbortController();
     try {
+      if (await this.preparations?.tick(this.shutdown.signal)) return;
       claimed = await this.claim();
       if (!claimed) return;
       const version = await this.scenarios.loadVersion(
@@ -356,6 +403,12 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
         )
         .limit(1);
       if (busy) return undefined;
+      const [draftBusy] = await tx
+        .select({ id: dialoguePreparations.id })
+        .from(dialoguePreparations)
+        .where(gt(dialoguePreparations.leaseUntil, new Date()))
+        .limit(1);
+      if (draftBusy) return undefined;
       // All backend instances observe live sessions, not only local sockets.
       const [live] = await tx
         .select({ id: callStates.trainingSessionId })

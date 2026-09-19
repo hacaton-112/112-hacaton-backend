@@ -4,6 +4,7 @@ import type { ScenarioSeed } from "@/modules/scenario-engine/domain/scenario-see
 import type { ScenarioIssue } from "../domain/scenario-version-snapshot";
 
 export interface PublishScenarioInput {
+  readonly preparationId?: string;
   readonly scenario: ScenarioSeed;
   readonly authorId: string;
   readonly authoringSource: "manual" | "assistant";
