@@ -11,6 +11,7 @@ import { ErrorCodes } from "@/contracts";
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import { evaluateDdsExercise } from "../domain/dds-exercise-evaluation";
 import {
+  ACKNOWLEDGEMENT_NORM_MS,
   allowedDdsTransitions,
   DdsTransitionError,
   isTerminalDdsStatus,
@@ -27,7 +28,6 @@ import {
   type StoredDdsExercise,
 } from "../ports/dds-exercise.store.port";
 
-const ACKNOWLEDGEMENT_NORM_MS = 30_000;
 
 @Injectable()
 export class DdsExerciseService {

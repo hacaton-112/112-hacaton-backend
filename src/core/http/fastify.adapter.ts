@@ -12,7 +12,17 @@ import { generateId } from "@/common/utils/id";
 import type { HttpMetrics } from "@/modules/metrics/application/http-metrics";
 
 const MAX_REQUEST_ID_LENGTH = 128;
-const JSON_BODY_LIMIT_BYTES = 100 * 1024;
+/** Свой идентификатор запроса клиент присылает, но не диктует его вид. */
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+/**
+ * Потолок тела запроса.
+ *
+ * Самое большое законное тело — черновик сценария: до 64 фактов по тысяче
+ * символов, реплики, обязательные вопросы и эталонная карточка. При прежних
+ * ста килобайтах такой черновик не публиковался и не проверялся на
+ * грамотность, а преподаватель видел только 413 без объяснения.
+ */
+const JSON_BODY_LIMIT_BYTES = 1024 * 1024;
 const MAX_MULTIPART_FILE_BYTES = 10 * 1024 * 1024;
 
 type StopTimer = ReturnType<HttpMetrics["duration"]["startTimer"]>;
@@ -21,7 +31,9 @@ const headerValue = (value: string | string[] | undefined): string | null => {
   const candidate = Array.isArray(value) ? value[0] : value;
   const trimmed = candidate?.trim() ?? "";
 
-  return trimmed.length > 0 && trimmed.length <= MAX_REQUEST_ID_LENGTH
+  return trimmed.length > 0 &&
+    trimmed.length <= MAX_REQUEST_ID_LENGTH &&
+    REQUEST_ID_PATTERN.test(trimmed)
     ? trimmed
     : null;
 };

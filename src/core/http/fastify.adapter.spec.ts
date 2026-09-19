@@ -23,6 +23,7 @@ import {
   createFastifyAdapter,
   type FastifyNestApplication,
   registerFastifyPlugins,
+  requestId,
 } from "./fastify.adapter";
 
 @Controller("probe")
@@ -171,5 +172,16 @@ describe("Fastify HTTP platform", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toBe("application/octet-stream");
     expect(response.body).toBe("recording");
+  });
+
+  it("refuses a request id a client made up", () => {
+    // Идентификатор возвращается в заголовке и попадает в журнал, поэтому
+    // перевод строки в нём превратился бы в чужую строку журнала.
+    const made = requestId({
+      headers: { "x-request-id": "abc\r\nX-Injected: 1" },
+    } as never);
+
+    expect(made).not.toContain("\n");
+    expect(made).toMatch(/^[A-Za-z0-9._:-]+$/);
   });
 });

@@ -64,7 +64,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   ): AsyncIterable<LlmStreamEvent> {
     const request = GenerateCallerReplyRequestSchema.parse(raw);
     const plan = request.context.turnPlan;
-    this.acquire(signal);
+    this.acquire(signal, this.config.concurrency);
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(this.config.timeoutMs),
@@ -116,26 +116,45 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     signal: AbortSignal,
   ): Promise<readonly string[]> {
     const request = UnderstandQuestionRequestSchema.parse(raw);
-    const content = await this.complete({
-      schemaName: "asked_facts",
-      schemaDescription: "Known fact identifiers requested by the operator",
-      schema: ASKED_FACTS_JSON_SCHEMA,
-      systemPrompt: ALICE_AI_QUESTION_PROMPT,
-      userPrompt: JSON.stringify({
-        operatorText: request.operatorText,
-        facts: request.facts,
-      }),
-      maxTokens: 128,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(2_500)]),
-    });
+    const content = await this.run(
+      {
+        schemaName: "asked_facts",
+        schemaDescription: "Known fact identifiers requested by the operator",
+        schema: ASKED_FACTS_JSON_SCHEMA,
+        systemPrompt: ALICE_AI_QUESTION_PROMPT,
+        userPrompt: JSON.stringify({
+          operatorText: request.operatorText,
+          facts: request.facts,
+        }),
+        maxTokens: 128,
+        signal,
+      },
+      this.config.concurrency,
+    );
     return parseAliceAiQuestionResponse(
       { choices: [{ message: { content: JSON.stringify(content) } }] },
       request,
     );
   }
 
-  async complete(request: StructuredOutputRequest): Promise<unknown> {
-    this.acquire(request.signal);
+  /**
+   * Структурный вызов из кабинета преподавателя.
+   *
+   * Последний свободный слот остаётся живому звонку: проверка грамотности и
+   * помощник сценария подождут, а заявитель не должен из-за них переходить на
+   * запасную реплику. При `LOCAL_LLM_CONCURRENCY=1` инструменты преподавателя
+   * на локальной модели не работают вовсе — это осознанный выбор приоритета.
+   */
+  complete(request: StructuredOutputRequest): Promise<unknown> {
+    return this.run(request, this.config.concurrency - 1);
+  }
+
+  /** Разбор вопроса — часть живого звонка и берёт весь запас. */
+  private async run(
+    request: StructuredOutputRequest,
+    limit: number,
+  ): Promise<unknown> {
+    this.acquire(request.signal, limit);
     try {
       const response = await this.post(
         {
@@ -155,9 +174,9 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     }
   }
 
-  private acquire(signal: AbortSignal): void {
+  private acquire(signal: AbortSignal, limit: number): void {
     signal.throwIfAborted();
-    if (this.active >= this.config.concurrency) throw new LocalLlmBusyError();
+    if (this.active >= limit) throw new LocalLlmBusyError();
     this.active += 1;
   }
 
@@ -200,7 +219,16 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         }),
       },
     );
-    if (!response.ok) throw new Error(`Local LLM HTTP ${response.status}`);
+    if (!response.ok) {
+      // Тело читается всегда: непрочитанный ответ держит соединение undici,
+      // а в нём же лежит объяснение отказа.
+      const detail = (await response.text().catch(() => ""))
+        .trim()
+        .slice(0, 200);
+      throw new Error(
+        `Local LLM HTTP ${response.status}${detail ? `: ${detail}` : ""}`,
+      );
+    }
     return response;
   }
 }

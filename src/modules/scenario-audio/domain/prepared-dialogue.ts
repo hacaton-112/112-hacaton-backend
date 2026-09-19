@@ -48,6 +48,15 @@ export const audioFingerprint = (request: TtsSynthesisRequest): string =>
     )
     .digest("hex");
 
+/**
+ * Потолок объёма заготовки на одну версию.
+ *
+ * Работник готовит одну запись за тик, поэтому без потолка сценарий на шесть
+ * десятков фактов занимал бы часы и десятки мегабайт хранилища. Что не попало
+ * в заготовку, звучит обычным синтезом — заявитель разницы не заметит.
+ */
+const MAX_PREPARED_REQUESTS = 240;
+
 /** No model writes facts here: these are the instructor's published utterances. */
 export const compilePreparedSpeech = (
   version: ScenarioVersionSnapshot,
@@ -80,6 +89,7 @@ export const compilePreparedSpeech = (
       });
       // Never truncate a fact and then mark it as spoken in full.
       if (result.success) requests.push(result.data);
+      if (requests.length >= MAX_PREPARED_REQUESTS) return requests;
     }
   }
   return requests;

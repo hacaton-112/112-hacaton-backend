@@ -31,10 +31,13 @@ import {
   audioFingerprint,
   compilePreparedSpeech,
 } from "./domain/prepared-dialogue";
+import { parseScenarioAudioConfig } from "./scenario-audio.config";
 
 type Pack = typeof scenarioAudioPacks.$inferSelect;
 type PreparedAudio = { audio: Uint8Array<ArrayBuffer>; sampleRate: number };
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
+/** Столько проверенных записей держится в памяти между репликами. */
+const MAX_VERIFIED_BYTES = 32 * 1024 * 1024;
 const digest = (audio: Uint8Array): string =>
   createHash("sha256").update(audio).digest("hex");
 
@@ -42,6 +45,16 @@ const digest = (audio: Uint8Array): string =>
 export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ScenarioAudioService.name);
   private timer?: ReturnType<typeof setInterval>;
+  /**
+   * Проверенные записи по ключу объекта.
+   *
+   * Ключ содержит sha256, то есть содержимое по нему неизменно. Поэтому
+   * загрузка из хранилища и сверка хеша выполняются один раз на запись, а не
+   * на каждую реплику заявителя: иначе подготовленное аудио само добавляло бы
+   * ту задержку, ради снятия которой готовилось.
+   */
+  private readonly verified = new Map<string, PreparedAudio>();
+  private verifiedBytes = 0;
   private running = false;
   private readonly shutdown = new AbortController();
 
@@ -54,10 +67,17 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     private readonly audit: AuditLogService,
   ) {}
 
+  /** Opt-in: enabling compilation may consume substantial local TTS resources. */
+  private get workerEnabled(): boolean {
+    return parseScenarioAudioConfig({
+      SCENARIO_AUDIO_WORKER_ENABLED: this.config.get(
+        "SCENARIO_AUDIO_WORKER_ENABLED",
+      ),
+    }).workerEnabled;
+  }
+
   onModuleInit(): void {
-    // Opt-in: enabling compilation may consume substantial local TTS resources.
-    if (this.config.get<string>("SCENARIO_AUDIO_WORKER_ENABLED") !== "true")
-      return;
+    if (!this.workerEnabled) return;
     this.timer = setInterval(() => {
       void this.tick();
     }, 5_000);
@@ -81,8 +101,7 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
       status: pack?.status ?? "not_prepared",
       completed: pack?.completed ?? 0,
       total: pack?.total ?? 0,
-      workerEnabled:
-        this.config.get<string>("SCENARIO_AUDIO_WORKER_ENABLED") === "true",
+      workerEnabled: this.workerEnabled,
     };
   }
 
@@ -147,6 +166,8 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
       if (pack?.status !== "ready") return null;
       const asset = pack.assets[audioFingerprint(request)];
       if (!asset || asset.bytes > MAX_AUDIO_BYTES) return null;
+      const remembered = this.verified.get(asset.key);
+      if (remembered) return remembered;
       const audio = await this.storage.get(
         asset.key,
         AbortSignal.any([signal, AbortSignal.timeout(750)]),
@@ -158,7 +179,9 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
         digest(audio) !== asset.sha256
       )
         return null;
-      return { audio, sampleRate: asset.sampleRate };
+      const prepared = { audio, sampleRate: asset.sampleRate };
+      this.remember(asset.key, prepared);
+      return prepared;
     } catch {
       signal.throwIfAborted();
       this.logger.warn("Prepared audio unavailable; using live pipeline");
@@ -166,17 +189,29 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Отдаёт заготовленную запись.
+   *
+   * `lookupMs` — время, уже потраченное на поиск записи: без него метрика
+   * задержки до первого звука набивалась бы нулями, и дашборд показывал бы
+   * улучшение там, где его нет.
+   */
   async *replay(
     prepared: PreparedAudio,
     requestId: string,
     signal: AbortSignal,
+    lookupMs = 0,
   ): AsyncIterable<SpeechSynthesisStreamEvent> {
     const startedAt = performance.now();
+    let timeToFirstAudioMs = lookupMs;
     const chunkBytes = Math.floor(prepared.sampleRate / 10) * 2;
     let sequence = 0;
     for (let offset = 0; offset < prepared.audio.length; offset += chunkBytes) {
       signal.throwIfAborted();
       const end = Math.min(offset + chunkBytes, prepared.audio.length);
+      if (sequence === 0) {
+        timeToFirstAudioMs = lookupMs + (performance.now() - startedAt);
+      }
       yield {
         type: "audio.chunk",
         chunk: {
@@ -194,8 +229,8 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     yield {
       type: "synthesis.completed",
       metrics: {
-        timeToFirstAudioMs: 0,
-        durationMs: performance.now() - startedAt,
+        timeToFirstAudioMs,
+        durationMs: lookupMs + (performance.now() - startedAt),
         chunkCount: sequence,
         audioBytes: prepared.audio.length,
         attempts: [],
@@ -287,7 +322,7 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
         completed: count,
         status: count === requests.length ? "ready" : "queued",
       });
-    } catch {
+    } catch (error) {
       if (claimed)
         await this.finish(claimed, {
           status:
@@ -296,7 +331,9 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
               : "failed",
         }).catch(() => undefined);
       this.logger.warn(
-        "Scenario audio preparation interrupted or failed; assets retained for retry",
+        `Scenario audio preparation interrupted or failed; assets retained for retry: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
       );
     } finally {
       clearInterval(livePoll);
@@ -355,6 +392,20 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
         .returning();
       return claimed;
     });
+  }
+
+  private remember(key: string, prepared: PreparedAudio): void {
+    // Вытесняется самая старая запись: Map хранит порядок добавления.
+    while (
+      this.verifiedBytes + prepared.audio.byteLength > MAX_VERIFIED_BYTES &&
+      this.verified.size > 0
+    ) {
+      const [oldest, evicted] = this.verified.entries().next().value!;
+      this.verified.delete(oldest);
+      this.verifiedBytes -= evicted.audio.byteLength;
+    }
+    this.verified.set(key, prepared);
+    this.verifiedBytes += prepared.audio.byteLength;
   }
 
   private async hasLiveCall(): Promise<boolean> {

@@ -10,9 +10,11 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
+import type { FastifyReply } from "fastify";
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
@@ -56,15 +58,18 @@ import {
  *
  * Преподаватель закрывает диалог, не дождавшись ответа: держать после этого
  * обращение к модели незачем — оно занимает квоту и вернуть уже некуда.
+ *
+ * Слушается ответ, а не запрос: `close` на запросе приходит сразу после
+ * приёма тела, а `aborted` для такого запроса остаётся `false`, и по ним уход
+ * клиента не отличить от нормальной работы. У ответа `close` без
+ * `writableEnded` означает ровно одно — на том конце уже никого нет.
  */
-const abandonedWith = (request: AuthenticatedRequest): AbortSignal => {
+const abandonedWith = (reply: FastifyReply): AbortSignal => {
   const abort = new AbortController();
-  const abortIfAbandoned = () => {
-    if (request.raw.aborted) abort.abort();
-  };
 
-  request.raw.once("close", abortIfAbandoned);
-  abortIfAbandoned();
+  reply.raw.once("close", () => {
+    if (!reply.raw.writableEnded) abort.abort();
+  });
 
   return abort.signal;
 };
@@ -118,13 +123,13 @@ export class ScenarioCatalogController {
   @Throttle({ short: { limit: 20, ttl: 60_000 } })
   @ZodSerializerDto(ScenarioGrammarReportDto)
   checkGrammar(
-    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
     @Body() body: CheckScenarioGrammarRequestDto,
   ): Promise<GrammarReport> {
     return this.authoring.checkGrammar(
       body.scenario,
       body.deepReview,
-      abandonedWith(request),
+      abandonedWith(reply),
     );
   }
 
