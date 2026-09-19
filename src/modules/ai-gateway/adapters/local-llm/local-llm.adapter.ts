@@ -21,6 +21,7 @@ import {
   parseAliceAiQuestionResponse,
 } from "../alice-ai/alice-ai.question";
 import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
+import { InferenceQueue } from "./inference-queue";
 
 export const LocalLlmConfigSchema = z
   .object({
@@ -32,6 +33,9 @@ export const LocalLlmConfigSchema = z
     apiKey: z.string().min(1).optional(),
     timeoutMs: z.coerce.number().int().min(500).max(30_000).default(8_000),
     concurrency: z.coerce.number().int().min(1).max(4).default(1),
+    queueSize: z.coerce.number().int().min(0).max(16).default(0),
+    queueWaitMs: z.coerce.number().int().min(10).max(2000).default(500),
+    literalFactReplies: z.boolean().default(false),
   })
   .strict();
 export type LocalLlmConfig = z.infer<typeof LocalLlmConfigSchema>;
@@ -64,11 +68,17 @@ class LocalLlmBusyError extends Error {
 
 /** llama-server protocol. No cloud fallback and no unbounded waiting queue. */
 export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
-  private active = 0;
+  private readonly queue: InferenceQueue;
   constructor(
     private readonly config: LocalLlmConfig,
     private readonly fetchImplementation: typeof fetch = fetch,
-  ) {}
+  ) {
+    this.queue = new InferenceQueue(
+      config.concurrency,
+      config.queueSize,
+      config.queueWaitMs,
+    );
+  }
 
   async *streamReply(
     raw: GenerateCallerReplyRequest,
@@ -76,11 +86,11 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   ): AsyncIterable<LlmStreamEvent> {
     const request = GenerateCallerReplyRequestSchema.parse(raw);
     const plan = request.context.turnPlan;
-    this.acquire(signal, this.config.concurrency);
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(this.config.timeoutMs),
     ]);
+    const release = await this.queue.acquire(deadline);
     try {
       const response = await this.post(
         {
@@ -126,7 +136,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
       // The common SSE wire format is identical; collected JSON still passes the domain validator.
       yield* parseAliceAiSse(response.body, deadline);
     } finally {
-      this.active -= 1;
+      release();
     }
   }
 
@@ -177,15 +187,19 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     limit: number,
     slot?: number,
   ): Promise<unknown> {
-    this.acquire(request.signal, limit);
+    const deadline = AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(this.config.timeoutMs),
+    ]);
+    const release = await this.queue.acquire(
+      deadline,
+      limit < this.config.concurrency,
+    );
     try {
       const response = await this.post(
         {
           ...request,
-          signal: AbortSignal.any([
-            request.signal,
-            AbortSignal.timeout(this.config.timeoutMs),
-          ]),
+          signal: deadline,
         },
         false,
         slot,
@@ -194,14 +208,8 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
       const content: unknown = JSON.parse(body.choices[0]!.message.content);
       return content;
     } finally {
-      this.active -= 1;
+      release();
     }
-  }
-
-  private acquire(signal: AbortSignal, limit: number): void {
-    signal.throwIfAborted();
-    if (this.active >= limit) throw new LocalLlmBusyError();
-    this.active += 1;
   }
 
   private async post(

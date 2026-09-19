@@ -1,5 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import {
+  assertOfflineEndpoint,
+  guardedOfflineFetch,
+  offlineSettings,
+} from "@/modules/ai-gateway/offline-policy";
 
 import {
   CallRecordingService,
@@ -46,9 +51,16 @@ const createCallRecordingConfig = (configService: ConfigService) =>
     },
     {
       provide: RECORDING_STORAGE,
-      inject: [CALL_RECORDING_CONFIG],
-      useFactory: (config: CallRecordingConfig) =>
-        new S3RecordingStorage(config),
+      inject: [CALL_RECORDING_CONFIG, ConfigService],
+      useFactory: (config: CallRecordingConfig, environment: ConfigService) => {
+        const policy = offlineSettings(environment);
+        if (policy.enabled)
+          assertOfflineEndpoint(config.endpoint, policy.hosts);
+        return new S3RecordingStorage(
+          config,
+          guardedOfflineFetch(environment, globalThis.fetch.bind(globalThis)),
+        );
+      },
     },
     {
       // Без хранилища звонок должен идти как обычно, поэтому выключенная

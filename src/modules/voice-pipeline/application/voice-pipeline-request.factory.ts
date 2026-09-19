@@ -19,7 +19,10 @@ export interface RecordCallerReplyOptions {
   sessionId: string;
   operatorText: string;
   reply: CallerReply;
-  generation: Pick<DialogueGenerationResult, "source" | "attempts">;
+  generation: Pick<
+    DialogueGenerationResult,
+    "source" | "attempts" | "resolution"
+  >;
   initiative?: boolean;
 }
 

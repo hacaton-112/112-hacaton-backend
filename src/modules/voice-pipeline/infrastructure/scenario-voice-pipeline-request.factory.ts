@@ -15,6 +15,8 @@ import {
 } from "@/modules/ai-gateway";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
 import { resolvePreparedQuestion } from "@/modules/scenario-audio/domain/prepared-dialogue";
+import { VoiceRuntimeService } from "../application/voice-runtime.service";
+import { abortable, requestsInstructionOverride } from "../domain/offline-turn";
 
 import type {
   CreateVoicePipelineRequestOptions,
@@ -51,12 +53,15 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
    * оператора, и разнобой между двумя стажёрами, которые спросили одинаково.
    */
   private readonly understood = new Map<string, readonly string[]>();
+  /** Per-turn decisions include failures; they must not poison the reusable question cache. */
+  private readonly turnAnswers = new Map<string, readonly string[]>();
 
   constructor(
     private readonly engine: ScenarioEngineService,
     @Inject(QUESTION_UNDERSTANDING_PORT)
     private readonly questions: QuestionUnderstandingPort,
     @Optional() private readonly audio?: ScenarioAudioService,
+    @Optional() private readonly runtime?: VoiceRuntimeService,
   ) {}
 
   async create({
@@ -67,6 +72,17 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     initiative,
   }: CreateVoicePipelineRequestOptions): Promise<VoicePipelineRequest> {
     signal.throwIfAborted();
+    const offline = this.runtime?.settings.enabled ?? false;
+    const exceptionDeadlineAt = offline
+      ? performance.now() + this.runtime!.settings.budgetMs
+      : undefined;
+    const turnSignal = offline
+      ? AbortSignal.any([
+          signal,
+          AbortSignal.timeout(this.runtime!.settings.budgetMs),
+        ])
+      : signal;
+    let exceptionReason: VoicePipelineRequest["exceptionReason"];
     let preferPreparedReply = false;
     const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
 
@@ -115,6 +131,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       : built.fallbackReply;
     return VoicePipelineRequestSchema.parse({
       preferPreparedReply,
+      ...(offline ? { exceptionDeadlineAt, exceptionReason } : {}),
       generation: {
         requestId,
         sessionId,
@@ -127,9 +144,19 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       // только осознанно, для отладки.
       voice: {
         ...built.voice,
-        voiceId: command.voiceId ?? built.voice.voiceId,
+        voiceId: offline
+          ? built.voice.voiceId
+          : (command.voiceId ?? built.voice.voiceId),
       },
     });
+  }
+
+  private rememberTurn(requestId: string, asked: readonly string[]): void {
+    if (this.turnAnswers.size >= MAX_CACHED_QUESTIONS) {
+      const oldest = this.turnAnswers.keys().next().value;
+      if (oldest !== undefined) this.turnAnswers.delete(oldest);
+    }
+    this.turnAnswers.set(requestId, asked);
   }
 
   /** Разбирает вопрос оператора, запоминая ответ на будущие повторы. */
@@ -200,14 +227,16 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       // Разбор этого же вопроса уже лежит в кеше после сборки контекста:
       // запись хода сверяется с тем же ответом, а не спрашивает модель снова.
       resolveAskedFacts: (facts) =>
-        this.understand(
-          requestId,
-          operatorText,
-          facts,
-          new AbortController().signal,
-          entries,
-          sessionId,
-        ),
+        this.runtime?.settings.enabled
+          ? Promise.resolve(this.turnAnswers.get(requestId) ?? [])
+          : this.understand(
+              requestId,
+              operatorText,
+              facts,
+              new AbortController().signal,
+              entries,
+              sessionId,
+            ),
     });
   }
 }
