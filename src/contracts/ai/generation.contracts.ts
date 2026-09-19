@@ -232,6 +232,25 @@ export const GenerationAttemptMetricsSchema = z
 
 export const DialogueGenerationMetricsSchema = z
   .object({
+    resolution: z
+      .object({
+        profile: z.literal("offline-hybrid"),
+        path: z.enum(["prepared", "local-generated", "safe-fallback"]),
+        reason: z
+          .enum([
+            "prompt-injection",
+            "intent-unavailable",
+            "unknown-question",
+            "unavailable-fact",
+            "deadline",
+            "generation-failed",
+            "ungrounded-response",
+            "synthesis-failed",
+          ])
+          .optional(),
+      })
+      .strict()
+      .optional(),
     source: z.enum(["model", "fallback", "prepared"]),
     attempts: z.array(GenerationAttemptMetricsSchema).max(2),
   })

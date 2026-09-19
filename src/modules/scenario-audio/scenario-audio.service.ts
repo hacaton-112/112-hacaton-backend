@@ -8,6 +8,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
   Optional,
+  ConflictException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { and, eq, gt, lt, or, sql } from "drizzle-orm";
@@ -49,6 +50,14 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_VERIFIED_BYTES = 32 * 1024 * 1024;
 const digest = (audio: Uint8Array): string =>
   createHash("sha256").update(audio).digest("hex");
+
+export class OfflineAudioNotReadyError extends ConflictException {
+  constructor() {
+    super(
+      "Для offline-звонка требуется утверждённый и полностью озвученный набор сценария",
+    );
+  }
+}
 
 @Injectable()
 export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
@@ -163,6 +172,43 @@ export class ScenarioAudioService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return [];
     }
+  }
+
+  async assertOfflineReady(versionId: string): Promise<void> {
+    const [pack] = await this.db
+      .select()
+      .from(scenarioAudioPacks)
+      .where(eq(scenarioAudioPacks.scenarioVersionId, versionId));
+    if (pack?.status !== "ready" || !pack.entries.length)
+      throw new OfflineAudioNotReadyError();
+    const version = await this.scenarios.loadVersion(versionId);
+    if (!version) throw new OfflineAudioNotReadyError();
+    // Large packs may hit the compiler's cap before reaching the highest panic level.
+    const required = compilePreparedSpeech({ ...version, facts: [] }).filter(
+      (item) =>
+        item.text === version.openingLine || item.text === version.fallbackLine,
+    );
+    if (
+      !required.length ||
+      required.some((item) => !pack.assets[audioFingerprint(item)])
+    )
+      throw new OfflineAudioNotReadyError();
+  }
+
+  async safeFallback(
+    versionId: string,
+    request: TtsSynthesisRequest,
+    signal: AbortSignal,
+  ) {
+    const version = await this.scenarios.loadVersion(versionId);
+    signal.throwIfAborted();
+    if (!version) return null;
+    const audio = await this.lookup(
+      versionId,
+      { ...request, text: version.fallbackLine },
+      signal,
+    );
+    return audio ? { ...audio, text: version.fallbackLine } : null;
   }
 
   resolveApprovedQuestion(

@@ -33,6 +33,16 @@ export const VoicePipelineRequestSchema = z
     voice: VoicePipelineVoiceSchema,
     /** Internal factory decision, never supplied by a websocket client. */
     preferPreparedReply: z.boolean().optional(),
+    /** Monotonic process-local deadline set by the trusted scenario factory, not a client field. */
+    exceptionDeadlineAt: z.number().nonnegative().optional(),
+    exceptionReason: z
+      .enum([
+        "prompt-injection",
+        "intent-unavailable",
+        "unknown-question",
+        "deadline",
+      ])
+      .optional(),
   })
   .strict();
 

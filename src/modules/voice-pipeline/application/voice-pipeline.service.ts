@@ -20,6 +20,7 @@ import {
 import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { OfflineReplyService } from "./offline-reply.service";
 
 import {
   VoicePipelineError,
@@ -61,7 +62,13 @@ export class VoicePipelineService {
     private readonly dialogueGeneration: DialogueGenerationService,
     private readonly speechSynthesis: SpeechSynthesisService,
     @Optional() private readonly preparedAudio?: ScenarioAudioService,
+    @Optional() private readonly offline?: OfflineReplyService,
   ) {}
+
+  async assertCanStart(versionId: string): Promise<void> {
+    if (this.offline?.runtime.settings.enabled)
+      await this.preparedAudio?.assertOfflineReady(versionId);
+  }
 
   streamReply(
     input: unknown,
@@ -109,13 +116,10 @@ export class VoicePipelineService {
       signal,
     );
     const lookupMs = performance.now() - lookupStartedAt;
+    if (this.offline?.runtime.settings.enabled && !prepared)
+      throw new Error("Offline opening audio is unavailable");
     yield* prepared && this.preparedAudio
-      ? this.preparedAudio.replay(
-          prepared,
-          request.requestId,
-          signal,
-          lookupMs,
-        )
+      ? this.preparedAudio.replay(prepared, request.requestId, signal, lookupMs)
       : this.speechSynthesis.synthesize(synthesisRequest, signal);
   }
 
@@ -130,50 +134,62 @@ export class VoicePipelineService {
     // Поиск записи тоже занимает время, и он обязан попасть в метрику
     // задержки: иначе заготовленный ответ выглядит мгновенным.
     let preparedLookupMs = 0;
+    let bufferedStream: AsyncIterable<SpeechSynthesisStreamEvent> | undefined;
 
     try {
-      const fallback = request.generation.fallbackReply;
-      const reaction = request.generation.context.turnPlan?.reactionAct;
-      if (
-        request.preferPreparedReply &&
-        fallback &&
-        this.preparedAudio &&
-        reaction &&
-        (request.generation.context.turnPlan?.focusFactIds?.length ?? 0) <= 1 &&
-        ["answer", "repeat", "acknowledge"].includes(reaction)
-      ) {
-        const candidate: DialogueGenerationResult = {
-          reply: fallback,
-          source: "prepared",
-          attempts: [],
-        };
-        const candidateLookupAt = performance.now();
-        prepared = await this.preparedAudio.lookup(
-          request.generation.scenarioVersionId,
-          this.createSynthesisRequest(request, candidate),
-          signal,
-        );
-        preparedLookupMs += performance.now() - candidateLookupAt;
-        generationResult = prepared
-          ? candidate
-          : await this.dialogueGeneration.generate(request.generation, signal);
+      if (this.offline?.runtime.settings.enabled) {
+        const resolved = await this.offline.resolve(request, signal);
+        generationResult = resolved.result;
+        bufferedStream = resolved.stream;
       } else {
-        generationResult = await this.dialogueGeneration.generate(
-          request.generation,
-          signal,
-        );
-      }
-      generationResult = DialogueGenerationResultSchema.parse(generationResult);
-      // A model/fallback may return an already approved phrase too. Reuse its
-      // audio without erasing the real generation attempts from the metrics.
-      if (!prepared && this.preparedAudio) {
-        const replyLookupAt = performance.now();
-        prepared = await this.preparedAudio.lookup(
-          request.generation.scenarioVersionId,
-          this.createSynthesisRequest(request, generationResult),
-          signal,
-        );
-        preparedLookupMs += performance.now() - replyLookupAt;
+        const fallback = request.generation.fallbackReply;
+        const reaction = request.generation.context.turnPlan?.reactionAct;
+        if (
+          request.preferPreparedReply &&
+          fallback &&
+          this.preparedAudio &&
+          reaction &&
+          (request.generation.context.turnPlan?.focusFactIds?.length ?? 0) <=
+            1 &&
+          ["answer", "repeat", "acknowledge"].includes(reaction)
+        ) {
+          const candidate: DialogueGenerationResult = {
+            reply: fallback,
+            source: "prepared",
+            attempts: [],
+          };
+          const candidateLookupAt = performance.now();
+          prepared = await this.preparedAudio.lookup(
+            request.generation.scenarioVersionId,
+            this.createSynthesisRequest(request, candidate),
+            signal,
+          );
+          preparedLookupMs += performance.now() - candidateLookupAt;
+          generationResult = prepared
+            ? candidate
+            : await this.dialogueGeneration.generate(
+                request.generation,
+                signal,
+              );
+        } else {
+          generationResult = await this.dialogueGeneration.generate(
+            request.generation,
+            signal,
+          );
+        }
+        generationResult =
+          DialogueGenerationResultSchema.parse(generationResult);
+        // A model/fallback may return an already approved phrase too. Reuse its
+        // audio without erasing the real generation attempts from the metrics.
+        if (!prepared && this.preparedAudio) {
+          const replyLookupAt = performance.now();
+          prepared = await this.preparedAudio.lookup(
+            request.generation.scenarioVersionId,
+            this.createSynthesisRequest(request, generationResult),
+            signal,
+          );
+          preparedLookupMs += performance.now() - replyLookupAt;
+        }
       }
     } catch {
       if (signal.aborted) {
@@ -213,14 +229,15 @@ export class VoicePipelineService {
 
     try {
       const synthesisStream =
-        prepared && this.preparedAudio
+        bufferedStream ??
+        (prepared && this.preparedAudio
           ? this.preparedAudio.replay(
               prepared,
               synthesisRequest.requestId,
               signal,
               preparedLookupMs,
             )
-          : this.speechSynthesis.synthesize(synthesisRequest, signal);
+          : this.speechSynthesis.synthesize(synthesisRequest, signal));
 
       for await (const rawEvent of synthesisStream) {
         signal.throwIfAborted();
@@ -323,6 +340,9 @@ export class VoicePipelineService {
         generation: {
           source: generationResult.source,
           attempts: generationResult.attempts,
+          ...(generationResult.resolution
+            ? { resolution: generationResult.resolution }
+            : {}),
         },
         synthesis: synthesisMetrics,
         ...(turnPlan === undefined

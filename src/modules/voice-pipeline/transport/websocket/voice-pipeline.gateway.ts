@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 
 import { Inject, Logger, type OnModuleInit } from "@nestjs/common";
+import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/scenario-audio.service";
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -718,6 +719,7 @@ export class VoicePipelineGateway
   ): Promise<void> {
     try {
       if (command.type === "start") {
+        await this.voicePipeline.assertCanStart?.(command.scenarioVersionId);
         // Каждый вызов — своя учебная сессия. Соединение переживает несколько
         // звонков подряд, а журнал, запись и разбор принадлежат звонку.
         state.sessionId = generateId();
@@ -832,6 +834,8 @@ export class VoicePipelineGateway
   }
 
   private commandErrorCode(error: unknown): VoicePipelineSocketErrorCode {
+    if (error instanceof OfflineAudioNotReadyError)
+      return "scenario-audio-not-ready";
     if (error instanceof ScenarioEngineError) return "call-state-invalid";
     if (error instanceof AppException) {
       if (error.code === ErrorCodes.ASSIGNMENT_MAX_ATTEMPTS_REACHED) {
@@ -1284,6 +1288,9 @@ export class VoicePipelineGateway
               generation: {
                 source: event.result.source,
                 attempts: event.result.attempts,
+                ...(event.result.resolution
+                  ? { resolution: event.result.resolution }
+                  : {}),
               },
               initiative,
             });
@@ -1565,6 +1572,8 @@ export class VoicePipelineGateway
     const messages = {
       "invalid-message": "Invalid voice pipeline command",
       "context-unavailable": "Voice pipeline context is unavailable",
+      "scenario-audio-not-ready":
+        "Scenario audio must be prepared before an offline call",
       "pipeline-failed": "Voice pipeline request failed",
       "call-state-invalid": "The call is not in a state that allows this",
       "listen-failed": "The operator utterance was not recognised",

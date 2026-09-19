@@ -288,6 +288,7 @@ export const VoicePipelineRequestCancelledEventSchema = z
 export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "invalid-message",
   "context-unavailable",
+  "scenario-audio-not-ready",
   "pipeline-failed",
   // Команда пришла не вовремя: например, speak до приёма вызова.
   "call-state-invalid",
