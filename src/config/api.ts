@@ -5,6 +5,7 @@ const API_WS_BASE_URL = `${env.wsUrl}${API_PREFIX}`;
 
 /** Относительные маршруты Nest API. */
 export const API_CONFIG = {
+  getVoiceRuntimeUrl: () => `/instructor/voice-runtime`,
   getLoginUrl: () => `/auth/login`,
   getRefreshUrl: () => `/auth/refresh`,
   getLogoutUrl: () => `/auth/logout`,

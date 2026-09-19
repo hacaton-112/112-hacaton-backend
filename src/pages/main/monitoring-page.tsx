@@ -2,6 +2,7 @@ import { Callout, Flex, Heading, Skeleton, Tabs, Text } from "@bolid-ui/themes";
 import { AlertTriangle } from "lucide-react";
 
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
+import { VoiceRuntimeStatus } from "../../components/training/voice-runtime-status";
 import { LiveSessionsPanel } from "../../components/training/live-sessions-panel";
 import {
   useInstructorCalls,
@@ -27,6 +28,7 @@ export default function MonitoringPage() {
         </Text>
       </div>
 
+      <VoiceRuntimeStatus />
       <Tabs.Root defaultValue="live" className="flex min-h-0 flex-1 flex-col">
         <Tabs.List size="2">
           <Tabs.Trigger value="live">Активные попытки</Tabs.Trigger>

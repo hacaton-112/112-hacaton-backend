@@ -7,6 +7,7 @@
  * старыми данными — тайпчек её не ловил.
  */
 export const QUERY_KEYS = {
+  voiceRuntime: () => ["voice-runtime"] as const,
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,
