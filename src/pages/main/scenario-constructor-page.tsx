@@ -26,6 +26,7 @@ import {
   SupportIcon,
 } from "../../components/scenario-authoring/scenario-ai-helper";
 import { Breadcrumbs } from "../../components/ui/breadcrumbs";
+import { ScenarioAudioPreparation } from "../../components/scenario-authoring/scenario-audio-preparation";
 import {
   describeIssue,
   fieldErrorsFrom,
@@ -577,6 +578,15 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
               {published.version}. Он уже доступен в списке тренировок.
             </Callout.Text>
           </Callout.Root>
+        )}
+
+        {(published?.scenarioVersionId ?? base?.scenarioVersionId) && (
+          <ScenarioAudioPreparation
+            key={published?.scenarioVersionId ?? base?.scenarioVersionId}
+            versionId={
+              (published?.scenarioVersionId ?? base?.scenarioVersionId)!
+            }
+          />
         )}
 
         {/* Пока помощник собирает черновик, скелетоном становятся только поля. */}

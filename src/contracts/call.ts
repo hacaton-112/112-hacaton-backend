@@ -106,7 +106,7 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     text: z.string(),
     emotion: z.string(),
     intensity: z.number(),
-    source: z.enum(["model", "fallback"]),
+    source: z.enum(["model", "fallback", "prepared"]),
   }),
   z.object({
     type: z.literal("audio.start"),
