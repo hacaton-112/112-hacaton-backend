@@ -35,5 +35,17 @@ export default defineConfig(() => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    proxy: {
+      "/piper-proxy": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/piper-proxy/, ""),
+      },
+      "/asr-proxy": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/asr-proxy/, ""),
+      },
+    },
   },
 }));
