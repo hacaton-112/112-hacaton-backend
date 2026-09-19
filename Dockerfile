@@ -47,6 +47,10 @@ COPY --from=build /app/dist ./dist
 # Референсные голоса читаются во время работы: без них режим Base ICL не
 # стартует.
 COPY assets ./assets
+# Миграции применяет сам контейнер перед стартом: отдельная разовая задача
+# оставляла бы в compose завершившийся контейнер.
+COPY drizzle/migrate.ts ./drizzle/migrate.ts
+COPY drizzle/migrations ./drizzle/migrations
 
 # Winston пишет файлы в ./logs; процесс работает не от root, и каталог должен
 # принадлежать ему.
@@ -59,4 +63,4 @@ EXPOSE 3000 9464
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD ["bun", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT ?? 3000) + '/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
-CMD ["bun", "dist/src/main.js"]
+CMD ["sh", "-c", "bun drizzle/migrate.ts && exec bun dist/src/main.js"]

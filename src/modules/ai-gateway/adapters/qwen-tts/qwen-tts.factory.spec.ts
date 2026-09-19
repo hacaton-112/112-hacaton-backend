@@ -1,4 +1,5 @@
 import { MlxAudioTtsAdapter } from "./mlx-audio/mlx-audio-tts.adapter";
+import { PiperTtsAdapter } from "./piper/piper-tts.adapter";
 import { createQwenTtsAdapter } from "./qwen-tts.factory";
 import { VllmOmniTtsAdapter } from "./vllm-omni/vllm-omni-tts.adapter";
 
@@ -34,5 +35,22 @@ describe(createQwenTtsAdapter.name, () => {
         fetchImplementation,
       ),
     ).toBeInstanceOf(VllmOmniTtsAdapter);
+  });
+
+  it("selects Piper", () => {
+    expect(
+      createQwenTtsAdapter(
+        {
+          provider: "piper",
+          mode: "custom-voice",
+          model: "piper",
+          baseUrl: "http://127.0.0.1:5000",
+          maleVoice: "ru_RU-dmitri-medium",
+          femaleVoice: "ru_RU-irina-medium",
+          requestTimeoutMs: 60_000,
+        },
+        fetchImplementation,
+      ),
+    ).toBeInstanceOf(PiperTtsAdapter);
   });
 });

@@ -48,6 +48,98 @@ services:
       start_period: 20m
     stop_grace_period: 2m
 
+  # ── Голосовой конвейер на CPU ─────────────────────────────────────────────
+  # Поднимается обычным `docker compose up -d`, без профилей и без разовых
+  # контейнеров-загрузчиков: модели ASR зашиты в образ, модель LLM llama-server
+  # скачивает сам при первом старте в том llm_models.
+  #
+  # Потоки рассчитаны на 6 ядер / 12 потоков (Ryzen 5 5600): распознавание,
+  # модель и синтез работают по очереди в пределах хода, поэтому квоты cpus
+  # не ставятся — квота ниже числа потоков только душит обработку промпта.
+  asr:
+    build:
+      context: ./docker/asr
+      additional_contexts:
+        # Исходники сервиса распознавания — соседний репозиторий.
+        asr-src: ${ASR_SOURCE_DIR:-../asr-service}
+    image: system-112-asr-cpu:${ASR_IMAGE_TAG:-local}
+    container_name: system-112-asr
+    restart: unless-stopped
+    init: true
+    environment:
+      WHISPER_HOST: 0.0.0.0
+      WHISPER_PORT: "8787"
+      WHISPER_DEVICE: cpu
+      WHISPER_THREADS: ${WHISPER_THREADS:-6}
+      WHISPER_PARTIALS_ENABLED: "false"
+      WHISPER_PUBLIC_WS_URL: ${WHISPER_PUBLIC_WS_URL:-ws://127.0.0.1:8787}
+      WHISPER_PARTIAL_INTERVAL_MS: ${WHISPER_PARTIAL_INTERVAL_MS:-2000}
+      WHISPER_SILENCE_TIMEOUT_MS: ${WHISPER_SILENCE_TIMEOUT_MS:-300}
+      RUST_LOG: ${ASR_RUST_LOG:-asr_service=info,tower_http=warn,whisper_rs=warn}
+    ports:
+      - "127.0.0.1:${WHISPER_PORT:-8787}:8787"
+
+  local-llm:
+    image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    container_name: system-112-local-llm
+    restart: unless-stopped
+    init: true
+    environment:
+      MODEL_FILE: /models/${LOCAL_LLM_MODEL_FILE:-qwen2.5-3b-instruct-q4_k_m.gguf}
+      MODEL_URL: ${LOCAL_LLM_MODEL_URL:-https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf}
+    # Модель качается, только если её ещё нет в томе. Флаг --model-url сам
+    # llama-server не подходит: он сверяется с Hugging Face на каждом старте и
+    # без сети не поднимается даже со скачанной моделью.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ ! -s "$$MODEL_FILE" ]; then
+        curl -fL --retry 10 --retry-all-errors --retry-delay 3 -sS -o "$$MODEL_FILE.part" "$$MODEL_URL" &&
+        mv "$$MODEL_FILE.part" "$$MODEL_FILE" || exit 1;
+        fi;
+        exec /app/llama-server
+        --model "$$MODEL_FILE"
+        --alias training-model
+        --host 0.0.0.0
+        --port 8080
+        --parallel 2
+        --ctx-size 8192
+        --threads ${LOCAL_LLM_THREADS:-6}
+        --threads-batch ${LOCAL_LLM_THREADS_BATCH:-12}
+        --batch-size 512
+        --ubatch-size 512
+        --flash-attn on
+        --cache-type-k q8_0
+        --cache-type-v q8_0
+        --poll 100
+        --load-mode mmap+mlock
+        --metrics
+    # Два слота: реплика заявителя и разбор вопроса держат каждый свой кеш
+    # промпта (id_slot в LocalLlmAdapter), по 4096 токенов на слот. Генерация
+    # упирается в память и ей хватает физических ядер; разбор промпта упирается
+    # в вычисления и выигрывает от SMT, отсюда 6 и 12 потоков.
+    ports:
+      - "127.0.0.1:${LOCAL_LLM_PORT:-8080}:8080"
+    volumes:
+      - llm_models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # Первый старт качает модель (~2 ГБ).
+      start_period: 30m
+
+  piper-tts:
+    build:
+      context: ./docker/piper-tts
+    image: system-112-piper-tts:${PIPER_IMAGE_TAG:-local}
+    container_name: system-112-piper-tts
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${PIPER_TTS_PORT:-5000}:5000"
+
   postgres:
     image: postgres:17-alpine
     container_name: system-112-training-postgres
@@ -77,10 +169,23 @@ services:
     image: minio/minio:latest
     container_name: system-112-training-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    init: true
+    # MinIO не создаёт корзину сам. Её заводит тот же контейнер сразу после
+    # старта сервера, чтобы в стеке не оставался завершившийся помощник.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        minio server /data --console-address ":9001" &
+        pid=$$!;
+        trap 'kill -TERM $$pid' TERM INT;
+        until mc ready local >/dev/null 2>&1; do sleep 1; done;
+        mc alias set boot http://127.0.0.1:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null &&
+        mc mb --ignore-existing "boot/$$CALL_RECORDING_S3_BUCKET";
+        wait $$pid
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
+      CALL_RECORDING_S3_BUCKET: ${CALL_RECORDING_S3_BUCKET:-call-recordings}
     ports:
       # Записи отдаёт клиенту сам backend, поэтому хранилище наружу не нужно.
       - "${MINIO_BIND_ADDRESS:-127.0.0.1}:${MINIO_PORT:-9000}:9000"
@@ -94,22 +199,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # MinIO не создаёт корзину сам, а запись не должна падать на первом же
-  # звонке: контейнер отрабатывает один раз и выходит.
-  minio-bucket:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-system112}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-system112secret}
-      CALL_RECORDING_S3_BUCKET: ${CALL_RECORDING_S3_BUCKET:-call-recordings}
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
-      mc mb --ignore-existing local/$${CALL_RECORDING_S3_BUCKET}
-      "
   pgadmin:
     image: dpage/pgadmin4:8.14
     container_name: pgadmin
@@ -167,21 +256,11 @@ services:
     depends_on:
       - prometheus
 
-  # ── Приложение ─────────────────────────────────────────────────────────────
-  # Профиль app не включается обычным `compose up`: разработчик запускает
-  # backend на хосте, а в Docker держит только базу, хранилище и мониторинг.
-  # На сервере стек поднимается целиком: docker compose --profile app up -d.
-
-  # Разовая задача: применяет миграции и выходит. backend ждёт её успешного
-  # завершения, поэтому схема базы всегда совпадает с кодом образа. Тот же
-  # образ выполняет сид сценариев и создание учётной записи — см.
-  # docs/deployment.md.
   # Учебная IP-АТС: рабочие места ДДС звонят нарядам по SIP, а на том конце
   # отвечает backend через ARI. SIP и RTP публикуются в сеть класса — к ним
   # подключаются аппаратные телефоны вроде РТУ Т16Р или софтфоны; ARI остаётся
   # внутри сети compose.
   asterisk:
-    profiles: ["telephony"]
     image: ${ASTERISK_IMAGE:-andrius/asterisk:22}
     container_name: system-112-training-asterisk
     restart: unless-stopped
@@ -210,22 +289,10 @@ services:
       # не том compose: его видит и backend, запущенный вне контейнера.
       - ./telephony-sounds/crew:/var/lib/asterisk/sounds/crew
 
-  migrate:
-    profiles: ["app"]
-    build:
-      context: .
-      target: tools
-    image: system-112-training-backend-tools:${BACKEND_IMAGE_TAG:-local}
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-system112}:${POSTGRES_PASSWORD:-system112}@postgres:5432/${POSTGRES_DB:-system112_training}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-
+  # ── Приложение ─────────────────────────────────────────────────────────────
+  # Миграции backend применяет сам при старте (drizzle/migrate.ts). Сид
+  # сценариев и учётной записи выполняет образ tools — см. docs/deployment.md.
   backend:
-    profiles: ["app"]
     build:
       context: .
       target: runtime
@@ -247,8 +314,18 @@ services:
       CALL_RECORDING_S3_ENDPOINT: http://minio:9000
       CALL_RECORDING_S3_ACCESS_KEY_ID: ${CALL_RECORDING_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
       CALL_RECORDING_S3_SECRET_ACCESS_KEY: ${CALL_RECORDING_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
-      # Телефония включается вместе с профилем telephony; без него рабочее
-      # место ДДС работает без шага передачи наряду.
+      ASR_SERVICE_URL: http://asr:8787
+      LLM_PROVIDER: local
+      LOCAL_LLM_BASE_URL: http://local-llm:8080/v1
+      LOCAL_LLM_MODEL: training-model
+      LOCAL_LLM_TIMEOUT_MS: ${LOCAL_LLM_TIMEOUT_MS:-30000}
+      LOCAL_LLM_CONCURRENCY: "1"
+      QWEN_TTS_PROVIDER: piper
+      PIPER_TTS_BASE_URL: http://piper-tts:5000
+      PIPER_TTS_MALE_VOICE: ${PIPER_TTS_MALE_VOICE:-ru_RU-dmitri-medium}
+      PIPER_TTS_FEMALE_VOICE: ${PIPER_TTS_FEMALE_VOICE:-ru_RU-irina-medium}
+      # Backend подключается к уже запущенному Asterisk, только когда телефония
+      # явно включена; без неё рабочее место ДДС работает без передачи наряду.
       TELEPHONY_ENABLED: ${TELEPHONY_ENABLED:-false}
       ASTERISK_ARI_URL: http://asterisk:8088
       ASTERISK_ARI_USER: ${ASTERISK_ARI_USER:-system112}
@@ -266,18 +343,21 @@ services:
     volumes:
       - backend_logs:/app/logs
       - ./telephony-sounds/crew:/app/telephony-sounds/crew
-    # ASR и TTS обычно подняты на том же хосте из репозитория infra и доступны
-    # контейнеру как host.docker.internal.
-    extra_hosts:
-      - host.docker.internal:host-gateway
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+      asr:
+        condition: service_healthy
+      piper-tts:
+        condition: service_healthy
+      local-llm:
+        condition: service_healthy
 
 volumes:
   qwen_tts_hf_cache:
+  llm_models:
   postgres_data:
   pgadmin-data:
   minio_data:

@@ -54,6 +54,18 @@ describe(parseQwenTtsConfig.name, () => {
     });
   });
 
+  it("applies Piper CPU defaults", () => {
+    expect(parseQwenTtsConfig({ QWEN_TTS_PROVIDER: "piper" })).toEqual({
+      provider: "piper",
+      mode: "custom-voice",
+      model: "piper",
+      baseUrl: "http://127.0.0.1:5000",
+      maleVoice: "ru_RU-dmitri-medium",
+      femaleVoice: "ru_RU-irina-medium",
+      requestTimeoutMs: DEFAULT_QWEN_TTS_REQUEST_TIMEOUT_MS,
+    });
+  });
+
   it("normalizes custom values", () => {
     expect(
       parseQwenTtsConfig({
@@ -121,15 +133,13 @@ describe(parseQwenTtsConfig.name, () => {
         referenceVoices,
       }),
     );
-    expect(loadReferences).toHaveBeenCalledWith(
-      "config/reference-voices.json",
-    );
+    expect(loadReferences).toHaveBeenCalledWith("config/reference-voices.json");
   });
 
   it("requires a registry and a Base model in ICL mode", () => {
-    expect(() =>
-      parseQwenTtsConfig({ QWEN_TTS_MODE: "base-icl" }),
-    ).toThrow("QWEN_TTS_REFERENCE_VOICES_PATH");
+    expect(() => parseQwenTtsConfig({ QWEN_TTS_MODE: "base-icl" })).toThrow(
+      "QWEN_TTS_REFERENCE_VOICES_PATH",
+    );
 
     expect(() =>
       parseQwenTtsConfig(

@@ -18,6 +18,9 @@ const QWEN_TTS_ENVIRONMENT_KEYS = [
   "QWEN_TTS_REFERENCE_VOICES_PATH",
   "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
   "QWEN_TTS_REQUEST_TIMEOUT_MS",
+  "PIPER_TTS_BASE_URL",
+  "PIPER_TTS_MALE_VOICE",
+  "PIPER_TTS_FEMALE_VOICE",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];
 
 const createQwenTtsConfig = (configService: ConfigService) =>

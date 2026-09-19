@@ -42,6 +42,18 @@ const CompletionSchema = z.object({
     .min(1),
 });
 
+/**
+ * Слоты llama-server, закреплённые за видами запросов.
+ *
+ * На CPU почти всё время хода уходит на разбор промпта, а не на генерацию.
+ * llama-server не пересчитывает общий префикс с прошлым запросом того же
+ * слота, но разбор вопроса и реплика заявителя идут на каждом ходе с разными
+ * системными промптами: в одном слоте они вытесняли бы кеш друг друга, и
+ * каждый ход считался бы с нуля. Сервер поэтому запускается с `--parallel 2`.
+ */
+const REPLY_SLOT = 0;
+const QUESTION_SLOT = 1;
+
 class LocalLlmBusyError extends Error {
   readonly status = 429;
   readonly retryable = false;
@@ -76,9 +88,14 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
           schemaDescription: "Caller reply using only permitted facts",
           schema: CALLER_REPLY_JSON_SCHEMA,
           systemPrompt: ALICE_AI_SYSTEM_PROMPT,
+          // Порядок полей — ради кеша промпта: сначала то, что живёт весь
+          // звонок (persona) или только дописывается (recentTurns), в конце —
+          // то, что меняется каждый ход. Пересчитывается только хвост.
           userPrompt: JSON.stringify({
-            ...request.context,
-            operatorText: request.operatorText,
+            persona: request.context.persona,
+            recentTurns: request.context.recentTurns.slice(-4),
+            alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
+            allowedFacts: request.context.allowedFacts,
             ...(plan
               ? {
                   turnPlan: {
@@ -90,11 +107,13 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
             ...(request.retryFeedback
               ? { retryFeedback: request.retryFeedback }
               : {}),
+            operatorText: request.operatorText,
           }),
-          maxTokens: 256,
+          maxTokens: 80,
           signal: deadline,
         },
         true,
+        REPLY_SLOT,
       );
       if (
         !response.headers
@@ -122,14 +141,17 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         schemaDescription: "Known fact identifiers requested by the operator",
         schema: ASKED_FACTS_JSON_SCHEMA,
         systemPrompt: ALICE_AI_QUESTION_PROMPT,
+        // Факты сценария одни на весь звонок: они идут первыми и остаются в
+        // кеше, а заново считается только реплика оператора.
         userPrompt: JSON.stringify({
-          operatorText: request.operatorText,
           facts: request.facts,
+          operatorText: request.operatorText,
         }),
-        maxTokens: 128,
+        maxTokens: 64,
         signal,
       },
       this.config.concurrency,
+      QUESTION_SLOT,
     );
     return parseAliceAiQuestionResponse(
       { choices: [{ message: { content: JSON.stringify(content) } }] },
@@ -153,6 +175,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private async run(
     request: StructuredOutputRequest,
     limit: number,
+    slot?: number,
   ): Promise<unknown> {
     this.acquire(request.signal, limit);
     try {
@@ -165,6 +188,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
           ]),
         },
         false,
+        slot,
       );
       const body = CompletionSchema.parse(await response.json());
       const content: unknown = JSON.parse(body.choices[0]!.message.content);
@@ -183,6 +207,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private async post(
     request: StructuredOutputRequest,
     stream: boolean,
+    slot?: number,
   ): Promise<Response> {
     const response = await this.fetchImplementation(
       `${this.config.baseUrl}/chat/completions`,
@@ -199,10 +224,15 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         body: JSON.stringify({
           model: this.config.model,
           stream,
-          temperature: 0.2,
+          temperature: 0.65,
+          presence_penalty: 0.5,
+          frequency_penalty: 0.3,
+          repeat_penalty: 1.15,
           max_tokens: request.maxTokens,
           chat_template_kwargs: { enable_thinking: false },
           reasoning_effort: "none",
+          cache_prompt: true,
+          ...(slot === undefined ? {} : { id_slot: slot }),
           messages: [
             { role: "system", content: request.systemPrompt },
             { role: "user", content: request.userPrompt },

@@ -80,11 +80,22 @@ describe(FileCrewPromptStore.name, () => {
     expect(synthesize).not.toHaveBeenCalled();
   });
 
-  it("refuses a sample rate Asterisk cannot play", async () => {
+  it("resamples a sample rate Asterisk cannot play to 16 kHz", async () => {
     const store = new FileCrewPromptStore(dir, {
-      synthesize: speech(22_050, [1, 2]),
+      synthesize: speech(22_050, [1, 2, 3, 4, 5, 6]),
     } as never);
 
-    await expect(store.ensure("Принял.", "ryan")).rejects.toThrow("22050 Hz");
+    await store.ensure("Принял.", "ryan");
+
+    const name = crewPromptName("Принял.", "ryan");
+    expect(await readdir(join(dir, "crew"))).toEqual([`${name}.sln16`]);
+  });
+
+  it("refuses empty synthesis", async () => {
+    const store = new FileCrewPromptStore(dir, {
+      synthesize: speech(22_050, []),
+    } as never);
+
+    await expect(store.ensure("Принял.", "ryan")).rejects.toThrow("0 bytes");
   });
 });

@@ -21,3 +21,4 @@ logs
 docker-compose*.yml
 observability
 docs
+maps

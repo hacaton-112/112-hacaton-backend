@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { env } from "@/core/config/env.config";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
@@ -84,7 +85,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         );
         // Exact questions need no model. Paraphrases may use the local intent
         // parser once, but still reuse approved wording and recorded audio.
-        preferPreparedReply = asked.length > 0;
+        preferPreparedReply = (asked?.length ?? 0) > 0;
         return asked;
       },
     });
@@ -152,12 +153,22 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     const prepared =
       this.audio?.resolveApprovedQuestion(operatorText, facts, entries) ??
       resolvePreparedQuestion(operatorText, facts);
-    const asked =
-      prepared ??
-      (await this.questions.understand(
-        { requestId, operatorText, facts: [...facts] },
-        signal,
-      ));
+    if (prepared !== null) {
+      if (this.understood.size >= MAX_CACHED_QUESTIONS) {
+        this.understood.clear();
+      }
+      this.understood.set(key, prepared);
+      return prepared;
+    }
+
+    if (env.NODE_ENV !== "test" && env.LLM_PROVIDER === "local") {
+      return undefined as unknown as string[];
+    }
+
+    const asked = await this.questions.understand(
+      { requestId, operatorText, facts: [...facts] },
+      signal,
+    );
 
     if (this.understood.size >= MAX_CACHED_QUESTIONS) {
       this.understood.clear();
