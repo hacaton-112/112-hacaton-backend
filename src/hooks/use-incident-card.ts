@@ -167,6 +167,12 @@ export function useIncidentCard({
       throw new Error("Нет активной карточки для отправки");
     }
 
+    // Повтор вернул бы с сервера прежний рецепт, а оператор прочитал бы его
+    // как новую доставку: отправка одной карточки бывает только одна.
+    if (draft.current.getSnapshot()?.submittedAt) {
+      throw new Error("Карточка уже направлена в ДДС");
+    }
+
     await draft.current.flush();
     const command = dispatchCommand.current;
     if (!command || command.sessionId !== trainingSessionId) {
