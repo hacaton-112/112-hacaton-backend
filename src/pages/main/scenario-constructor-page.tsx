@@ -27,6 +27,11 @@ import {
 } from "../../components/scenario-authoring/scenario-ai-helper";
 import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { ScenarioAudioPreparation } from "../../components/scenario-authoring/scenario-audio-preparation";
+import { DialoguePreparationPanel } from "../../components/scenario-authoring/dialogue-preparation-panel";
+import {
+  preparationCanPublish,
+  type PreparationSelection,
+} from "../../components/scenario-authoring/dialogue-preparation-state";
 import {
   describeIssue,
   fieldErrorsFrom,
@@ -211,6 +216,9 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const [revealRequest, setRevealRequest] = useState(0);
   const revealIssuesRef = useRef<ValidationIssue[]>([]);
   const [published, setPublished] = useState<PublishedScenario>();
+  const [preparation, setPreparation] = useState<PreparationSelection | null>(
+    null,
+  );
   const [geocodingFeedback, setGeocodingFeedback] = useState<{
     status: "idle" | "loading" | "success" | "error";
     message?: string;
@@ -372,6 +380,12 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   };
 
   const publish = async () => {
+    if (!preparationCanPublish(preparation, scenario)) {
+      toast.error(
+        "Сначала завершите подготовку текущего снимка или продолжите без этого набора",
+      );
+      return;
+    }
     const parsed = ScenarioSeedSchema.safeParse(scenario);
     if (!parsed.success) {
       revealIssuesRef.current = parsed.error.issues;
@@ -386,6 +400,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     try {
       if (base) {
         const result = await versionPublication.mutateAsync({
+          ...(preparation?.id ? { preparationId: preparation.id } : {}),
           scenarioId: base.scenarioId,
           baseVersionId: base.scenarioVersionId,
           scenario: parsed.data,
@@ -403,11 +418,13 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       }
 
       const result = await publication.mutateAsync({
+        ...(preparation?.id ? { preparationId: preparation.id } : {}),
         scenario: parsed.data,
         authoringSource,
         ...(authoringPrompt ? { authoringPrompt } : {}),
       });
       setPublished(result);
+      setPreparation(null);
       toast.success("Сценарий опубликован", {
         description: `${result.code} · версия ${result.version}`,
       });
@@ -590,6 +607,24 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
         )}
 
         {/* Пока помощник собирает черновик, скелетоном становятся только поля. */}
+        {!published && (
+          <DialoguePreparationPanel
+            scenario={scenario}
+            onChange={setPreparation}
+            disabled={busy}
+            authoringSource={authoringSource}
+            authoringPrompt={authoringPrompt}
+            scopeCode={base ? scenario.code : undefined}
+            onRestore={(snapshot) => {
+              geocodingRequestRef.current += 1;
+              reverseGeocoding.reset();
+              setScenario(snapshot.scenario);
+              setAuthoringSource(snapshot.authoringSource);
+              setAuthoringPrompt(snapshot.authoringPrompt ?? undefined);
+              setFieldErrors(new Map());
+            }}
+          />
+        )}
         <ScenarioFormLoadingContext value={draft.isPending}>
           <ScenarioFormErrorsContext value={errorsContext}>
             <ScenarioBasicsSection
@@ -691,7 +726,11 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
             <Button
               type="button"
               size="2"
-              disabled={busy || Boolean(published)}
+              disabled={
+                busy ||
+                Boolean(published) ||
+                !preparationCanPublish(preparation, scenario)
+              }
               onClick={() => void publish()}
             >
               {publishing ? <Spinner size="1" /> : <CheckCircle2 size={16} />}

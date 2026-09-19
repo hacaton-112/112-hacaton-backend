@@ -16,6 +16,7 @@ import { api } from "../lib/api";
 export type ScenarioAuthoringSource = "manual" | "assistant";
 
 export interface ScenarioPublicationInput {
+  preparationId?: string;
   scenario: ScenarioSeed;
   authoringSource: ScenarioAuthoringSource;
   authoringPrompt?: string;
