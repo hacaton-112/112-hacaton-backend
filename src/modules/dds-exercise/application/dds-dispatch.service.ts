@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 
 import {
   AppBadRequestException,
@@ -20,13 +20,13 @@ import {
   trainingAttempts,
 } from "@/drizzle/schema";
 
+import { ACKNOWLEDGEMENT_NORM_MS } from "../domain/dds-response-status";
 import { buildDdsIncidentSnapshot } from "../domain/dds-incident-snapshot";
 import type {
   DdsDispatchReceipt,
   DispatchIncidentCardRequest,
 } from "../dto/dds-exercise.dto";
 
-const DDS_ACKNOWLEDGEMENT_NORM_MS = 30_000;
 const ACTIVE_CALL_STAGES = new Set(["conversation", "wrap_up"]);
 
 /**
@@ -146,14 +146,17 @@ export class DdsDispatchService {
         );
       }
 
+      // Последняя начатая попытка: у сессии их может быть несколько, и без
+      // порядка доставка привязалась бы к чужой попытке занятия.
       const [attempt] = await tx
         .select({ id: trainingAttempts.id })
         .from(trainingAttempts)
         .where(eq(trainingAttempts.trainingSessionId, trainingSessionId))
+        .orderBy(desc(trainingAttempts.startedAt))
         .limit(1);
       const now = new Date();
       const acknowledgementDeadlineAt = new Date(
-        now.getTime() + DDS_ACKNOWLEDGEMENT_NORM_MS,
+        now.getTime() + ACKNOWLEDGEMENT_NORM_MS,
       );
       const deliveries = built.services.map((addressedService) => ({
         id: generateId(),
