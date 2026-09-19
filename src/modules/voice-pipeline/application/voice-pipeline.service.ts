@@ -102,13 +102,20 @@ export class VoicePipelineService {
       language: request.language,
       ...request.voice,
     });
+    const lookupStartedAt = performance.now();
     const prepared = await this.preparedAudio?.lookupOpening(
       request.sessionId,
       synthesisRequest,
       signal,
     );
+    const lookupMs = performance.now() - lookupStartedAt;
     yield* prepared && this.preparedAudio
-      ? this.preparedAudio.replay(prepared, request.requestId, signal)
+      ? this.preparedAudio.replay(
+          prepared,
+          request.requestId,
+          signal,
+          lookupMs,
+        )
       : this.speechSynthesis.synthesize(synthesisRequest, signal);
   }
 
@@ -120,6 +127,9 @@ export class VoicePipelineService {
     const startedAt = performance.now();
     let generationResult: DialogueGenerationResult;
     let prepared: Awaited<ReturnType<ScenarioAudioService["lookup"]>> = null;
+    // Поиск записи тоже занимает время, и он обязан попасть в метрику
+    // задержки: иначе заготовленный ответ выглядит мгновенным.
+    let preparedLookupMs = 0;
 
     try {
       const fallback = request.generation.fallbackReply;
@@ -137,11 +147,13 @@ export class VoicePipelineService {
           source: "prepared",
           attempts: [],
         };
+        const candidateLookupAt = performance.now();
         prepared = await this.preparedAudio.lookup(
           request.generation.scenarioVersionId,
           this.createSynthesisRequest(request, candidate),
           signal,
         );
+        preparedLookupMs += performance.now() - candidateLookupAt;
         generationResult = prepared
           ? candidate
           : await this.dialogueGeneration.generate(request.generation, signal);
@@ -155,11 +167,13 @@ export class VoicePipelineService {
       // A model/fallback may return an already approved phrase too. Reuse its
       // audio without erasing the real generation attempts from the metrics.
       if (!prepared && this.preparedAudio) {
+        const replyLookupAt = performance.now();
         prepared = await this.preparedAudio.lookup(
           request.generation.scenarioVersionId,
           this.createSynthesisRequest(request, generationResult),
           signal,
         );
+        preparedLookupMs += performance.now() - replyLookupAt;
       }
     } catch {
       if (signal.aborted) {
@@ -204,6 +218,7 @@ export class VoicePipelineService {
               prepared,
               synthesisRequest.requestId,
               signal,
+              preparedLookupMs,
             )
           : this.speechSynthesis.synthesize(synthesisRequest, signal);
 

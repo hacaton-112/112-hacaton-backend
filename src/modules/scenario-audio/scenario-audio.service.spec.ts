@@ -73,10 +73,28 @@ describe(ScenarioAudioService.name, () => {
         new AbortController().signal,
       ),
     ).resolves.toBeNull();
-    get.mockResolvedValue(new Uint8Array([9, 9, 9, 9]));
+    // Подменённое содержимое отбраковывается при первой же сверке: у свежего
+    // экземпляра проверенных записей в памяти ещё нет.
+    const corrupted = setup();
+    corrupted.get.mockResolvedValue(new Uint8Array([9, 9, 9, 9]));
     await expect(
-      service.lookup("version-1", request, new AbortController().signal),
+      corrupted.service.lookup(
+        "version-1",
+        request,
+        new AbortController().signal,
+      ),
     ).resolves.toBeNull();
+  });
+
+  it("verifies a prepared record once and keeps it for the next reply", async () => {
+    const { service, get } = setup();
+
+    await service.lookup("version-1", request, new AbortController().signal);
+    await service.lookup("version-1", request, new AbortController().signal);
+
+    // Загрузка и сверка хеша стоят дорого, а ключ содержит sha256: содержимое
+    // по нему уже не изменится.
+    expect(get).toHaveBeenCalledTimes(1);
   });
   it.each([null, { ...pack, status: "preparing" }])(
     "does not expose incomplete packs",
