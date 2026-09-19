@@ -20,6 +20,8 @@ export const env = createEnv({
     HOST: z.string().default("0.0.0.0"),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
+    SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
+    LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),
 
     // ── CORS ─────────────────────────────────────────────────────
     CORS_ORIGINS: z

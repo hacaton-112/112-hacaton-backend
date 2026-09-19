@@ -73,10 +73,18 @@ export const SpeechSynthesisMetricsSchema = z
     durationMs: z.number().nonnegative(),
     chunkCount: z.number().int().positive(),
     audioBytes: z.number().int().positive().multipleOf(2),
-    attempts: z.array(SpeechSynthesisAttemptMetricsSchema).min(1).max(2),
+    attempts: z.array(SpeechSynthesisAttemptMetricsSchema).max(2),
+    source: z.enum(["model", "prepared"]).optional(),
   })
   .strict()
   .superRefine((metrics, context) => {
+    if ((metrics.source === "prepared") !== (metrics.attempts.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts"],
+        message: "Only prepared audio has no synthesis attempts",
+      });
+    }
     if (metrics.durationMs < metrics.timeToFirstAudioMs) {
       context.addIssue({
         code: "custom",

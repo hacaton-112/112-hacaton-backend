@@ -10,6 +10,7 @@ import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 import { TrainingModule } from "@/modules/training/training.module";
+import { ScenarioAudioModule } from "@/modules/scenario-audio/scenario-audio.module";
 
 import { VOICE_PIPELINE_METRICS } from "./application/voice-pipeline.metrics";
 import { VoicePipelineService } from "./application/voice-pipeline.service";
@@ -56,6 +57,7 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
     IncidentCardModule,
     SpeechSynthesisModule,
     TrainingModule,
+    ScenarioAudioModule,
   ],
   controllers: [InstructorSessionsController],
   providers: [
