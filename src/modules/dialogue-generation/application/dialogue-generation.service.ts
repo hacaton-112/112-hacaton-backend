@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
-import { env } from "@/core/config/env.config";
 import {
   CallerReplySchema,
   DialogueGenerationResultSchema,

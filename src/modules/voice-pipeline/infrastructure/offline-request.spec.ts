@@ -17,7 +17,7 @@ const reply: CallerReply = {
   revealedFactIds: [],
   endCall: false,
 };
-const setup = () => {
+const setup = (expectedAsked: readonly string[] = []) => {
   const understand = jest.fn().mockResolvedValue([]);
   const buildGenerationContext = jest.fn(
     async (
@@ -48,7 +48,7 @@ const setup = () => {
   );
   const applyCallerReply = jest.fn(
     async (input: Parameters<ScenarioEngineService["applyCallerReply"]>[0]) => {
-      expect(await input.resolveAskedFacts?.(facts)).toEqual([]);
+      expect(await input.resolveAskedFacts?.(facts)).toEqual(expectedAsked);
     },
   );
   const runtime = new VoiceRuntimeService(
@@ -72,6 +72,55 @@ const setup = () => {
   return { factory, understand };
 };
 describe("offline question factory", () => {
+  it("records exact approved questions without any intent inference", async () => {
+    const s = setup(["place"]);
+    await s.factory.create({
+      command: { type: "speak", operatorText: "Где вы?" },
+      requestId: "exact",
+      sessionId: "session",
+      signal: new AbortController().signal,
+    });
+    await s.factory.recordReply({
+      requestId: "exact",
+      sessionId: "session",
+      operatorText: "Где вы?",
+      reply,
+      generation: { source: "prepared", attempts: [] },
+    });
+    expect(s.understand).not.toHaveBeenCalled();
+  });
+  it("records a paraphrase with the same fact decision and only one classifier call", async () => {
+    const s = setup(["place"]);
+    s.understand.mockResolvedValue(["place"]);
+    await s.factory.create({
+      command: { type: "speak", operatorText: "Что вокруг вас?" },
+      requestId: "paraphrase",
+      sessionId: "session",
+      signal: new AbortController().signal,
+    });
+    await s.factory.recordReply({
+      requestId: "paraphrase",
+      sessionId: "session",
+      operatorText: "Что вокруг вас?",
+      reply,
+      generation: { source: "prepared", attempts: [] },
+    });
+    expect(s.understand).toHaveBeenCalledTimes(1);
+  });
+  it("bounds an intent provider that ignores cancellation", async () => {
+    const s = setup();
+    s.understand.mockReturnValue(new Promise(() => {}));
+    const parent = new AbortController();
+    const result = await s.factory.create({
+      command: { type: "speak", operatorText: "Что вокруг вас?" },
+      requestId: "timeout",
+      sessionId: "session",
+      signal: parent.signal,
+    });
+    expect(result.exceptionReason).toBe("deadline");
+    expect(s.understand.mock.calls[0]![1].aborted).toBe(true);
+    expect(parent.signal.aborted).toBe(false);
+  });
   it("never sends instruction override to intent provider or changes scenario voice", async () => {
     const s = setup();
     const result = await s.factory.create({

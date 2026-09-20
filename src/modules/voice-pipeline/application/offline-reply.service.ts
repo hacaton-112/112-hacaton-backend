@@ -16,6 +16,7 @@ import {
   requestsInstructionOverride,
 } from "../domain/offline-turn";
 import { VoiceRuntimeService } from "./voice-runtime.service";
+import { canUsePreparedReply } from "../domain/prepared-reply";
 
 type Reason = NonNullable<DialogueGenerationResult["resolution"]>["reason"];
 
@@ -58,12 +59,10 @@ export class OfflineReplyService {
     let result: DialogueGenerationResult | undefined;
     if (requestsInstructionOverride(request.generation.operatorText))
       reason = "prompt-injection";
-    if (!reason && !request.generation.context.allowedFacts.length)
-      reason = "unavailable-fact";
     try {
       if (!reason) {
         const fallback = request.generation.fallbackReply;
-        if (request.preferPreparedReply && fallback) {
+        if (fallback && canUsePreparedReply(request)) {
           const lookupStartedAt = performance.now();
           const recorded = await abortable(
             this.audio.lookup(
@@ -94,6 +93,10 @@ export class OfflineReplyService {
               ),
             };
           }
+        }
+        if (!request.generation.context.allowedFacts.length) {
+          reason = "unavailable-fact";
+          throw new Error("No permitted facts or prepared reaction");
         }
         result = DialogueGenerationResultSchema.parse(
           await abortable(

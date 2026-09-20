@@ -1,5 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import { env } from "@/core/config/env.config";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
@@ -43,9 +42,6 @@ const cacheKey = (scenarioVersionId: string, operatorText: string): string =>
 
 @Injectable()
 export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequestFactory {
-  private readonly logger = new Logger(
-    ScenarioVoicePipelineRequestFactory.name,
-  );
   /**
    * Разобранные вопросы.
    *
@@ -91,21 +87,39 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       operatorText: command.operatorText,
       initiative,
       resolveAskedFacts: async (facts) => {
-        const asked = await this.understand(
-          requestId,
-          command.operatorText,
-          facts,
-          signal,
-          entries,
-          sessionId,
-        );
-        // Exact questions need no model. Paraphrases may use the local intent
-        // parser once, but still reuse approved wording and recorded audio.
-        preferPreparedReply = (asked?.length ?? 0) > 0;
-        return asked;
+        if (offline && requestsInstructionOverride(command.operatorText)) {
+          exceptionReason = "prompt-injection";
+          this.rememberTurn(requestId, []);
+          return [];
+        }
+        try {
+          const asked = await this.understand(
+            requestId,
+            command.operatorText,
+            facts,
+            turnSignal,
+            entries,
+            sessionId,
+          );
+          // Exact questions need no model. Paraphrases may use the local intent
+          // parser once, but still reuse approved wording and recorded audio.
+          preferPreparedReply = asked.length > 0;
+          this.rememberTurn(requestId, asked);
+          if (offline && !asked.length) exceptionReason = "unknown-question";
+          return asked;
+        } catch (error) {
+          signal.throwIfAborted();
+          if (!offline) throw error;
+          exceptionReason = turnSignal.aborted
+            ? "deadline"
+            : "intent-unavailable";
+          this.rememberTurn(requestId, []);
+          return [];
+        }
       },
     });
 
+    signal.throwIfAborted();
     const focus = built.context.turnPlan?.focusFactIds ?? [];
     const entry =
       focus.length === 1
@@ -129,6 +143,19 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     const fallbackReply = approvedReply?.success
       ? approvedReply.data
       : built.fallbackReply;
+    // Non-factual engine reactions (calming, clarification, refusal) can also
+    // use approved recordings. An unknown question must never disclose a fact.
+    if (
+      exceptionReason === "unknown-question" &&
+      fallbackReply.revealedFactIds.length === 0 &&
+      [
+        "acknowledge",
+        "emotional-reaction",
+        "panic-refusal",
+        "clarify",
+      ].includes(reaction ?? "")
+    )
+      exceptionReason = undefined;
     return VoicePipelineRequestSchema.parse({
       preferPreparedReply,
       ...(offline ? { exceptionDeadlineAt, exceptionReason } : {}),
@@ -180,22 +207,15 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     const prepared =
       this.audio?.resolveApprovedQuestion(operatorText, facts, entries) ??
       resolvePreparedQuestion(operatorText, facts);
-    if (prepared !== null) {
-      if (this.understood.size >= MAX_CACHED_QUESTIONS) {
-        this.understood.clear();
-      }
-      this.understood.set(key, prepared);
-      return prepared;
-    }
-
-    if (env.NODE_ENV !== "test" && env.LLM_PROVIDER === "local") {
-      return undefined as unknown as string[];
-    }
-
-    const asked = await this.questions.understand(
-      { requestId, operatorText, facts: [...facts] },
-      signal,
-    );
+    const asked =
+      prepared ??
+      (await abortable(
+        this.questions.understand(
+          { requestId, operatorText, facts: [...facts] },
+          signal,
+        ),
+        signal,
+      ));
 
     if (this.understood.size >= MAX_CACHED_QUESTIONS) {
       this.understood.clear();
@@ -227,16 +247,18 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       // Разбор этого же вопроса уже лежит в кеше после сборки контекста:
       // запись хода сверяется с тем же ответом, а не спрашивает модель снова.
       resolveAskedFacts: (facts) =>
-        this.runtime?.settings.enabled
-          ? Promise.resolve(this.turnAnswers.get(requestId) ?? [])
-          : this.understand(
-              requestId,
-              operatorText,
-              facts,
-              new AbortController().signal,
-              entries,
-              sessionId,
-            ),
+        this.turnAnswers.has(requestId)
+          ? Promise.resolve(this.turnAnswers.get(requestId)!)
+          : this.runtime?.settings.enabled
+            ? Promise.resolve([])
+            : this.understand(
+                requestId,
+                operatorText,
+                facts,
+                new AbortController().signal,
+                entries,
+                sessionId,
+              ),
     });
   }
 }

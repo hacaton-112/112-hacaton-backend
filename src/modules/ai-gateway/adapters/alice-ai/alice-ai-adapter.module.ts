@@ -51,6 +51,8 @@ export const createAiProviders = (
         model: config.get("LOCAL_LLM_MODEL"),
         apiKey: config.get("LOCAL_LLM_API_KEY"),
         timeoutMs: config.get("LOCAL_LLM_TIMEOUT_MS"),
+        intentTimeoutMs: config.get("LOCAL_LLM_INTENT_TIMEOUT_MS"),
+        replyMaxTokens: config.get("LOCAL_LLM_REPLY_MAX_TOKENS"),
         concurrency: config.get("LOCAL_LLM_CONCURRENCY"),
         queueSize:
           config.get("LOCAL_LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),

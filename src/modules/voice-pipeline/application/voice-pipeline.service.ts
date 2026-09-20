@@ -21,6 +21,7 @@ import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
+import { canUsePreparedReply } from "../domain/prepared-reply";
 
 import {
   VoicePipelineError,
@@ -143,16 +144,7 @@ export class VoicePipelineService {
         bufferedStream = resolved.stream;
       } else {
         const fallback = request.generation.fallbackReply;
-        const reaction = request.generation.context.turnPlan?.reactionAct;
-        if (
-          request.preferPreparedReply &&
-          fallback &&
-          this.preparedAudio &&
-          reaction &&
-          (request.generation.context.turnPlan?.focusFactIds?.length ?? 0) <=
-            1 &&
-          ["answer", "repeat", "acknowledge"].includes(reaction)
-        ) {
+        if (fallback && this.preparedAudio && canUsePreparedReply(request)) {
           const candidate: DialogueGenerationResult = {
             reply: fallback,
             source: "prepared",
