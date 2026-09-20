@@ -5,7 +5,7 @@ import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 import { DdsTrainingService } from "./application/dds-training.service";
 import { DdsExerciseDto } from "./dto/dds-exercise.dto";
-import { DdsTrainingListDto, ReviewDdsDto, StartAssignedDdsDto, StopDdsDto } from "./dto/dds-training.dto";
+import { DdsLiveListDto, DdsTrainingListDto, ReviewDdsDto, StartAssignedDdsDto, StopDdsDto } from "./dto/dds-training.dto";
 
 @Controller("dds-training")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -19,6 +19,12 @@ export class DdsTrainingController {
   @ZodSerializerDto(DdsExerciseDto)
   start(@Param("assignmentId", new ParseUUIDPipe()) id: string, @Body() body: StartAssignedDdsDto, @Req() request: AuthenticatedRequest) {
     return this.training.start(request.user.sub, id, body.eventId);
+  }
+
+  @Get("live")
+  @ZodSerializerDto(DdsLiveListDto)
+  async live(@Req() request: AuthenticatedRequest) {
+    return { attempts: await this.training.live({ id: request.user.sub, role: request.user.role }) };
   }
 
   @Get("attempts")

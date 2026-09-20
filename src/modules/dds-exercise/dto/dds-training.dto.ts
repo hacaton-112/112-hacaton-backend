@@ -1,6 +1,8 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { ATTEMPT_STATUSES } from "@/drizzle/schema";
+import { ATTEMPT_STATUSES, DISPATCH_SERVICES } from "@/drizzle/schema";
+import { DDS_LIVE_FINDINGS } from "../domain/dds-live-findings";
+import { DDS_RESPONSE_STATUSES } from "../domain/dds-response-status";
 import { DdsExerciseSchema } from "./dds-exercise.dto";
 
 export const StartAssignedDdsSchema = z.object({ eventId: z.uuid() }).strict();
@@ -30,3 +32,23 @@ export const DdsTrainingAttemptSchema = z.object({
 export const DdsTrainingListSchema = z.object({ attempts: z.array(DdsTrainingAttemptSchema) }).strict();
 export class DdsTrainingListDto extends createZodDto(DdsTrainingListSchema) {}
 export type DdsTrainingAttempt = z.infer<typeof DdsTrainingAttemptSchema>;
+
+/** Идущая попытка в мониторинге: без журнала и карточки целиком. */
+export const DdsLiveAttemptSchema = z.object({
+  exerciseId: z.uuid(),
+  assignmentId: z.uuid(),
+  assignmentTitle: z.string(),
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  attemptNumber: z.number().int().positive(),
+  startedAt: z.iso.datetime(),
+  addressedService: z.enum(DISPATCH_SERVICES),
+  cardTitle: z.string(),
+  status: z.enum(DDS_RESPONSE_STATUSES),
+  acknowledgementDeadlineAt: z.iso.datetime(),
+  acknowledgedAt: z.iso.datetime().nullable(),
+  findings: z.array(z.enum(DDS_LIVE_FINDINGS)),
+}).strict();
+export const DdsLiveListSchema = z.object({ attempts: z.array(DdsLiveAttemptSchema) }).strict();
+export class DdsLiveListDto extends createZodDto(DdsLiveListSchema) {}
+export type DdsLiveAttempt = z.infer<typeof DdsLiveAttemptSchema>;

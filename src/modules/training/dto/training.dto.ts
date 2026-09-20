@@ -143,7 +143,27 @@ export const CreateTrainingAssignmentSchema = z
         Number(value.targetUserId !== undefined) ===
       1,
     { message: "Exactly one assignment target is required" },
-  );
+  )
+  // Занятие с карточкой берёт её из сценария, поэтому доставка звонком
+  // оператора для него невозможна. Раньше это выяснялось только у ученика,
+  // когда он нажимал запуск и получал отказ.
+  .refine(
+    (value) =>
+      value.type !== "card_action" ||
+      value.cardSource === "generated" ||
+      value.cardSource === "ticket",
+    {
+      message:
+        "A card exercise needs a scenario card: choose a generated card or a ticket",
+      path: ["cardSource"],
+    },
+  )
+  // Смешанного занятия пока нет ни в голосовом, ни в карточном пути: такое
+  // назначение нельзя ни начать, ни оценить.
+  .refine((value) => value.type !== "mixed", {
+    message: "A mixed assignment is not supported yet",
+    path: ["type"],
+  });
 
 export class CreateTrainingAssignmentDto extends createZodDto(
   CreateTrainingAssignmentSchema,
