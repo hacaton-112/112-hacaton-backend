@@ -59,7 +59,18 @@ const MAX_PREPARED_REQUESTS = 240;
 
 /** No model writes facts here: these are the instructor's published utterances. */
 export const compilePreparedSpeech = (
-  version: ScenarioVersionSnapshot,
+  version: Pick<
+    ScenarioVersionSnapshot,
+    "id" | "openingLine" | "fallbackLine" | "facts"
+  > & {
+    persona: Pick<
+      ScenarioVersionSnapshot["persona"],
+      "voiceId" | "gender" | "baseSpeechRate"
+    >;
+    panicFloor: number;
+    panicCeiling: number;
+  },
+  limit = MAX_PREPARED_REQUESTS,
 ): TtsSynthesisRequest[] => {
   const texts = new Set([
     version.openingLine,
@@ -89,7 +100,7 @@ export const compilePreparedSpeech = (
       });
       // Never truncate a fact and then mark it as spoken in full.
       if (result.success) requests.push(result.data);
-      if (requests.length >= MAX_PREPARED_REQUESTS) return requests;
+      if (requests.length >= limit) return requests;
     }
   }
   return requests;

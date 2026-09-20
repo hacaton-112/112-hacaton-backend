@@ -1,6 +1,7 @@
 import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { scenarioVersions } from "./scenario.schema";
+import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
 /** Private assets of an immutable version, never included in the operator catalog. */
 export const scenarioAudioPacks = pgTable("scenario_audio_packs", {
@@ -12,6 +13,7 @@ export const scenarioAudioPacks = pgTable("scenario_audio_packs", {
     .default("queued"),
   completed: integer("completed").notNull().default(0),
   total: integer("total").notNull().default(0),
+  entries: jsonb("entries").$type<DialogueEntry[]>().notNull().default([]),
   assets: jsonb("assets")
     .$type<
       Record<
