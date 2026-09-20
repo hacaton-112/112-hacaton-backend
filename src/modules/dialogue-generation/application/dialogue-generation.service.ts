@@ -192,7 +192,10 @@ export class DialogueGenerationService {
     request: GenerateCallerReplyRequest,
     reply: CallerReply,
   ): CallerReply {
-    if (request.context.turnPlan?.reactionAct === "repeat") {
+    if (
+      request.context.turnPlan?.reactionAct === "repeat" ||
+      this.engineIntendsRepetition(request)
+    ) {
       return reply;
     }
 
@@ -221,7 +224,10 @@ export class DialogueGenerationService {
     request: GenerateCallerReplyRequest,
     text: string,
   ): boolean {
-    if (request.context.turnPlan?.reactionAct === "repeat") {
+    if (
+      request.context.turnPlan?.reactionAct === "repeat" ||
+      this.engineIntendsRepetition(request)
+    ) {
       return false;
     }
 
@@ -230,6 +236,18 @@ export class DialogueGenerationService {
       .find((turn) => turn.role === "caller");
 
     return previous !== undefined && isNearRepetition(text, previous.text);
+  }
+
+  /** The scenario engine may deliberately answer a repeated open question. */
+  private engineIntendsRepetition(request: GenerateCallerReplyRequest): boolean {
+    if (!request.fallbackReply) return false;
+    const previous = [...request.context.recentTurns]
+      .reverse()
+      .find((turn) => turn.role === "caller");
+    return (
+      previous !== undefined &&
+      isNearRepetition(request.fallbackReply.text, previous.text)
+    );
   }
 
   private classifyFailure(error: unknown): GenerationAttemptMetrics["outcome"] {

@@ -335,6 +335,39 @@ describe(DialogueGenerationService.name, () => {
     expect(result.reply.text).toBe(repeated.text);
   });
 
+  it("does not retry a repetition deliberately selected by the scenario engine", async () => {
+    const repeated = {
+      ...validReply,
+      text: "Горит квартира на пятом этаже, дым идёт по всему подъезду.",
+      revealedFactIds: [],
+    };
+    const llmPort = new FakeLlmPort([
+      () => replyStream(JSON.stringify(repeated)),
+    ]);
+
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        fallbackReply: repeated,
+        context: {
+          ...validRequest.context,
+          allowedFacts: [],
+          recentTurns: [
+            {
+              role: "caller",
+              text: "Горит квартира на пятом этаже, дым по всему подъезду!",
+            },
+            { role: "operator", text: "Что у вас случилось?" },
+          ],
+        },
+      },
+      new AbortController().signal,
+    );
+
+    expect(llmPort.calls).toHaveLength(1);
+    expect(result.reply.text).toBe(repeated.text);
+  });
+
   it("retries an invalid response and returns the second valid reply", async () => {
     const llmPort = new FakeLlmPort([() => replyStream("{"), replyStream]);
 
