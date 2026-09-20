@@ -1,4 +1,4 @@
-import { Badge, Text } from "@bolid-ui/themes";
+import { Text } from "@bolid-ui/themes";
 import { ChevronDown, Inbox, Link2, TimerReset } from "lucide-react";
 
 import type { DdsExercise } from "../../contracts/dds-exercise";
@@ -26,12 +26,12 @@ export function DdsExerciseList({
     <div className="arm-dds-table" role="table" aria-label="Происшествия">
       <div className="arm-dds-table-head" role="row">
         <span>Связи</span>
-        <span>ЧС</span>
+        <span>Опер.</span>
         <span>Номер</span>
         <span>Дата</span>
         <span>Время</span>
         <span>Тип происшествия</span>
-        <span>Поступивший адрес</span>
+        <span>Постр. Адрес</span>
         <span>Статус службы</span>
       </div>
       {exercises.map((exercise) => {
@@ -54,9 +54,15 @@ export function DdsExerciseList({
               <Link2 size={13} />
               <TimerReset size={13} />
             </span>
-            <span>0</span>
+            <span className="arm-dds-operator-cell">0</span>
             <strong>{exercise.id.slice(-8).toUpperCase()}</strong>
-            <span>{createdAt.toLocaleDateString("ru-RU")}</span>
+            <span>
+              {createdAt.toLocaleDateString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "2-digit",
+              })}
+            </span>
             <strong>{createdAt.toLocaleTimeString("ru-RU")}</strong>
             <span className="arm-dds-cell-main">
               <strong>{exercise.card.incidentType}</strong>
@@ -66,20 +72,8 @@ export function DdsExerciseList({
               <strong>{exercise.card.addressText}</strong>
               <small>{DDS_SERVICE_LABELS[exercise.addressedService]}</small>
             </span>
-            <span>
-              <Badge
-                color={
-                  exercise.status === "completed"
-                    ? "green"
-                    : exercise.status === "refused" ||
-                        exercise.status === "not_accepted"
-                      ? "red"
-                      : "orange"
-                }
-                variant="soft"
-              >
-                {DDS_STATUS_LABELS[exercise.status]}
-              </Badge>
+            <span className="arm-dds-status-cell">
+              {DDS_STATUS_LABELS[exercise.status]}
             </span>
           </button>
         );

@@ -34,7 +34,16 @@ function DdsLearnerPage() {
   const [searchParams] = useSearchParams();
   const list = dds.exercises.data ?? EMPTY_EXERCISES;
   const [query, setQuery] = useState("");
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | undefined>(searchParams.get("exercise") ?? undefined);
+  const requestedExerciseId = searchParams.get("exercise") ?? undefined;
+  const [selectedExerciseId, setSelectedExerciseId] = useState<
+    string | undefined
+  >(requestedExerciseId);
+
+  // Ссылка из списка назначений может смениться, пока рабочее место открыто:
+  // диспетчер начал вторую попытку и должен увидеть новую карточку.
+  useEffect(() => {
+    if (requestedExerciseId) setSelectedExerciseId(requestedExerciseId);
+  }, [requestedExerciseId]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ru-RU");

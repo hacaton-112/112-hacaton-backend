@@ -11,8 +11,10 @@ export function useDdsExercises() {
     queryKey,
     queryFn: ddsExerciseService.list,
     // Смена должна увидеть первую входящую карточку даже при пустой очереди.
-    refetchInterval: 2_000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 3_000,
+    // Свёрнутое рабочее место опрашивать незачем: диспетчер его не видит,
+    // а запросы продолжали идти часами и нагружали учебный сервер.
+    refetchIntervalInBackground: false,
   });
   const transition = useMutation({
     mutationFn: (input: {

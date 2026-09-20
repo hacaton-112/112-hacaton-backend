@@ -652,6 +652,10 @@ body,
   --arm-graphite-2: #465158;
   --arm-graphite-3: #647178;
   --arm-workspace: #c9ced1;
+  /* Цвета сняты со скриншотов реального АРМ-112 для ДДС. */
+  --arm-slate: #838f97;
+  --arm-slate-cell: #49555d;
+  --arm-maroon: #6c364b;
   --arm-panel: #f5f5f3;
   --arm-panel-muted: #e8eaeb;
   --arm-line: #b7bdc0;
@@ -963,8 +967,22 @@ body,
   min-height: 46px;
   border: 0;
   border-bottom: 1px solid rgb(255 255 255 / 92%);
+  border-radius: 0;
   background: transparent;
+  box-shadow: none;
   color: white;
+}
+
+/* В оригинале у полей только нижняя линия, рамки не появляется и в фокусе. */
+.arm-login-form :where(.rt-TextFieldRoot):focus-within {
+  box-shadow: none;
+  outline: 0;
+}
+
+.arm-login-form label,
+.arm-login-form .rt-Text:not(.arm-login-support) {
+  font-size: 13px;
+  text-transform: lowercase;
 }
 
 .arm-login-form :where(input) {
@@ -989,10 +1007,10 @@ body,
 }
 
 .arm-login-support {
-  margin-top: 28px;
+  margin-top: 34px;
   color: white !important;
-  font-size: 16px !important;
-  line-height: 1.45 !important;
+  font-size: 22px !important;
+  line-height: 1.35 !important;
 }
 
 @media (max-width: 767px) {
@@ -1355,7 +1373,7 @@ body,
 
 .arm-dds-page {
   min-width: 0;
-  background: var(--arm-workspace);
+  background: var(--arm-slate);
   color: var(--arm-ink);
 }
 
@@ -1364,8 +1382,7 @@ body,
   min-height: 82px;
   align-items: stretch;
   justify-content: space-between;
-  border-bottom: 1px solid var(--arm-line-dark);
-  background: #f1f1ef;
+  background: transparent;
 }
 
 .arm-dds-search-header > div:first-child {
@@ -1379,6 +1396,7 @@ body,
 
 .arm-dds-search-header h1 {
   margin: 0;
+  color: #ebecec;
   font-size: clamp(24px, 2.2vw, 34px);
   font-weight: 350;
   letter-spacing: -0.03em;
@@ -1387,12 +1405,14 @@ body,
 
 .arm-dds-search-header p {
   margin-top: 8px;
-  color: var(--arm-muted);
+  border-top: 1px solid #ebecec;
+  padding-top: 6px;
+  color: #e3e6e8;
 }
 
 .arm-dds-clock {
   display: flex;
-  min-width: 246px;
+  min-width: 300px;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
@@ -1406,13 +1426,13 @@ body,
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .arm-dds-clock strong {
-  margin-top: 4px;
-  font-size: 25px;
+  margin-top: 2px;
+  font-size: 40px;
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   letter-spacing: 0.08em;
@@ -1423,8 +1443,7 @@ body,
   grid-template-columns: minmax(300px, 0.65fr) minmax(580px, 1.35fr);
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid var(--arm-line-dark);
-  background: #d9dcdd;
+  background: transparent;
   padding: 7px 8px;
 }
 
@@ -1497,9 +1516,8 @@ body,
 }
 
 .arm-dds-queue {
-  margin: 8px 8px 0;
-  border: 1px solid var(--arm-line-dark);
-  background: var(--arm-graphite);
+  margin: 4px 8px 0;
+  background: transparent;
 }
 
 .arm-dds-section-title {
@@ -1507,26 +1525,25 @@ body,
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #252d31;
-  background: #5a6469;
-  padding: 6px 11px;
-  color: white;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  background: transparent;
+  padding: 6px 2px;
+  color: #e7e3d6;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .arm-dds-section-title span {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #d9dddf;
-  font-size: 10px;
+  color: #eceeef;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .arm-dds-table {
   overflow-x: auto;
-  background: #30393e;
+  background: transparent;
 }
 
 .arm-dds-table-head,
@@ -1540,14 +1557,11 @@ body,
 }
 
 .arm-dds-table-head {
-  min-height: 32px;
-  border-bottom: 1px solid #81898d;
-  background: #afb4b6;
-  color: #273035;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.025em;
-  text-transform: uppercase;
+  min-height: 26px;
+  background: transparent;
+  color: #edeff0;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .arm-dds-table-head > span,
@@ -1556,20 +1570,20 @@ body,
   display: flex;
   min-width: 0;
   align-items: center;
-  border-right: 1px solid rgb(203 208 210 / 28%);
+  border-right: 1px solid var(--arm-slate);
   padding: 7px 8px;
 }
 
 .arm-dds-table-head > span {
-  border-color: #92999c;
+  border-color: transparent;
 }
 
 .arm-dds-table-row {
   width: 100%;
-  min-height: 58px;
+  min-height: 46px;
   border: 0;
-  border-bottom: 1px solid #5f686d;
-  background: #394349;
+  border-bottom: 2px solid var(--arm-slate);
+  background: #2f353a;
   color: #f3f4f4;
   font: inherit;
   font-size: 11px;
@@ -1578,17 +1592,30 @@ body,
 }
 
 .arm-dds-table-row:hover {
-  background: #465158;
+  background: #3b434a;
 }
 
 .arm-dds-table-row[data-selected="true"] {
-  background: #207bb1;
+  background: #157dbd;
   box-shadow: inset 4px 0 0 #8ed8fb;
 }
 
 .arm-dds-table-row[data-terminal="true"]:not([data-selected="true"]) {
-  background: #333b40;
+  background: #2a3034;
   color: #c5c9cb;
+}
+
+/* Номер оператора в реальном АРМ выделен бордовой ячейкой. */
+.arm-dds-operator-cell {
+  justify-content: center;
+  background: var(--arm-maroon);
+  font-weight: 700;
+}
+
+/* Статус службы — светлая вставка на правом краю строки. */
+.arm-dds-status-cell {
+  background: var(--arm-slate-cell);
+  color: #edeff0;
 }
 
 .arm-dds-row-icons {
@@ -1849,5 +1876,259 @@ body,
 
   .arm-dds-detail {
     padding: 4px;
+  }
+}
+
+/* DDS card, скопирована с АРМ-112 ---------------------------------------- */
+
+.arm-card {
+  display: grid;
+  gap: 2px;
+  background: var(--arm-slate);
+}
+
+.arm-card-phonebar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(230px, 0.9fr);
+  gap: 2px;
+}
+
+.arm-card-phone,
+.arm-card-incident {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: #efefef;
+  padding: 8px 10px;
+  color: var(--arm-ink);
+}
+
+.arm-card-phone > span {
+  color: #6b7176;
+  font-size: 11px;
+}
+
+.arm-card-phone > strong {
+  min-height: 17px;
+  font-size: 13px;
+}
+
+.arm-card-phone-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.arm-card-phone-buttons > span {
+  border: 1px solid #b7bdc0;
+  background: #dcdcdc;
+  padding: 2px 8px;
+  color: #454c50;
+  font-size: 10px;
+}
+
+.arm-card-incident > strong {
+  font-size: 14px;
+}
+
+.arm-card-incident > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-body {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 2px;
+}
+
+.arm-card-left,
+.arm-card-right {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 2px;
+}
+
+.arm-card-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: #efefef;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.arm-card-strip > span {
+  color: #6b7176;
+}
+
+.arm-card-address {
+  display: grid;
+  gap: 2px;
+  background: #e6e6e6;
+  padding: 9px 10px;
+}
+
+.arm-card-address > strong {
+  font-size: 13px;
+}
+
+.arm-card-address > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-journal {
+  min-height: 120px;
+  border: 1px solid #d5d5d5;
+  background: #efefef;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.arm-card-journal p {
+  margin: 0;
+  color: #2c3237;
+}
+
+.arm-card-journal span {
+  color: #4a5155;
+}
+
+.arm-card-journal-text {
+  margin-top: 2px !important;
+}
+
+.arm-card-flags {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #b7bdc0;
+  background: #e4e4e4;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-badge-warn {
+  border-color: #d2531f;
+  background: #ec653b;
+  color: white;
+}
+
+.arm-card-block {
+  display: grid;
+  gap: 2px;
+}
+
+.arm-card-block-head {
+  background: #303335;
+  padding: 5px 10px;
+  color: #f1f1f1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-block-row {
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-block-row-muted {
+  color: #6b7176;
+}
+
+.arm-card-services {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  background: #2f353a;
+  padding: 6px;
+}
+
+.arm-card-services-label {
+  align-self: center;
+  padding: 0 8px;
+  color: #e4e6e7;
+  font-size: 11px;
+}
+
+.arm-card-services > div {
+  display: grid;
+  min-width: 116px;
+  gap: 2px;
+  background: #3c444a;
+  padding: 6px 10px;
+  color: #eceeef;
+  text-align: center;
+}
+
+.arm-card-services > div[data-active="true"] {
+  background: #157dbd;
+}
+
+.arm-card-services strong {
+  font-size: 12px;
+}
+
+.arm-card-services span {
+  font-size: 10px;
+}
+
+.arm-card-journal-panel {
+  display: grid;
+  gap: 1px;
+  background: #157dbd;
+  padding: 8px 10px;
+  color: white;
+}
+
+.arm-card-journal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+.arm-card-journal-head span {
+  font-size: 11px;
+}
+
+.arm-card-journal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.arm-card-journal-actor {
+  color: #d6ecfa;
+  font-size: 11px;
+}
+
+.arm-card-journal-comment {
+  color: #e8f4fc;
+}
+
+@media (max-width: 1199px) {
+  .arm-card-phonebar,
+  .arm-card-body {
+    grid-template-columns: 1fr;
   }
 }

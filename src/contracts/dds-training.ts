@@ -15,8 +15,8 @@ export const DdsTrainingAttemptSchema = z.object({
   assignmentId: z.uuid(), assignmentTitle: z.string(), operatorId: z.uuid(), operatorName: z.string(),
   attemptNumber: z.number().int().positive(), attemptStatus: TrainingAttemptStatusSchema,
   passThreshold: z.number().int().min(50).max(100),
-  reviews: z.array(z.object({ eventId: z.uuid(), instructorId: z.uuid(), score: z.number().int().min(0).max(100), comment: z.string(), createdAt: z.iso.datetime() })),
-});
+  reviews: z.array(z.object({ eventId: z.uuid(), instructorId: z.uuid(), score: z.number().int().min(0).max(100), comment: z.string(), createdAt: z.iso.datetime() }).strict()),
+}).strict();
 export const DdsTrainingListSchema = z.object({ attempts: z.array(DdsTrainingAttemptSchema) });
 export type DdsTrainingAttempt = z.infer<typeof DdsTrainingAttemptSchema>;
 export type DdsReviewRequest = z.infer<typeof DdsReviewRequestSchema>;
@@ -45,7 +45,7 @@ export const DdsLiveAttemptSchema = z.object({
   acknowledgementDeadlineAt: z.iso.datetime(),
   acknowledgedAt: z.iso.datetime().nullable(),
   findings: z.array(DdsLiveFindingSchema),
-});
+}).strict();
 
 export const DdsLiveListSchema = z.object({
   attempts: z.array(DdsLiveAttemptSchema),

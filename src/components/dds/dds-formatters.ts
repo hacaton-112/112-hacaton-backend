@@ -6,7 +6,7 @@ import type {
 } from "../../contracts/dds-exercise";
 
 export const DDS_STATUS_LABELS: Record<DdsResponseStatus, string> = {
-  pending: "Ожидает подтверждения",
+  pending: "Добавлена",
   accepted: "Принята",
   not_accepted: "Не принята",
   responding: "Начало реагирования",
@@ -14,6 +14,16 @@ export const DDS_STATUS_LABELS: Record<DdsResponseStatus, string> = {
   working: "Проведение работ",
   completed: "Работы завершены",
   refused: "Отказ от выполнения работ",
+};
+
+/** Классы происшествий на языке карточки, а не кодами схемы. */
+export const DDS_CATEGORY_LABELS: Record<string, string> = {
+  fire: "пожар",
+  road_accident: "ДТП",
+  medical: "медицина",
+  criminal: "криминал",
+  gas_leak: "утечка газа",
+  other: "прочее",
 };
 
 export const DDS_SERVICE_LABELS: Record<DdsServiceCode, string> = {

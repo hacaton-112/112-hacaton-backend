@@ -37,7 +37,7 @@ export function AuthForm() {
           </Callout.Root>
         )}
 
-        <FormField label="Логин" htmlFor="email" error={errors.email?.message}>
+        <FormField label="логин:" htmlFor="email" error={errors.email?.message}>
           <TextField.Root
             id="email"
             type="email"
@@ -51,7 +51,7 @@ export function AuthForm() {
         </FormField>
 
         <FormField
-          label="Пароль"
+          label="пароль:"
           htmlFor="password"
           error={errors.password?.message}
         >

@@ -27,7 +27,8 @@ export function DdsLiveAttempts() {
   const attempts = useQuery({
     queryKey: QUERY_KEYS.ddsLiveAttempts(),
     queryFn: ({ signal }) => ddsTrainingService.live(signal),
-    refetchInterval: 2_000,
+    refetchInterval: 3_000,
+    refetchIntervalInBackground: false,
     retry: false,
   });
   const [now, setNow] = useState(() => Date.now());
