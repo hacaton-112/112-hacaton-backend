@@ -4,6 +4,8 @@ import { performance } from "node:perf_hooks";
 import { Client } from "pg";
 import WebSocket from "ws";
 
+import { resamplePcm16Mono } from "@/modules/ai-gateway/diagnostics/tts-diagnostic";
+
 /**
  * Нагрузочный прогон учебных звонков против запущенного backend.
  *
@@ -122,15 +124,18 @@ const readPcm = async (path: string): Promise<Uint8Array> => {
 
       if (
         format.channels !== 1 ||
-        format.sampleRate !== SAMPLE_RATE ||
         format.bits !== 16
       ) {
         throw new Error(
-          `${path}: expected mono PCM16 at ${SAMPLE_RATE} Hz, got ${format.channels}ch ${format.sampleRate}Hz ${format.bits}bit`,
+          `${path}: expected mono PCM16, got ${format.channels}ch ${format.sampleRate}Hz ${format.bits}bit`,
         );
       }
 
-      return new Uint8Array(file.subarray(body, body + size));
+      const pcm = new Uint8Array(file.subarray(body, body + size));
+
+      return format.sampleRate === SAMPLE_RATE
+        ? pcm
+        : resamplePcm16Mono(pcm, format.sampleRate, SAMPLE_RATE);
     }
 
     // Размер чанка выравнивается до чётного, сам он это в себя не включает.
