@@ -69,6 +69,11 @@ export const buildReplyPrompt = (
     `РОЛЬ ЗАЯВИТЕЛЯ:\n${request.context.persona.description}`,
     `ИСТОРИЯ:\n${conversation || "Это начало разговора."}`,
     `ПОСЛЕДНЯЯ РЕПЛИКА ОПЕРАТОРА:\n${request.operatorText}`,
+    ...(request.fallbackReply
+      ? [
+          `${literalFactReplies ? "ДОСЛОВНЫЙ ОТВЕТ" : "ОСНОВА ОТВЕТА, ЕЁ СМЫСЛ НЕЛЬЗЯ ПРОПУСКАТЬ"}:\n${request.fallbackReply.text}`,
+        ]
+      : []),
     `ДОПУСТИМЫЕ СВЕДЕНИЯ:\n${facts || "Нет новых сведений."}`,
     ...(plan?.reactionAct !== "answer" && plan
       ? [`СОСТОЯНИЕ:\n${TURN_STATE_HINTS[plan.reactionAct]}`]
@@ -80,9 +85,6 @@ export const buildReplyPrompt = (
       ? [
           "ПОВТОРНАЯ ПОПЫТКА:\nПредыдущий ответ отклонён. Скажи иначе, не повторяя речь оператора и служебные слова.",
         ]
-      : []),
-    ...(literalFactReplies && request.fallbackReply
-      ? [`БЕЗОПАСНАЯ РЕПЛИКА:\n${request.fallbackReply.text}`]
       : []),
   ].join("\n\n");
 };
