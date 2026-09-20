@@ -301,18 +301,38 @@ describe(VoicePipelineService.name, () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it("falls back to the existing live path when prepared audio is missing", async () => {
+  it("synthesizes approved text without generation or duplicate lookup when audio is missing", async () => {
     const dialogue = createDialogueMock();
     const speech = createSpeechMock();
+    const lookup = jest.fn().mockResolvedValue(null);
     const service = new VoicePipelineService(dialogue.service, speech.service, {
-      lookup: jest.fn().mockResolvedValue(null),
+      lookup,
     } as unknown as ScenarioAudioService);
-    await collect(service, {
+    const events = await collect(service, {
       ...request,
       preferPreparedReply: true,
       generation: { ...request.generation, fallbackReply: modelResult.reply },
     });
-    expect(dialogue.generate).toHaveBeenCalledTimes(1);
+    expect(dialogue.generate).not.toHaveBeenCalled();
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(speech.synthesize).toHaveBeenCalledTimes(1);
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: modelResult.reply.text }),
+      expect.any(AbortSignal),
+    );
+    expect(events[0]).toMatchObject({
+      result: { source: "prepared", attempts: [], reply: modelResult.reply },
+    });
+  });
+
+  it("synthesizes approved text even without an audio catalog", async () => {
+    const dialogue = createDialogueMock();
+    const speech = createSpeechMock();
+    await collect(new VoicePipelineService(dialogue.service, speech.service), {
+      ...request,
+      generation: { ...request.generation, fallbackReply: modelResult.reply },
+    });
+    expect(dialogue.generate).not.toHaveBeenCalled();
     expect(speech.synthesize).toHaveBeenCalledTimes(1);
   });
 

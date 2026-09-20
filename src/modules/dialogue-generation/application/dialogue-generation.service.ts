@@ -45,7 +45,6 @@ export const DEFAULT_FALLBACK_CALLER_REPLY: CallerReply =
 @Injectable()
 export class DialogueGenerationService {
   private readonly logger = new Logger(DialogueGenerationService.name);
-  private readonly retryNearRepetition = true;
 
   constructor(
     @Inject(LLM_PORT)
@@ -82,7 +81,7 @@ export class DialogueGenerationService {
         // срезанный до одного «Быстрее!» пересказ проверку прошёл бы, а новая
         // попытка с объяснением даёт ответ лучше обрубка.
         if (
-          this.retryNearRepetition &&
+          (this.llmPort.replyPolicy?.retryNearRepetition ?? true) &&
           attempt < MAX_GENERATION_ATTEMPTS &&
           this.repeatsPreviousReply(request, collectedReply.reply.text)
         ) {
@@ -96,10 +95,9 @@ export class DialogueGenerationService {
         // Принятый ответ теряет только то, что заявитель уже говорил. На
         // последней попытке пересказ остаётся репликой, но без повторённых
         // фраз: оставить оператора без ответа хуже, чем с коротким ответом.
-        const reply = this.withoutRepeatedSentences(
-          request,
-          collectedReply.reply,
-        );
+        const reply = this.llmPort.replyPolicy?.preserveLiteralText
+          ? collectedReply.reply
+          : this.withoutRepeatedSentences(request, collectedReply.reply);
 
         attempts.push({
           attempt,

@@ -70,10 +70,15 @@ class LocalLlmHttpError extends Error {
 /** llama-server protocol. No cloud fallback and no unbounded waiting queue. */
 export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private readonly queue: InferenceQueue;
+  readonly replyPolicy: NonNullable<LlmPort["replyPolicy"]>;
   constructor(
     private readonly config: LocalLlmConfig,
     private readonly fetchImplementation: typeof fetch = fetch,
   ) {
+    this.replyPolicy = {
+      retryNearRepetition: false,
+      preserveLiteralText: config.literalFactReplies,
+    };
     this.queue = new InferenceQueue(
       config.concurrency,
       config.queueSize,

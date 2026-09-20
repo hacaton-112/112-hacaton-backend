@@ -144,25 +144,22 @@ export class VoicePipelineService {
         bufferedStream = resolved.stream;
       } else {
         const fallback = request.generation.fallbackReply;
-        if (fallback && this.preparedAudio && canUsePreparedReply(request)) {
+        if (fallback && canUsePreparedReply(request)) {
           const candidate: DialogueGenerationResult = {
             reply: fallback,
             source: "prepared",
             attempts: [],
           };
           const candidateLookupAt = performance.now();
-          prepared = await this.preparedAudio.lookup(
-            request.generation.scenarioVersionId,
-            this.createSynthesisRequest(request, candidate),
-            signal,
-          );
+          prepared =
+            (await this.preparedAudio?.lookup(
+              request.generation.scenarioVersionId,
+              this.createSynthesisRequest(request, candidate),
+              signal,
+            )) ?? null;
           preparedLookupMs += performance.now() - candidateLookupAt;
-          generationResult = prepared
-            ? candidate
-            : await this.dialogueGeneration.generate(
-                request.generation,
-                signal,
-              );
+          // Missing audio requires synthesis, not a new version of approved text.
+          generationResult = candidate;
         } else {
           generationResult = await this.dialogueGeneration.generate(
             request.generation,
@@ -173,7 +170,11 @@ export class VoicePipelineService {
           DialogueGenerationResultSchema.parse(generationResult);
         // A model/fallback may return an already approved phrase too. Reuse its
         // audio without erasing the real generation attempts from the metrics.
-        if (!prepared && this.preparedAudio) {
+        if (
+          !prepared &&
+          this.preparedAudio &&
+          generationResult.source !== "prepared"
+        ) {
           const replyLookupAt = performance.now();
           prepared = await this.preparedAudio.lookup(
             request.generation.scenarioVersionId,
