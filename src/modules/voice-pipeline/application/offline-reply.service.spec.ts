@@ -132,6 +132,28 @@ const collect = async (stream: AsyncIterable<VoicePipelineStreamEvent>) => {
 const signal = () => new AbortController().signal;
 
 describe("offline hybrid turn", () => {
+  it("routes ten concurrent prepared turns without generation or synthesis", async () => {
+    const s = setup();
+    s.lookup.mockResolvedValue(pcm);
+    const streams = await Promise.all(
+      Array.from({ length: 10 }, async (_, index) => {
+        const turn = request();
+        turn.generation.requestId = "request-" + index;
+        turn.generation.sessionId = "session-" + index;
+        return collect(s.pipeline.streamReply(turn, signal()));
+      }),
+    );
+    for (const events of streams) {
+      expect(events[0]).toMatchObject({
+        type: "voice.reply.ready",
+        result: { source: "prepared", attempts: [] },
+      });
+      expect(events.at(-1)?.type).toBe("voice.completed");
+    }
+    expect(s.lookup).toHaveBeenCalledTimes(10);
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(s.synthesize).not.toHaveBeenCalled();
+  });
   it.each([true, false, undefined])(
     "uses prepared audio regardless of parser hint %s",
     async (preferPreparedReply) => {
