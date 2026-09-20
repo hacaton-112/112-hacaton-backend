@@ -178,7 +178,7 @@ services:
   # Объектное хранилище для записей разговоров. Нужен только при
   # CALL_RECORDING_ENABLED=true; без него звонок идёт как обычно.
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: system-112-training-minio
     restart: unless-stopped
     init: true
