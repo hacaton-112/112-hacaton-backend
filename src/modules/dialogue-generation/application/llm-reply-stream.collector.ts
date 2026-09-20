@@ -4,6 +4,7 @@ import {
   LlmStreamEventSchema,
   type CallerReply,
   type ScenarioFact,
+  type GenerateCallerReplyRequest,
 } from "@/contracts";
 
 import { LlmReplyCollectionError } from "../domain/llm-reply-collection.error";
@@ -25,6 +26,7 @@ export class LlmReplyStreamCollector {
     stream: AsyncIterable<unknown>,
     allowedFacts: readonly ScenarioFact[],
     signal: AbortSignal,
+    request?: GenerateCallerReplyRequest,
   ): Promise<CollectedCallerReply> {
     const startedAt = performance.now();
     let firstTokenAt: number | null = null;
@@ -88,7 +90,11 @@ export class LlmReplyStreamCollector {
       );
     }
 
-    const reply = this.safetyService.validate(parsedJson, allowedFacts);
+    const reply = this.safetyService.validate(
+      parsedJson,
+      allowedFacts,
+      request,
+    );
     const finishedAt = performance.now();
 
     return {

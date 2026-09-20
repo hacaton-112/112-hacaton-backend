@@ -21,6 +21,7 @@ import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
+import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
 import { canUsePreparedReply } from "../domain/prepared-reply";
 
 import {
@@ -171,6 +172,10 @@ export class VoicePipelineService {
         }
         generationResult =
           DialogueGenerationResultSchema.parse(generationResult);
+        assertCallerReplyContent(
+          generationResult.reply,
+          generationResult.source === "model" ? request.generation : undefined,
+        );
         // A model/fallback may return an already approved phrase too. Reuse its
         // audio without erasing the real generation attempts from the metrics.
         if (!prepared && this.preparedAudio) {

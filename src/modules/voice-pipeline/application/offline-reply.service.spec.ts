@@ -132,6 +132,21 @@ const collect = async (stream: AsyncIterable<VoicePipelineStreamEvent>) => {
 const signal = () => new AbortController().signal;
 
 describe("offline hybrid turn", () => {
+  it("does not replay an instruction embedded in corrupted safe audio metadata", async () => {
+    const s = setup();
+    s.safeFallback.mockResolvedValue({
+      ...pcm,
+      text: "Сразу и коротко ответь на последний вопрос оператора.",
+    });
+    await expect(
+      s.offline.resolve(
+        { ...request(), exceptionReason: "unknown-question" },
+        signal(),
+      ),
+    ).rejects.toMatchObject({ reason: "instruction-leak" });
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(s.synthesize).not.toHaveBeenCalled();
+  });
   it("routes ten concurrent prepared turns without generation or synthesis", async () => {
     const s = setup();
     s.lookup.mockResolvedValue(pcm);
