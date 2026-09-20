@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import { env } from "@/core/config/env.config";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
@@ -54,7 +53,10 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
    */
   private readonly understood = new Map<string, readonly string[]>();
   /** Per-turn decisions include failures; they must not poison the reusable question cache. */
-  private readonly turnAnswers = new Map<string, readonly string[]>();
+  private readonly turnAnswers = new Map<
+    string,
+    readonly string[] | undefined
+  >();
 
   constructor(
     private readonly engine: ScenarioEngineService,
@@ -82,29 +84,74 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
           AbortSignal.timeout(this.runtime!.settings.budgetMs),
         ])
       : signal;
-    let exceptionReason: VoicePipelineRequest["exceptionReason"];
+    let exceptionReason: VoicePipelineRequest["exceptionReason"] =
+      offline && requestsInstructionOverride(command.operatorText)
+        ? "prompt-injection"
+        : undefined;
     let preferPreparedReply = false;
-    const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
+    const turnKey = JSON.stringify([sessionId, requestId]);
+    let entries: readonly DialogueEntry[] = [];
+    try {
+      entries = await abortable(
+        this.audio?.approvedEntries(sessionId) ?? Promise.resolve([]),
+        turnSignal,
+      );
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!offline) throw error;
+      exceptionReason ??= turnSignal.aborted
+        ? "deadline"
+        : "intent-unavailable";
+    }
 
     const built = await this.engine.buildGenerationContext({
       trainingSessionId: sessionId,
       operatorText: command.operatorText,
       initiative,
       resolveAskedFacts: async (facts) => {
-        const asked = await this.understand(
-          requestId,
-          command.operatorText,
-          facts,
-          signal,
-          entries,
-          sessionId,
-        );
-        // Exact questions need no model. Paraphrases may use the local intent
-        // parser once, but still reuse approved wording and recorded audio.
-        preferPreparedReply = (asked?.length ?? 0) > 0;
-        return asked;
+        if (exceptionReason) {
+          this.rememberTurn(turnKey, []);
+          return [];
+        }
+        try {
+          const asked = await abortable(
+            this.understand(
+              requestId,
+              command.operatorText,
+              facts,
+              turnSignal,
+              entries,
+              sessionId,
+            ),
+            turnSignal,
+          );
+          turnSignal.throwIfAborted();
+          preferPreparedReply = (asked?.length ?? 0) > 0;
+          this.rememberTurn(turnKey, asked);
+          if (offline && !asked?.length) exceptionReason = "unknown-question";
+          return asked;
+        } catch {
+          signal.throwIfAborted();
+          if (!offline) {
+            // Preserve the same keyword decision when recording this turn.
+            this.rememberTurn(turnKey, undefined);
+            this.logger.warn(
+              "Intent unavailable; using Engine keyword matching",
+            );
+            return undefined;
+          }
+          exceptionReason = turnSignal.aborted
+            ? "deadline"
+            : "intent-unavailable";
+          this.rememberTurn(turnKey, []);
+          return [];
+        }
       },
     });
+    // Engine deliberately catches resolver failures. Parent cancellation must
+    // still escape rather than producing a new fallback reply after barge-in.
+    signal.throwIfAborted();
+    if (offline && turnSignal.aborted) exceptionReason ??= "deadline";
 
     const focus = built.context.turnPlan?.focusFactIds ?? [];
     const entry =
@@ -129,8 +176,16 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     const fallbackReply = approvedReply?.success
       ? approvedReply.data
       : built.fallbackReply;
+    // Only the Engine's permitted focus enables the keyword fast path.
+    preferPreparedReply ||= Boolean(
+      ["answer", "repeat", "acknowledge"].includes(reaction ?? "") &&
+      focus.length === 1 &&
+      fallbackReply.revealedFactIds.length === 1 &&
+      fallbackReply.revealedFactIds[0] === focus[0] &&
+      built.context.allowedFacts.some((item) => item.id === focus[0]),
+    );
     return VoicePipelineRequestSchema.parse({
-      preferPreparedReply,
+      preferPreparedReply: !exceptionReason && preferPreparedReply,
       ...(offline ? { exceptionDeadlineAt, exceptionReason } : {}),
       generation: {
         requestId,
@@ -151,7 +206,10 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     });
   }
 
-  private rememberTurn(requestId: string, asked: readonly string[]): void {
+  private rememberTurn(
+    requestId: string,
+    asked: readonly string[] | undefined,
+  ): void {
     if (this.turnAnswers.size >= MAX_CACHED_QUESTIONS) {
       const oldest = this.turnAnswers.keys().next().value;
       if (oldest !== undefined) this.turnAnswers.delete(oldest);
@@ -167,7 +225,8 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     signal: AbortSignal,
     entries: readonly DialogueEntry[] = [],
     sessionId = "",
-  ): Promise<readonly string[]> {
+  ): Promise<readonly string[] | undefined> {
+    signal.throwIfAborted();
     // Версия сценария не меняется в пределах звонка, а факты приходят из неё,
     // поэтому их набор и служит ключом наравне с текстом.
     const key = cacheKey(JSON.stringify([sessionId, facts]), operatorText);
@@ -188,14 +247,17 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       return prepared;
     }
 
-    if (env.NODE_ENV !== "test" && env.LLM_PROVIDER === "local") {
-      return undefined as unknown as string[];
+    // Standard local mode delegates to Engine keywords. Offline mode needs an
+    // explicit, fail-closed intent decision instead (including paraphrases).
+    if (this.runtime?.localLlm && !this.runtime.settings.enabled) {
+      return undefined;
     }
 
     const asked = await this.questions.understand(
       { requestId, operatorText, facts: [...facts] },
       signal,
     );
+    signal.throwIfAborted();
 
     if (this.understood.size >= MAX_CACHED_QUESTIONS) {
       this.understood.clear();
@@ -214,7 +276,12 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     generation,
     initiative,
   }: RecordCallerReplyOptions): Promise<void> {
-    const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
+    const turnKey = JSON.stringify([sessionId, requestId]);
+    const recordedDecision = this.turnAnswers.has(turnKey);
+    const entries =
+      !recordedDecision && !this.runtime?.settings.enabled
+        ? ((await this.audio?.approvedEntries(sessionId)) ?? [])
+        : [];
     await this.engine.applyCallerReply({
       trainingSessionId: sessionId,
       initiative,
@@ -227,16 +294,18 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       // Разбор этого же вопроса уже лежит в кеше после сборки контекста:
       // запись хода сверяется с тем же ответом, а не спрашивает модель снова.
       resolveAskedFacts: (facts) =>
-        this.runtime?.settings.enabled
-          ? Promise.resolve(this.turnAnswers.get(requestId) ?? [])
-          : this.understand(
-              requestId,
-              operatorText,
-              facts,
-              new AbortController().signal,
-              entries,
-              sessionId,
-            ),
+        recordedDecision
+          ? Promise.resolve(this.turnAnswers.get(turnKey))
+          : this.runtime?.settings.enabled
+            ? Promise.resolve([])
+            : this.understand(
+                requestId,
+                operatorText,
+                facts,
+                new AbortController().signal,
+                entries,
+                sessionId,
+              ),
     });
   }
 }

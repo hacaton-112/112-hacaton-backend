@@ -94,8 +94,13 @@ export class OfflineReplyService {
               ),
             };
           }
+          result = {
+            reply: fallback,
+            source: "prepared",
+            attempts: [],
+          };
         }
-        result = DialogueGenerationResultSchema.parse(
+        result ??= DialogueGenerationResultSchema.parse(
           await abortable(
             this.generation.generate(request.generation, deadline),
             deadline,

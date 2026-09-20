@@ -5,9 +5,11 @@ import { offlineSettings } from "@/modules/ai-gateway/offline-policy";
 @Injectable()
 export class VoiceRuntimeService {
   readonly settings;
+  readonly localLlm: boolean;
   private readonly outcomes: Record<string, number> = {};
   constructor(config: ConfigService) {
     this.settings = offlineSettings(config);
+    this.localLlm = config.get("LLM_PROVIDER") === "local";
     if (
       this.settings.enabled &&
       config.get("VOICE_PIPELINE_DEMO_ENABLED") === "true"

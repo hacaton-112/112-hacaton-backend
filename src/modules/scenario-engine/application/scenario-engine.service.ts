@@ -327,7 +327,7 @@ export class ScenarioEngineService {
      */
     resolveAskedFacts?: (
       facts: readonly FactQuestion[],
-    ) => Promise<readonly string[]>;
+    ) => Promise<readonly string[] | undefined>;
   }): Promise<EngineGenerationContext> {
     const { state, version } = await this.loadCall(input.trainingSessionId);
 
@@ -464,7 +464,7 @@ export class ScenarioEngineService {
      */
     resolveAskedFacts?: (
       facts: readonly FactQuestion[],
-    ) => Promise<readonly string[]>;
+    ) => Promise<readonly string[] | undefined>;
   }): Promise<CallSnapshot> {
     const now = input.now ?? new Date();
     const { state, version } = await this.loadCall(input.trainingSessionId);
@@ -909,7 +909,9 @@ export class ScenarioEngineService {
   private async askedFacts(
     version: ScenarioVersionSnapshot,
     operatorText: string,
-    resolve?: (facts: readonly FactQuestion[]) => Promise<readonly string[]>,
+    resolve?: (
+      facts: readonly FactQuestion[],
+    ) => Promise<readonly string[] | undefined>,
   ): Promise<readonly string[] | undefined> {
     if (resolve === undefined || operatorText.trim().length === 0) {
       return undefined;

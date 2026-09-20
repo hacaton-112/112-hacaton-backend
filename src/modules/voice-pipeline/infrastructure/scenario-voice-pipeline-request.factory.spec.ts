@@ -4,6 +4,8 @@ import type { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
 import type { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ConfigService } from "@nestjs/config";
+import { VoiceRuntimeService } from "../application/voice-runtime.service";
 
 const fallbackReply: CallerReply = {
   text: "Улица Учебная, дом 12.",
@@ -90,6 +92,7 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
       expect(request.generation.fallbackReply?.revealedFactIds).toEqual([
         "address",
       ]);
+      expect(request.preferPreparedReply).toBe(reactionAct === "answer");
     },
   );
   it("passes the focused context and situational fallback to generation", async () => {
@@ -121,9 +124,19 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
       }),
       applyCallerReply: jest.fn(),
     };
+    const questions = createQuestions();
+    const built = await engine.buildGenerationContext();
+    engine.buildGenerationContext.mockImplementation(async (input) => {
+      expect(
+        await input.resolveAskedFacts([{ id: "address", label: "Адрес" }]),
+      ).toBeUndefined();
+      return built;
+    });
     const factory = new ScenarioVoicePipelineRequestFactory(
       engine as unknown as ScenarioEngineService,
-      createQuestions().port,
+      questions.port,
+      undefined,
+      new VoiceRuntimeService(new ConfigService({ LLM_PROVIDER: "local" })),
     );
 
     const request = await factory.create({
@@ -134,6 +147,8 @@ describe(ScenarioVoicePipelineRequestFactory.name, () => {
     });
 
     expect(request.generation.fallbackReply).toEqual(fallbackReply);
+    expect(request.preferPreparedReply).toBe(true);
+    expect(questions.understand).not.toHaveBeenCalled();
     expect(request.generation.context.allowedFacts).toEqual([
       { id: "address", value: fallbackReply.text },
     ]);

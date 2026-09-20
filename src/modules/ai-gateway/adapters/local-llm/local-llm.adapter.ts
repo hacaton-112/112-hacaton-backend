@@ -11,17 +11,18 @@ import type { LlmPort } from "../../ports/llm.port";
 import type { QuestionUnderstandingPort } from "../../ports/question-understanding.port";
 import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
 import {
-  ALICE_AI_SYSTEM_PROMPT,
-  CALLER_REPLY_JSON_SCHEMA,
-  REACTION_ACT_INSTRUCTIONS,
-} from "../alice-ai/alice-ai.request";
-import {
   ALICE_AI_QUESTION_PROMPT,
   ASKED_FACTS_JSON_SCHEMA,
   parseAliceAiQuestionResponse,
 } from "../alice-ai/alice-ai.question";
 import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
 import { InferenceQueue } from "./inference-queue";
+import {
+  expandLocalReply,
+  localReplyInput,
+  localReplyJsonSchema,
+  localReplyPrompt,
+} from "./local-llm.reply";
 
 export const LocalLlmConfigSchema = z
   .object({
@@ -36,6 +37,7 @@ export const LocalLlmConfigSchema = z
     queueSize: z.coerce.number().int().min(0).max(16).default(0),
     queueWaitMs: z.coerce.number().int().min(10).max(2000).default(500),
     literalFactReplies: z.boolean().default(false),
+    replyMaxTokens: z.coerce.number().int().min(64).max(512).default(192),
   })
   .strict();
 export type LocalLlmConfig = z.infer<typeof LocalLlmConfigSchema>;
@@ -58,21 +60,18 @@ const CompletionSchema = z.object({
 const REPLY_SLOT = 0;
 const QUESTION_SLOT = 1;
 
-class LocalLlmBusyError extends Error {
-  readonly status = 429;
-  readonly retryable = false;
-  constructor() {
-    super("Local LLM capacity is occupied; use the scenario fallback");
-  }
-}
-
 /** llama-server protocol. No cloud fallback and no unbounded waiting queue. */
 export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private readonly queue: InferenceQueue;
+  readonly replyPolicy;
   constructor(
     private readonly config: LocalLlmConfig,
     private readonly fetchImplementation: typeof fetch = fetch,
   ) {
+    this.replyPolicy = {
+      retryNearRepetition: false,
+      preserveLiteralText: config.literalFactReplies,
+    };
     this.queue = new InferenceQueue(
       config.concurrency,
       config.queueSize,
@@ -85,7 +84,6 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     signal: AbortSignal,
   ): AsyncIterable<LlmStreamEvent> {
     const request = GenerateCallerReplyRequestSchema.parse(raw);
-    const plan = request.context.turnPlan;
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(this.config.timeoutMs),
@@ -96,30 +94,12 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         {
           schemaName: "caller_reply",
           schemaDescription: "Caller reply using only permitted facts",
-          schema: CALLER_REPLY_JSON_SCHEMA,
-          systemPrompt: ALICE_AI_SYSTEM_PROMPT,
-          // Порядок полей — ради кеша промпта: сначала то, что живёт весь
-          // звонок (persona) или только дописывается (recentTurns), в конце —
-          // то, что меняется каждый ход. Пересчитывается только хвост.
-          userPrompt: JSON.stringify({
-            persona: request.context.persona,
-            recentTurns: request.context.recentTurns.slice(-4),
-            alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
-            allowedFacts: request.context.allowedFacts,
-            ...(plan
-              ? {
-                  turnPlan: {
-                    ...plan,
-                    instruction: REACTION_ACT_INSTRUCTIONS[plan.reactionAct],
-                  },
-                }
-              : {}),
-            ...(request.retryFeedback
-              ? { retryFeedback: request.retryFeedback }
-              : {}),
-            operatorText: request.operatorText,
-          }),
-          maxTokens: 80,
+          schema: localReplyJsonSchema(request),
+          systemPrompt: localReplyPrompt(this.config.literalFactReplies),
+          userPrompt: JSON.stringify(
+            localReplyInput(request, this.config.literalFactReplies),
+          ),
+          maxTokens: this.config.replyMaxTokens,
           signal: deadline,
         },
         true,
@@ -134,7 +114,11 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         throw new Error("Local LLM returned an invalid stream");
       }
       // The common SSE wire format is identical; collected JSON still passes the domain validator.
-      yield* parseAliceAiSse(response.body, deadline);
+      yield* expandLocalReply(
+        parseAliceAiSse(response.body, deadline),
+        request,
+        deadline,
+      );
     } finally {
       release();
     }
@@ -232,10 +216,14 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         body: JSON.stringify({
           model: this.config.model,
           stream,
-          temperature: 0.65,
-          presence_penalty: 0.5,
-          frequency_penalty: 0.3,
-          repeat_penalty: 1.15,
+          temperature:
+            request.schemaName === "asked_facts" ||
+            this.config.literalFactReplies
+              ? 0
+              : 0.2,
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          repeat_penalty: 1,
           max_tokens: request.maxTokens,
           chat_template_kwargs: { enable_thinking: false },
           reasoning_effort: "none",

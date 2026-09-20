@@ -165,12 +165,9 @@ export class VoicePipelineService {
             signal,
           );
           preparedLookupMs += performance.now() - candidateLookupAt;
-          generationResult = prepared
-            ? candidate
-            : await this.dialogueGeneration.generate(
-                request.generation,
-                signal,
-              );
+          // Missing audio requires TTS, not another formulation of a text the
+          // Engine already selected. Keep provenance honest: zero LLM attempts.
+          generationResult = candidate;
         } else {
           generationResult = await this.dialogueGeneration.generate(
             request.generation,
@@ -181,7 +178,11 @@ export class VoicePipelineService {
           DialogueGenerationResultSchema.parse(generationResult);
         // A model/fallback may return an already approved phrase too. Reuse its
         // audio without erasing the real generation attempts from the metrics.
-        if (!prepared && this.preparedAudio) {
+        if (
+          !prepared &&
+          this.preparedAudio &&
+          generationResult.source !== "prepared"
+        ) {
           const replyLookupAt = performance.now();
           prepared = await this.preparedAudio.lookup(
             request.generation.scenarioVersionId,

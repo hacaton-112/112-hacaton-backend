@@ -187,12 +187,10 @@ describe(VoicePipelineService.name, () => {
     const dialogue = createDialogueMock(fallbackResult);
     const speech = createSpeechMock();
     const prepared = {
-      lookup: jest
-        .fn()
-        .mockResolvedValue({
-          audio: new Uint8Array([0, 1]),
-          sampleRate: 24_000,
-        }),
+      lookup: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
       replay: ScenarioAudioService.prototype.replay,
     };
     const events = await collect(
@@ -218,12 +216,10 @@ describe(VoicePipelineService.name, () => {
   it("plays the prepared opening through the prescribed-speech path", async () => {
     const speech = createSpeechMock();
     const prepared = {
-      lookupOpening: jest
-        .fn()
-        .mockResolvedValue({
-          audio: new Uint8Array([0, 1]),
-          sampleRate: 24_000,
-        }),
+      lookupOpening: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
       replay: ScenarioAudioService.prototype.replay,
     };
     const service = new VoicePipelineService(
@@ -302,7 +298,7 @@ describe(VoicePipelineService.name, () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it("falls back to the existing live path when prepared audio is missing", async () => {
+  it("synthesizes the selected text without an LLM call when prepared audio is missing", async () => {
     const dialogue = createDialogueMock();
     const speech = createSpeechMock();
     const service = new VoicePipelineService(dialogue.service, speech.service, {
@@ -313,7 +309,7 @@ describe(VoicePipelineService.name, () => {
       preferPreparedReply: true,
       generation: { ...request.generation, fallbackReply: modelResult.reply },
     });
-    expect(dialogue.generate).toHaveBeenCalledTimes(1);
+    expect(dialogue.generate).not.toHaveBeenCalled();
     expect(speech.synthesize).toHaveBeenCalledTimes(1);
   });
 

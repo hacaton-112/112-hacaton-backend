@@ -82,6 +82,41 @@ const createService = (llmPort: LlmPort): DialogueGenerationService =>
   );
 
 describe(DialogueGenerationService.name, () => {
+  it("does not spend an extra generation or rewrite literal text for repetition in local offline mode", async () => {
+    const text = "Возгорание находится на кухне";
+    const reply = { ...validReply, text };
+    const streamReply = jest.fn(() => replyStream(JSON.stringify(reply)));
+    const service = createService({
+      replyPolicy: { retryNearRepetition: false, preserveLiteralText: true },
+      streamReply,
+    });
+    const result = await service.generate(
+      {
+        ...validRequest,
+        context: {
+          ...validRequest.context,
+          recentTurns: [{ role: "caller", text }],
+        },
+      },
+      new AbortController().signal,
+    );
+    expect(result.reply.text).toBe(text);
+    expect(result.attempts).toHaveLength(1);
+    expect(streamReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("still retries invalid JSON with local style retries disabled", async () => {
+    const streamReply = jest
+      .fn()
+      .mockImplementationOnce(() => replyStream("invalid"))
+      .mockImplementationOnce(() => replyStream());
+    const result = await createService({
+      replyPolicy: { retryNearRepetition: false, preserveLiteralText: true },
+      streamReply,
+    }).generate(validRequest, new AbortController().signal);
+    expect(result.source).toBe("model");
+    expect(result.attempts).toHaveLength(2);
+  });
   it("returns the validated reply from the first attempt", async () => {
     const llmPort = new FakeLlmPort([replyStream]);
 

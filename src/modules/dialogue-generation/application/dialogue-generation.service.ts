@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
-import { env } from "@/core/config/env.config";
 import {
   CallerReplySchema,
   DialogueGenerationResultSchema,
@@ -46,7 +45,6 @@ export const DEFAULT_FALLBACK_CALLER_REPLY: CallerReply =
 @Injectable()
 export class DialogueGenerationService {
   private readonly logger = new Logger(DialogueGenerationService.name);
-  private readonly retryNearRepetition = true;
 
   constructor(
     @Inject(LLM_PORT)
@@ -83,7 +81,7 @@ export class DialogueGenerationService {
         // срезанный до одного «Быстрее!» пересказ проверку прошёл бы, а новая
         // попытка с объяснением даёт ответ лучше обрубка.
         if (
-          this.retryNearRepetition &&
+          (this.llmPort.replyPolicy?.retryNearRepetition ?? true) &&
           attempt < MAX_GENERATION_ATTEMPTS &&
           this.repeatsPreviousReply(request, collectedReply.reply.text)
         ) {
@@ -157,7 +155,10 @@ export class DialogueGenerationService {
     request: GenerateCallerReplyRequest,
     reply: CallerReply,
   ): CallerReply {
-    if (request.context.turnPlan?.reactionAct === "repeat") {
+    if (
+      this.llmPort.replyPolicy?.preserveLiteralText ||
+      request.context.turnPlan?.reactionAct === "repeat"
+    ) {
       return reply;
     }
 

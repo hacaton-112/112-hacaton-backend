@@ -56,6 +56,7 @@ export const createAiProviders = (
           config.get("LOCAL_LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),
         queueWaitMs: config.get("LOCAL_LLM_QUEUE_WAIT_MS"),
         literalFactReplies: offline.enabled,
+        replyMaxTokens: config.get("LOCAL_LLM_REPLY_MAX_TOKENS"),
       }),
       guardedOfflineFetch(config, fetchImplementation),
     );

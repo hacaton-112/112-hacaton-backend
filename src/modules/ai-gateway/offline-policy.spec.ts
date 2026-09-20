@@ -3,6 +3,17 @@ import { assertOfflineEndpoint, guardedOfflineFetch } from "./offline-policy";
 import { createAiProviders } from "./adapters/alice-ai/alice-ai-adapter.module";
 
 describe("offline AI policy", () => {
+  it("permits the Compose local LLM and Piper aliases without permitting the internet", async () => {
+    const fetcher = jest.fn().mockResolvedValue(Response.json({}));
+    const guarded = guardedOfflineFetch(
+      new ConfigService({ VOICE_EXECUTION_PROFILE: "offline-hybrid" }),
+      fetcher,
+    );
+    await guarded("http://local-llm:8080/v1/chat/completions");
+    await guarded("http://piper-tts:5000/");
+    expect(() => guarded("https://example.org")).toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it.each([
     "http://127.0.0.1:8080",
     "http://192.168.1.4",

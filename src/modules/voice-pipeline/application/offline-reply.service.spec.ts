@@ -132,6 +132,42 @@ const collect = async (stream: AsyncIterable<VoicePipelineStreamEvent>) => {
 const signal = () => new AbortController().signal;
 
 describe("offline hybrid turn", () => {
+  it("synthesizes approved text without LLM when its recording is absent", async () => {
+    const s = setup();
+    const events = await collect(
+      s.pipeline.streamReply(
+        { ...request(), preferPreparedReply: true },
+        signal(),
+      ),
+    );
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(s.synthesize).toHaveBeenCalledTimes(1);
+    expect(events[0]).toMatchObject({
+      type: "voice.reply.ready",
+      result: {
+        source: "prepared",
+        attempts: [],
+        reply: request().generation.fallbackReply,
+        resolution: { path: "local-generated" },
+      },
+    });
+  });
+  it("uses safe recorded audio if synthesis of approved text fails", async () => {
+    const s = setup();
+    s.synthesize.mockImplementation(() => {
+      throw new Error("TTS unavailable");
+    });
+    const result = await s.offline.resolve(
+      { ...request(), preferPreparedReply: true },
+      signal(),
+    );
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(result.result.resolution).toMatchObject({
+      path: "safe-fallback",
+      reason: "synthesis-failed",
+    });
+    expect(result.result.reply.revealedFactIds).toEqual([]);
+  });
   it("uses prepared audio without model or synthesis", async () => {
     const s = setup();
     s.lookup.mockResolvedValue(pcm);
