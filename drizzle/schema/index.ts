@@ -9,4 +9,5 @@ export * from "./methodical-material.schema";
 export * from "./training.schema";
 export * from "./scenario.schema";
 export * from "./scenario-audio.schema";
+export * from "./telephony.schema";
 export * from "./user.schema";
