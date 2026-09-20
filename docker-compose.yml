@@ -176,6 +176,40 @@ services:
   # завершения, поэтому схема базы всегда совпадает с кодом образа. Тот же
   # образ выполняет сид сценариев и создание учётной записи — см.
   # docs/deployment.md.
+  # Учебная IP-АТС: рабочие места ДДС звонят нарядам по SIP, а на том конце
+  # отвечает backend через ARI. SIP и RTP публикуются в сеть класса — к ним
+  # подключаются аппаратные телефоны вроде РТУ Т16Р или софтфоны; ARI остаётся
+  # внутри сети compose.
+  asterisk:
+    profiles: ["telephony"]
+    image: ${ASTERISK_IMAGE:-andrius/asterisk:22}
+    container_name: system-112-training-asterisk
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
+    environment:
+      ASTERISK_ARI_USER: ${ASTERISK_ARI_USER:-system112}
+      # Пустые пароли не пропустит entrypoint: `:?` здесь сломал бы compose
+      # тем, кто телефонию не поднимает.
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:-}
+      ASTERISK_ARI_APP: ${ASTERISK_ARI_APP:-crew-handoff}
+      ASTERISK_SIP_PASSWORD: ${ASTERISK_SIP_PASSWORD:-}
+      ASTERISK_WORKSTATIONS: ${ASTERISK_WORKSTATIONS:-201,202,203,204}
+      ASTERISK_EXTERNAL_ADDRESS: ${ASTERISK_EXTERNAL_ADDRESS:-}
+      ASTERISK_RTP_START: "10000"
+      ASTERISK_RTP_END: "10099"
+    ports:
+      - "${ASTERISK_SIP_BIND_ADDRESS:-0.0.0.0}:5060:5060/udp"
+      - "${ASTERISK_SIP_BIND_ADDRESS:-0.0.0.0}:5060:5060/tcp"
+      - "${ASTERISK_SIP_BIND_ADDRESS:-0.0.0.0}:10000-10099:10000-10099/udp"
+      # ARI без TLS: только на localhost — для backend, запущенного на хосте.
+      - "127.0.0.1:${ASTERISK_ARI_PORT:-8088}:8088"
+    volumes:
+      - ./telephony/asterisk:/etc/asterisk-templates:ro
+      - ./telephony/asterisk/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+      # Реплики нарядов пишет backend, играет Asterisk. Каталог на хосте, а
+      # не том compose: его видит и backend, запущенный вне контейнера.
+      - ./telephony-sounds/crew:/var/lib/asterisk/sounds/crew
+
   migrate:
     profiles: ["app"]
     build:
@@ -213,6 +247,14 @@ services:
       CALL_RECORDING_S3_ENDPOINT: http://minio:9000
       CALL_RECORDING_S3_ACCESS_KEY_ID: ${CALL_RECORDING_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
       CALL_RECORDING_S3_SECRET_ACCESS_KEY: ${CALL_RECORDING_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
+      # Телефония включается вместе с профилем telephony; без него рабочее
+      # место ДДС работает без шага передачи наряду.
+      TELEPHONY_ENABLED: ${TELEPHONY_ENABLED:-false}
+      ASTERISK_ARI_URL: http://asterisk:8088
+      ASTERISK_ARI_USER: ${ASTERISK_ARI_USER:-system112}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:-}
+      ASTERISK_ARI_APP: ${ASTERISK_ARI_APP:-crew-handoff}
+      TELEPHONY_SOUNDS_DIR: /app/telephony-sounds
     ports:
       # API и WebSocket голосового канала — единственный вход, который нужен
       # приложению. За обратным прокси с TLS задайте BACKEND_BIND_ADDRESS=127.0.0.1.
@@ -223,6 +265,7 @@ services:
       - "9464"
     volumes:
       - backend_logs:/app/logs
+      - ./telephony-sounds/crew:/app/telephony-sounds/crew
     # ASR и TTS обычно подняты на том же хосте из репозитория infra и доступны
     # контейнеру как host.docker.internal.
     extra_hosts:
