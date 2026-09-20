@@ -76,6 +76,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   "listen-failed": "Реплику не удалось распознать, повторите",
   "pipeline-failed": "Заявитель не ответил: сбой генерации или синтеза",
   "context-unavailable": "Сценарий недоступен",
+  "scenario-audio-not-ready":
+    "Записи для локального звонка ещё не готовы. Попросите преподавателя утвердить диалог и дождаться подготовки аудио.",
   "call-state-invalid": "Команда пришла не вовремя",
   "invalid-message": "Сервер не понял команду",
   "assignment-unavailable": "Назначение закрыто или вам не адресовано",
