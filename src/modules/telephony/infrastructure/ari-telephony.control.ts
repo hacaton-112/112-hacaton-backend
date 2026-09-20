@@ -50,12 +50,12 @@ export class AriTelephonyControl implements TelephonyControlPort {
       new WebSocket(url),
   ) {}
 
-  connect(): void {
+  start(): void {
     this.stopped = false;
     this.open();
   }
 
-  close(): void {
+  stop(): void {
     this.stopped = true;
     clearTimeout(this.reconnectTimer);
     this.socket?.close();

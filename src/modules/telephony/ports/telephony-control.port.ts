@@ -28,6 +28,9 @@ export type TelephonyEvent =
   | { readonly type: "call-ended"; readonly channelId: string };
 
 export interface TelephonyControlPort {
+  /** Подключение к АТС; переподключается само, пока не остановлено. */
+  start(): void;
+  stop(): void;
   /** Подписка на события линии; возвращает отписку. */
   subscribe(listener: (event: TelephonyEvent) => void): () => void;
   answer(channelId: string): Promise<void>;

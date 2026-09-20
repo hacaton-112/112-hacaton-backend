@@ -11,6 +11,7 @@ export const ApiRoutes = {
   Assignments: "assignments",
   Instructor: "instructor",
   Users: "users",
+  Telephony: "telephony",
   MethodicalMaterials: "methodical-materials",
 } as const;
 
