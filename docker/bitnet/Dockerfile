@@ -36,6 +36,8 @@ RUN python3 utils/codegen_tl2.py \
         -DLLAMA_BUILD_TOOLS=ON \
         -DLLAMA_BUILD_EXAMPLES=OFF \
         -DLLAMA_BUILD_SERVER=ON \
+        -DLLAMA_BUILD_UI=OFF \
+        -DLLAMA_USE_PREBUILT_UI=OFF \
         -DLLAMA_CURL=OFF \
     && cmake --build build --target llama-server --parallel
 
