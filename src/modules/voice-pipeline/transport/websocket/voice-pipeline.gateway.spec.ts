@@ -5,6 +5,7 @@ import { Logger } from "@nestjs/common";
 import WebSocket, { type RawData } from "ws";
 
 import { AppConflictException } from "@/common/exceptions/app.exception";
+import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/scenario-audio.service";
 import {
   ErrorCodes,
   VoicePipelineServerEventSchema,
@@ -1900,9 +1901,10 @@ describe(VoicePipelineGateway.name, () => {
     const createStartGateway = (
       training: ReturnType<typeof createTraining>,
       engine: ScenarioEngineService = createEngine(),
+      pipeline = {} as VoicePipelineService,
     ) =>
       new VoicePipelineGateway(
-        {} as unknown as VoicePipelineService,
+        pipeline,
         {
           create: jest.fn(),
           recordReply: jest.fn(),
@@ -1933,6 +1935,28 @@ describe(VoicePipelineGateway.name, () => {
       ).toBeLessThan(
         (runtime.engine.startCall as jest.Mock).mock.invocationCallOrder[0]!,
       );
+    });
+
+    it("does not consume an attempt when offline audio is not ready", async () => {
+      const training = createTraining();
+      const engine = createEngine();
+      const gateway = createStartGateway(training, engine, {
+        assertCanStart: jest
+          .fn()
+          .mockRejectedValue(new OfflineAudioNotReadyError()),
+      } as unknown as VoicePipelineService);
+      const socket = new SocketMock();
+      await gateway.handleConnection(
+        asSocket(socket),
+        handshake("Bearer token"),
+      );
+      await startedCall(gateway, socket);
+      expect(textEvents(socket).at(-1)).toMatchObject({
+        type: "error",
+        code: "scenario-audio-not-ready",
+      });
+      expect(training.reserveAttempt).not.toHaveBeenCalled();
+      expect(engine.startCall).not.toHaveBeenCalled();
     });
 
     it.each([

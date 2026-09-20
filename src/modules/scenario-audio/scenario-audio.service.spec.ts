@@ -10,7 +10,10 @@ import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import type { RecordingStorage } from "@/modules/call-recording/ports/recording-storage.port";
 import type { ScenarioStore } from "@/modules/scenario-engine/ports/scenario-store.port";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
-import { audioFingerprint } from "./domain/prepared-dialogue";
+import {
+  audioFingerprint,
+  compilePreparedSpeech,
+} from "./domain/prepared-dialogue";
 import { ScenarioAudioService } from "./scenario-audio.service";
 
 const request: TtsSynthesisRequest = {
@@ -37,7 +40,7 @@ const pack = {
   assets: { [audioFingerprint(request)]: asset },
 };
 
-const setup = (row: unknown = pack) => {
+const setup = (row: unknown = pack, store: Partial<ScenarioStore> = {}) => {
   const get = jest
     .fn<
       ReturnType<RecordingStorage["get"]>,
@@ -50,7 +53,7 @@ const setup = (row: unknown = pack) => {
   } as unknown as DrizzleService["db"];
   const service = new ScenarioAudioService(
     db,
-    {} as ScenarioStore,
+    store as ScenarioStore,
     { get, put: jest.fn() },
     {} as SpeechSynthesisService,
     new ConfigService(),
@@ -60,6 +63,48 @@ const setup = (row: unknown = pack) => {
 };
 
 describe(ScenarioAudioService.name, () => {
+  it("requires an approved bank and opening/fallback for every panic level", async () => {
+    await expect(
+      setup({ ...pack, entries: [] }).service.assertOfflineReady("version-1"),
+    ).rejects.toThrow("offline");
+    const version = {
+      id: "version-1",
+      openingLine: "Помогите!",
+      fallbackLine: "Повторите.",
+      panicFloor: 0,
+      panicCeiling: 4,
+      facts: [],
+      persona: {
+        voiceId: "Vivian",
+        gender: "female" as const,
+        baseSpeechRate: 1,
+      },
+    };
+    const requests = compilePreparedSpeech(version);
+    const assets = Object.fromEntries(
+      requests.map((item) => [audioFingerprint(item), asset]),
+    );
+    const store = { loadVersion: jest.fn().mockResolvedValue(version) };
+    const row = {
+      ...pack,
+      entries: [
+        { factKey: "place", questions: ["Где вы?"], acknowledge: false },
+      ],
+      assets,
+    };
+    await expect(
+      setup(row, store).service.assertOfflineReady("version-1"),
+    ).resolves.toBeUndefined();
+    delete assets[audioFingerprint(requests.at(-1)!)];
+    // Remove specifically the highest panic level's fallback, not an optional reaction.
+    const lastFallback = requests
+      .filter((item) => item.text === version.fallbackLine)
+      .at(-1)!;
+    delete assets[audioFingerprint(lastFallback)];
+    await expect(
+      setup(row, store).service.assertOfflineReady("version-1"),
+    ).rejects.toThrow("offline");
+  });
   it("matches approved paraphrases exactly and only to known engine facts", () => {
     const { service } = setup();
     const entries = [

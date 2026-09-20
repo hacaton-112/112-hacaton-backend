@@ -14,6 +14,11 @@ import {
 } from "../local-llm/local-llm.adapter";
 import type { LlmPort } from "../../ports/llm.port";
 import type { QuestionUnderstandingPort } from "../../ports/question-understanding.port";
+import {
+  assertOfflineEndpoint,
+  guardedOfflineFetch,
+  offlineSettings,
+} from "../../offline-policy";
 
 const AI_PROVIDERS = Symbol("AI_PROVIDERS");
 interface AiProviders {
@@ -26,19 +31,35 @@ export const createAiProviders = (
   config: ConfigService,
   fetchImplementation: typeof fetch,
 ): AiProviders => {
+  const offline = offlineSettings(config);
   const provider = z
     .enum(["alice", "local"])
     .parse(config.get<string>("LLM_PROVIDER") ?? "alice");
+  if (offline.enabled && provider !== "local")
+    throw new Error(
+      "offline-hybrid requires LLM_PROVIDER=local; cloud fallback is prohibited",
+    );
   if (provider === "local") {
+    if (offline.enabled)
+      assertOfflineEndpoint(
+        config.get<string>("LOCAL_LLM_BASE_URL") ?? "",
+        offline.hosts,
+      );
     const client = new LocalLlmAdapter(
       LocalLlmConfigSchema.parse({
         baseUrl: config.get("LOCAL_LLM_BASE_URL"),
         model: config.get("LOCAL_LLM_MODEL"),
         apiKey: config.get("LOCAL_LLM_API_KEY"),
         timeoutMs: config.get("LOCAL_LLM_TIMEOUT_MS"),
+        intentTimeoutMs: config.get("LOCAL_LLM_INTENT_TIMEOUT_MS"),
+        replyMaxTokens: config.get("LOCAL_LLM_REPLY_MAX_TOKENS"),
         concurrency: config.get("LOCAL_LLM_CONCURRENCY"),
+        queueSize:
+          config.get("LOCAL_LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),
+        queueWaitMs: config.get("LOCAL_LLM_QUEUE_WAIT_MS"),
+        literalFactReplies: offline.enabled,
       }),
-      fetchImplementation,
+      guardedOfflineFetch(config, fetchImplementation),
     );
     return { llm: client, questions: client, structured: client };
   }

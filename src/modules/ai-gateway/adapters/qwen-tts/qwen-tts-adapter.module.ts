@@ -5,6 +5,11 @@ import { TTS_PORT } from "../../ai-gateway.tokens";
 import { type QwenTtsEnvironment, parseQwenTtsConfig } from "./qwen-tts.config";
 import { createQwenTtsAdapter } from "./qwen-tts.factory";
 import {
+  assertOfflineEndpoint,
+  guardedOfflineFetch,
+  offlineSettings,
+} from "../../offline-policy";
+import {
   QWEN_TTS_CONFIG,
   QWEN_TTS_FETCH,
   type QwenTtsFetch,
@@ -23,12 +28,16 @@ const QWEN_TTS_ENVIRONMENT_KEYS = [
   "PIPER_TTS_FEMALE_VOICE",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];
 
-const createQwenTtsConfig = (configService: ConfigService) =>
-  parseQwenTtsConfig(
+const createQwenTtsConfig = (configService: ConfigService) => {
+  const parsed = parseQwenTtsConfig(
     Object.fromEntries(
       QWEN_TTS_ENVIRONMENT_KEYS.map((key) => [key, configService.get(key)]),
     ),
   );
+  const policy = offlineSettings(configService);
+  if (policy.enabled) assertOfflineEndpoint(parsed.baseUrl, policy.hosts);
+  return parsed;
+};
 
 @Module({
   imports: [ConfigModule],
@@ -40,7 +49,9 @@ const createQwenTtsConfig = (configService: ConfigService) =>
     },
     {
       provide: QWEN_TTS_FETCH,
-      useFactory: (): QwenTtsFetch => globalThis.fetch.bind(globalThis),
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): QwenTtsFetch =>
+        guardedOfflineFetch(config, globalThis.fetch.bind(globalThis)),
     },
     {
       provide: TTS_PORT,

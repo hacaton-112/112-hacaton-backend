@@ -1,4 +1,10 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import {
+  assertOfflineEndpoint,
+  guardedOfflineFetch,
+  offlineSettings,
+} from "@/modules/ai-gateway/offline-policy";
 
 import { env } from "@/core/config/env.config";
 
@@ -21,8 +27,10 @@ export interface AsrSession {
 export class AsrService {
   private readonly serviceUrl: string;
 
-  constructor() {
+  constructor(private readonly config: ConfigService = new ConfigService()) {
     this.serviceUrl = env.ASR_SERVICE_URL.replace(/\/$/, "");
+    const policy = offlineSettings(config);
+    if (policy.enabled) assertOfflineEndpoint(this.serviceUrl, policy.hosts);
   }
 
   health(): Promise<AsrHealth> {
@@ -39,10 +47,13 @@ export class AsrService {
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
-      const response = await fetch(`${this.serviceUrl}${path}`, {
-        ...init,
-        signal: AbortSignal.timeout(5_000),
-      });
+      const response = await guardedOfflineFetch(this.config, fetch)(
+        `${this.serviceUrl}${path}`,
+        {
+          ...init,
+          signal: AbortSignal.timeout(5_000),
+        },
+      );
       if (!response.ok) {
         const details = await response.text();
         throw new Error(`HTTP ${response.status}: ${details}`);

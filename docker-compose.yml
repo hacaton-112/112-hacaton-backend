@@ -50,8 +50,8 @@ services:
 
   # ── Голосовой конвейер на CPU ─────────────────────────────────────────────
   # Поднимается обычным `docker compose up -d`, без профилей и без разовых
-  # контейнеров-загрузчиков: модели ASR зашиты в образ, официальный bitnet.cpp
-  # скачивает BitNet I2_S при первом старте в том llm_models.
+  # контейнеров-загрузчиков: модели ASR зашиты в образ, patched bitnet.cpp /
+  # llama-server скачивает выбранный GGUF при первом старте в том llm_models.
   #
   # Потоки рассчитаны на 6 ядер / 12 потоков (Ryzen 5 5600): распознавание,
   # модель и синтез работают по очереди в пределах хода, поэтому квоты cpus
@@ -70,7 +70,7 @@ services:
       WHISPER_HOST: 0.0.0.0
       WHISPER_PORT: "8787"
       WHISPER_DEVICE: cpu
-      WHISPER_THREADS: ${WHISPER_THREADS:-6}
+      WHISPER_THREADS: ${WHISPER_THREADS:-2}
       WHISPER_PARTIALS_ENABLED: "false"
       WHISPER_PUBLIC_WS_URL: ${WHISPER_PUBLIC_WS_URL:-ws://127.0.0.1:8787}
       WHISPER_PARTIAL_INTERVAL_MS: ${WHISPER_PARTIAL_INTERVAL_MS:-2000}
@@ -89,8 +89,9 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      MODEL_FILE: /models/${LOCAL_LLM_MODEL_FILE:-bitnet-b1.58-2B-4T-i2_s.gguf}
-      MODEL_URL: ${LOCAL_LLM_MODEL_URL:-https://huggingface.co/microsoft/BitNet-b1.58-2B-4T-gguf/resolve/main/ggml-model-i2_s.gguf}
+      MODEL_FILE: /models/${LOCAL_LLM_MODEL_FILE:-Qwen3-0.6B-Q4_K_M.gguf}
+      MODEL_URL: ${LOCAL_LLM_MODEL_URL:-https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf}
+      MODEL_EXTRA_ARGS: ${LOCAL_LLM_EXTRA_ARGS:-}
     # Модель качается, только если её ещё нет в томе. Флаг --model-url сам
     # llama-server не подходит: он сверяется с Hugging Face на каждом старте и
     # без сети не поднимается даже со скачанной моделью.
@@ -106,26 +107,23 @@ services:
         --alias training-model
         --host 0.0.0.0
         --port 8080
-        --parallel 2
+        --parallel ${LOCAL_LLM_PARALLEL:-2}
         --ctx-size 8192
-        --threads ${LOCAL_LLM_THREADS:-8}
+        --threads ${LOCAL_LLM_THREADS:-12}
         --threads-batch ${LOCAL_LLM_THREADS_BATCH:-12}
         --batch-size 512
         --ubatch-size 512
         --flash-attn on
         --cache-type-k q8_0
         --cache-type-v q8_0
-        --override-kv tokenizer.ggml.pre=str:gpt-2
         --jinja
-        --chat-template-file /app/bitnet-chat-template.jinja
-        --poll 100
+        --poll ${LOCAL_LLM_POLL:-0}
         --mmap
         --mlock
+        $$MODEL_EXTRA_ARGS
         --metrics
-    # Два слота: реплика заявителя и разбор вопроса держат каждый свой кеш
-    # промпта (id_slot в LocalLlmAdapter), по 4096 токенов на слот. Генерация
-    # упирается в память; на Ryzen 5 5600 замер decode дал максимум на 8
-    # потоках. Разбор промпта выигрывает от всех 12 логических потоков.
+    # i7-8700 single-request benchmark favored 12 SMT threads. This is only a
+    # starting point: ASR uses two threads and the full pipeline must be profiled.
     ports:
       - "127.0.0.1:${LOCAL_LLM_PORT:-8080}:8080"
     volumes:
@@ -141,7 +139,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      # Первый старт качает модель (~1.1 ГиБ).
+      # Первый старт качает модель (~379 МиБ для профиля по умолчанию).
       start_period: 30m
 
   piper-tts:
@@ -333,7 +331,9 @@ services:
       LOCAL_LLM_BASE_URL: http://local-llm:8080/v1
       LOCAL_LLM_MODEL: training-model
       LOCAL_LLM_TIMEOUT_MS: ${LOCAL_LLM_TIMEOUT_MS:-30000}
-      LOCAL_LLM_CONCURRENCY: "1"
+      LOCAL_LLM_CONCURRENCY: ${LOCAL_LLM_CONCURRENCY:-1}
+      LOCAL_LLM_INTENT_TIMEOUT_MS: ${LOCAL_LLM_INTENT_TIMEOUT_MS:-2500}
+      LOCAL_LLM_REPLY_MAX_TOKENS: ${LOCAL_LLM_REPLY_MAX_TOKENS:-128}
       QWEN_TTS_PROVIDER: piper
       PIPER_TTS_BASE_URL: http://piper-tts:5000
       PIPER_TTS_MALE_VOICE: ${PIPER_TTS_MALE_VOICE:-ru_RU-dmitri-medium}
