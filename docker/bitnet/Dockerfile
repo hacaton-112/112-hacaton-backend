@@ -19,18 +19,24 @@ RUN git clone --filter=blob:none https://github.com/microsoft/BitNet.git . \
     && git checkout "${BITNET_COMMIT}" \
     && git submodule update --init --recursive --depth 1
 
-# The official setup script generates model-specific x86 lookup kernels before
-# compiling. BitNet-b1.58-2B-4T uses the same matrix layout as the 3B preset.
-RUN python3 utils/codegen_tl2.py \
-        --model bitnet_b1_58-3B \
-        --BM 160,320,320 \
-        --BK 96,96,96 \
-        --bm 32,32,32 \
+COPY patch-tl2.py /tmp/patch-tl2.py
+COPY patch-2b-model.py /tmp/patch-2b-model.py
+COPY tl2-runtime.inc /src/bitnet/src/tl2-runtime.inc
+
+# Upstream maps this checkpoint to the incompatible 3B shapes. Generate all
+# four matrix shapes used by the actual 2B-4T checkpoint, including GQA K/V.
+RUN python3 /tmp/patch-2b-model.py \
+    && python3 utils/codegen_tl2.py \
+        --model BitNet-b1.58-2B-4T \
+        --BM 256,128,256,128 \
+        --BK 96,192,96,96 \
+        --bm 32,32,32,32 \
+    && python3 /tmp/patch-tl2.py \
     && CC=clang-18 CXX=clang++-18 cmake -S . -B build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=OFF \
         -DGGML_NATIVE=ON \
-        -DBITNET_X86_TL2=OFF \
+        -DBITNET_X86_TL2=ON \
         -DLLAMA_BUILD_TESTS=OFF \
         -DLLAMA_BUILD_COMMON=ON \
         -DLLAMA_BUILD_TOOLS=ON \
