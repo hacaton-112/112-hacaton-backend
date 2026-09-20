@@ -1,7 +1,11 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-import { DISPATCH_SERVICES, SCENARIO_CATEGORIES } from "@/drizzle/schema";
+import {
+  CREW_CALL_OUTCOMES,
+  DISPATCH_SERVICES,
+  SCENARIO_CATEGORIES,
+} from "@/drizzle/schema";
 
 import { DDS_EXERCISE_VIOLATIONS } from "../domain/dds-exercise-evaluation";
 import { DDS_RESPONSE_STATUSES } from "../domain/dds-response-status";
@@ -48,6 +52,40 @@ export const DdsExerciseResultSchema = z
   })
   .strict();
 
+export const DdsCrewCallSchema = z
+  .object({
+    dialedNumber: z.string().min(1),
+    /** Позывной набранного наряда; `null`, если номера нет в справочнике. */
+    callsign: z.string().min(1).nullable(),
+    startedAt: z.iso.datetime(),
+    endedAt: z.iso.datetime().nullable(),
+    outcome: z.enum(CREW_CALL_OUTCOMES).nullable(),
+    correct: z.boolean().nullable(),
+    acknowledgements: z.number().int().nonnegative(),
+  })
+  .strict();
+
+/**
+ * Передача карточки наряду по телефону.
+ *
+ * Есть только при включённой телефонии: тогда без звонка нужному наряду
+ * реагирование не начинается.
+ */
+export const DdsCrewHandoffSchema = z
+  .object({
+    notified: z.boolean(),
+    crews: z.array(
+      z
+        .object({
+          callsign: z.string().min(1),
+          phoneNumber: z.string().min(1),
+        })
+        .strict(),
+    ),
+    calls: z.array(DdsCrewCallSchema),
+  })
+  .strict();
+
 export const DdsExerciseSchema = z
   .object({
     id: z.uuid(),
@@ -65,6 +103,7 @@ export const DdsExerciseSchema = z
     updatedAt: z.iso.datetime(),
     events: z.array(DdsExerciseEventSchema),
     result: DdsExerciseResultSchema.nullable(),
+    crewHandoff: DdsCrewHandoffSchema.nullable(),
   })
   .strict();
 
