@@ -53,6 +53,8 @@ export const createAiProviders = (
         timeoutMs: config.get("LOCAL_LLM_TIMEOUT_MS"),
         intentTimeoutMs: config.get("LOCAL_LLM_INTENT_TIMEOUT_MS"),
         replyMaxTokens: config.get("LOCAL_LLM_REPLY_MAX_TOKENS"),
+        replyTemperature: config.get("LOCAL_LLM_REPLY_TEMPERATURE"),
+        replyThinking: config.get("LOCAL_LLM_REPLY_THINKING"),
         concurrency: config.get("LOCAL_LLM_CONCURRENCY"),
         queueSize:
           config.get("LOCAL_LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),

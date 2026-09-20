@@ -102,7 +102,7 @@ describe(LocalLlmAdapter.name, () => {
         {
           index: 0,
           delta: {
-            content: '{"text":"Во дворе.","revealedFactIds":["place"]}',
+            content: "USED: place\nREPLY: Во дворе.",
           },
         },
       ],
@@ -155,15 +155,18 @@ describe(LocalLlmAdapter.name, () => {
     expect(JSON.parse(wire)).toEqual(request.fallbackReply);
     expect(events.at(-1)?.type).toBe("response.completed");
     const body = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
-    expect(body.response_format.json_schema.schema.required).toEqual([
-      "text",
-      "revealedFactIds",
-    ]);
+    expect(body).not.toHaveProperty("response_format");
+    expect(body.messages[0].content).toContain("USED:");
     expect(body.messages[0].content).toContain("дословно");
     expect(body.messages[0].content.length).toBeLessThan(
       ALICE_AI_SYSTEM_PROMPT.length,
     );
-    expect(body.max_tokens).toBe(128);
+    expect(body.max_tokens).toBe(256);
+    expect(body).toMatchObject({
+      temperature: 0.3,
+      chat_template_kwargs: { enable_thinking: true },
+      reasoning_effort: "low",
+    });
     expect(body).not.toHaveProperty("id_slot");
   });
   it("uses a local model name, structured output and non-thinking mode without cloud headers", async () => {

@@ -22,7 +22,6 @@ import { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
 import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
-import { canUsePreparedReply } from "../domain/prepared-reply";
 
 import {
   VoicePipelineError,
@@ -144,32 +143,14 @@ export class VoicePipelineService {
         generationResult = resolved.result;
         bufferedStream = resolved.stream;
       } else {
-        const fallback = request.generation.fallbackReply;
-        if (fallback && this.preparedAudio && canUsePreparedReply(request)) {
-          const candidate: DialogueGenerationResult = {
-            reply: fallback,
-            source: "prepared",
-            attempts: [],
-          };
-          const candidateLookupAt = performance.now();
-          prepared = await this.preparedAudio.lookup(
-            request.generation.scenarioVersionId,
-            this.createSynthesisRequest(request, candidate),
-            signal,
-          );
-          preparedLookupMs += performance.now() - candidateLookupAt;
-          generationResult = prepared
-            ? candidate
-            : await this.dialogueGeneration.generate(
-                request.generation,
-                signal,
-              );
-        } else {
-          generationResult = await this.dialogueGeneration.generate(
-            request.generation,
-            signal,
-          );
-        }
+        // In the ordinary profile prepared wording is only a fallback. Let the
+        // model phrase every conversational turn, then reuse prepared audio if
+        // its accepted text happens to match. Offline mode above keeps the
+        // deterministic prepared-first path.
+        generationResult = await this.dialogueGeneration.generate(
+          request.generation,
+          signal,
+        );
         generationResult =
           DialogueGenerationResultSchema.parse(generationResult);
         assertCallerReplyContent(

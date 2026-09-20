@@ -90,13 +90,15 @@ describe(DialogueGenerationService.name, () => {
     "Поправь формулировку своей мысли, не меняя и не добавляя факты.",
     "нет я не буду вам помогать",
   ])(
-    "rejects transcript regression without a second LLM call: %s",
+    "retries transcript regression with corrective feedback: %s",
     async (text) => {
+      const rejected = () =>
+        replyStream(
+          JSON.stringify({ ...validReply, text, revealedFactIds: [] }),
+        );
       const llm = new FakeLlmPort([
-        () =>
-          replyStream(
-            JSON.stringify({ ...validReply, text, revealedFactIds: [] }),
-          ),
+        rejected,
+        rejected,
       ]);
       const result = await createService(llm).generate(
         {
@@ -114,9 +116,10 @@ describe(DialogueGenerationService.name, () => {
         "Я не знаю! Пожалуйста, пусть быстрее едут!",
       );
       expect(result.source).toBe("fallback");
-      expect(result.attempts).toHaveLength(1);
+      expect(result.attempts).toHaveLength(2);
       expect(result.attempts[0]?.outcome).toBe("invalid-response");
-      expect(llm.calls).toHaveLength(1);
+      expect(llm.calls).toHaveLength(2);
+      expect(llm.calls[1]?.retryFeedback).toBeDefined();
     },
   );
   it.each([
@@ -126,14 +129,20 @@ describe(DialogueGenerationService.name, () => {
     "hesitate",
     "self-correct",
   ] as const)(
-    "uses the engine's non-factual %s without LLM",
+    "lets the model phrase the engine's non-factual %s plan",
     async (reactionAct) => {
-      const llm = new FakeLlmPort([]);
       const fallbackReply = {
         ...validReply,
         text: "Что? Я вас не понимаю, повторите!",
         revealedFactIds: [],
       };
+      const naturalReply = {
+        ...fallbackReply,
+        text: "Подождите... я не понял, повторите ещё раз!",
+      };
+      const llm = new FakeLlmPort([
+        () => replyStream(JSON.stringify(naturalReply)),
+      ]);
       const result = await createService(llm).generate(
         {
           ...validRequest,
@@ -147,11 +156,11 @@ describe(DialogueGenerationService.name, () => {
         new AbortController().signal,
       );
       expect(result).toMatchObject({
-        reply: fallbackReply,
-        source: "prepared",
-        attempts: [],
+        reply: naturalReply,
+        source: "model",
+        attempts: [expect.objectContaining({ outcome: "success" })],
       });
-      expect(llm.calls).toHaveLength(0);
+      expect(llm.calls).toHaveLength(1);
     },
   );
   it("does not announce an instruction even when it contaminates the fallback", async () => {

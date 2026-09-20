@@ -10,7 +10,6 @@ import {
 import type { LlmPort } from "../../ports/llm.port";
 import type { QuestionUnderstandingPort } from "../../ports/question-understanding.port";
 import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
-import { REACTION_ACT_INSTRUCTIONS } from "../alice-ai/alice-ai.request";
 import {
   ASKED_FACTS_JSON_SCHEMA,
   parseAliceAiQuestionResponse,
@@ -19,10 +18,14 @@ import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
 import { InferenceQueue } from "./inference-queue";
 import {
   expandLocalReply,
-  localReplyJsonSchema,
   LOCAL_REPLY_PROMPT,
   LITERAL_REPLY_INSTRUCTION,
 } from "./local-llm.reply";
+
+const BooleanFlagSchema = z.union([
+  z.boolean(),
+  z.enum(["true", "false"]).transform((value) => value === "true"),
+]);
 
 export const LocalLlmConfigSchema = z
   .object({
@@ -37,7 +40,9 @@ export const LocalLlmConfigSchema = z
     queueSize: z.coerce.number().int().min(0).max(16).default(0),
     queueWaitMs: z.coerce.number().int().min(10).max(2000).default(500),
     literalFactReplies: z.boolean().default(false),
-    replyMaxTokens: z.coerce.number().int().min(32).max(512).default(128),
+    replyMaxTokens: z.coerce.number().int().min(32).max(512).default(256),
+    replyTemperature: z.coerce.number().min(0).max(1).default(0.3),
+    replyThinking: BooleanFlagSchema.default(true),
     intentTimeoutMs: z.coerce
       .number()
       .int()
@@ -97,9 +102,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         {
           schemaName: "caller_reply",
           schemaDescription: "Caller reply using only permitted facts",
-          schema: localReplyJsonSchema(
-            request.context.allowedFacts.map(({ id }) => id),
-          ),
+          schema: {},
           systemPrompt:
             LOCAL_REPLY_PROMPT +
             (this.config.literalFactReplies
@@ -109,12 +112,13 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
           // changes its suffix; cache_prompt does not guarantee a cache hit.
           userPrompt: JSON.stringify({
             persona: request.context.persona,
-            recentTurns: request.context.recentTurns.slice(-4),
+            conversation: request.context.recentTurns,
             alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
             allowedFacts: request.context.allowedFacts,
             ...(plan
               ? {
-                  reaction: REACTION_ACT_INSTRUCTIONS[plan.reactionAct],
+                  reaction: plan.reactionAct,
+                  focusFactIds: plan.focusFactIds ?? [],
                 }
               : {}),
             ...(request.retryFeedback
@@ -133,6 +137,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
           maxTokens: this.config.replyMaxTokens,
           signal: deadline,
         },
+        true,
         true,
       );
       if (
@@ -247,6 +252,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private async post(
     request: StructuredOutputRequest,
     stream: boolean,
+    naturalReply = false,
   ): Promise<Response> {
     const response = await this.fetchImplementation(
       `${this.config.baseUrl}/chat/completions`,
@@ -263,10 +269,13 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         body: JSON.stringify({
           model: this.config.model,
           stream,
-          temperature: 0,
+          temperature: naturalReply ? this.config.replyTemperature : 0,
           max_tokens: request.maxTokens,
-          chat_template_kwargs: { enable_thinking: false },
-          reasoning_effort: "none",
+          chat_template_kwargs: {
+            enable_thinking: naturalReply && this.config.replyThinking,
+          },
+          reasoning_effort:
+            naturalReply && this.config.replyThinking ? "low" : "none",
           cache_prompt: true,
           // Let llama-server choose a free slot; a fixed reply slot serialized
           // concurrent callers even when backend concurrency was increased.
@@ -274,15 +283,19 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
             { role: "system", content: request.systemPrompt },
             { role: "user", content: request.userPrompt },
           ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: request.schemaName,
-              description: request.schemaDescription,
-              schema: request.schema,
-              strict: true,
-            },
-          },
+          ...(naturalReply
+            ? {}
+            : {
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    name: request.schemaName,
+                    description: request.schemaDescription,
+                    schema: request.schema,
+                    strict: true,
+                  },
+                },
+              }),
         }),
       },
     );

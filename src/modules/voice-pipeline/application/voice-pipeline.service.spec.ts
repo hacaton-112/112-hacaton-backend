@@ -228,12 +228,22 @@ describe(VoicePipelineService.name, () => {
         expect.objectContaining({ text: fallback.text }),
         expect.any(AbortSignal),
       );
-      expect(streamReply).toHaveBeenCalledTimes(1);
+      expect(streamReply).toHaveBeenCalledTimes(2);
+      expect(streamReply.mock.calls[1]?.[0]).toEqual(
+        expect.objectContaining({ retryFeedback: expect.any(String) }),
+      );
       expect(events.at(-1)?.type).toBe("voice.completed");
     },
   );
-  it("uses engine text with live TTS and zero LLM calls when reaction audio is missing", async () => {
-    const streamReply = jest.fn();
+  it("lets the model phrase an engine reaction when prepared audio is missing", async () => {
+    const natural = {
+      ...fallbackResult.reply,
+      text: "Подождите... я не успеваю понять, скажите покороче!",
+    };
+    const streamReply = jest.fn().mockImplementation(async function* () {
+      yield { type: "text.delta", delta: JSON.stringify(natural) };
+      yield { type: "response.completed" };
+    });
     const dialogue = new DialogueGenerationService(
       { streamReply },
       new LlmReplyStreamCollector(new CallerReplySafetyService()),
@@ -259,13 +269,17 @@ describe(VoicePipelineService.name, () => {
         },
       },
     });
-    expect(streamReply).not.toHaveBeenCalled();
+    expect(streamReply).toHaveBeenCalledTimes(1);
     expect(events[0]).toMatchObject({
       type: "voice.reply.ready",
-      result: { source: "prepared", attempts: [], reply: fallback },
+      result: {
+        source: "model",
+        attempts: [expect.objectContaining({ outcome: "success" })],
+        reply: natural,
+      },
     });
     expect(speech.synthesize).toHaveBeenCalledWith(
-      expect.objectContaining({ text: fallback.text }),
+      expect.objectContaining({ text: natural.text }),
       expect.any(AbortSignal),
     );
   });
@@ -350,7 +364,7 @@ describe(VoicePipelineService.name, () => {
   });
 
   it.each([true, false, undefined])(
-    "replays an allowed prepared answer with parser hint %s and honest metrics",
+    "generates natural wording before reusing matching audio with parser hint %s",
     async (preferPreparedReply) => {
       const dialogue = createDialogueMock();
       const speech = createSpeechMock();
@@ -371,16 +385,16 @@ describe(VoicePipelineService.name, () => {
         preferPreparedReply,
         generation: { ...request.generation, fallbackReply: modelResult.reply },
       });
-      expect(dialogue.generate).not.toHaveBeenCalled();
+      expect(dialogue.generate).toHaveBeenCalledTimes(1);
       expect(speech.synthesize).not.toHaveBeenCalled();
       expect(events[0]).toMatchObject({
         type: "voice.reply.ready",
-        result: { source: "prepared", attempts: [] },
+        result: { source: "model", attempts: modelResult.attempts },
       });
       expect(events.at(-1)).toMatchObject({
         type: "voice.completed",
         metrics: {
-          generation: { source: "prepared", attempts: [] },
+          generation: { source: "model", attempts: modelResult.attempts },
           synthesis: { source: "prepared", attempts: [] },
         },
       });
