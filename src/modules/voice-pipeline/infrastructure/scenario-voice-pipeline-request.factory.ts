@@ -153,6 +153,8 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         "emotional-reaction",
         "panic-refusal",
         "clarify",
+        "hesitate",
+        "self-correct",
       ].includes(reaction ?? "")
     )
       exceptionReason = undefined;

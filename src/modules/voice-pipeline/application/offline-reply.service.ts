@@ -17,6 +17,7 @@ import {
 } from "../domain/offline-turn";
 import { VoiceRuntimeService } from "./voice-runtime.service";
 import { canUsePreparedReply } from "../domain/prepared-reply";
+import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
 
 type Reason = NonNullable<DialogueGenerationResult["resolution"]>["reason"];
 
@@ -108,6 +109,7 @@ export class OfflineReplyService {
         else if (!isGroundedOfflineReply(result.reply, request.generation))
           reason = "ungrounded-response";
         else {
+          assertCallerReplyContent(result.reply, request.generation);
           // Commit text only after the entire limited audio stream has succeeded.
           reason = "synthesis-failed";
           const events = await this.buffer(
@@ -158,6 +160,15 @@ export class OfflineReplyService {
       path: "safe-fallback",
       reason: reason ?? "generation-failed",
     } as const;
+    // Corrupted authored audio must fail closed, never announce an instruction.
+    assertCallerReplyContent({
+      text: safe.text,
+      emotion: request.voice.emotion,
+      intensity: request.voice.intensity,
+      speechRate: request.voice.speechRate,
+      revealedFactIds: [],
+      endCall: false,
+    });
     this.runtime.record(resolution.reason);
     return {
       result: DialogueGenerationResultSchema.parse({

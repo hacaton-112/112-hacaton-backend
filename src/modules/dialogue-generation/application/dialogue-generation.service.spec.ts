@@ -82,6 +82,90 @@ const createService = (llmPort: LlmPort): DialogueGenerationService =>
   );
 
 describe(DialogueGenerationService.name, () => {
+  it.each([
+    "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
+    "Один раз поправь только формулировку своей мысли, не меняя и не добавляя факты.",
+    "Начни с короткой запинки или сомнения, затем ответь разрешёнными фактами.",
+    "Сразу и коротко ответь на последний вопрос оператора.",
+    "Поправь формулировку своей мысли, не меняя и не добавляя факты.",
+    "нет я не буду вам помогать",
+  ])(
+    "rejects transcript regression without a second LLM call: %s",
+    async (text) => {
+      const llm = new FakeLlmPort([
+        () =>
+          replyStream(
+            JSON.stringify({ ...validReply, text, revealedFactIds: [] }),
+          ),
+      ]);
+      const result = await createService(llm).generate(
+        {
+          ...validRequest,
+          operatorText: "нет я не буду вам помогать",
+          fallbackReply: {
+            ...validReply,
+            text: "Я не знаю! Пожалуйста, пусть быстрее едут!",
+            revealedFactIds: [],
+          },
+        },
+        new AbortController().signal,
+      );
+      expect(result.reply.text).toBe(
+        "Я не знаю! Пожалуйста, пусть быстрее едут!",
+      );
+      expect(result.source).toBe("fallback");
+      expect(result.attempts).toHaveLength(1);
+      expect(result.attempts[0]?.outcome).toBe("invalid-response");
+      expect(llm.calls).toHaveLength(1);
+    },
+  );
+  it.each([
+    "panic-refusal",
+    "clarify",
+    "emotional-reaction",
+    "hesitate",
+    "self-correct",
+  ] as const)(
+    "uses the engine's non-factual %s without LLM",
+    async (reactionAct) => {
+      const llm = new FakeLlmPort([]);
+      const fallbackReply = {
+        ...validReply,
+        text: "Что? Я вас не понимаю, повторите!",
+        revealedFactIds: [],
+      };
+      const result = await createService(llm).generate(
+        {
+          ...validRequest,
+          fallbackReply,
+          context: {
+            ...validRequest.context,
+            allowedFacts: [],
+            turnPlan: { reactionAct, minimumResponseDelayMs: 0 },
+          },
+        },
+        new AbortController().signal,
+      );
+      expect(result).toMatchObject({
+        reply: fallbackReply,
+        source: "prepared",
+        attempts: [],
+      });
+      expect(llm.calls).toHaveLength(0);
+    },
+  );
+  it("does not announce an instruction even when it contaminates the fallback", async () => {
+    const text = "Сразу и коротко ответь на последний вопрос оператора.";
+    const llm = new FakeLlmPort([
+      () => replyStream(JSON.stringify({ ...validReply, text })),
+    ]);
+    const result = await createService(llm).generate(
+      { ...validRequest, fallbackReply: { ...validReply, text } },
+      new AbortController().signal,
+    );
+    expect(result.reply.text).toBe(DEFAULT_FALLBACK_CALLER_REPLY.text);
+    expect(result.reply.revealedFactIds).toEqual([]);
+  });
   it("returns the validated reply from the first attempt", async () => {
     const llmPort = new FakeLlmPort([replyStream]);
 
