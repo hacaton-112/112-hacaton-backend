@@ -448,7 +448,10 @@ export class ScenarioEngineService {
     eventId: string;
     operatorText: string;
     reply: CallerReply;
-    generation?: Pick<DialogueGenerationResult, "source" | "attempts">;
+    generation?: Pick<
+      DialogueGenerationResult,
+      "source" | "attempts" | "resolution"
+    >;
     initiative?: boolean;
     now?: Date;
     /**
