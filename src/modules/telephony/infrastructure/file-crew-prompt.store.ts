@@ -61,20 +61,31 @@ export class FileCrewPromptStore {
     return preparing;
   }
 
-  /** Озвучивает всё заранее; сбой одной реплики не мешает остальным. */
+  /**
+   * Озвучивает всё заранее; сбой одной реплики не мешает остальным.
+   *
+   * Недоступный синтез пишется в журнал одной строкой: реплик у всех нарядов
+   * десятки, и построчные предупреждения скрыли бы остальной журнал.
+   */
   async prepareAll(
     lines: readonly { text: string; voiceId: string }[],
   ): Promise<void> {
+    let failed = 0;
+    let firstError = "";
+
     for (const line of lines) {
       try {
         await this.ensure(line.text, line.voiceId);
       } catch (error) {
-        this.logger.warn(
-          `Could not prepare crew prompt "${line.text}": ${
-            error instanceof Error ? error.message : "unknown error"
-          }`,
-        );
+        failed += 1;
+        firstError ||= error instanceof Error ? error.message : "unknown error";
       }
+    }
+
+    if (failed > 0) {
+      this.logger.warn(
+        `Could not prepare ${failed} of ${lines.length} crew prompts; they will be synthesized on the first call: ${firstError}`,
+      );
     }
   }
 

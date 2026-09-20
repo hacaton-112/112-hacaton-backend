@@ -82,6 +82,8 @@ interface ActiveCall {
   latestPlaybackId?: string;
   silenceTimer?: ReturnType<typeof setTimeout>;
   limitTimer?: ReturnType<typeof setTimeout>;
+  /** Страховка на случай, когда конец фразы так и не пришёл от АТС. */
+  phraseTimer?: ReturnType<typeof setTimeout>;
   finished: boolean;
   /** События одного звонка обрабатываются строго по очереди. */
   queue: Promise<void>;
@@ -223,9 +225,20 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
         await this.feed(call, { type: "prompt-finished" });
         return;
       case "speech-started":
+        call.phraseTimer = this.rearm(
+          call.phraseTimer,
+          () =>
+            this.enqueue(call, {
+              type: "speech-finished",
+              durationMs: CREW_SCRIPT_TIMING.maxPhraseMs,
+            }),
+          CREW_SCRIPT_TIMING.maxPhraseMs,
+        );
         await this.feed(call, { type: "speech-started" });
         return;
       case "speech-finished":
+        clearTimeout(call.phraseTimer);
+        call.phraseTimer = undefined;
         await this.feed(call, {
           type: "speech-finished",
           durationMs: event.durationMs,
@@ -340,5 +353,6 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
   private clearTimers(call: ActiveCall): void {
     clearTimeout(call.silenceTimer);
     clearTimeout(call.limitTimer);
+    clearTimeout(call.phraseTimer);
   }
 }

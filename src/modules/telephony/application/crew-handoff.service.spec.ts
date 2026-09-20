@@ -259,4 +259,20 @@ describe(CrewHandoffService.name, () => {
       expect.objectContaining({ outcome: "abandoned" }),
     );
   });
+
+  it("acknowledges a phrase whose end the PBX never reported", async () => {
+    // Телефон с подавлением тишины в паузе не шлёт кадров, и детектор
+    // Asterisk не видит конца фразы.
+    jest.useFakeTimers();
+    const { pbx, call, finishPrompt } = setup();
+    await call("1012");
+    await finishPrompt();
+
+    pbx.emit({ type: "speech-started", channelId: "c-1" });
+    await settle();
+    jest.advanceTimersByTime(CREW_SCRIPT_TIMING.maxPhraseMs);
+    await settle();
+
+    expect(pbx.played.at(-1)).toBe("sound:crew/Записываю.");
+  });
 });
