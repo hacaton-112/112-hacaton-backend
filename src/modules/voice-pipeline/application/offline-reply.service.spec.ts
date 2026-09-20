@@ -132,13 +132,37 @@ const collect = async (stream: AsyncIterable<VoicePipelineStreamEvent>) => {
 const signal = () => new AbortController().signal;
 
 describe("offline hybrid turn", () => {
-  it("uses prepared audio without model or synthesis", async () => {
+  it.each([true, false, undefined])(
+    "uses prepared audio regardless of parser hint %s",
+    async (preferPreparedReply) => {
+      const s = setup();
+      s.lookup.mockResolvedValue(pcm);
+      const result = await s.offline.resolve(
+        { ...request(), preferPreparedReply },
+        signal(),
+      );
+      expect(result.result.resolution?.path).toBe("prepared");
+      expect(s.generate).not.toHaveBeenCalled();
+      expect(s.synthesize).not.toHaveBeenCalled();
+    },
+  );
+  it("replays a non-factual calming response without LLM or live TTS", async () => {
     const s = setup();
     s.lookup.mockResolvedValue(pcm);
-    const result = await s.offline.resolve(
-      { ...request(), preferPreparedReply: true },
-      signal(),
-    );
+    const calming = request();
+    calming.generation.context.allowedFacts = [];
+    calming.generation.context.turnPlan = {
+      reactionAct: "acknowledge",
+      focusFactIds: [],
+      minimumResponseDelayMs: 0,
+    };
+    calming.generation.fallbackReply = {
+      ...calming.generation.fallbackReply!,
+      text: "Хорошо, я вас слышу.",
+      revealedFactIds: [],
+    };
+    const result = await s.offline.resolve(calming, signal());
+    expect(result.result.reply.text).toBe("Хорошо, я вас слышу.");
     expect(result.result.resolution?.path).toBe("prepared");
     expect(s.generate).not.toHaveBeenCalled();
     expect(s.synthesize).not.toHaveBeenCalled();

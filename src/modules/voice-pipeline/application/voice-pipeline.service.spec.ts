@@ -187,12 +187,10 @@ describe(VoicePipelineService.name, () => {
     const dialogue = createDialogueMock(fallbackResult);
     const speech = createSpeechMock();
     const prepared = {
-      lookup: jest
-        .fn()
-        .mockResolvedValue({
-          audio: new Uint8Array([0, 1]),
-          sampleRate: 24_000,
-        }),
+      lookup: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
       replay: ScenarioAudioService.prototype.replay,
     };
     const events = await collect(
@@ -218,12 +216,10 @@ describe(VoicePipelineService.name, () => {
   it("plays the prepared opening through the prescribed-speech path", async () => {
     const speech = createSpeechMock();
     const prepared = {
-      lookupOpening: jest
-        .fn()
-        .mockResolvedValue({
-          audio: new Uint8Array([0, 1]),
-          sampleRate: 24_000,
-        }),
+      lookupOpening: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
       replay: ScenarioAudioService.prototype.replay,
     };
     const service = new VoicePipelineService(
@@ -244,40 +240,43 @@ describe(VoicePipelineService.name, () => {
     expect(speech.synthesize).not.toHaveBeenCalled();
   });
 
-  it("replays an allowed prepared answer without model or synthesis and with honest metrics", async () => {
-    const dialogue = createDialogueMock();
-    const speech = createSpeechMock();
-    const prepared = {
-      lookup: jest.fn().mockResolvedValue({
-        audio: new Uint8Array([0, 1, 2, 3]),
-        sampleRate: 24_000,
-      }),
-      replay: ScenarioAudioService.prototype.replay,
-    };
-    const service = new VoicePipelineService(
-      dialogue.service,
-      speech.service,
-      prepared as unknown as ScenarioAudioService,
-    );
-    const events = await collect(service, {
-      ...request,
-      preferPreparedReply: true,
-      generation: { ...request.generation, fallbackReply: modelResult.reply },
-    });
-    expect(dialogue.generate).not.toHaveBeenCalled();
-    expect(speech.synthesize).not.toHaveBeenCalled();
-    expect(events[0]).toMatchObject({
-      type: "voice.reply.ready",
-      result: { source: "prepared", attempts: [] },
-    });
-    expect(events.at(-1)).toMatchObject({
-      type: "voice.completed",
-      metrics: {
-        generation: { source: "prepared", attempts: [] },
-        synthesis: { source: "prepared", attempts: [] },
-      },
-    });
-  });
+  it.each([true, false, undefined])(
+    "replays an allowed prepared answer with parser hint %s and honest metrics",
+    async (preferPreparedReply) => {
+      const dialogue = createDialogueMock();
+      const speech = createSpeechMock();
+      const prepared = {
+        lookup: jest.fn().mockResolvedValue({
+          audio: new Uint8Array([0, 1, 2, 3]),
+          sampleRate: 24_000,
+        }),
+        replay: ScenarioAudioService.prototype.replay,
+      };
+      const service = new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+        prepared as unknown as ScenarioAudioService,
+      );
+      const events = await collect(service, {
+        ...request,
+        preferPreparedReply,
+        generation: { ...request.generation, fallbackReply: modelResult.reply },
+      });
+      expect(dialogue.generate).not.toHaveBeenCalled();
+      expect(speech.synthesize).not.toHaveBeenCalled();
+      expect(events[0]).toMatchObject({
+        type: "voice.reply.ready",
+        result: { source: "prepared", attempts: [] },
+      });
+      expect(events.at(-1)).toMatchObject({
+        type: "voice.completed",
+        metrics: {
+          generation: { source: "prepared", attempts: [] },
+          synthesis: { source: "prepared", attempts: [] },
+        },
+      });
+    },
+  );
 
   it("cannot use a prepared answer to bypass the engine's allowed fact set", async () => {
     const dialogue = createDialogueMock();
