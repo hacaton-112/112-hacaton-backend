@@ -14,6 +14,7 @@ import type {
   DdsResponseStatus,
 } from "../../contracts/dds-exercise";
 import { DdsAcknowledgementTimer } from "./dds-acknowledgement-timer";
+import { DdsCrewHandoffBlock } from "./dds-crew-handoff";
 import {
   DDS_SERVICE_LABELS,
   DDS_STATUS_LABELS,
@@ -179,6 +180,10 @@ export function DdsCardPanel({
             );
           })}
         </div>
+
+        {exercise.crewHandoff && (
+          <DdsCrewHandoffBlock handoff={exercise.crewHandoff} />
+        )}
 
         <DdsStatusActions
           key={`${exercise.id}:${exercise.status}`}

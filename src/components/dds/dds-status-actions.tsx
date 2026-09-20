@@ -40,6 +40,10 @@ export function DdsStatusActions({
   if (available.length === 0 || !selected) return null;
 
   const commentMissing = requiresComment(selected) && !comment.trim();
+  // Наряд выезжает по звонку диспетчера: пока нужный наряд не принял
+  // карточку, отмечать начало реагирования нечего.
+  const waitingForCrew =
+    selected === "responding" && exercise.crewHandoff?.notified === false;
 
   const run = async () => {
     await onTransition(selected, comment);
@@ -92,7 +96,7 @@ export function DdsStatusActions({
         <Button
           type="button"
           className="arm-dds-status-submit"
-          disabled={pending || commentMissing}
+          disabled={pending || commentMissing || waitingForCrew}
           onClick={() => void run().catch(() => undefined)}
           aria-label="Сохранить статус"
         >
@@ -104,6 +108,13 @@ export function DdsStatusActions({
       {commentMissing && (
         <Text size="1" color="red">
           Для выбранного статуса обязателен комментарий.
+        </Text>
+      )}
+
+      {waitingForCrew && (
+        <Text size="1" color="amber">
+          Сначала передайте карточку наряду по телефону — позвоните по номеру
+          из блока «Передача наряду».
         </Text>
       )}
 
