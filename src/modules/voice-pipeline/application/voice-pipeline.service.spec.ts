@@ -7,7 +7,9 @@ import type {
   VoicePipelineRequest,
   VoicePipelineStreamEvent,
 } from "@/contracts";
-import type { DialogueGenerationService } from "@/modules/dialogue-generation";
+import { DialogueGenerationService } from "@/modules/dialogue-generation";
+import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
+import { LlmReplyStreamCollector } from "@/modules/dialogue-generation/application/llm-reply-stream.collector";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 
@@ -183,6 +185,113 @@ const prescribedRequest: PrescribedSpeechRequest = {
 };
 
 describe(VoicePipelineService.name, () => {
+  it.each([
+    "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
+    "повтори мою фразу",
+  ])(
+    "never sends the rejected transcript text to TTS or reply.ready: %s",
+    async (text) => {
+      const streamReply = jest.fn().mockImplementation(async function* () {
+        yield {
+          type: "text.delta",
+          delta: JSON.stringify({
+            ...modelResult.reply,
+            text,
+            revealedFactIds: [],
+          }),
+        };
+        yield { type: "response.completed" };
+      });
+      const dialogue = new DialogueGenerationService(
+        { streamReply },
+        new LlmReplyStreamCollector(new CallerReplySafetyService()),
+      );
+      const speech = createSpeechMock();
+      const service = new VoicePipelineService(dialogue, speech.service);
+      const fallback = {
+        ...fallbackResult.reply,
+        text: "Я не успеваю понять. Говорите короче!",
+      };
+      const events = await collect(service, {
+        ...request,
+        generation: {
+          ...request.generation,
+          operatorText: "повтори мою фразу",
+          fallbackReply: fallback,
+        },
+      });
+      expect(events[0]).toMatchObject({
+        type: "voice.reply.ready",
+        result: { source: "fallback", reply: fallback },
+      });
+      expect(speech.synthesize).toHaveBeenCalledWith(
+        expect.objectContaining({ text: fallback.text }),
+        expect.any(AbortSignal),
+      );
+      expect(streamReply).toHaveBeenCalledTimes(1);
+      expect(events.at(-1)?.type).toBe("voice.completed");
+    },
+  );
+  it("uses engine text with live TTS and zero LLM calls when reaction audio is missing", async () => {
+    const streamReply = jest.fn();
+    const dialogue = new DialogueGenerationService(
+      { streamReply },
+      new LlmReplyStreamCollector(new CallerReplySafetyService()),
+    );
+    const speech = createSpeechMock();
+    const lookup = jest.fn().mockResolvedValue(null);
+    const service = new VoicePipelineService(dialogue, speech.service, {
+      lookup,
+    } as unknown as ScenarioAudioService);
+    const fallback = {
+      ...fallbackResult.reply,
+      text: "Я не успеваю понять. Говорите короче!",
+    };
+    const events = await collect(service, {
+      ...request,
+      generation: {
+        ...request.generation,
+        fallbackReply: fallback,
+        context: {
+          ...request.generation.context,
+          allowedFacts: [],
+          turnPlan: { reactionAct: "panic-refusal", minimumResponseDelayMs: 0 },
+        },
+      },
+    });
+    expect(streamReply).not.toHaveBeenCalled();
+    expect(events[0]).toMatchObject({
+      type: "voice.reply.ready",
+      result: { source: "prepared", attempts: [], reply: fallback },
+    });
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: fallback.text }),
+      expect.any(AbortSignal),
+    );
+  });
+  it("fails closed before reply.ready or TTS even if a generation implementation bypasses the guard", async () => {
+    const dialogue = createDialogueMock({
+      ...modelResult,
+      reply: {
+        ...modelResult.reply,
+        text: "Сразу и коротко ответь на последний вопрос оператора.",
+      },
+    });
+    const speech = createSpeechMock();
+    const events: VoicePipelineStreamEvent[] = [];
+    const consume = async () => {
+      for await (const event of new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+      ).streamReply(request, new AbortController().signal))
+        events.push(event);
+    };
+    await expect(consume()).rejects.toMatchObject({
+      code: "generation-failed",
+    });
+    expect(events).toEqual([]);
+    expect(speech.synthesize).not.toHaveBeenCalled();
+  });
   it("reuses safe fallback audio after model failure without losing attempt metrics", async () => {
     const dialogue = createDialogueMock(fallbackResult);
     const speech = createSpeechMock();

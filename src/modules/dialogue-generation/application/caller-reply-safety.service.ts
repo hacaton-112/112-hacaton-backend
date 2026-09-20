@@ -6,9 +6,11 @@ import {
   SPEECH_RATE_RANGE,
   type CallerReply,
   type ScenarioFact,
+  type GenerateCallerReplyRequest,
 } from "@/contracts";
 
 import { CallerReplyValidationError } from "../domain/caller-reply-validation.error";
+import { assertCallerReplyContent } from "../domain/caller-reply-content";
 
 const clamp = (
   value: unknown,
@@ -20,7 +22,11 @@ const clamp = (
 
 @Injectable()
 export class CallerReplySafetyService {
-  validate(input: unknown, allowedFacts: readonly ScenarioFact[]): CallerReply {
+  validate(
+    input: unknown,
+    allowedFacts: readonly ScenarioFact[],
+    request?: GenerateCallerReplyRequest,
+  ): CallerReply {
     const parsedReply = CallerReplySchema.safeParse(
       this.withStyleInRange(input),
     );
@@ -32,11 +38,8 @@ export class CallerReplySafetyService {
       );
     }
 
-    // Скрытых фактов модель не получает и раскрыть их не может: в контекст
-    // уходит только разрешённый набор. Поэтому лишний идентификатор — это
-    // неверная пометка, а не утечка, и стоит она ровно того, чтобы её снять.
-    // Раньше из-за одной такой пометки пропадала вся реплика, и оператор не
-    // слышал ничего.
+    assertCallerReplyContent(parsedReply.data, request);
+    // ID filtering alone does not verify the meaning or grounding of the text.
     const allowedFactIds = new Set(allowedFacts.map(({ id }) => id));
     const revealedFactIds = parsedReply.data.revealedFactIds.filter((factId) =>
       allowedFactIds.has(factId),
