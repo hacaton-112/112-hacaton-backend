@@ -14,6 +14,8 @@ import {
 } from "@bolid-ui/themes";
 import { Archive, CircleStop, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { ROUTES } from "../../config/routes";
 
 import {
   assignmentActions,
@@ -56,6 +58,7 @@ export function TrainingAssignmentsPanel({
   mutations: TrainingMutations;
 }) {
   const scenarios = useScenarios();
+  const navigate = useNavigate();
   const assignments = useTrainingAssignments();
   const rows = useMemo(
     () =>
@@ -145,6 +148,7 @@ export function TrainingAssignmentsPanel({
     mutations.archiveAssignment.isPending;
 
   const columnDefs: ColDef<TrainingAssignment>[] = [
+    { field: "type", headerName: "Режим", minWidth: 150, valueFormatter: ({ value }) => value === "card_action" ? "ДДС — карточка" : value === "mixed" ? "Смешанный" : "Звонок" },
     { field: "title", headerName: "Занятие", flex: 2, minWidth: 200 },
     {
       colId: "scenario",
@@ -282,6 +286,7 @@ export function TrainingAssignmentsPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <Flex align="center" justify="between" gap="3">
+        <Button variant="soft" onClick={() => navigate(ROUTES.dds())}>Попытки ДДС</Button>
         <Text size="2" color="gray">
           {target.kind === "group"
             ? "Черновик не виден ученикам, пока вы не запустите занятие."

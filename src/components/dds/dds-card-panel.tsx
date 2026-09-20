@@ -42,11 +42,13 @@ export function DdsCardPanel({
   pending,
   error,
   onTransition,
+  readOnly = false,
 }: {
   exercise?: DdsExercise;
   pending: boolean;
   error?: string;
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   if (!exercise) {
     return (
@@ -58,7 +60,7 @@ export function DdsCardPanel({
         <ClipboardCheck className="text-gray-8 mx-auto" size={34} />
         <Heading size="4">Выберите входящую карточку</Heading>
         <Text size="2" color="gray">
-          Новая карточка появится автоматически после отправки оператором 112.
+          Откройте назначение преподавателя или дождитесь отправки карточки оператором 112.
         </Text>
       </Card>
     );
@@ -185,13 +187,13 @@ export function DdsCardPanel({
           <DdsCrewHandoffBlock handoff={exercise.crewHandoff} />
         )}
 
-        <DdsStatusActions
+        {!readOnly && <DdsStatusActions
           key={`${exercise.id}:${exercise.status}`}
           exercise={exercise}
           pending={pending}
           error={error}
           onTransition={onTransition}
-        />
+        />}
       </Card>
 
       {exercise.result && (
@@ -211,7 +213,7 @@ export function DdsCardPanel({
                 Первичный статус:{" "}
                 {exercise.result.acknowledgementMet
                   ? "в нормативе"
-                  : "позже 30 секунд"}
+                  : "позже установленного срока"}
                 . Итог: {DDS_STATUS_LABELS[exercise.result.terminalStatus]}.
               </Text>
               <Text as="p" size="1" color="gray" mt="1">

@@ -8,6 +8,9 @@ import {
 } from "@bolid-ui/themes";
 import { AlertTriangle, Clock3, RadioTower, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import { useAuthStore } from "../../stores/auth.store";
+import { DdsInstructorPanel } from "../../components/dds/dds-instructor-panel";
 
 import { DdsCardPanel } from "../../components/dds/dds-card-panel";
 import { DdsExerciseList } from "../../components/dds/dds-exercise-list";
@@ -22,10 +25,16 @@ type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
 const EMPTY_EXERCISES: readonly DdsExercise[] = [];
 
 export default function DdsExercisePage() {
+  const role = useAuthStore((state) => state.user?.role);
+  return role === "instructor" || role === "admin" ? <DdsInstructorPanel /> : <DdsLearnerPage />;
+}
+
+function DdsLearnerPage() {
   const dds = useDdsExercises();
+  const [searchParams] = useSearchParams();
   const list = dds.exercises.data ?? EMPTY_EXERCISES;
   const [query, setQuery] = useState("");
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>();
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | undefined>(searchParams.get("exercise") ?? undefined);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ru-RU");
