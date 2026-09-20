@@ -50,8 +50,8 @@ services:
 
   # ── Голосовой конвейер на CPU ─────────────────────────────────────────────
   # Поднимается обычным `docker compose up -d`, без профилей и без разовых
-  # контейнеров-загрузчиков: модели ASR зашиты в образ, модель LLM llama-server
-  # скачивает сам при первом старте в том llm_models.
+  # контейнеров-загрузчиков: модели ASR зашиты в образ, официальный bitnet.cpp
+  # скачивает BitNet I2_S при первом старте в том llm_models.
   #
   # Потоки рассчитаны на 6 ядер / 12 потоков (Ryzen 5 5600): распознавание,
   # модель и синтез работают по очереди в пределах хода, поэтому квоты cpus
@@ -80,13 +80,17 @@ services:
       - "127.0.0.1:${WHISPER_PORT:-8787}:8787"
 
   local-llm:
-    image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    build:
+      context: ./docker/bitnet
+      args:
+        BITNET_COMMIT: ${BITNET_COMMIT:-0b341e582afbf9e1011f24744b554c96a3477eb5}
+    image: system-112-bitnet-cpu:${BITNET_IMAGE_TAG:-local}
     container_name: system-112-local-llm
     restart: unless-stopped
     init: true
     environment:
-      MODEL_FILE: /models/${LOCAL_LLM_MODEL_FILE:-qwen2.5-3b-instruct-q4_k_m.gguf}
-      MODEL_URL: ${LOCAL_LLM_MODEL_URL:-https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf}
+      MODEL_FILE: /models/${LOCAL_LLM_MODEL_FILE:-bitnet-b1.58-2B-4T-i2_s.gguf}
+      MODEL_URL: ${LOCAL_LLM_MODEL_URL:-https://huggingface.co/microsoft/BitNet-b1.58-2B-4T-gguf/resolve/main/ggml-model-i2_s.gguf}
     # Модель качается, только если её ещё нет в томе. Флаг --model-url сам
     # llama-server не подходит: он сверяется с Hugging Face на каждом старте и
     # без сети не поднимается даже со скачанной моделью.
@@ -104,30 +108,40 @@ services:
         --port 8080
         --parallel 2
         --ctx-size 8192
-        --threads ${LOCAL_LLM_THREADS:-6}
+        --threads ${LOCAL_LLM_THREADS:-8}
         --threads-batch ${LOCAL_LLM_THREADS_BATCH:-12}
         --batch-size 512
         --ubatch-size 512
         --flash-attn on
         --cache-type-k q8_0
         --cache-type-v q8_0
+        --override-kv tokenizer.ggml.pre=str:gpt-2
+        --jinja
+        --chat-template-file /app/bitnet-chat-template.jinja
         --poll 100
-        --load-mode mmap+mlock
+        --mmap
+        --mlock
         --metrics
     # Два слота: реплика заявителя и разбор вопроса держат каждый свой кеш
     # промпта (id_slot в LocalLlmAdapter), по 4096 токенов на слот. Генерация
-    # упирается в память и ей хватает физических ядер; разбор промпта упирается
-    # в вычисления и выигрывает от SMT, отсюда 6 и 12 потоков.
+    # упирается в память; на Ryzen 5 5600 замер decode дал максимум на 8
+    # потоках. Разбор промпта выигрывает от всех 12 логических потоков.
     ports:
       - "127.0.0.1:${LOCAL_LLM_PORT:-8080}:8080"
     volumes:
       - llm_models:/models
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 6
-      # Первый старт качает модель (~2 ГБ).
+      # Первый старт качает модель (~1.1 ГиБ).
       start_period: 30m
 
   piper-tts:

@@ -29,6 +29,7 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
+- локальный CPU runtime `bitnet.cpp` с официальной BitNet b1.58 2B/4T I2_S;
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - заменяемые потоковые адаптеры Qwen3-TTS для MLX-Audio и vLLM-Omni;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;

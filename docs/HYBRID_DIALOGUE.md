@@ -156,15 +156,43 @@ REST под `/api/v1/scenarios/dialogue-preparations`:
 LLM_PROVIDER=local
 LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
 LOCAL_LLM_MODEL=training-model
-LOCAL_LLM_TIMEOUT_MS=8000
+LOCAL_LLM_TIMEOUT_MS=30000
 LOCAL_LLM_CONCURRENCY=1
 # LOCAL_LLM_API_KEY=...  # только если локальный сервер требует авторизацию
 ```
 
 `training-model` — alias реально загруженной модели в `llama-server`, а не имя
-скачиваемого checkpoint. Используются JSON Schema, SSE для реплик,
+скачиваемого checkpoint. Compose собирает сервер из закреплённого commit
+официального `microsoft/BitNet`, скачивает `BitNet-b1.58-2B-4T` в нативном
+формате `I2_S` и запускает только на CPU. Используются JSON Schema, SSE для реплик,
 `chat_template_kwargs.enable_thinking=false` и `reasoning_effort=none`.
 Настройку non-thinking необходимо проверить с chat template выбранной модели.
+
+Опубликованный GGUF не содержит `tokenizer.ggml.pre` и включает chat template,
+который отличается от исходного Transformers checkpoint. Поэтому compose явно
+задаёт pre-tokenizer `gpt-2` и поставляет шаблон из `tokenizer_config.json`.
+Без этих двух исправлений модель повторяет промпт или генерирует бессвязный текст.
+
+Профиль по умолчанию настроен на Ryzen 5 5600 по локальному замеру: 8 потоков
+для decode (лучший результат среди 4/6/8/12), 12 SMT-потоков для prefill, два
+независимых prompt-cache слота, по 4096 токенов на слот, `mmap + mlock`, Flash
+Attention и KV cache `q8_0`. Для другого CPU начните с числа физических ядер
+для `LOCAL_LLM_THREADS`, числа логических потоков для
+`LOCAL_LLM_THREADS_BATCH`, затем прогоните свой benchmark. Проверка запуска:
+
+```bash
+docker compose build local-llm
+docker compose up -d local-llm
+docker compose exec local-llm curl -sf http://127.0.0.1:8080/health
+```
+
+Модель официально помечена как преимущественно англоязычная и исследовательская.
+Для русскоязычного тренажёра обязательны приёмочные диалоги: выигрыш CPU не
+считается достаточным, если модель хуже соблюдает роль, JSON-схему или факты.
+Локальный smoke-test подтвердил transport и строгое JSON Schema, но ответ на
+русский аварийный запрос оказался семантически непригодным. Поэтому этот профиль
+готов для нагрузочного эксперимента, но не должен считаться принятым production
+провайдером до прохождения русскоязычного набора качества.
 
 Один лимит конкурентности разделяют реплики, разбор вопросов и инструменты
 конструктора/грамматики. Лишний запрос не ждёт в неограниченной очереди; модельная
@@ -191,8 +219,9 @@ LLM-ответы проходят существующую проверку JSON
   Текущий Qwen TTS runtime не становится CPU-оптимизированным от включения кеша.
 - Измерить долю prepared/model/fallback, ASR latency, LLM TTFT/total, TTS TTFA,
   end-to-end p50/p95 на 1/3/5/10 одновременных звонках.
-- Провести живой сквозной прогон с PostgreSQL, MinIO, TTS, ASR и llama-server:
+- Провести живой сквозной прогон с PostgreSQL, MinIO, TTS, ASR и bitnet.cpp:
   публикация → подготовка → звонок → перебивание → запись → разбор.
 - Расширять утверждённые парафразы и безопасные реакции по измеренным промахам.
 
-Документация протокола локального сервера: [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+Runtime: [microsoft/BitNet](https://github.com/microsoft/BitNet). Протокол сервера:
+[llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
