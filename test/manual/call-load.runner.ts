@@ -298,6 +298,7 @@ class SyntheticOperator {
 
     this.send({ type: "accept" });
     await this.expect("call.accepted");
+    await this.expect("audio.done");
 
     for (let turn = 0; turn < turns; turn += 1) {
       await this.speak(pcm);
