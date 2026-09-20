@@ -69,6 +69,7 @@ export function evaluateDdsExercise(input: {
   readonly acknowledgementDeadlineAt: Date;
   readonly acknowledgedAt: Date | null;
   readonly handoff?: DdsCrewHandoff;
+  readonly passThreshold?: number;
 }): DdsExerciseEvaluation | null {
   if (input.status !== "completed" && input.status !== "refused") {
     return null;
@@ -104,7 +105,7 @@ export function evaluateDdsExercise(input: {
 
   return {
     score,
-    passed: score >= PASS_THRESHOLD,
+    passed: score >= (input.passThreshold ?? PASS_THRESHOLD),
     acknowledgementMet,
     terminalStatus: input.status,
     violations,
