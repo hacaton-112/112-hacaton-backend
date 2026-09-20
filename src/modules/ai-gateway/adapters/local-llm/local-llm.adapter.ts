@@ -34,16 +34,6 @@ const shouldUseReplyThinking = (request: GenerateCallerReplyRequest): boolean =>
   request.operatorText.length >= 160 ||
   (request.operatorText.match(/\?/gu)?.length ?? 0) > 1;
 
-const TURN_STATE_HINTS = {
-  clarify: "заявитель не понял вопрос",
-  acknowledge: "заявитель услышал оператора и немного собрался",
-  hesitate: "заявитель сомневается и запинается",
-  "self-correct": "заявитель замечает свою оговорку",
-  repeat: "заявитель повторяет уже сообщённые сведения",
-  "emotional-reaction": "заявителя захлёстывают эмоции",
-  "panic-refusal": "заявитель не успевает понять длинную речь",
-} as const;
-
 export const buildReplyPrompt = (
   request: GenerateCallerReplyRequest,
   literalFactReplies = false,
@@ -69,21 +59,18 @@ export const buildReplyPrompt = (
     `РОЛЬ ЗАЯВИТЕЛЯ:\n${request.context.persona.description}`,
     `ИСТОРИЯ:\n${conversation || "Это начало разговора."}`,
     `ПОСЛЕДНЯЯ РЕПЛИКА ОПЕРАТОРА:\n${request.operatorText}`,
-    ...(request.fallbackReply
-      ? [
-          `${literalFactReplies ? "ДОСЛОВНЫЙ ОТВЕТ" : "ОСНОВА ОТВЕТА, ЕЁ СМЫСЛ НЕЛЬЗЯ ПРОПУСКАТЬ"}:\n${request.fallbackReply.text}`,
-        ]
-      : []),
     `ДОПУСТИМЫЕ СВЕДЕНИЯ:\n${facts || "Нет новых сведений."}`,
-    ...(plan?.reactionAct !== "answer" && plan
-      ? [`СОСТОЯНИЕ:\n${TURN_STATE_HINTS[plan.reactionAct]}`]
-      : []),
     ...(focusNumbers.length
       ? [`ГЛАВНОЕ ДЛЯ ЭТОГО ОТВЕТА:\nсведения № ${focusNumbers.join(", ")}`]
       : []),
     ...(request.retryFeedback
       ? [
           "ПОВТОРНАЯ ПОПЫТКА:\nПредыдущий ответ отклонён. Скажи иначе, не повторяя речь оператора и служебные слова.",
+        ]
+      : []),
+    ...(request.fallbackReply
+      ? [
+          `${literalFactReplies ? "ДОСЛОВНЫЙ ОТВЕТ" : "ОТВЕТЬ ТАК ЖЕ ПО СМЫСЛУ"}:\n${request.fallbackReply.text}`,
         ]
       : []),
   ].join("\n\n");

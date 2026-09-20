@@ -173,6 +173,7 @@ describe(LocalLlmAdapter.name, () => {
     expect(body).not.toHaveProperty("id_slot");
     expect(body.messages[1].content).toContain("1. Во дворе.");
     expect(body.messages[1].content).toContain("ДОСЛОВНЫЙ ОТВЕТ:\nВо дворе.");
+    expect(body.messages[1].content).not.toContain("СОСТОЯНИЕ:");
     expect(body.messages[1].content).not.toContain("place");
     expect(body.messages[1].content).not.toContain("operatorText");
 
