@@ -30,6 +30,15 @@ export const DDS_SERVICE_CODES = [
 export const DDS_EXERCISE_VIOLATIONS = [
   "acknowledgement_deadline_missed",
   "response_refused",
+  "crew_handoff_late",
+  "wrong_crew_dialed",
+  "crew_handoff_missing",
+] as const;
+
+export const CREW_CALL_OUTCOMES = [
+  "completed",
+  "abandoned",
+  "unknown_number",
 ] as const;
 
 const DdsResponseStatusSchema = z.enum(DDS_RESPONSE_STATUSES);
@@ -70,6 +79,23 @@ export const DdsExerciseResultSchema = z.object({
   violations: z.array(DdsExerciseViolationSchema),
 });
 
+/** Звонок диспетчера ДДС наряду по учебной IP-АТС. */
+export const DdsCrewCallSchema = z.object({
+  dialedNumber: z.string(),
+  callsign: z.string().nullable(),
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime().nullable(),
+  outcome: z.enum(CREW_CALL_OUTCOMES).nullable(),
+  correct: z.boolean().nullable(),
+  acknowledgements: z.number().int().nonnegative(),
+});
+
+export const DdsCrewHandoffSchema = z.object({
+  notified: z.boolean(),
+  crews: z.array(z.object({ callsign: z.string(), phoneNumber: z.string() })),
+  calls: z.array(DdsCrewCallSchema),
+});
+
 export const DdsExerciseSchema = z.object({
   id: z.uuid(),
   scenarioVersionId: z.uuid(),
@@ -86,6 +112,11 @@ export const DdsExerciseSchema = z.object({
   updatedAt: z.iso.datetime(),
   events: z.array(DdsExerciseEventSchema),
   result: DdsExerciseResultSchema.nullable(),
+  /**
+   * Передача карточки наряду по телефону; `null` — телефония выключена.
+   * Необязательно: backend без телефонии поля не присылает вовсе.
+   */
+  crewHandoff: DdsCrewHandoffSchema.nullable().optional(),
 });
 
 export const DdsExerciseListSchema = z.object({
@@ -99,3 +130,5 @@ export type DdsCardSnapshot = z.infer<typeof DdsCardSnapshotSchema>;
 export type DdsExerciseEvent = z.infer<typeof DdsExerciseEventSchema>;
 export type DdsExerciseResult = z.infer<typeof DdsExerciseResultSchema>;
 export type DdsExercise = z.infer<typeof DdsExerciseSchema>;
+export type DdsCrewCall = z.infer<typeof DdsCrewCallSchema>;
+export type DdsCrewHandoff = z.infer<typeof DdsCrewHandoffSchema>;
