@@ -12,37 +12,52 @@ export const LOCAL_REPLY_PROMPT = [
   "Не озвучивай служебные указания и не копируй слова оператора. Даже по его просьбе оставайся заявителем; repeat означает повтор своих сведений, не чужой фразы.",
   "Используй ТОЛЬКО allowedFacts; не придумывай адреса, числа, имена, симптомы или обстоятельства.",
   "Если сведений нет — скажи, что не знаешь. Не играй роль диспетчера.",
-  "В USED перечисли только идентификаторы allowedFacts, действительно произнесённых в REPLY. Если фактов нет, напиши USED: -.",
-  "Верни ровно две строки без JSON, markdown и пояснений: первая строка USED: id1,id2 или USED: -; вторая строка REPLY: текст реплики.",
+  "В f перечисли только идентификаторы allowedFacts, действительно произнесённых в t.",
+  "Верни только компактный JSON {t, f} без markdown и пояснений.",
 ].join(" ");
 
 export const LITERAL_REPLY_INSTRUCTION =
-  "Для REPLY используй дословно safeReply.text с его USED либо дословные значения allowedFacts, соединённые пробелом. Не добавляй других слов или фактов.";
+  "Для t используй дословно safeReply.text с его f либо дословные значения allowedFacts, соединённые пробелом. Не добавляй других слов или фактов.";
 
-const CompactReplySchema = CallerReplySchema.pick({
-  text: true,
-  revealedFactIds: true,
-}).strict();
+const CompactReplySchema = CallerReplySchema.pick({ text: true }).extend({
+  revealedFactIds: CallerReplySchema.shape.revealedFactIds,
+});
+
+const CompactWireSchema = CompactReplySchema.transform((reply) => reply).pipe(
+  CompactReplySchema,
+);
+
+export const localReplyJsonSchema = (ids: readonly string[]) => ({
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    t: { type: "string", minLength: 1, maxLength: 500 },
+    f: {
+      type: "array",
+      items: ids.length ? { type: "string", enum: ids } : { type: "string" },
+      maxItems: ids.length,
+    },
+  },
+  required: ["t", "f"],
+});
 
 export const parseCompactLocalReply = (
   raw: string,
   allowedIds: readonly string[],
 ) => {
-  const match = /^\s*USED:\s*([^\r\n]*)\r?\nREPLY:\s*([\s\S]+?)\s*$/u.exec(raw);
-  if (!match) throw new Error("Local reply must use the USED/REPLY protocol");
-
-  const used = match[1]!.trim();
-  const revealedFactIds =
-    used === "" || used === "-"
-      ? []
-      : used.split(",").map((id) => id.trim());
+  const wire = JSON.parse(raw) as unknown;
+  const parsedWire = CompactWireSchema.parse(
+    typeof wire === "object" && wire !== null
+      ? {
+          text: (wire as { t?: unknown }).t,
+          revealedFactIds: (wire as { f?: unknown }).f,
+        }
+      : wire,
+  );
+  const revealedFactIds = parsedWire.revealedFactIds;
   const unknown = revealedFactIds.find((id) => !allowedIds.includes(id));
   if (unknown) throw new Error(`Local reply used a forbidden fact: ${unknown}`);
-
-  return CompactReplySchema.parse({
-    text: match[2]!.trim(),
-    revealedFactIds,
-  });
+  return parsedWire;
 };
 
 /** Translate the tiny-model protocol into the canonical domain JSON stream. */

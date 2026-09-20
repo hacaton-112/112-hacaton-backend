@@ -102,7 +102,7 @@ describe(LocalLlmAdapter.name, () => {
         {
           index: 0,
           delta: {
-            content: "USED: place\nREPLY: Во дворе.",
+            content: '{"t":"Во дворе.","f":["place"]}',
           },
         },
       ],
@@ -155,8 +155,11 @@ describe(LocalLlmAdapter.name, () => {
     expect(JSON.parse(wire)).toEqual(request.fallbackReply);
     expect(events.at(-1)?.type).toBe("response.completed");
     const body = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
-    expect(body).not.toHaveProperty("response_format");
-    expect(body.messages[0].content).toContain("USED:");
+    expect(body.response_format.json_schema.schema.required).toEqual([
+      "t",
+      "f",
+    ]);
+    expect(body.messages[0].content).toContain("{t, f}");
     expect(body.messages[0].content).toContain("дословно");
     expect(body.messages[0].content.length).toBeLessThan(
       ALICE_AI_SYSTEM_PROMPT.length,
@@ -164,10 +167,22 @@ describe(LocalLlmAdapter.name, () => {
     expect(body.max_tokens).toBe(256);
     expect(body).toMatchObject({
       temperature: 0.3,
+      chat_template_kwargs: { enable_thinking: false },
+      reasoning_effort: "none",
+    });
+    expect(body).not.toHaveProperty("id_slot");
+
+    for await (const _event of adapter.streamReply(
+      { ...request, retryFeedback: "Сформулируй иначе" },
+      new AbortController().signal,
+    )) {
+      // Consume the retry stream to inspect its provider request.
+    }
+    const retryBody = JSON.parse(fetcher.mock.calls[1]![1]!.body as string);
+    expect(retryBody).toMatchObject({
       chat_template_kwargs: { enable_thinking: true },
       reasoning_effort: "low",
     });
-    expect(body).not.toHaveProperty("id_slot");
   });
   it("uses a local model name, structured output and non-thinking mode without cloud headers", async () => {
     const fetcher = jest

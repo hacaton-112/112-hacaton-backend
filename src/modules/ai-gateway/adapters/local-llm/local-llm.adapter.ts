@@ -18,6 +18,7 @@ import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
 import { InferenceQueue } from "./inference-queue";
 import {
   expandLocalReply,
+  localReplyJsonSchema,
   LOCAL_REPLY_PROMPT,
   LITERAL_REPLY_INSTRUCTION,
 } from "./local-llm.reply";
@@ -26,6 +27,12 @@ const BooleanFlagSchema = z.union([
   z.boolean(),
   z.enum(["true", "false"]).transform((value) => value === "true"),
 ]);
+
+const shouldUseReplyThinking = (request: GenerateCallerReplyRequest): boolean =>
+  request.retryFeedback !== undefined ||
+  request.context.allowedFacts.length > 1 ||
+  request.operatorText.length >= 160 ||
+  (request.operatorText.match(/\?/gu)?.length ?? 0) > 1;
 
 export const LocalLlmConfigSchema = z
   .object({
@@ -102,7 +109,9 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         {
           schemaName: "caller_reply",
           schemaDescription: "Caller reply using only permitted facts",
-          schema: {},
+          schema: localReplyJsonSchema(
+            request.context.allowedFacts.map(({ id }) => id),
+          ),
           systemPrompt:
             LOCAL_REPLY_PROMPT +
             (this.config.literalFactReplies
@@ -139,6 +148,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         },
         true,
         true,
+        this.config.replyThinking && shouldUseReplyThinking(request),
       );
       if (
         !response.headers
@@ -253,6 +263,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     request: StructuredOutputRequest,
     stream: boolean,
     naturalReply = false,
+    replyThinking = false,
   ): Promise<Response> {
     const response = await this.fetchImplementation(
       `${this.config.baseUrl}/chat/completions`,
@@ -272,10 +283,10 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
           temperature: naturalReply ? this.config.replyTemperature : 0,
           max_tokens: request.maxTokens,
           chat_template_kwargs: {
-            enable_thinking: naturalReply && this.config.replyThinking,
+            enable_thinking: naturalReply && replyThinking,
           },
           reasoning_effort:
-            naturalReply && this.config.replyThinking ? "low" : "none",
+            naturalReply && replyThinking ? "low" : "none",
           cache_prompt: true,
           // Let llama-server choose a free slot; a fixed reply slot serialized
           // concurrent callers even when backend concurrency was increased.
@@ -283,19 +294,15 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
             { role: "system", content: request.systemPrompt },
             { role: "user", content: request.userPrompt },
           ],
-          ...(naturalReply
-            ? {}
-            : {
-                response_format: {
-                  type: "json_schema",
-                  json_schema: {
-                    name: request.schemaName,
-                    description: request.schemaDescription,
-                    schema: request.schema,
-                    strict: true,
-                  },
-                },
-              }),
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: request.schemaName,
+              description: request.schemaDescription,
+              schema: request.schema,
+              strict: true,
+            },
+          },
         }),
       },
     );
