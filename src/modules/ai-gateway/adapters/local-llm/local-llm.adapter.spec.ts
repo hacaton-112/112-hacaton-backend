@@ -102,7 +102,7 @@ describe(LocalLlmAdapter.name, () => {
         {
           index: 0,
           delta: {
-            content: '{"t":"Во дворе.","f":["place"]}',
+            content: '{"t":"Во дворе.","f":[1]}',
           },
         },
       ],
@@ -171,6 +171,9 @@ describe(LocalLlmAdapter.name, () => {
       reasoning_effort: "none",
     });
     expect(body).not.toHaveProperty("id_slot");
+    expect(body.messages[1].content).toContain("1. Во дворе.");
+    expect(body.messages[1].content).not.toContain("place");
+    expect(body.messages[1].content).not.toContain("operatorText");
 
     for await (const _event of adapter.streamReply(
       { ...request, retryFeedback: "Сформулируй иначе" },

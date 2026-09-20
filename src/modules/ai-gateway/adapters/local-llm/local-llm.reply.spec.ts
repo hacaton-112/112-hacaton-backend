@@ -49,7 +49,7 @@ async function* chunks(
 describe("compact local reply", () => {
   it("parses fragmented compact JSON and fills style from the engine", async () => {
     const result = await collect(
-      chunks(' \n{"t":"Во дворе.","f":["place"]}'),
+      chunks(' \n{"t":"Во дворе.","f":[1]}'),
     );
     expect(result.reply).toEqual(localRequest.fallbackReply);
     expect(result.timeToFirstTokenMs).not.toBeNull();
@@ -61,7 +61,7 @@ describe("compact local reply", () => {
     });
     async function* delayed(): AsyncIterable<LlmStreamEvent> {
       await gate;
-      yield* chunks('{"t":"Во дворе.","f":["place"]}');
+      yield* chunks('{"t":"Во дворе.","f":[1]}');
     }
     const iterator = expandLocalReply(delayed(), localRequest)[
       Symbol.asyncIterator
@@ -78,8 +78,8 @@ describe("compact local reply", () => {
     await iterator.return?.();
   });
   it.each([
-    '{"t":"Во дворе.","f":["hidden"]}',
-    '{"text":"Во дворе.","f":["place"]}',
+    '{"t":"Во дворе.","f":[2]}',
+    '{"text":"Во дворе.","f":[1]}',
     '{"t":"Во дворе."}',
     "not JSON",
   ])("rejects invalid or engine-overriding output: %s", async (text) => {
@@ -88,7 +88,7 @@ describe("compact local reply", () => {
   it("does not accept a truncated stream without completion", async () => {
     await expect(
       collect(
-        chunks('{"t":"Во дворе.","f":["place"]}', false),
+        chunks('{"t":"Во дворе.","f":[1]}', false),
       ),
     ).rejects.toThrow();
   });

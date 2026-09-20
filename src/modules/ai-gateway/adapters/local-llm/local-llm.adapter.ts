@@ -44,6 +44,49 @@ const TURN_STATE_HINTS = {
   "panic-refusal": "заявитель не успевает понять длинную речь",
 } as const;
 
+export const buildReplyPrompt = (
+  request: GenerateCallerReplyRequest,
+  literalFactReplies = false,
+): string => {
+  const plan = request.context.turnPlan;
+  const conversation = request.context.recentTurns
+    .map(
+      ({ role, text }) =>
+        `${role === "operator" ? "Оператор" : "Заявитель"}: ${text}`,
+    )
+    .join("\n");
+  const facts = request.context.allowedFacts
+    .map(({ value }, index) => `${index + 1}. ${value}`)
+    .join("\n");
+  const focusNumbers = (plan?.focusFactIds ?? [])
+    .map(
+      (id) =>
+        request.context.allowedFacts.findIndex((fact) => fact.id === id) + 1,
+    )
+    .filter((number) => number > 0);
+
+  return [
+    `РОЛЬ ЗАЯВИТЕЛЯ:\n${request.context.persona.description}`,
+    `ИСТОРИЯ:\n${conversation || "Это начало разговора."}`,
+    `ПОСЛЕДНЯЯ РЕПЛИКА ОПЕРАТОРА:\n${request.operatorText}`,
+    `ДОПУСТИМЫЕ СВЕДЕНИЯ:\n${facts || "Нет новых сведений."}`,
+    ...(plan?.reactionAct !== "answer" && plan
+      ? [`СОСТОЯНИЕ:\n${TURN_STATE_HINTS[plan.reactionAct]}`]
+      : []),
+    ...(focusNumbers.length
+      ? [`ГЛАВНОЕ ДЛЯ ЭТОГО ОТВЕТА:\nсведения № ${focusNumbers.join(", ")}`]
+      : []),
+    ...(request.retryFeedback
+      ? [
+          "ПОВТОРНАЯ ПОПЫТКА:\nПредыдущий ответ отклонён. Скажи иначе, не повторяя речь оператора и служебные слова.",
+        ]
+      : []),
+    ...(literalFactReplies && request.fallbackReply
+      ? [`БЕЗОПАСНАЯ РЕПЛИКА:\n${request.fallbackReply.text}`]
+      : []),
+  ].join("\n\n");
+};
+
 export const LocalLlmConfigSchema = z
   .object({
     baseUrl: z
@@ -108,7 +151,6 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     signal: AbortSignal,
   ): AsyncIterable<LlmStreamEvent> {
     const request = GenerateCallerReplyRequestSchema.parse(raw);
-    const plan = request.context.turnPlan;
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(this.config.timeoutMs),
@@ -119,9 +161,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         {
           schemaName: "caller_reply",
           schemaDescription: "Caller reply using only permitted facts",
-          schema: localReplyJsonSchema(
-            request.context.allowedFacts.map(({ id }) => id),
-          ),
+          schema: localReplyJsonSchema(request.context.allowedFacts.length),
           systemPrompt:
             LOCAL_REPLY_PROMPT +
             (this.config.literalFactReplies
@@ -129,30 +169,10 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
               : ""),
           // Only the unchanged prefix can be reused. A rolling history window
           // changes its suffix; cache_prompt does not guarantee a cache hit.
-          userPrompt: JSON.stringify({
-            persona: request.context.persona,
-            conversation: request.context.recentTurns,
-            alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
-            allowedFacts: request.context.allowedFacts,
-            ...(plan?.reactionAct === "answer"
-              ? {}
-              : plan
-                ? { turnState: TURN_STATE_HINTS[plan.reactionAct] }
-                : {}),
-            ...(plan ? { focusFactIds: plan.focusFactIds ?? [] } : {}),
-            ...(request.retryFeedback
-              ? { retryFeedback: request.retryFeedback }
-              : {}),
-            ...(this.config.literalFactReplies && request.fallbackReply
-              ? {
-                  safeReply: {
-                    text: request.fallbackReply.text,
-                    revealedFactIds: request.fallbackReply.revealedFactIds,
-                  },
-                }
-              : {}),
-            operatorText: request.operatorText,
-          }),
+          userPrompt: buildReplyPrompt(
+            request,
+            this.config.literalFactReplies,
+          ),
           maxTokens: this.config.replyMaxTokens,
           signal: deadline,
         },
