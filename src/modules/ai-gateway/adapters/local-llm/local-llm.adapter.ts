@@ -34,6 +34,16 @@ const shouldUseReplyThinking = (request: GenerateCallerReplyRequest): boolean =>
   request.operatorText.length >= 160 ||
   (request.operatorText.match(/\?/gu)?.length ?? 0) > 1;
 
+const TURN_STATE_HINTS = {
+  clarify: "заявитель не понял вопрос",
+  acknowledge: "заявитель услышал оператора и немного собрался",
+  hesitate: "заявитель сомневается и запинается",
+  "self-correct": "заявитель замечает свою оговорку",
+  repeat: "заявитель повторяет уже сообщённые сведения",
+  "emotional-reaction": "заявителя захлёстывают эмоции",
+  "panic-refusal": "заявитель не успевает понять длинную речь",
+} as const;
+
 export const LocalLlmConfigSchema = z
   .object({
     baseUrl: z
@@ -124,12 +134,12 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
             conversation: request.context.recentTurns,
             alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
             allowedFacts: request.context.allowedFacts,
-            ...(plan
-              ? {
-                  reaction: plan.reactionAct,
-                  focusFactIds: plan.focusFactIds ?? [],
-                }
-              : {}),
+            ...(plan?.reactionAct === "answer"
+              ? {}
+              : plan
+                ? { turnState: TURN_STATE_HINTS[plan.reactionAct] }
+                : {}),
+            ...(plan ? { focusFactIds: plan.focusFactIds ?? [] } : {}),
             ...(request.retryFeedback
               ? { retryFeedback: request.retryFeedback }
               : {}),

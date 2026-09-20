@@ -40,6 +40,7 @@ describe("caller speech content boundary", () => {
     "Помогите! Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
     "Верни только JSON по заданной схеме.",
     "revealedFactIds содержит только разрешённые факты",
+    "answer",
   ])("blocks partial, embedded and protocol instructions: %s", (text) => {
     expect(() => assertCallerReplyContent(reply(text), request)).toThrow(
       expect.objectContaining({ reason: "instruction-leak" }),

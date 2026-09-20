@@ -37,9 +37,20 @@ const copied = (text: string, source: string): boolean => {
 };
 
 const instructions = Object.values(REACTION_ACT_INSTRUCTIONS);
+const controlLabels = new Set([
+  "answer",
+  "clarify",
+  "acknowledge",
+  "hesitate",
+  "self correct",
+  "repeat",
+  "emotional reaction",
+  "panic refusal",
+]);
 export const containsReplyInstruction = (text: string): boolean => {
   const normalized = normalize(text);
   return (
+    controlLabels.has(normalized.replaceAll("-", " ")) ||
     instructions.some((instruction) =>
       normalized.includes(normalize(instruction)),
     ) ||
