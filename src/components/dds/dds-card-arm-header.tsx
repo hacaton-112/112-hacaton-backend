@@ -1,5 +1,9 @@
 import type { DdsExercise } from "../../contracts/dds-exercise";
-import { DDS_SERVICE_LABELS, DDS_STATUS_LABELS } from "./dds-formatters";
+import {
+  DDS_CATEGORY_LABELS,
+  DDS_SERVICE_LABELS,
+  DDS_STATUS_LABELS,
+} from "./dds-formatters";
 
 const time = (value: string) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -103,7 +107,7 @@ export function DdsCardArmHeader({ exercise }: { exercise: DdsExercise }) {
               {[card.title, card.incidentType].filter(Boolean).join(" . ")} .
             </div>
             <div className="arm-card-block-row">
-              Класс.: <b>{card.category}</b> ;
+              Класс.: <b>{DDS_CATEGORY_LABELS[card.category] ?? card.category}</b> ;
             </div>
             <div className="arm-card-block-row arm-card-block-row-muted">
               [ВИС] Класс.:

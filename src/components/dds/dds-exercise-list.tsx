@@ -56,7 +56,13 @@ export function DdsExerciseList({
             </span>
             <span className="arm-dds-operator-cell">0</span>
             <strong>{exercise.id.slice(-8).toUpperCase()}</strong>
-            <span>{createdAt.toLocaleDateString("ru-RU")}</span>
+            <span>
+              {createdAt.toLocaleDateString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "2-digit",
+              })}
+            </span>
             <strong>{createdAt.toLocaleTimeString("ru-RU")}</strong>
             <span className="arm-dds-cell-main">
               <strong>{exercise.card.incidentType}</strong>
