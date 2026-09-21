@@ -46,7 +46,13 @@ export const requestId = (request: IncomingMessage): string =>
  * compatibility middleware layer. All cross-cutting HTTP behaviour is wired
  * through native Fastify hooks instead.
  */
-export const createFastifyAdapter = (): FastifyAdapter => {
+/**
+ * За обратным прокси адрес клиента приходит заголовком, и доверять ему можно
+ * ровно на столько шагов, сколько прокси стоит перед приложением. Ноль —
+ * прямое подключение: заголовок игнорируется, иначе клиент подменил бы адрес
+ * в журнале входов.
+ */
+export const createFastifyAdapter = (trustProxyHops = 0): FastifyAdapter => {
   const adapter = new FastifyAdapter({
     bodyLimit: JSON_BODY_LIMIT_BYTES,
     genReqId: requestId,
@@ -55,7 +61,7 @@ export const createFastifyAdapter = (): FastifyAdapter => {
       ignoreTrailingSlash: true,
     },
     skipMiddie: true,
-    trustProxy: false,
+    trustProxy: trustProxyHops > 0 ? trustProxyHops : false,
   });
   // Auth guards assign a verified payload per request. Declaring the slot up
   // front keeps Fastify's request object shape stable under load.

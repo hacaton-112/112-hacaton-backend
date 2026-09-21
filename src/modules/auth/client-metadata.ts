@@ -21,8 +21,9 @@ const normalise = (
  * Session metadata for incident review only — it is never used to authorise a
  * request, because a desktop client legitimately roams between networks.
  *
- * `trustProxy` deliberately remains disabled, so behind a reverse proxy this
- * records the proxy's address rather than trusting a caller-controlled header.
+ * Доверие заголовку с адресом клиента включается только числом шагов прокси
+ * в `TRUST_PROXY_HOPS`. При нуле Fastify читает адрес соединения, поэтому
+ * подменить его заголовком нельзя.
  */
 export const readClientMetadata = (
   request: Pick<FastifyRequest, "headers" | "ip">,

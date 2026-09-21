@@ -19,6 +19,9 @@ export const env = createEnv({
     // ── Server ───────────────────────────────────────────────────
     HOST: z.string().default("0.0.0.0"),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    // Production NGINX is the only hop allowed to supply forwarded client data.
+    // Keep zero for direct development access so clients cannot spoof req.ip.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
     VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
     SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
     LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),

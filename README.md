@@ -815,6 +815,10 @@ src/
 drizzle/
   schema/       # Drizzle-схемы
   migrations/   # генерируется drizzle-kit
+ops/
+  nginx/        # TLS gateway для REST и WebSocket
+  postgres-backup/ # backup, restore и restore drill PostgreSQL
+  tls/          # dev/stage helper; ключи и сертификаты исключены из Git
 ```
 
 ## Локальный запуск
@@ -831,9 +835,11 @@ bun run start:dev
 ## Запуск в Docker и выкладка на сервер
 
 Backend собирается в образ по `Dockerfile` и запускается в `docker-compose.yml`
-вместе с базой, MinIO, Prometheus и Grafana. Приложение и миграции входят в
-профиль `app`, поэтому обычный `docker compose up -d` для разработки их не
-трогает:
+вместе с базой, MinIO, Prometheus, Grafana, ежедневным backup и NGINX gateway.
+Приложение и миграции входят в профиль `app`, поэтому обычный
+`docker compose up -d` для разработки их не трогает. До первого production-
+запуска положите сертификат внутреннего CA в пути из `.env` (для dev/stage есть
+`ops/tls/generate-self-signed.sh`):
 
 ```bash
 cp .env.production.example .env
@@ -841,8 +847,11 @@ docker compose --profile app up -d --build
 ```
 
 Перед каждым запуском backend сервис `migrate` применяет миграции и выходит.
-Порядок выкладки на сервер, сид сценариев, первая учётная запись, обновление,
-резервные копии и HTTPS описаны в [`docs/deployment.md`](docs/deployment.md).
+HTTP-порт backend наружу не публикуется: desktop подключается к gateway по
+HTTPS/WSS, а NGINX проксирует оба протокола. `postgres-backup` делает проверенный
+custom-format dump при старте и затем каждые 24 часа; restore требует явного
+подтверждения имени базы. Порядок выкладки, restore drill и замена сертификатов
+описаны в [`docs/deployment.md`](docs/deployment.md).
 
 ### Метрики и Grafana
 
@@ -868,6 +877,7 @@ bun run lint
 bun run typecheck
 bun run test
 bun run build
+bun run ops:check
 ```
 
 ### Ручная проверка AI pipeline

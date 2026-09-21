@@ -18,7 +18,7 @@ const GLOBAL_API_PREFIX = "api";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("Bootstrap");
-  const adapter = createFastifyAdapter();
+  const adapter = createFastifyAdapter(env.TRUST_PROXY_HOPS);
   const app = await NestFactory.create<FastifyNestApplication>(
     CoreModule,
     adapter,
