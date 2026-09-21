@@ -17,8 +17,19 @@ export const DdsTrainingAttemptSchema = z.object({
   passThreshold: z.number().int().min(50).max(100),
   reviews: z.array(z.object({ eventId: z.uuid(), instructorId: z.uuid(), score: z.number().int().min(0).max(100), comment: z.string(), createdAt: z.iso.datetime() }).strict()),
 }).strict();
-export const DdsTrainingListSchema = z.object({ attempts: z.array(DdsTrainingAttemptSchema) });
+export const DdsStandaloneResultSchema = z.object({
+  exercise: DdsExerciseSchema,
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  passThreshold: z.number().int().min(50).max(100),
+}).strict();
+export const DdsTrainingListSchema = z.object({
+  attempts: z.array(DdsTrainingAttemptSchema),
+  // Preserve compatibility while the desktop and backend are rolled out separately.
+  standaloneResults: z.array(DdsStandaloneResultSchema).default([]),
+});
 export type DdsTrainingAttempt = z.infer<typeof DdsTrainingAttemptSchema>;
+export type DdsStandaloneResult = z.infer<typeof DdsStandaloneResultSchema>;
 export type DdsReviewRequest = z.infer<typeof DdsReviewRequestSchema>;
 
 /** Наблюдение по идущей попытке. Это не нарушение в протоколе: попытка не завершена. */
