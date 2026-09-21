@@ -13,10 +13,12 @@ export function DdsAcknowledgementTimer({
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (exercise.acknowledgedAt) return;
+    if (exercise.acknowledgedAt || exercise.completedAt) return;
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, [exercise.acknowledgedAt]);
+  }, [exercise.acknowledgedAt, exercise.completedAt]);
+
+  if (exercise.completedAt && !exercise.acknowledgedAt) return <Badge color="gray">Попытка закрыта без первичного статуса</Badge>;
 
   if (exercise.acknowledgedAt) {
     const met =

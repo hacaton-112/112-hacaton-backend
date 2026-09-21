@@ -11,6 +11,9 @@ import {
 } from "@bolid-ui/themes";
 import { AlertTriangle, Play } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ddsTrainingService } from "../../services/dds-training.service";
 
 import { ROUTES } from "../../config/routes";
 import {
@@ -28,6 +31,23 @@ import {
 export function OperatorAssignmentList() {
   const assignments = useMyAssignments();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const startEvents = useRef(new Map<string, string>());
+  const startDds = useMutation({
+    mutationFn: (assignmentId: string) => {
+      let eventId = startEvents.current.get(assignmentId);
+      if (!eventId) { eventId = crypto.randomUUID(); startEvents.current.set(assignmentId, eventId); }
+      return ddsTrainingService.start(assignmentId, eventId);
+    },
+    retry: false,
+    scope: { id: "start-dds-attempt" },
+    onSuccess: (exercise, assignmentId) => {
+      startEvents.current.delete(assignmentId);
+      void queryClient.invalidateQueries({ queryKey: ["dds-exercises"] });
+      void assignments.refetch();
+      navigate(ROUTES.ddsExercise(exercise.id));
+    },
+  });
 
   return (
     <ScrollArea className="h-full" type="auto" scrollbars="vertical">
@@ -69,8 +89,9 @@ export function OperatorAssignmentList() {
                 <OperatorAssignmentCard
                   key={assignment.id}
                   assignment={assignment}
+                  busy={startDds.isPending}
                   onStart={() =>
-                    navigate(
+                    assignment.type === "card_action" ? startDds.mutate(assignment.id) : navigate(
                       ROUTES.operatorWithAssignment(
                         assignment.scenarioVersionId,
                         assignment.id,
@@ -80,6 +101,7 @@ export function OperatorAssignmentList() {
                 />
               ))}
         </div>
+        {startDds.error && <Callout.Root color="red" role="alert"><Callout.Text>{startDds.error.message}</Callout.Text></Callout.Root>}
       </main>
     </ScrollArea>
   );
@@ -88,9 +110,11 @@ export function OperatorAssignmentList() {
 function OperatorAssignmentCard({
   assignment,
   onStart,
+  busy,
 }: {
   assignment: TrainingAssignment;
   onStart: () => void;
+  busy: boolean;
 }) {
   const left = attemptsLeft(assignment);
   const exhausted = left === 0;
@@ -115,6 +139,7 @@ function OperatorAssignmentCard({
       </div>
 
       <DataList.Root size="2">
+        <DataList.Item><DataList.Label>Режим</DataList.Label><DataList.Value>{assignment.type === "card_action" ? "ДДС — карточка" : "Звонок"}</DataList.Value></DataList.Item>
         <DataList.Item>
           <DataList.Label>Норматив ответа</DataList.Label>
           <DataList.Value>
@@ -147,8 +172,8 @@ function OperatorAssignmentCard({
         )}
       </DataList.Root>
 
-      <Button disabled={exhausted} onClick={onStart}>
-        <Play size={16} /> Начать тренировку
+      <Button disabled={busy || (exhausted && assignment.type !== "card_action")} onClick={onStart}>
+        <Play size={16} /> {assignment.type === "card_action" ? (exhausted ? "Продолжить открытую попытку" : "Открыть карточку ДДС") : "Начать тренировку"}
       </Button>
     </Card>
   );

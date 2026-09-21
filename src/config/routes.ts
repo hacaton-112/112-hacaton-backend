@@ -36,6 +36,7 @@ export const ROUTES = {
   auth: () => "/auth",
   debrief: () => "/debrief",
   dds: () => "/dds",
+  ddsExercise: (exerciseId: string) => `/dds?exercise=${encodeURIComponent(exerciseId)}`,
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
