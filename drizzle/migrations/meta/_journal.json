@@ -115,21 +115,56 @@
       "breakpoints": true
     },
     {
+      "idx": 16,
+      "version": "7",
+      "when": 1789516510175,
+      "tag": "0015_plain_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789516510176,
+      "tag": "0016_unusual_thor_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789516510177,
+      "tag": "0017_public_iron_man",
+      "breakpoints": true
+    },
+    {
       "idx": 19,
+      "version": "7",
+      "when": 1789516510178,
+      "tag": "0018_long_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789516510179,
+      "tag": "0019_worried_tyrannus",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
       "version": "7",
       "when": 1789800145442,
       "tag": "0019_scenario_audio",
       "breakpoints": true
     },
     {
-      "idx": 20,
+      "idx": 22,
       "version": "7",
       "when": 1789801145442,
       "tag": "0020_dialogue_preparations",
       "breakpoints": true
     },
     {
-      "idx": 21,
+      "idx": 23,
       "version": "7",
       "when": 1789870338035,
       "tag": "0021_crew_handoff",
