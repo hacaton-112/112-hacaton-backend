@@ -54,6 +54,9 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    // Рабочее место опрашивает очередь постоянно, а каждый запрос с токеном
+    // тянет за собой preflight: без кеша их ровно столько же, сколько GET.
+    maxAge: 600,
   });
 
   app.enableShutdownHooks();
