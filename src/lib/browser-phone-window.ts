@@ -37,6 +37,15 @@ export const PhoneWindowMessageSchema = z.discriminatedUnion("type", [
       message: z.string().min(1),
     })
     .strict(),
+  // Номер набирают в самом окне телефона, а звонок ставит рабочее место:
+  // карточка знает, к какому упражнению его отнести.
+  z
+    .object({
+      type: z.literal("dial"),
+      requestId: z.uuid(),
+      number: z.string().regex(/^\d{1,12}$/u),
+    })
+    .strict(),
 ]);
 
 export type PhoneHostMessage = z.infer<typeof PhoneHostMessageSchema>;
@@ -47,6 +56,8 @@ const DISCOVERY_INTERVAL_MS = 250;
 
 export interface BrowserPhoneWindowSession {
   connect(config: BrowserPhoneConfig): Promise<void>;
+  /** Набор в окне телефона: возвращает отписку. */
+  onDial(handler: (number: string) => void): () => void;
   dispose(): void;
 }
 
@@ -119,6 +130,22 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
         channel.addEventListener("message", onMessage);
         discover();
       });
+    },
+    onDial(handler) {
+      const onMessage = (event: MessageEvent<unknown>) => {
+        const parsed = PhoneWindowMessageSchema.safeParse(event.data);
+        if (
+          parsed.success &&
+          parsed.data.type === "dial" &&
+          parsed.data.requestId === requestId
+        ) {
+          handler(parsed.data.number);
+        }
+      };
+
+      channel.addEventListener("message", onMessage);
+
+      return () => channel.removeEventListener("message", onMessage);
     },
     dispose() {
       if (disposed) return;

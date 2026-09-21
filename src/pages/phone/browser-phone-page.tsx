@@ -28,6 +28,8 @@ type PhoneState =
   | "ended"
   | "error";
 
+const DIAL_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
+
 const STATE_LABELS: Record<PhoneState, string> = {
   waiting: "Ожидание рабочего места",
   connecting: "Подключение к АТС",
@@ -45,9 +47,15 @@ export default function BrowserPhonePage() {
   const [error, setError] = useState<string>();
   const audioRef = useRef<HTMLAudioElement>(null);
   const phoneRef = useRef<BrowserPhoneClient | null>(null);
+  // Окно живёт рядом с рабочим местом, поэтому номер набирают здесь, а звонок
+  // ставит карточка: у неё есть упражнение, к которому относится вызов.
+  const [number, setNumber] = useState("");
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const requestIdRef = useRef<string>();
 
   useEffect(() => {
     const channel = new BroadcastChannel(PHONE_CHANNEL_NAME);
+    channelRef.current = channel;
 
     const publish = (message: PhoneWindowMessage) =>
       channel.postMessage(message);
@@ -57,6 +65,7 @@ export default function BrowserPhonePage() {
       publish({ type: "error", requestId, message });
     };
     const configure = async (requestId: string, config: BrowserPhoneConfig) => {
+      requestIdRef.current = requestId;
       setExtension(config.extension);
       setError(undefined);
       setState("connecting");
@@ -119,6 +128,7 @@ export default function BrowserPhonePage() {
     return () => {
       channel.removeEventListener("message", onMessage);
       channel.close();
+      channelRef.current = null;
       void phoneRef.current?.dispose();
       phoneRef.current = null;
     };
@@ -172,9 +182,70 @@ export default function BrowserPhonePage() {
 
         {state === "waiting" && (
           <Text size="2" color="gray">
-            Откройте карточку ДДС и нажмите «Позвонить». Рабочее место будет
-            настроено автоматически.
+            Откройте карточку ДДС и нажмите «Открыть телефон»: рабочее место
+            настроит этот аппарат само.
           </Text>
+        )}
+
+        {extension && (
+          <div className="grid gap-2" aria-label="Набор номера наряда">
+            <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
+              <Text as="p" size="1" color="gray">
+                Номер наряда
+              </Text>
+              <Text
+                as="p"
+                size="6"
+                weight="bold"
+                className="font-mono tabular-nums"
+              >
+                {number || "—"}
+              </Text>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              {DIAL_KEYS.map((key) => (
+                <Button
+                  key={key}
+                  variant="soft"
+                  color="gray"
+                  size="3"
+                  onClick={() =>
+                    setNumber((current) => `${current}${key}`.slice(0, 12))
+                  }
+                >
+                  {key}
+                </Button>
+              ))}
+              <Button
+                aria-label="Стереть цифру"
+                variant="soft"
+                color="gray"
+                size="3"
+                onClick={() => setNumber((current) => current.slice(0, -1))}
+              >
+                ←
+              </Button>
+            </div>
+
+            <Button
+              color="green"
+              size="3"
+              disabled={number === "" || state === "connecting"}
+              onClick={() => {
+                const requestId = requestIdRef.current;
+                if (!requestId || !channelRef.current) return;
+                // Звонок ставит рабочее место: только оно знает карточку.
+                channelRef.current.postMessage({
+                  type: "dial",
+                  requestId,
+                  number,
+                } satisfies PhoneWindowMessage);
+              }}
+            >
+              <PhoneCall size={18} /> Позвонить
+            </Button>
+          </div>
         )}
 
         {state === "ringing" && (

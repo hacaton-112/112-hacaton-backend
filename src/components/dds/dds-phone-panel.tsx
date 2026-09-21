@@ -34,22 +34,32 @@ export function DdsPhonePanel({
   const [number, setNumber] = useState(handoff.crews[0]?.phoneNumber ?? "");
   const [windowError, setWindowError] = useState<string>();
   const command = useRef<{ number: string; eventId: string } | null>(null);
+  // Аппарат, открытый рядом с рабочим местом: живёт, пока открыта карточка.
+  const phoneWindow = useRef<BrowserPhoneWindowSession | null>(null);
+  const unsubscribeDial = useRef<(() => void) | null>(null);
   const callsBeforeCommand = useRef<number | null>(null);
   const call = useMutation({
-    mutationFn: async (phoneWindow: BrowserPhoneWindowSession) => {
+    mutationFn: async (input: {
+      phoneWindow: BrowserPhoneWindowSession;
+      dialedNumber?: string;
+      /** Открытый рядом аппарат закрывать нельзя: он живёт между звонками. */
+      keepOpen?: boolean;
+    }) => {
+      const dialedNumber = input.dialedNumber ?? number;
+
       try {
         const phoneConfig = await telephonyService.getBrowserPhoneConfig();
-        await phoneWindow.connect(phoneConfig);
+        await input.phoneWindow.connect(phoneConfig);
         callsBeforeCommand.current ??= handoff.calls.length;
-        if (command.current?.number !== number) {
-          command.current = { number, eventId: crypto.randomUUID() };
+        if (command.current?.number !== dialedNumber) {
+          command.current = { number: dialedNumber, eventId: crypto.randomUUID() };
         }
         return await telephonyService.startCrewCall(exerciseId, {
           eventId: command.current.eventId,
-          dialedNumber: number,
+          dialedNumber,
         });
       } finally {
-        phoneWindow.dispose();
+        if (!input.keepOpen) input.phoneWindow.dispose();
       }
     },
     retry: false,
@@ -59,6 +69,42 @@ export function DdsPhonePanel({
     },
   });
   const latestCall = handoff.calls.at(-1);
+
+  useEffect(
+    () => () => {
+      unsubscribeDial.current?.();
+      phoneWindow.current?.dispose();
+      phoneWindow.current = null;
+    },
+    [],
+  );
+
+  const openPhoneWindow = async () => {
+    setWindowError(undefined);
+
+    try {
+      const session = prepareBrowserPhoneWindow();
+      await session.connect(await telephonyService.getBrowserPhoneConfig());
+      unsubscribeDial.current?.();
+      phoneWindow.current?.dispose();
+      phoneWindow.current = session;
+      // Номер набирают в окне аппарата, а вызов ставит карточка.
+      unsubscribeDial.current = session.onDial((dialed) => {
+        setNumber(dialed);
+        call.mutate({
+          phoneWindow: session,
+          dialedNumber: dialed,
+          keepOpen: true,
+        });
+      });
+    } catch (reason) {
+      setWindowError(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось открыть окно телефона",
+      );
+    }
+  };
 
   useEffect(() => {
     if (
@@ -86,9 +132,20 @@ export function DdsPhonePanel({
             Телефон ДДС
           </Text>
         </Flex>
-        <Badge color={call.isSuccess ? "green" : "gray"} variant="soft">
-          {call.isSuccess ? "Вызов отправлен" : "Готов"}
-        </Badge>
+        <Flex align="center" gap="2">
+          <Button
+            size="1"
+            variant="soft"
+            color="gray"
+            disabled={!canCall}
+            onClick={() => void openPhoneWindow()}
+          >
+            Открыть телефон
+          </Button>
+          <Badge color={call.isSuccess ? "green" : "gray"} variant="soft">
+            {call.isSuccess ? "Вызов отправлен" : "Готов"}
+          </Badge>
+        </Flex>
       </Flex>
 
       <div className="rounded-(--radius-2) bg-black/50 p-2">
@@ -197,7 +254,12 @@ export function DdsPhonePanel({
         onClick={() => {
           setWindowError(undefined);
           try {
-            call.mutate(prepareBrowserPhoneWindow());
+            const session = phoneWindow.current;
+            call.mutate(
+              session
+                ? { phoneWindow: session, keepOpen: true }
+                : { phoneWindow: prepareBrowserPhoneWindow() },
+            );
           } catch (error) {
             setWindowError(
               error instanceof Error
