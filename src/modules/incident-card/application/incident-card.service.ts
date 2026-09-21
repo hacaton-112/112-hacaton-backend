@@ -8,6 +8,7 @@ import { ErrorCodes } from "@/contracts";
 import { ClassifierService } from "@/modules/classifier/classifier.service";
 
 import type { IncidentCard, SaveIncidentCard } from "../dto/incident-card.dto";
+import { classifierDispatchServices } from "../domain/classifier-dispatch-services";
 import {
   INCIDENT_CARD_STORE,
   type IncidentCardStore,
@@ -83,6 +84,12 @@ export class IncidentCardService {
       const result = selectedBefore
         ? await this.classifier.routeStored(entryId, qualifierCodes)
         : await this.classifier.routeActive(entryId, qualifierCodes);
+      const services = [
+        ...new Set([
+          ...(patch.services ?? current?.services ?? []),
+          ...classifierDispatchServices(result.routing),
+        ]),
+      ];
 
       return this.store.save(trainingSessionId, {
         ...patch,
@@ -90,12 +97,38 @@ export class IncidentCardService {
         classifierQualifierCodes: [...result.routing.qualifierCodes],
         classifierRouting: result.routing,
         incidentType: result.routing.finalType,
+        services,
       });
     }
 
     if (current?.classifierEntryId && patch.incidentType !== undefined) {
       const { incidentType: _ignored, ...safePatch } = patch;
-      return this.store.save(trainingSessionId, safePatch);
+      return this.store.save(
+        trainingSessionId,
+        safePatch.services !== undefined && current.classifierRouting
+          ? {
+              ...safePatch,
+              services: [
+                ...new Set([
+                  ...safePatch.services,
+                  ...classifierDispatchServices(current.classifierRouting),
+                ]),
+              ],
+            }
+          : safePatch,
+      );
+    }
+
+    if (patch.services !== undefined && current?.classifierRouting) {
+      return this.store.save(trainingSessionId, {
+        ...patch,
+        services: [
+          ...new Set([
+            ...patch.services,
+            ...classifierDispatchServices(current.classifierRouting),
+          ]),
+        ],
+      });
     }
 
     return this.store.save(trainingSessionId, patch);
