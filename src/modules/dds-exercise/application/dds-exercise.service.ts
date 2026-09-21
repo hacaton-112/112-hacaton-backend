@@ -121,6 +121,22 @@ export class DdsExerciseService {
     return this.presentOne(await this.requireOwn(exerciseId, operatorId));
   }
 
+  /**
+   * Пакетная выдача для кабинета преподавателя.
+   *
+   * Доступ к попыткам проверяет вызывающий: здесь нет условия смены оператора,
+   * зато и запрос на каждую карточку не уходит.
+   */
+  async presentByIds(
+    exerciseIds: readonly string[],
+  ): Promise<Map<string, DdsExercise>> {
+    const presented = await this.presentAll(
+      await this.store.listByIds(exerciseIds),
+    );
+
+    return new Map(presented.map((exercise) => [exercise.id, exercise]));
+  }
+
   async transition(
     exerciseId: string,
     operatorId: string,
@@ -135,6 +151,9 @@ export class DdsExerciseService {
     if (repeated) return this.presentOne(repeated);
 
     const exercise = await this.requireOwn(exerciseId, operatorId);
+    if (exercise.completedAt !== null) {
+      throw new AppConflictException(ErrorCodes.DDS_STATUS_TRANSITION_INVALID, "This DDS attempt is closed");
+    }
     let comment: string | null;
 
     try {
@@ -159,7 +178,7 @@ export class DdsExerciseService {
       );
     }
 
-    const handoff = this.handoffRequired
+    const handoff = this.handoffRequired && !exercise.trainingAttemptId
       ? ((await this.store.loadCrewHandoffs([exercise])).get(exercise.id) ??
         null)
       : null;
@@ -184,6 +203,7 @@ export class DdsExerciseService {
       status: request.status,
       acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
       acknowledgedAt,
+      passThreshold: exercise.passThreshold,
       ...(handoff ? { handoff: handoffFacts(handoff) } : {}),
     });
     const outcome = await this.store.appendTransition({
@@ -246,7 +266,7 @@ export class DdsExerciseService {
     exercises: readonly StoredDdsExercise[],
   ): Promise<DdsExercise[]> {
     const handoffs = this.handoffRequired
-      ? await this.store.loadCrewHandoffs(exercises)
+      ? await this.store.loadCrewHandoffs(exercises.filter((item) => !item.trainingAttemptId))
       : new Map<string, StoredCrewHandoff>();
 
     return exercises.map((exercise) =>
@@ -267,7 +287,7 @@ export class DdsExerciseService {
       sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
-      allowedTransitions: [...allowedDdsTransitions(exercise.status)],
+      allowedTransitions: exercise.completedAt ? [] : [...allowedDdsTransitions(exercise.status)],
       card: exercise.card,
       acknowledgementDeadlineAt:
         exercise.acknowledgementDeadlineAt.toISOString(),
@@ -280,6 +300,7 @@ export class DdsExerciseService {
         status: exercise.status,
         acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
         acknowledgedAt: exercise.acknowledgedAt,
+        passThreshold: exercise.passThreshold,
         ...(facts ? { handoff: facts } : {}),
       }),
       crewHandoff:

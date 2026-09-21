@@ -28,6 +28,7 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callEvaluations,
   callStates,
+  ddsExercises,
   scenarios,
   scenarioVersions,
   trainingAssignments,
@@ -834,6 +835,7 @@ export class TrainingService {
           .for("update");
         if (
           !assignment ||
+          assignment.type === "card_action" ||
           assignment.scenarioVersionId !== input.scenarioVersionId ||
           !isAssignedToOperator(assignment, input.operatorId, memberships)
         ) {
@@ -947,6 +949,10 @@ export class TrainingService {
                       trainingAttempts.trainingSessionId,
                     ),
                   ),
+              ),
+              notExists(
+                this.db.select({ id: ddsExercises.id }).from(ddsExercises)
+                  .where(eq(ddsExercises.trainingAttemptId, trainingAttempts.id)),
               ),
             ),
           ),
