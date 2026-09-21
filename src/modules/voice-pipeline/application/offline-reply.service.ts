@@ -94,12 +94,13 @@ export class OfflineReplyService {
               ),
             };
           }
+          result = { reply: fallback, source: "prepared", attempts: [] };
         }
-        if (!request.generation.context.allowedFacts.length) {
+        if (!result && !request.generation.context.allowedFacts.length) {
           reason = "unavailable-fact";
           throw new Error("No permitted facts or prepared reaction");
         }
-        result = DialogueGenerationResultSchema.parse(
+        result ??= DialogueGenerationResultSchema.parse(
           await abortable(
             this.generation.generate(request.generation, deadline),
             deadline,

@@ -130,6 +130,11 @@ const collect = async (stream: AsyncIterable<VoicePipelineStreamEvent>) => {
   return events;
 };
 const signal = () => new AbortController().signal;
+const generatedRequest = (): VoicePipelineRequest => {
+  const turn = request();
+  turn.generation.fallbackReply = undefined;
+  return turn;
+};
 
 describe("offline hybrid turn", () => {
   it("does not replay an instruction embedded in corrupted safe audio metadata", async () => {
@@ -206,7 +211,9 @@ describe("offline hybrid turn", () => {
   });
   it("commits a grounded generated reply only after synthesis completes", async () => {
     const s = setup();
-    const events = await collect(s.pipeline.streamReply(request(), signal()));
+    const events = await collect(
+      s.pipeline.streamReply(generatedRequest(), signal()),
+    );
     expect(events.map((e) => e.type)).toEqual([
       "voice.reply.ready",
       "voice.audio.chunk",
@@ -215,6 +222,45 @@ describe("offline hybrid turn", () => {
     expect(events[0]).toMatchObject({
       result: { resolution: { path: "local-generated" } },
     });
+    expect(s.generate).toHaveBeenCalledTimes(1);
+  });
+  it("synthesizes prepared text on audio cache miss without using LLM", async () => {
+    const s = setup();
+    const events = await collect(s.pipeline.streamReply(request(), signal()));
+    expect(events[0]).toMatchObject({
+      result: {
+        source: "prepared",
+        attempts: [],
+        reply: request().generation.fallbackReply,
+        resolution: { path: "local-generated" },
+      },
+    });
+    expect(s.lookup).toHaveBeenCalledTimes(1);
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(s.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "Во дворе." }),
+      expect.any(AbortSignal),
+    );
+  });
+  it("synthesizes an approved non-factual reaction on audio cache miss", async () => {
+    const s = setup();
+    const turn = request();
+    turn.generation.context.allowedFacts = [];
+    turn.generation.context.turnPlan = {
+      reactionAct: "acknowledge",
+      focusFactIds: [],
+      minimumResponseDelayMs: 0,
+    };
+    turn.generation.fallbackReply = {
+      ...turn.generation.fallbackReply!,
+      text: "Хорошо, я вас слышу.",
+      revealedFactIds: [],
+    };
+    const resolved = await s.offline.resolve(turn, signal());
+    expect(resolved.result.reply.text).toBe(turn.generation.fallbackReply.text);
+    expect(resolved.result.resolution?.path).toBe("local-generated");
+    expect(s.generate).not.toHaveBeenCalled();
+    expect(s.synthesize).toHaveBeenCalledTimes(1);
   });
   it.each(["unknown-question", "intent-unavailable", "deadline"] as const)(
     "uses no models for %s",
@@ -254,7 +300,7 @@ describe("offline hybrid turn", () => {
     const fabricated = model();
     fabricated.reply.text = "Во дворе. Дом 99, пострадали трое.";
     s.generate.mockResolvedValue(fabricated);
-    const result = await s.offline.resolve(request(), signal());
+    const result = await s.offline.resolve(generatedRequest(), signal());
     expect(result.result.resolution?.reason).toBe("ungrounded-response");
     expect(result.result.attempts).toEqual(fabricated.attempts);
     expect(result.result.reply.text).toBe("Повторите, пожалуйста.");
@@ -278,12 +324,13 @@ describe("offline hybrid turn", () => {
     expect(events.filter((e) => e.type === "voice.audio.chunk")).toHaveLength(
       1,
     );
+    expect(s.generate).not.toHaveBeenCalled();
   });
   it("times out an uncooperative generation and a hanging TTS iterator", async () => {
     const s = setup();
     s.generate.mockReturnValue(new Promise(() => {}));
     const result = await s.offline.resolve(
-      { ...request(), exceptionDeadlineAt: performance.now() + 20 },
+      { ...generatedRequest(), exceptionDeadlineAt: performance.now() + 20 },
       signal(),
     );
     expect(result.result.resolution?.reason).toBe("deadline");
