@@ -1,11 +1,24 @@
 import { API_CONFIG } from "../config/api";
 import {
+  CrewCallCommandSchema,
+  type CrewCallCommand,
   type TelephonyWorkstation,
   TelephonyWorkstationListSchema,
 } from "../contracts/telephony";
 import { api } from "../lib/api";
 
 export const telephonyService = {
+  async startCrewCall(
+    exerciseId: string,
+    input: { eventId: string; dialedNumber: string },
+  ): Promise<CrewCallCommand> {
+    const payload = await api.post<unknown>(
+      API_CONFIG.getDdsCrewCallUrl(exerciseId),
+      input,
+    );
+    return CrewCallCommandSchema.parse(payload);
+  },
+
   async listWorkstations(): Promise<TelephonyWorkstation[]> {
     const payload = await api.get<unknown>(
       API_CONFIG.getTelephonyWorkstationsUrl(),

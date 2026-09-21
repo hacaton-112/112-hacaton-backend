@@ -12,3 +12,15 @@ export const TelephonyWorkstationListSchema = z.object({
 });
 
 export type TelephonyWorkstation = z.infer<typeof TelephonyWorkstationSchema>;
+
+export const CrewCallCommandSchema = z
+  .object({
+    eventId: z.uuid(),
+    exerciseId: z.uuid(),
+    dialedNumber: z.string().regex(/^\d{2,6}$/u),
+    workstationExtension: z.string().regex(/^\d{2,6}$/u),
+    state: z.literal("ringing"),
+  })
+  .strict();
+
+export type CrewCallCommand = z.infer<typeof CrewCallCommandSchema>;

@@ -2,9 +2,14 @@ import { describe, expect, it } from "bun:test";
 
 import { crewCallVerdict } from "../src/components/dds/dds-formatters";
 import {
+  isOfferedCrewNumber,
+  normalizeDialedNumber,
+} from "../src/components/dds/dds-phone";
+import {
   type DdsCrewCall,
   DdsExerciseSchema,
 } from "../src/contracts/dds-exercise";
+import { CrewCallCommandSchema } from "../src/contracts/telephony";
 
 const exercise = {
   id: "68e4085a-a84f-435e-804f-8a242db80385",
@@ -115,5 +120,29 @@ describe("crew handoff in the DDS card", () => {
     expect(crewCallVerdict(call({ outcome: null, endedAt: null })).label).toBe(
       "Идёт разговор",
     );
+  });
+
+  it("allows the screen phone to dial only a crew offered by the card", () => {
+    const handoff = {
+      notified: false,
+      crews: [{ callsign: "ПСЧ-12", phoneNumber: "1012" }],
+      calls: [],
+    };
+
+    expect(normalizeDialedNumber("10-12abc")).toBe("1012");
+    expect(isOfferedCrewNumber(handoff, "1012")).toBe(true);
+    expect(isOfferedCrewNumber(handoff, "9999")).toBe(false);
+  });
+
+  it("reads the click-to-call response shown by the phone", () => {
+    expect(
+      CrewCallCommandSchema.parse({
+        eventId: "e29a7c15-c910-4ae9-a778-d9a3d76e0bc7",
+        exerciseId: "68e4085a-a84f-435e-804f-8a242db80385",
+        dialedNumber: "1012",
+        workstationExtension: "201",
+        state: "ringing",
+      }).workstationExtension,
+    ).toBe("201");
   });
 });

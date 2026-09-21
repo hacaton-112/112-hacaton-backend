@@ -56,7 +56,12 @@ export function DdsCardPanel({
         </Flex>
 
         {exercise.crewHandoff && (
-          <DdsCrewHandoffBlock handoff={exercise.crewHandoff} />
+          <DdsCrewHandoffBlock
+            exerciseId={exercise.id}
+            handoff={exercise.crewHandoff}
+            canCall={exercise.status === "accepted"}
+            readOnly={readOnly}
+          />
         )}
 
         {!readOnly && (
