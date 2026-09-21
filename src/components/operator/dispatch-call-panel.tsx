@@ -30,6 +30,8 @@ interface ServicesProps {
   onToggleService: (service: DispatchService) => void;
   /** Рассчитаны backend и не снимаются кнопками ручного выбора. */
   requiredServices: ClassifierRouting["requiredServices"];
+  /** Службы, которые backend автоматически добавляет по классификатору. */
+  classifierServices: readonly DispatchService[];
 }
 
 interface IncidentPointProps {
@@ -65,7 +67,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         {props.requiredServices.length > 0 && (
           <div className="mt-2 grid gap-1.5">
             <Text size="1" color="gray">
-              Обязательные по классификатору
+              Автоматически назначены классификатором
             </Text>
             {props.requiredServices.map((service) => (
               <div
@@ -85,12 +87,13 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         )}
 
         <Text as="div" size="1" color="gray" mt="2">
-          Дополнительный ручной выбор
+          Выбор служб для отправки
         </Text>
 
         <div className="mt-2 flex flex-wrap gap-1.5">
           {DISPATCH_SERVICES.map((service) => {
-            const chosen = props.services.includes(service);
+            const required = props.classifierServices.includes(service);
+            const chosen = props.services.includes(service) || required;
 
             return (
               <Button
@@ -104,9 +107,15 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
                 disabled={
                   props.state !== "active" ||
                   !props.isCardReady ||
-                  props.isEnding
+                  props.isEnding ||
+                  required
                 }
                 onClick={() => props.onToggleService(service)}
+                title={
+                  required
+                    ? "Служба назначена классификатором и не может быть снята"
+                    : undefined
+                }
               >
                 {DISPATCH_SERVICE_LABELS[service]}
               </Button>

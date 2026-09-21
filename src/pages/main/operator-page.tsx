@@ -12,6 +12,10 @@ import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
 import { useCall } from "../../hooks/use-call";
 import { useIncidentCard } from "../../hooks/use-incident-card";
 import { useIncidentPoint } from "../../hooks/use-incident-point";
+import {
+  getClassifierDispatchServices,
+  getMissingIncidentCardFields,
+} from "../../lib/incident-card-readiness";
 import { useAuthStore } from "../../stores/auth.store";
 
 export default function OperatorPage() {
@@ -30,6 +34,10 @@ export default function OperatorPage() {
         }
       : undefined,
   });
+  const missingCardFields = getMissingIncidentCardFields(incidentCard.card);
+  const classifierServices = getClassifierDispatchServices(
+    incidentCard.card?.classifierRouting,
+  );
 
   const handleEnd = async () => {
     setEnding(true);
@@ -48,6 +56,15 @@ export default function OperatorPage() {
   };
 
   const handleDispatch = async () => {
+    if (missingCardFields.length > 0) {
+      toast.warning("Карточка ещё не готова к отправке", {
+        id: "incident-card-not-ready",
+        description: `Заполните: ${missingCardFields.join(", ")}.`,
+        duration: 8_000,
+      });
+      return;
+    }
+
     try {
       const receipt = await incidentCard.dispatch();
       toast.success("Карточка направлена в ДДС", {
@@ -91,15 +108,6 @@ export default function OperatorPage() {
     !isEnding &&
     !incidentCard.isDispatching &&
     !call.isRecovering;
-  const isCardDispatchReady = Boolean(
-    incidentCard.card?.addressText &&
-    incidentCard.card.latitude !== null &&
-    incidentCard.card.longitude !== null &&
-    incidentCard.card.incidentType &&
-    incidentCard.card.classifierRouting &&
-    incidentCard.card.description &&
-    incidentCard.card.services.length > 0,
-  );
   // Точку на карте оператор отмечает только в своём идущем звонке: backend
   // определяет адрес по той же учебной сессии и чужую не примет.
   const incidentPoint = useIncidentPoint(call.trainingSessionId);
@@ -138,12 +146,18 @@ export default function OperatorPage() {
   useEffect(() => {
     if (!incidentCard.error) return;
 
-    toast.error("Карточка не сохранена", {
+    const title =
+      incidentCard.errorOperation === "dispatch"
+        ? "Карточка не отправлена в ДДС"
+        : incidentCard.errorOperation === "load"
+          ? "Карточка не загружена"
+          : "Карточка не сохранена";
+    toast.error(title, {
       id: "incident-card-error",
       description: incidentCard.error,
       duration: 6_000,
     });
-  }, [incidentCard.error]);
+  }, [incidentCard.error, incidentCard.errorOperation]);
 
   return (
     <div className="arm-operator-page relative flex h-full min-h-0 flex-col overflow-hidden">
@@ -203,6 +217,7 @@ export default function OperatorPage() {
             requiredServices={
               incidentCard.card?.classifierRouting?.requiredServices ?? []
             }
+            classifierServices={classifierServices}
             onToggleService={incidentCard.toggleService}
             callerName={callerName}
             isCardReady={isCardEditable}
@@ -212,7 +227,7 @@ export default function OperatorPage() {
       </ScrollArea>
       <CallControlDock
         {...call}
-        isCardReady={isCardDispatchReady}
+        missingCardFields={missingCardFields}
         isCardSubmitted={Boolean(incidentCard.card?.submittedAt)}
         isDispatching={incidentCard.isDispatching}
         isEnding={isEnding}

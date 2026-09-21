@@ -1192,7 +1192,6 @@ body,
 .arm-operator-section,
 .arm-location-card,
 .arm-incident-card,
-.arm-duplicate-card,
 .dispatch-services-card,
 .dispatch-chat-card,
 .dispatch-map-card {
@@ -1201,8 +1200,7 @@ body,
 
 .arm-operator-section > :first-child,
 .arm-location-card > :first-child,
-.arm-incident-card > :first-child,
-.arm-duplicate-card > :first-child {
+.arm-incident-card > :first-child {
   color: var(--arm-ink);
   letter-spacing: 0.01em;
 }
@@ -1222,10 +1220,6 @@ body,
 
 .arm-location-card {
   border-top: 4px solid var(--arm-blue) !important;
-}
-
-.arm-duplicate-card {
-  border-left: 4px solid var(--arm-orange) !important;
 }
 
 .arm-routing-summary {

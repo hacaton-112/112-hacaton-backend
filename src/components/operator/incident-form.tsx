@@ -31,7 +31,6 @@ import {
 import type { IncidentLocationFill } from "../../contracts/geo";
 import { FormField } from "../auth/form-field";
 import { ClassifierPicker } from "./classifier-picker";
-import { DuplicateSuspicion } from "./duplicate-suspicion";
 
 /** Те же три параметра, что у формы: вход, контекст резолвера и результат. */
 type CardControl = Control<IncidentCardInput, unknown, IncidentCard>;
@@ -342,8 +341,6 @@ export function IncidentForm({
           />
         </FormField>
       </Card>
-
-      <DuplicateSuspicion />
     </form>
   );
 }

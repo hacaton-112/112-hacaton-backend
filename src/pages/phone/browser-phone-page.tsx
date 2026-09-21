@@ -51,7 +51,7 @@ export default function BrowserPhonePage() {
   // ставит карточка: у неё есть упражнение, к которому относится вызов.
   const [number, setNumber] = useState("");
   const channelRef = useRef<BroadcastChannel | null>(null);
-  const requestIdRef = useRef<string>();
+  const requestIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const channel = new BroadcastChannel(PHONE_CHANNEL_NAME);

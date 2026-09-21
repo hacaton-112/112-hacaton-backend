@@ -205,6 +205,7 @@ export class IncidentCardDraft {
       classifierQualifierCodes: saved.classifierQualifierCodes,
       classifierRouting: saved.classifierRouting,
       incidentType: saved.incidentType,
+      services: [...new Set([...this.current.services, ...saved.services])],
     });
     if (this.pending === this.current) this.pending = reconciled;
     this.current = reconciled;

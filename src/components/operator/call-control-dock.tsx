@@ -17,7 +17,7 @@ import { VoiceVisualizerPanel } from "./voice-visualizer-panel";
 import { ROUTES } from "../../config/routes";
 
 type CallControlDockProps = Omit<CallSnapshot & CallControls, "end"> & {
-  isCardReady: boolean;
+  missingCardFields: readonly string[];
   isCardSubmitted: boolean;
   isDispatching: boolean;
   isEnding: boolean;
@@ -34,6 +34,10 @@ export function CallControlDock(props: CallControlDockProps) {
   // Отдельная переменная, чтобы сузить тип: внутри обработчика TypeScript уже
   // не помнит проверку `props.trainingSessionId`.
   const debriefSessionId = props.trainingSessionId;
+  const dispatchHint =
+    props.missingCardFields.length === 0
+      ? "Отправить заполненную карточку в ДДС"
+      : `Нужно заполнить: ${props.missingCardFields.join(", ")}`;
 
   return (
     <div
@@ -87,11 +91,12 @@ export function CallControlDock(props: CallControlDockProps) {
                 variant="soft"
                 onClick={props.onDispatch}
                 disabled={
-                  !props.isCardReady ||
                   props.isCardSubmitted ||
                   props.isDispatching ||
                   props.isRecovering
                 }
+                title={dispatchHint}
+                aria-label={dispatchHint}
               >
                 {props.isDispatching ? (
                   <Spinner size="1" />
@@ -112,17 +117,19 @@ export function CallControlDock(props: CallControlDockProps) {
               >
                 {props.isMuted ? <MicOff size={17} /> : <Mic size={17} />}
               </IconButton>
-              <IconButton
+              <Button
+                type="button"
                 size="2"
                 color="red"
                 onClick={props.onEnd}
                 disabled={
-                  !props.isCardSubmitted || props.isEnding || props.isRecovering
+                  props.isEnding || props.isDispatching || props.isRecovering
                 }
-                aria-label="Завершить вызов после отправки карточки"
+                aria-label="Завершить вызов"
               >
-                <PhoneOff size={17} />
-              </IconButton>
+                {props.isEnding ? <Spinner size="1" /> : <PhoneOff size={17} />}
+                Завершить
+              </Button>
             </>
           )}
 

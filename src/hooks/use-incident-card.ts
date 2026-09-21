@@ -11,6 +11,7 @@ import {
   type IncidentCardLocationDefaults,
 } from "../services/incident-card-draft";
 import { incidentCardService } from "../services/incident-card.service";
+import { getClassifierDispatchServices } from "../lib/incident-card-readiness";
 
 interface UseIncidentCardOptions {
   trainingSessionId?: string;
@@ -24,6 +25,7 @@ export interface IncidentCardState {
   isSaving: boolean;
   isDispatching: boolean;
   error?: string;
+  errorOperation?: "load" | "save" | "dispatch";
   update: (patch: IncidentCardPatch) => void;
   toggleService: (service: IncidentCard["services"][number]) => void;
   flush: () => Promise<void>;
@@ -49,13 +51,17 @@ export function useIncidentCard({
   const [failure, setFailure] = useState<{
     sessionId: string;
     message: string;
+    operation: "load" | "save" | "dispatch";
   }>();
   const draft = useRef<IncidentCardDraft | null>(null);
   const terminalSessionId = useRef<string | null>(null);
-  const dispatchCommand = useRef<{
-    sessionId: string;
-    eventId: string;
-  } | undefined>(undefined);
+  const dispatchCommand = useRef<
+    | {
+        sessionId: string;
+        eventId: string;
+      }
+    | undefined
+  >(undefined);
   const defaultsRef = useRef(locationDefaults);
 
   useEffect(() => {
@@ -104,6 +110,7 @@ export function useIncidentCard({
         setFailure({
           sessionId: trainingSessionId,
           message: reason instanceof Error ? reason.message : String(reason),
+          operation: "save",
         }),
     });
     draft.current = nextDraft;
@@ -122,6 +129,7 @@ export function useIncidentCard({
         setFailure({
           sessionId: trainingSessionId,
           message: reason instanceof Error ? reason.message : String(reason),
+          operation: "load",
         });
       });
 
@@ -173,6 +181,24 @@ export function useIncidentCard({
       throw new Error("Карточка уже направлена в ДДС");
     }
 
+    const beforeDispatch = draft.current.getSnapshot();
+    if (beforeDispatch) {
+      const classifierServices = getClassifierDispatchServices(
+        beforeDispatch.classifierRouting,
+      );
+      if (
+        classifierServices.some(
+          (service) => !beforeDispatch.services.includes(service),
+        )
+      ) {
+        draft.current.update({
+          services: [
+            ...new Set([...beforeDispatch.services, ...classifierServices]),
+          ],
+        });
+      }
+    }
+
     await draft.current.flush();
     const command = dispatchCommand.current;
     if (!command || command.sessionId !== trainingSessionId) {
@@ -202,6 +228,7 @@ export function useIncidentCard({
       setFailure({
         sessionId: trainingSessionId,
         message: reason instanceof Error ? reason.message : String(reason),
+        operation: "dispatch",
       });
       throw reason;
     } finally {
@@ -224,6 +251,10 @@ export function useIncidentCard({
     error:
       failure && failure.sessionId === trainingSessionId
         ? failure.message
+        : undefined,
+    errorOperation:
+      failure && failure.sessionId === trainingSessionId
+        ? failure.operation
         : undefined,
     update,
     toggleService,
