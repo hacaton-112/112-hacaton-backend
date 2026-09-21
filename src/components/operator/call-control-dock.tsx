@@ -17,7 +17,8 @@ import { VoiceVisualizerPanel } from "./voice-visualizer-panel";
 import { ROUTES } from "../../config/routes";
 
 type CallControlDockProps = Omit<CallSnapshot & CallControls, "end"> & {
-  isCardReady: boolean;
+  missingCardFields: readonly string[];
+  dispatchError?: string;
   isCardSubmitted: boolean;
   isDispatching: boolean;
   isEnding: boolean;
@@ -34,6 +35,30 @@ export function CallControlDock(props: CallControlDockProps) {
   // Отдельная переменная, чтобы сузить тип: внутри обработчика TypeScript уже
   // не помнит проверку `props.trainingSessionId`.
   const debriefSessionId = props.trainingSessionId;
+  const dispatchHint =
+    props.missingCardFields.length === 0
+      ? "Отправить заполненную карточку в ДДС"
+      : `Нужно заполнить: ${props.missingCardFields.join(", ")}`;
+  const dispatchStatus = (() => {
+    if (props.isCardSubmitted) return "Карточка уже отправлена в ДДС";
+    if (props.isDispatching) return "Карточка отправляется в ДДС…";
+    if (props.dispatchError) {
+      return `Карточка не отправлена: ${props.dispatchError}`;
+    }
+    if (props.isRecovering) {
+      return "Отправка недоступна: восстанавливается соединение с сервером";
+    }
+    if (props.missingCardFields.length > 0) {
+      return `Карточка не отправляется — заполните: ${props.missingCardFields.join(", ")}`;
+    }
+    return "Карточка заполнена и готова к отправке";
+  })();
+  const dispatchStatusPositive =
+    props.isCardSubmitted ||
+    (!props.isDispatching &&
+      !props.isRecovering &&
+      !props.dispatchError &&
+      props.missingCardFields.length === 0);
 
   return (
     <div
@@ -69,86 +94,107 @@ export function CallControlDock(props: CallControlDockProps) {
           </div>
         </AudioMonitor>
 
-        <div className="flex min-w-fit items-center justify-end gap-2">
-          <OperatorTour />
-
-          {props.state === "idle" && (
-            <ScenarioPicker
-              disabled={!props.isConnected}
-              onStart={props.startScenario}
-            />
-          )}
-
+        <div className="flex min-w-fit flex-col items-end gap-1">
           {props.state === "active" && (
-            <>
-              <Button
-                type="button"
-                size="2"
-                variant="soft"
-                onClick={props.onDispatch}
-                disabled={
-                  !props.isCardReady ||
-                  props.isCardSubmitted ||
-                  props.isDispatching ||
-                  props.isRecovering
-                }
-              >
-                {props.isDispatching ? (
-                  <Spinner size="1" />
-                ) : (
-                  <Send size={16} />
-                )}
-                {props.isCardSubmitted ? "Отправлена" : "Отправить карточку"}
-              </Button>
-              <IconButton
-                size="2"
-                variant={props.isMuted ? "solid" : "soft"}
-                color={props.isMuted ? "red" : "gray"}
-                onClick={props.toggleMute}
-                disabled={props.isRecovering}
-                aria-label={
-                  props.isMuted ? "Включить микрофон" : "Выключить микрофон"
-                }
-              >
-                {props.isMuted ? <MicOff size={17} /> : <Mic size={17} />}
-              </IconButton>
-              <IconButton
-                size="2"
-                color="red"
-                onClick={props.onEnd}
-                disabled={
-                  !props.isCardSubmitted || props.isEnding || props.isRecovering
-                }
-                aria-label="Завершить вызов после отправки карточки"
-              >
-                <PhoneOff size={17} />
-              </IconButton>
-            </>
+            <Text
+              as="div"
+              size="1"
+              role="status"
+              aria-live="polite"
+              className={`max-w-[44rem] text-right leading-tight! ${dispatchStatusPositive ? "text-green-4!" : "text-amber-4!"}`}
+            >
+              {dispatchStatus}
+            </Text>
           )}
 
-          {props.state === "ended" && (
-            <>
-              {debriefSessionId !== undefined && (
+          <div className="flex items-center justify-end gap-2">
+            <OperatorTour />
+
+            {props.state === "idle" && (
+              <ScenarioPicker
+                disabled={!props.isConnected}
+                onStart={props.startScenario}
+              />
+            )}
+
+            {props.state === "active" && (
+              <>
+                <Button
+                  type="button"
+                  size="2"
+                  variant="soft"
+                  onClick={props.onDispatch}
+                  disabled={
+                    props.isCardSubmitted ||
+                    props.isDispatching ||
+                    props.isRecovering
+                  }
+                  title={dispatchHint}
+                  aria-label={dispatchHint}
+                >
+                  {props.isDispatching ? (
+                    <Spinner size="1" />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                  {props.isCardSubmitted ? "Отправлена" : "Отправить карточку"}
+                </Button>
+                <IconButton
+                  size="2"
+                  variant={props.isMuted ? "solid" : "soft"}
+                  color={props.isMuted ? "red" : "gray"}
+                  onClick={props.toggleMute}
+                  disabled={props.isRecovering}
+                  aria-label={
+                    props.isMuted ? "Включить микрофон" : "Выключить микрофон"
+                  }
+                >
+                  {props.isMuted ? <MicOff size={17} /> : <Mic size={17} />}
+                </IconButton>
+                <Button
+                  type="button"
+                  size="2"
+                  color="red"
+                  onClick={props.onEnd}
+                  disabled={
+                    props.isEnding || props.isDispatching || props.isRecovering
+                  }
+                  aria-label="Завершить вызов"
+                >
+                  {props.isEnding ? (
+                    <Spinner size="1" />
+                  ) : (
+                    <PhoneOff size={17} />
+                  )}
+                  Завершить
+                </Button>
+              </>
+            )}
+
+            {props.state === "ended" && (
+              <>
+                {debriefSessionId !== undefined && (
+                  <Button
+                    size="2"
+                    variant="soft"
+                    onClick={() =>
+                      navigate(ROUTES.debriefSession(debriefSessionId))
+                    }
+                  >
+                    <ClipboardList size={17} /> Разбор
+                  </Button>
+                )}
                 <Button
                   size="2"
                   variant="soft"
-                  onClick={() =>
-                    navigate(ROUTES.debriefSession(debriefSessionId))
-                  }
+                  color="gray"
+                  onClick={props.reset}
                 >
-                  <ClipboardList size={17} /> Разбор
+                  <RotateCcw size={17} /> Сбросить
                 </Button>
-              )}
-              <Button
-                size="2"
-                variant="soft"
-                color="gray"
-                onClick={props.reset}
-              >
-                <RotateCcw size={17} /> Сбросить
-              </Button>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

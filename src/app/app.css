@@ -1192,7 +1192,6 @@ body,
 .arm-operator-section,
 .arm-location-card,
 .arm-incident-card,
-.arm-duplicate-card,
 .dispatch-services-card,
 .dispatch-chat-card,
 .dispatch-map-card {
@@ -1201,8 +1200,7 @@ body,
 
 .arm-operator-section > :first-child,
 .arm-location-card > :first-child,
-.arm-incident-card > :first-child,
-.arm-duplicate-card > :first-child {
+.arm-incident-card > :first-child {
   color: var(--arm-ink);
   letter-spacing: 0.01em;
 }
@@ -1222,10 +1220,6 @@ body,
 
 .arm-location-card {
   border-top: 4px solid var(--arm-blue) !important;
-}
-
-.arm-duplicate-card {
-  border-left: 4px solid var(--arm-orange) !important;
 }
 
 .arm-routing-summary {
@@ -1549,9 +1543,9 @@ body,
 .arm-dds-table-head,
 .arm-dds-table-row {
   display: grid;
-  min-width: 1180px;
+  min-width: 1108px;
   grid-template-columns:
-    72px 44px 104px 92px 84px minmax(190px, 1.05fr)
+    44px 104px 92px 84px minmax(190px, 1.05fr)
     minmax(270px, 1.5fr) minmax(160px, 0.7fr) 44px;
   align-items: stretch;
 }
@@ -1616,11 +1610,6 @@ body,
 .arm-dds-status-cell {
   background: var(--arm-slate-cell);
   color: #edeff0;
-}
-
-.arm-dds-row-icons {
-  justify-content: space-around;
-  color: #c5cbcd;
 }
 
 .arm-dds-cell-main {

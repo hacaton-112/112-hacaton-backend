@@ -1,13 +1,18 @@
 import {
+  Button,
+  Card,
   Callout,
   Flex,
+  Heading,
   ScrollArea,
   Spinner,
+  Text,
   TextField,
 } from "@bolid-ui/themes";
 import { AlertTriangle, ChevronUp, Clock3, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { ROUTES } from "../../config/routes";
 import { useAuthStore } from "../../stores/auth.store";
 import { DdsInstructorPanel } from "../../components/dds/dds-instructor-panel";
 
@@ -25,11 +30,16 @@ const EMPTY_EXERCISES: readonly DdsExercise[] = [];
 
 export default function DdsExercisePage() {
   const role = useAuthStore((state) => state.user?.role);
-  return role === "instructor" || role === "admin" ? <DdsInstructorPanel /> : <DdsLearnerPage />;
+  return role === "instructor" || role === "admin" ? (
+    <DdsInstructorPanel />
+  ) : (
+    <DdsLearnerPage />
+  );
 }
 
 function DdsLearnerPage() {
   const dds = useDdsExercises();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const list = dds.exercises.data ?? EMPTY_EXERCISES;
   const [query, setQuery] = useState("");
@@ -42,7 +52,8 @@ function DdsLearnerPage() {
   // диспетчер начал вторую попытку и должен увидеть новую карточку. Правка
   // состояния во время отрисовки — штатный приём React для такой синхронизации,
   // эффект здесь дал бы лишний проход отрисовки.
-  const [appliedExerciseId, setAppliedExerciseId] = useState(requestedExerciseId);
+  const [appliedExerciseId, setAppliedExerciseId] =
+    useState(requestedExerciseId);
 
   if (requestedExerciseId !== appliedExerciseId) {
     setAppliedExerciseId(requestedExerciseId);
@@ -139,6 +150,30 @@ function DdsLearnerPage() {
             <Callout.Text>{dds.exercises.error.message}</Callout.Text>
           </Callout.Root>
         )}
+
+        {!dds.exercises.isPending &&
+          !dds.exercises.error &&
+          list.length === 0 && (
+            <Card size="3" className="m-2 grid gap-3">
+              <Heading size="4">Как получить карточку ДДС</Heading>
+              <Text as="p" size="2" color="gray">
+                В этом окне карточка вручную не создаётся. Откройте назначение
+                преподавателя в режиме «Диспетчер ДДС» — карточка появится при
+                старте попытки. Сюда также поступают карточки, отправленные из
+                рабочего места оператора 112 в службу вашей учебной группы
+                (тег 01, 02, 03 или 04).
+              </Text>
+              <div>
+                <Button
+                  type="button"
+                  variant="soft"
+                  onClick={() => navigate(ROUTES.assignments())}
+                >
+                  Открыть мои назначения
+                </Button>
+              </div>
+            </Card>
+          )}
 
         <section className="arm-dds-queue" aria-labelledby="dds-queue-title">
           <div className="arm-dds-section-title">
