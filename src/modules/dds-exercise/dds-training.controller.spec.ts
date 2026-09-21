@@ -59,4 +59,22 @@ describe(DdsTrainingController.name, () => {
       ),
     ).toBe(HttpStatus.NO_CONTENT);
   });
+
+  it("returns assigned and standalone results without changing their grouping", async () => {
+    const result = { attempts: [], standaloneResults: [{ exercise: {} }] };
+    const training = { list: jest.fn().mockResolvedValue(result) };
+    const controller = new DdsTrainingController(
+      training as unknown as DdsTrainingService,
+    );
+
+    await expect(
+      controller.list({
+        user: { sub: "instructor-1", role: "instructor" },
+      } as never),
+    ).resolves.toBe(result);
+    expect(training.list).toHaveBeenCalledWith({
+      id: "instructor-1",
+      role: "instructor",
+    });
+  });
 });

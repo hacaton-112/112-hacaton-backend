@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { AppBadRequestException, AppConflictException, AppNotFoundException } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
@@ -18,7 +18,7 @@ import {
   type StoredCrewHandoff,
 } from "../ports/dds-exercise.store.port";
 import { ddsLiveFindings } from "../domain/dds-live-findings";
-import type { DdsLiveAttempt, DdsTrainingAttempt, ReviewDdsDto } from "../dto/dds-training.dto";
+import type { DdsLiveAttempt, DdsTrainingList, ReviewDdsDto } from "../dto/dds-training.dto";
 import {
   DDS_CREW_HANDOFF_REQUIRED,
   DdsExerciseService,
@@ -162,8 +162,8 @@ export class DdsTrainingService {
     return this.exercises.get(exerciseId, operatorId);
   }
 
-  async list(actor: TrainingActor): Promise<DdsTrainingAttempt[]> {
-    const rows = await this.db.select({
+  async list(actor: TrainingActor): Promise<DdsTrainingList> {
+    const assignedRows = await this.db.select({
       id: ddsExercises.id, operatorId: trainingAttempts.operatorId,
       assignmentId: trainingAssignments.id, assignmentTitle: trainingAssignments.title,
       operatorName: users.fullName, attemptNumber: trainingAttempts.attemptNumber,
@@ -174,13 +174,38 @@ export class DdsTrainingService {
       .innerJoin(users, eq(users.id, trainingAttempts.operatorId))
       .leftJoin(trainingGroups, eq(trainingGroups.id, trainingAssignments.groupId))
       .where(this.scope(actor)).orderBy(desc(ddsExercises.createdAt)).limit(200);
-    const reviews = rows.length ? await this.db.select().from(ddsExerciseReviews)
-      .where(inArray(ddsExerciseReviews.exerciseId, rows.map((row) => row.id)))
+
+    const standaloneScope = actor.role === "admin" ? undefined : exists(
+      this.db.select({ userId: trainingGroupMembers.userId })
+        .from(trainingGroupMembers)
+        .innerJoin(trainingGroups, eq(trainingGroups.id, trainingGroupMembers.groupId))
+        .where(and(
+          eq(trainingGroupMembers.userId, ddsExercises.operatorId),
+          eq(trainingGroups.instructorId, actor.id),
+        )),
+    );
+    const standaloneRows = await this.db.select({
+      id: ddsExercises.id, operatorId: users.id,
+      operatorName: users.fullName, passThreshold: ddsExercises.passThreshold,
+    }).from(ddsExercises)
+      .innerJoin(users, eq(users.id, ddsExercises.operatorId))
+      .where(and(
+        isNull(ddsExercises.trainingAttemptId),
+        isNotNull(ddsExercises.completedAt),
+        standaloneScope,
+      ))
+      .orderBy(desc(ddsExercises.createdAt)).limit(200);
+
+    const reviews = assignedRows.length ? await this.db.select().from(ddsExerciseReviews)
+      .where(inArray(ddsExerciseReviews.exerciseId, assignedRows.map((row) => row.id)))
       .orderBy(desc(ddsExerciseReviews.createdAt)) : [];
     // Карточки берутся пакетом: запрос на каждую попытку превращал открытие
     // кабинета в сотни запросов.
-    const exercises = await this.exercises.presentByIds(rows.map((row) => row.id));
-    return rows.flatMap(({ id, ...row }) => {
+    const exercises = await this.exercises.presentByIds([
+      ...assignedRows.map((row) => row.id),
+      ...standaloneRows.map((row) => row.id),
+    ]);
+    const attempts = assignedRows.flatMap(({ id, ...row }) => {
       const exercise = exercises.get(id);
       if (!exercise) return [];
       return [{
@@ -191,6 +216,11 @@ export class DdsTrainingService {
         })),
       }];
     });
+    const standaloneResults = standaloneRows.flatMap(({ id, ...row }) => {
+      const exercise = exercises.get(id);
+      return exercise ? [{ ...row, exercise }] : [];
+    });
+    return { attempts, standaloneResults };
   }
 
   async review(actor: TrainingActor, id: string, input: ReviewDdsDto) {

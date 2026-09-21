@@ -29,9 +29,20 @@ export const DdsTrainingAttemptSchema = z.object({
     comment: z.string(), createdAt: z.iso.datetime(),
   }).strict()),
 }).strict();
-export const DdsTrainingListSchema = z.object({ attempts: z.array(DdsTrainingAttemptSchema) }).strict();
+export const DdsStandaloneResultSchema = z.object({
+  exercise: DdsExerciseSchema,
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  passThreshold: z.number().int().min(50).max(100),
+}).strict();
+export const DdsTrainingListSchema = z.object({
+  attempts: z.array(DdsTrainingAttemptSchema),
+  /** Completed legacy/diagnostic cards without an assignment are read-only. */
+  standaloneResults: z.array(DdsStandaloneResultSchema),
+}).strict();
 export class DdsTrainingListDto extends createZodDto(DdsTrainingListSchema) {}
 export type DdsTrainingAttempt = z.infer<typeof DdsTrainingAttemptSchema>;
+export type DdsTrainingList = z.infer<typeof DdsTrainingListSchema>;
 
 /** Идущая попытка в мониторинге: без журнала и карточки целиком. */
 export const DdsLiveAttemptSchema = z.object({
