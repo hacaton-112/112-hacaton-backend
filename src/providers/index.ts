@@ -16,3 +16,9 @@ export const withAppProviders = compose(
 
 /** The map route branch only needs the Bolid theme. */
 export const withMapWindowProviders = compose(themeProvider);
+
+/** Browser/Tauri WebRTC phone has no application session of its own. */
+export const withPhoneWindowProviders = compose(
+  errorBoundaryProvider,
+  themeProvider,
+);

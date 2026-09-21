@@ -30,6 +30,17 @@
         "minHeight": 480,
         "visible": false,
         "decorations": false
+      },
+      {
+        "label": "dds-phone",
+        "title": "Телефон ДДС",
+        "url": "index.html#/phone",
+        "width": 420,
+        "height": 680,
+        "minWidth": 360,
+        "minHeight": 560,
+        "visible": false,
+        "decorations": true
       }
     ],
     "security": {

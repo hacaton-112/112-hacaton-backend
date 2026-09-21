@@ -19,7 +19,11 @@ import DebriefPage from "./pages/main/debrief-page";
 import DdsExercisePage from "./pages/main/dds-exercise-page";
 import HomePage from "./pages/main/home-page";
 import MapPage from "./pages/map/map-page";
-import { withAppProviders, withMapWindowProviders } from "./providers";
+import {
+  withAppProviders,
+  withMapWindowProviders,
+  withPhoneWindowProviders,
+} from "./providers";
 
 const ScenarioConstructorPage = lazy(
   () => import("./pages/main/scenario-constructor-page"),
@@ -39,6 +43,7 @@ const ClassifierPage = lazy(() => import("./pages/main/classifier-page"));
 const MethodicalMaterialsPage = lazy(
   () => import("./pages/main/methodical-materials-page"),
 );
+const BrowserPhonePage = lazy(() => import("./pages/phone/browser-phone-page"));
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -150,6 +155,12 @@ export function Routing() {
 
       <Route element={withMapWindowProviders(<Outlet />)}>
         <Route path={ROUTE_PATTERNS.map} element={<MapPage />} />
+      </Route>
+      <Route element={withPhoneWindowProviders(<Outlet />)}>
+        <Route
+          path={ROUTE_PATTERNS.phone}
+          element={lazyPage(<BrowserPhonePage />)}
+        />
       </Route>
     </Routes>
   );

@@ -1,4 +1,5 @@
 import { createTauriStore } from "@tauri-store/zustand";
+import { isTauri } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 import type { AuthSession, AuthUser } from "../contracts/auth";
@@ -46,19 +47,20 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 // Access tokens are short-lived. Persist only the rotating refresh credential;
 // startup exchanges it for a fresh session before protected UI is rendered.
-const authTauriStore = createTauriStore("auth", useAuthStore, {
-  filterKeys: ["refreshToken"],
-  filterKeysStrategy: "pick",
-  saveOnChange: true,
-});
+const authTauriStore = isTauri()
+  ? createTauriStore("auth", useAuthStore, {
+      filterKeys: ["refreshToken"],
+      filterKeysStrategy: "pick",
+      saveOnChange: true,
+    })
+  : null;
 
 /**
  * Outside the Tauri runtime (`bun run dev` in a browser) there is no backend to
  * sync with; the store then simply stays in memory for that session.
  */
 export const hydrateAuthStore = (): Promise<void> =>
-  authTauriStore
-    .start()
+  (authTauriStore?.start() ?? Promise.resolve())
     .catch(() => undefined)
     .finally(() => useAuthStore.setState({ isHydrated: true }));
 

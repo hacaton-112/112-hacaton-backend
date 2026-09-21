@@ -89,6 +89,8 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   TELEPHONY_UNAVAILABLE: "Asterisk не смог начать звонок",
   TELEPHONY_WORKSTATION_REQUIRED:
     "Администратор ещё не закрепил за вами телефон рабочего места",
+  TELEPHONY_BROWSER_PHONE_UNAVAILABLE:
+    "Рабочее место не настроено для браузерного телефона",
   TELEPHONY_CREW_UNAVAILABLE: "Этот номер недоступен для текущей карточки",
   TELEPHONY_CALL_CONFLICT: "Команда звонка уже использована для другого номера",
   VALIDATION_FAILED: "Проверьте введённые данные",

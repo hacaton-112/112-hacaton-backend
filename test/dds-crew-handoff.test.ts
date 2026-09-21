@@ -9,7 +9,14 @@ import {
   type DdsCrewCall,
   DdsExerciseSchema,
 } from "../src/contracts/dds-exercise";
-import { CrewCallCommandSchema } from "../src/contracts/telephony";
+import {
+  BrowserPhoneConfigSchema,
+  CrewCallCommandSchema,
+} from "../src/contracts/telephony";
+import {
+  PhoneHostMessageSchema,
+  PhoneWindowMessageSchema,
+} from "../src/lib/browser-phone-window";
 
 const exercise = {
   id: "68e4085a-a84f-435e-804f-8a242db80385",
@@ -144,5 +151,32 @@ describe("crew handoff in the DDS card", () => {
         state: "ringing",
       }).workstationExtension,
     ).toBe("201");
+  });
+
+  it("validates browser phone configuration and window messages", () => {
+    const config = BrowserPhoneConfigSchema.parse({
+      extension: "201",
+      aor: "sip:201@pbx.training.test",
+      websocketUrl: "wss://pbx.training.test/ws",
+      authorizationUsername: "201",
+      authorizationPassword: "a".repeat(64),
+      displayName: "DDS 201",
+    });
+    const requestId = "e29a7c15-c910-4ae9-a778-d9a3d76e0bc7";
+
+    expect(
+      PhoneHostMessageSchema.parse({
+        type: "configure",
+        requestId,
+        config,
+      }).type,
+    ).toBe("configure");
+    expect(
+      PhoneWindowMessageSchema.parse({
+        type: "registered",
+        requestId,
+        extension: "201",
+      }).type,
+    ).toBe("registered");
   });
 });

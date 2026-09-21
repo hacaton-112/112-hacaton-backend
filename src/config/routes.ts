@@ -29,6 +29,7 @@ export const ROUTE_PATTERNS = {
   scenarioNew: "/scenarios/new",
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
+  phone: "/phone",
 } as const;
 
 export const ROUTES = {
@@ -75,3 +76,6 @@ export const WORKPLACE_QUERY_PARAM = "workplace";
  */
 export const MAP_WINDOW_LABEL = "incident-map";
 export const MAP_WINDOW_URL = `/#${ROUTE_PATTERNS.map}`;
+
+export const PHONE_WINDOW_LABEL = "dds-phone";
+export const PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.phone}`;
