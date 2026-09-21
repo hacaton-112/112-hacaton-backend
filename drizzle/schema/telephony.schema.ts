@@ -111,3 +111,36 @@ export const ddsCrewCalls = pgTable(
     index("dds_crew_calls_exercise_idx").on(table.exerciseId),
   ],
 );
+
+/**
+ * Идемпотентная команда экранного телефона.
+ *
+ * Сначала резервируем `eventId` и заранее назначенный ARI channel id, затем
+ * просим Asterisk позвонить на SIP-телефон рабочего места. Если HTTP-ответ
+ * потерялся, повтор команды использует тот же канал и не создаёт второй звонок.
+ */
+export const ddsCrewCallCommands = pgTable(
+  "dds_crew_call_commands",
+  {
+    eventId: text("event_id").primaryKey(),
+    exerciseId: text("exercise_id")
+      .notNull()
+      .references(() => ddsExercises.id, { onDelete: "cascade" }),
+    operatorId: text("operator_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    callerExtension: text("caller_extension").notNull(),
+    dialedNumber: text("dialed_number").notNull(),
+    channelId: text("channel_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("dds_crew_call_commands_channel_unique_idx").on(
+      table.channelId,
+    ),
+    index("dds_crew_call_commands_exercise_idx").on(table.exerciseId),
+  ],
+);

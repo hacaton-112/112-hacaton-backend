@@ -10,6 +10,7 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callEvents,
   callStates,
+  ddsExercises,
   scenarios,
   scenarioVersions,
   trainingAssignments,
@@ -19,6 +20,8 @@ import {
 } from "@/drizzle/schema";
 import { AuthService } from "@/modules/auth/auth.service";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
+import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
+import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
 import { TrainingService } from "@/modules/training/training.service";
 
 /**
@@ -62,6 +65,8 @@ async function main(): Promise<void> {
   const training = app.get(TrainingService);
   const auth = app.get(AuthService);
   const engine = app.get(ScenarioEngineService);
+  const ddsExerciseService = app.get(DdsExerciseService);
+  const ddsTraining = app.get(DdsTrainingService);
   const db = app.get<DrizzleService["db"]>(DRIZZLE);
   const suffix = generateId().slice(0, 8);
   const userIds = {
@@ -267,6 +272,85 @@ async function main(): Promise<void> {
     }
     step("осиротевшая попытка закрыта как прерванная");
 
+    const ddsAssignment = await training.createAssignment(instructor, {
+      title: "Smoke: карточка ДДС",
+      scenarioVersionId: version.id,
+      groupId: group.id,
+      type: "card_action",
+      cardSource: "ticket",
+      serviceTag: "FIRE_101",
+      answerNormSeconds: 240,
+      passThreshold: 75,
+      maxAttempts: 1,
+      dueDate: null,
+    });
+    await training.launchAssignmentById(instructor, ddsAssignment.id);
+    const ddsStartEvent = generateId();
+    const dds = await ddsTraining.start(
+      userIds.fire,
+      ddsAssignment.id,
+      ddsStartEvent,
+    );
+    const repeatedDds = await ddsTraining.start(
+      userIds.fire,
+      ddsAssignment.id,
+      ddsStartEvent,
+    );
+    if (dds.id !== repeatedDds.id) {
+      throw new Error("повтор старта ДДС создал вторую карточку");
+    }
+    if (
+      !(await ddsTraining.live(instructor)).some(
+        ({ exerciseId }) => exerciseId === dds.id,
+      )
+    ) {
+      throw new Error("преподаватель не видит активную карточку ДДС");
+    }
+    if (
+      (await ddsTraining.live(stranger)).some(
+        ({ exerciseId }) => exerciseId === dds.id,
+      )
+    ) {
+      throw new Error("чужой преподаватель видит активную карточку ДДС");
+    }
+    await ddsExerciseService.transition(dds.id, userIds.fire, {
+      eventId: generateId(),
+      status: "accepted",
+    });
+    await ddsExerciseService.transition(dds.id, userIds.fire, {
+      eventId: generateId(),
+      status: "responding",
+    });
+    await ddsExerciseService.transition(dds.id, userIds.fire, {
+      eventId: generateId(),
+      status: "arrived",
+    });
+    await ddsExerciseService.transition(dds.id, userIds.fire, {
+      eventId: generateId(),
+      status: "working",
+    });
+    await ddsExerciseService.transition(dds.id, userIds.fire, {
+      eventId: generateId(),
+      status: "completed",
+    });
+    await ddsTraining.review(instructor, dds.id, {
+      eventId: generateId(),
+      score: 88,
+      comment: "Smoke review",
+    });
+    const [reviewed] = (await ddsTraining.list(instructor)).filter(
+      ({ exercise }) => exercise.id === dds.id,
+    );
+    if (
+      reviewed?.attemptStatus !== "completed" ||
+      reviewed.reviews[0]?.score !== 88
+    ) {
+      throw new Error(
+        "завершённая попытка ДДС не дошла до оценки преподавателя",
+      );
+    }
+    step("назначенная карточка ДДС запускается, завершается и оценивается");
+
     const calls = await training.listInstructorCalls(instructor, {
       groupId: group.id,
     });
@@ -416,6 +500,12 @@ async function main(): Promise<void> {
         .delete(callStates)
         .where(inArray(callStates.trainingSessionId, sessionIds));
     }
+    // Назначенная карточка хранит попытку как интеграционный идентификатор, а
+    // не FK. Удаляем её явно: события и оценки уйдут каскадом, и тестовые
+    // преподаватели не останутся заняты ссылкой из review.
+    await db
+      .delete(ddsExercises)
+      .where(inArray(ddsExercises.operatorId, Object.values(userIds)));
     // Группы, назначения и попытки уходят каскадом, а преподавателя группа
     // держит `restrict`, поэтому сначала группы и назначения.
     await db

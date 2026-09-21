@@ -129,6 +129,7 @@ export interface DdsExerciseStore {
    */
   findAwaitingHandoff(
     operatorId: string,
+    exerciseId?: string,
   ): Promise<{
     readonly id: string;
     readonly addressedService: DispatchService;
