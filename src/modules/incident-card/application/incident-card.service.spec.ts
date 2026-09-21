@@ -140,8 +140,31 @@ describe(IncidentCardService.name, () => {
       expect.objectContaining({
         incidentType: "Пожар в жилом доме",
         classifierRouting: classifierResult.routing,
+        services: ["dds_01"],
       }),
     );
+  });
+
+  it("keeps classifier services when the operator changes manual routing", async () => {
+    const current = card({
+      classifierEntryId: classifierResult.routing.classifierEntryId,
+      classifierQualifierCodes: [],
+      classifierRouting: classifierResult.routing,
+      incidentType: classifierResult.routing.finalType,
+      services: ["dds_01", "zhkh"],
+    });
+    const { service, store } = createService({
+      load: jest.fn().mockResolvedValue(current),
+    });
+
+    await service.save("session-1", "operator-1", {
+      incidentType: "Пожар в жилом доме",
+      services: ["zhkh"],
+    });
+
+    expect(store.save).toHaveBeenCalledWith("session-1", {
+      services: ["zhkh", "dds_01"],
+    });
   });
 
   it("reroutes the stored immutable version when a qualifier changes", async () => {
