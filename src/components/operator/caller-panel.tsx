@@ -16,10 +16,11 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import type {
-  IncidentCard,
-  IncidentCardPatch,
-  IncidentCardVictim,
+import {
+  CALLER_LANGUAGE_OPTIONS,
+  type IncidentCard,
+  type IncidentCardPatch,
+  type IncidentCardVictim,
 } from "../../contracts/incident";
 
 interface CallerPanelProps {
@@ -31,8 +32,6 @@ interface CallerPanelProps {
   disabled: boolean;
   onChange: (patch: IncidentCardPatch) => void;
 }
-
-const emptyVictim: IncidentCardVictim = {};
 
 const toDate = (value?: string | null): Date | null => {
   if (!value) return null;
@@ -64,7 +63,7 @@ export function CallerPanel({
   disabled,
   onChange,
 }: CallerPanelProps) {
-  const victims = card?.victims.length ? card.victims : [emptyVictim];
+  const victims = card?.victims ?? [];
   const victimsListRef = useRef<HTMLDivElement>(null);
   const previousVictimsCount = useRef(victims.length);
 
@@ -91,7 +90,7 @@ export function CallerPanel({
   ) => {
     const current = card?.victims ?? [];
     const next = [...current];
-    next[index] = { ...(next[index] ?? emptyVictim), [field]: value };
+    next[index] = { ...(next[index] ?? {}), [field]: value };
     onChange({ victims: next });
   };
 
@@ -184,10 +183,11 @@ export function CallerPanel({
             >
               <Select.Trigger className="w-full" placeholder="Выберите язык" />
               <Select.Content>
-                <Select.Item value="Русский">Русский</Select.Item>
-                <Select.Item value="Азербайджанский">
-                  Азербайджанский
-                </Select.Item>
+                {CALLER_LANGUAGE_OPTIONS.map((language) => (
+                  <Select.Item key={language} value={language}>
+                    {language}
+                  </Select.Item>
+                ))}
               </Select.Content>
             </Select.Root>
           </FieldLabel>
@@ -220,28 +220,36 @@ export function CallerPanel({
               aria-label="Список пострадавших"
             >
               <div className="grid w-full min-w-0 content-start gap-3 pr-3">
-                {victims.map((victim, index) => (
-                  <VictimFields
-                    key={index}
-                    victim={victim}
-                    index={index}
-                    canRemove={(card?.victims.length ?? 0) > 0}
-                    disabled={disabled || !card}
-                    onChange={updateVictim}
-                    onRemove={removeVictim}
-                  />
-                ))}
+                {victims.length === 0 ? (
+                  <Text as="p" size="1" color="gray">
+                    Пострадавшие не добавлены. Если есть пострадавший, нажмите
+                    кнопку ниже и заполните известные сведения.
+                  </Text>
+                ) : (
+                  victims.map((victim, index) => (
+                    <VictimFields
+                      key={index}
+                      victim={victim}
+                      index={index}
+                      canRemove
+                      disabled={disabled || !card}
+                      onChange={updateVictim}
+                      onRemove={removeVictim}
+                    />
+                  ))
+                )}
               </div>
             </ScrollArea>
           </div>
           <Button
             type="button"
             size="1"
-            variant="ghost"
+            variant="soft"
+            className="w-full"
             disabled={disabled || !card || card.victims.length >= 20}
             onClick={addVictim}
           >
-            <Plus size={14} /> Добавить
+            <Plus size={14} /> Добавить пострадавшего
           </Button>
         </div>
       </Section>
