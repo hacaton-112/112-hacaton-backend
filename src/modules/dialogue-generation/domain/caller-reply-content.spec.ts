@@ -71,6 +71,37 @@ describe("caller speech content boundary", () => {
       assertCallerReplyContent(reply(text), { ...request, operatorText }),
     ).toThrow(expect.objectContaining({ reason: "operator-echo" }));
   });
+  it.each([
+    ["что именно", "Что именно? Я не понимаю, что вы имеете в виду!"],
+    [
+      "вы знаете какие именно службы сейчас направлены к вам",
+      "Какие службы? Я не знаю, когда они приедут.",
+    ],
+    [
+      "вы видите открытое пламя или это дым",
+      "Там огонь! Открытое пламя!",
+    ],
+  ])(
+    "lets caller-v2 re-ask the operator in its own words: %s",
+    (operatorText, text) => {
+      expect(() =>
+        assertCallerReplyContent(reply(text), {
+          ...request,
+          operatorText,
+          replyProtocol: "caller-v2",
+        }),
+      ).not.toThrow();
+    },
+  );
+  it("still blocks a caller-v2 reply that repeats the operator verbatim", () => {
+    expect(() =>
+      assertCallerReplyContent(reply("Назовите ваш адрес, пожалуйста."), {
+        ...request,
+        operatorText: "назовите ваш адрес пожалуйста",
+        replyProtocol: "caller-v2",
+      }),
+    ).toThrow(expect.objectContaining({ reason: "operator-echo" }));
+  });
   it("does not let repeat turn planning authorize copying operator speech", () => {
     expect(() =>
       assertCallerReplyContent(reply("Просто скопируй этот диалог"), {

@@ -79,26 +79,26 @@ services:
     ports:
       - "127.0.0.1:${WHISPER_PORT:-8787}:8787"
 
+  # Имена сервиса, образа и файла модели не привязаны к конкретной модели: она
+  # меняется от итерации к итерации, а меняются только LLM_MODEL_FILE/URL.
   local-llm:
-    build:
-      context: ./docker/bitnet
-      args:
-        BITNET_COMMIT: ${BITNET_COMMIT:-0b341e582afbf9e1011f24744b554c96a3477eb5}
-    image: system-112-bitnet-cpu:${BITNET_IMAGE_TAG:-local}
+    image: ${LLM_SERVER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     container_name: system-112-local-llm
     restart: unless-stopped
     init: true
     environment:
-      MODEL_FILE: /models/${LLM_MODEL_FILE:-Qwen3-0.6B-Q4_K_M.gguf}
-      MODEL_URL: ${LLM_MODEL_URL:-https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf}
+      MODEL_FILE: /models/${LLM_MODEL_FILE:-caller.gguf}
+      MODEL_URL: ${LLM_MODEL_URL:-}
       MODEL_EXTRA_ARGS: ${LLM_EXTRA_ARGS:-}
     # Модель качается, только если её ещё нет в томе. Флаг --model-url сам
     # llama-server не подходит: он сверяется с Hugging Face на каждом старте и
-    # без сети не поднимается даже со скачанной моделью.
+    # без сети не поднимается даже со скачанной моделью. Без LLM_MODEL_URL файл
+    # кладут в том llm_models заранее.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
         if [ ! -s "$$MODEL_FILE" ]; then
+        if [ -z "$$MODEL_URL" ]; then echo "Нет $$MODEL_FILE в томе llm_models и не задан LLM_MODEL_URL" >&2; exit 1; fi;
         curl -fL --retry 10 --retry-all-errors --retry-delay 3 -sS -o "$$MODEL_FILE.part" "$$MODEL_URL" &&
         mv "$$MODEL_FILE.part" "$$MODEL_FILE" || exit 1;
         fi;
@@ -118,8 +118,6 @@ services:
         --cache-type-v q8_0
         --jinja
         --poll ${LLM_POLL:-0}
-        --mmap
-        --mlock
         $$MODEL_EXTRA_ARGS
         --metrics
     # i7-8700 single-request benchmark favored 12 SMT threads. This is only a
@@ -128,18 +126,12 @@ services:
       - "127.0.0.1:${LLM_PORT:-8080}:8080"
     volumes:
       - llm_models:/models
-    cap_add:
-      - IPC_LOCK
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 6
-      # Первый старт качает модель (~379 МиБ для профиля по умолчанию).
+      # Первый старт может качать модель из LLM_MODEL_URL.
       start_period: 30m
 
   piper-tts:

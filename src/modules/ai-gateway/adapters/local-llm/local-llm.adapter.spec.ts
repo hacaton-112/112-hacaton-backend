@@ -35,6 +35,9 @@ const response = () =>
   Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
 
 describe(LocalLlmAdapter.name, () => {
+  it("keeps the legacy reply protocol by default", () => {
+    expect(config.replyProtocol).toBe("legacy");
+  });
   it.each([400, 408, 429])(
     "marks HTTP %s non-retryable to prevent duplicate inference",
     async (status) => {
@@ -193,6 +196,69 @@ describe(LocalLlmAdapter.name, () => {
       reasoning_effort: "low",
     });
   });
+  it("uses the exact caller-v2 request without a JSON grammar", async () => {
+    const delta = JSON.stringify({
+      choices: [{ index: 0, delta: { content: "0 panic\nПожар!" } }],
+    });
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        new Response("data: " + delta + "\n\ndata: [DONE]\n\n", {
+          headers: { "content-type": "text/event-stream" },
+        }),
+      );
+    const callerRequest: GenerateCallerReplyRequest = {
+      requestId: "caller-v2",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Что случилось?",
+      replyProtocol: "caller-v2",
+      panicLevel: 3,
+      callerTurns: 0,
+      context: {
+        persona: {
+          id: "caller",
+          description: "Мужчина, свидетель.",
+          language: "Russian",
+        },
+        allowedFacts: [{ id: "incident", value: "Пожар." }],
+        recentTurns: [],
+      },
+    };
+    const events: LlmStreamEvent[] = [];
+    for await (const event of new LocalLlmAdapter(
+      { ...config, replyProtocol: "caller-v2" },
+      fetcher,
+    ).streamReply(callerRequest, new AbortController().signal)) {
+      events.push(event);
+    }
+    const body = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(body).toEqual({
+      model: "training-model",
+      stream: true,
+      temperature: 0.3,
+      max_tokens: 100,
+      chat_template_kwargs: { enable_thinking: false },
+      reasoning_effort: "none",
+      cache_prompt: true,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Ты заявитель: сам звонишь в 112 за помощью. Ты не оператор и не диспетчер. Отвечай только на последнюю реплику оператора и только тем, что знаешь.",
+        },
+        {
+          role: "user",
+          content:
+            "Ты: Мужчина, свидетель.\nЗнаешь:\n- Пожар.\nРазговор:\n(начало)\nСейчас: в панике, отвечает одним-двумя предложениями и сбивается на отдельных словах\nОператор: Что случилось?",
+        },
+      ],
+    });
+    expect(body).not.toHaveProperty("response_format");
+    expect(
+      events.map((event) => ("delta" in event ? event.delta : "")).join(""),
+    ).not.toContain("0 panic");
+  });
   it("lets the model word the turn instead of rephrasing the engine sentence", async () => {
     const delta = JSON.stringify({
       choices: [
@@ -236,10 +302,10 @@ describe(LocalLlmAdapter.name, () => {
       },
     };
 
-    for await (const _event of new LocalLlmAdapter(
-      config,
-      fetcher,
-    ).streamReply(request, new AbortController().signal)) {
+    for await (const _event of new LocalLlmAdapter(config, fetcher).streamReply(
+      request,
+      new AbortController().signal,
+    )) {
       // Consume the stream to inspect the provider request.
     }
 
@@ -288,10 +354,10 @@ describe(LocalLlmAdapter.name, () => {
       },
     };
 
-    for await (const _event of new LocalLlmAdapter(
-      config,
-      fetcher,
-    ).streamReply(request, new AbortController().signal)) {
+    for await (const _event of new LocalLlmAdapter(config, fetcher).streamReply(
+      request,
+      new AbortController().signal,
+    )) {
       // Consume the stream to inspect the provider request.
     }
 

@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import { z } from "zod";
 
 import {
@@ -23,6 +24,11 @@ import {
   LOCAL_REPLY_PROMPT,
   LITERAL_REPLY_INSTRUCTION,
 } from "./local-llm.reply";
+import {
+  buildCallerV2Prompt,
+  CALLER_V2_SYSTEM_PROMPT,
+  expandCallerV2Reply,
+} from "./caller-v2";
 
 const BooleanFlagSchema = z.union([
   z.boolean(),
@@ -121,6 +127,7 @@ export const LocalLlmConfigSchema = z
       .min(500)
       .max(30_000)
       .default(2_500),
+    replyProtocol: z.enum(["legacy", "caller-v2"]).default("legacy"),
   })
   .strict();
 export type LocalLlmConfig = z.infer<typeof LocalLlmConfigSchema>;
@@ -146,6 +153,7 @@ class LocalLlmHttpError extends Error {
 
 /** llama-server protocol. No cloud fallback and no unbounded waiting queue. */
 export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
+  private readonly logger = new Logger(LocalLlmAdapter.name);
   private readonly queue: InferenceQueue;
   constructor(
     private readonly config: LocalLlmConfig,
@@ -169,28 +177,32 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     ]);
     const release = await this.queue.acquire(deadline);
     try {
+      const callerV2 = this.config.replyProtocol === "caller-v2";
       const response = await this.post(
         {
           schemaName: "caller_reply",
           schemaDescription: "Caller reply using only permitted facts",
           schema: localReplyJsonSchema(request.context.allowedFacts.length),
-          systemPrompt:
-            LOCAL_REPLY_PROMPT +
-            (this.config.literalFactReplies
-              ? " " + LITERAL_REPLY_INSTRUCTION
-              : ""),
+          systemPrompt: callerV2
+            ? CALLER_V2_SYSTEM_PROMPT
+            : LOCAL_REPLY_PROMPT +
+              (this.config.literalFactReplies
+                ? " " + LITERAL_REPLY_INSTRUCTION
+                : ""),
           // Only the unchanged prefix can be reused. A rolling history window
           // changes its suffix; cache_prompt does not guarantee a cache hit.
-          userPrompt: buildReplyPrompt(
-            request,
-            this.config.literalFactReplies,
-          ),
-          maxTokens: this.config.replyMaxTokens,
+          userPrompt: callerV2
+            ? buildCallerV2Prompt(request)
+            : buildReplyPrompt(request, this.config.literalFactReplies),
+          maxTokens: callerV2 ? 100 : this.config.replyMaxTokens,
           signal: deadline,
         },
         true,
         true,
-        this.config.replyThinking && shouldUseReplyThinking(request),
+        callerV2
+          ? false
+          : this.config.replyThinking && shouldUseReplyThinking(request),
+        callerV2,
       );
       if (
         !response.headers
@@ -200,11 +212,14 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
       ) {
         throw new Error("Local LLM returned an invalid stream");
       }
-      // The common SSE wire format is identical; collected JSON still passes the domain validator.
-      yield* expandLocalReply(
-        parseAliceAiSse(response.body, deadline),
-        request,
-      );
+      const stream = parseAliceAiSse(response.body, deadline);
+      if (callerV2) {
+        yield* expandCallerV2Reply(stream, request, (message) =>
+          this.logger.warn(`${message} request=${request.requestId}`),
+        );
+      } else {
+        yield* expandLocalReply(stream, request);
+      }
     } finally {
       release();
     }
@@ -269,6 +284,8 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
    * на локальной модели не работают вовсе — это осознанный выбор приоритета.
    */
   complete(request: StructuredOutputRequest): Promise<unknown> {
+    // Студент v2 не обучен структурным JSON-задачам: для инструментов
+    // преподавателя должна быть настроена отдельная модель.
     return this.run(request, this.config.concurrency - 1);
   }
 
@@ -306,6 +323,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
     stream: boolean,
     naturalReply = false,
     replyThinking = false,
+    callerV2 = false,
   ): Promise<Response> {
     const response = await this.fetchImplementation(
       `${this.config.baseUrl}/chat/completions`,
@@ -322,13 +340,16 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
         body: JSON.stringify({
           model: this.config.model,
           stream,
-          temperature: naturalReply ? this.config.replyTemperature : 0,
+          temperature: callerV2
+            ? 0.3
+            : naturalReply
+              ? this.config.replyTemperature
+              : 0,
           max_tokens: request.maxTokens,
           chat_template_kwargs: {
             enable_thinking: naturalReply && replyThinking,
           },
-          reasoning_effort:
-            naturalReply && replyThinking ? "low" : "none",
+          reasoning_effort: naturalReply && replyThinking ? "low" : "none",
           cache_prompt: true,
           // Let llama-server choose a free slot; a fixed reply slot serialized
           // concurrent callers even when backend concurrency was increased.
@@ -336,15 +357,19 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
             { role: "system", content: request.systemPrompt },
             { role: "user", content: request.userPrompt },
           ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: request.schemaName,
-              description: request.schemaDescription,
-              schema: request.schema,
-              strict: true,
-            },
-          },
+          ...(callerV2
+            ? {}
+            : {
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    name: request.schemaName,
+                    description: request.schemaDescription,
+                    schema: request.schema,
+                    strict: true,
+                  },
+                },
+              }),
         }),
       },
     );

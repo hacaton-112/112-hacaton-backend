@@ -4,6 +4,7 @@ import { generateId } from "@/common/utils/id";
 import {
   CallerReplySchema,
   MAX_CALLER_REPLY_LENGTH,
+  MAX_CALLER_V2_RECENT_TURNS,
   MAX_RECENT_TURNS,
   type CallerEmotion,
   type CallerReply,
@@ -11,6 +12,7 @@ import {
   type DialogueGenerationResult,
   type DialogueTurn,
   type GenerationContext,
+  type LlmReplyProtocol,
 } from "@/contracts";
 import type {
   CallerGenderValue,
@@ -26,6 +28,7 @@ import {
   selectAllowedFacts,
   type ScenarioFact,
 } from "../domain/disclosure";
+import { callerV2FactsCarriedBy } from "../domain/caller-v2-fact-matching";
 import type { FactQuestion } from "@/contracts";
 import {
   isExplicitRepeatRequest,
@@ -40,6 +43,7 @@ import {
   panicProfile,
   resolveEscalation,
   resolveVoice,
+  shiftPanicLevel,
   type PanicLevel,
 } from "../domain/panic-scale";
 import { ScenarioEngineError } from "../domain/scenario-engine.error";
@@ -97,10 +101,12 @@ export interface EngineOpeningTurn {
 
 export interface EngineGenerationContext {
   readonly scenarioVersionId: string;
+  readonly panicLevel: PanicLevel;
+  readonly callerTurns: number;
   readonly context: GenerationContext;
   /**
-   * Как реплика должна звучать. Решает сценарий: персонаж даёт голос и пол,
-   * ступень паники — силу и темп речи. Модель пишет только слова.
+   * Базовое звучание реплики: персонаж даёт голос и пол, ступень паники — силу
+   * и темп. В caller-v2 эмоцию поверх этой базы возвращает студент.
    */
   readonly voice: EngineCallerVoice;
   readonly fallbackReply: CallerReply;
@@ -329,6 +335,7 @@ export class ScenarioEngineService {
     operatorText: string;
     /** Заявитель заговаривает сам: вопроса не было, значит и фактов по нему. */
     initiative?: boolean;
+    replyProtocol?: LlmReplyProtocol;
     /**
      * Разбирает вопрос оператора по каталогу фактов сценария.
      *
@@ -345,21 +352,24 @@ export class ScenarioEngineService {
     this.requireStage(state, ["conversation"]);
 
     const matchedText = input.initiative === true ? "" : input.operatorText;
-    const askedFactKeys = await this.askedFacts(
-      version,
-      matchedText,
-      input.resolveAskedFacts,
-    );
-    const allowed = this.allowedFacts(
-      state,
-      version,
-      matchedText,
-      askedFactKeys,
-    );
+    const callerV2 = input.replyProtocol === "caller-v2";
+    // Студент v2 сам решает, когда назвать известное: классификатор вопроса и
+    // правила after_turns для него не применимы. Закрытыми остаются только never.
+    const askedFactKeys = callerV2
+      ? undefined
+      : await this.askedFacts(version, matchedText, input.resolveAskedFacts);
+    const allowed = callerV2
+      ? {
+          facts: version.facts.filter(
+            (fact) => fact.disclosure.type !== "never",
+          ),
+          fresh: [],
+        }
+      : this.allowedFacts(state, version, matchedText, askedFactKeys);
     const profile = panicProfile(state.panicLevel);
     const recentTurns = await this.store.loadRecentTurns(
       state.trainingSessionId,
-      MAX_RECENT_TURNS,
+      callerV2 ? MAX_CALLER_V2_RECENT_TURNS : MAX_RECENT_TURNS,
     );
     const background =
       version.persona.backgroundSounds === null
@@ -397,6 +407,8 @@ export class ScenarioEngineService {
 
     return {
       scenarioVersionId: version.id,
+      panicLevel: state.panicLevel,
+      callerTurns: state.callerTurns,
       voice,
       fallbackReply: this.fallbackReply(
         version,
@@ -436,7 +448,7 @@ export class ScenarioEngineService {
         // На конкретный ход модель получает не весь уже известный рассказ, а
         // только ответ на текущий вопрос. Полный набор повторно проверяется в
         // applyCallerReply, поэтому авторитет Scenario Engine сохраняется.
-        allowedFacts: turnFacts.map((fact) => ({
+        allowedFacts: (callerV2 ? allowed.facts : turnFacts).map((fact) => ({
           id: fact.key,
           value: fact.promptValue,
         })),
@@ -476,6 +488,7 @@ export class ScenarioEngineService {
       "source" | "attempts" | "resolution"
     >;
     initiative?: boolean;
+    replyProtocol?: LlmReplyProtocol;
     now?: Date;
     /**
      * Тот же разбор вопроса, что открыл факты при сборке контекста.
@@ -496,24 +509,25 @@ export class ScenarioEngineService {
 
     const initiative = input.initiative === true;
     const matchedText = initiative ? "" : input.operatorText;
-    const askedFactKeys = await this.askedFacts(
-      version,
-      matchedText,
-      input.resolveAskedFacts,
-    );
-    const allowed = this.allowedFacts(
-      state,
-      version,
-      matchedText,
-      askedFactKeys,
-    );
+    const callerV2 = input.replyProtocol === "caller-v2";
+    const askedFactKeys = callerV2
+      ? undefined
+      : await this.askedFacts(version, matchedText, input.resolveAskedFacts);
+    const allowed = callerV2
+      ? {
+          facts: version.facts.filter(
+            (fact) => fact.disclosure.type !== "never",
+          ),
+          fresh: [],
+        }
+      : this.allowedFacts(state, version, matchedText, askedFactKeys);
     const allowedKeys = new Set(allowed.facts.map((fact) => fact.key));
-    const forbidden = input.reply.revealedFactIds.filter(
-      (key) => !allowedKeys.has(key),
-    );
-    const declared = input.reply.revealedFactIds.filter((key) =>
-      allowedKeys.has(key),
-    );
+    const forbidden = callerV2
+      ? []
+      : input.reply.revealedFactIds.filter((key) => !allowedKeys.has(key));
+    const declared = callerV2
+      ? []
+      : input.reply.revealedFactIds.filter((key) => allowedKeys.has(key));
 
     // Модель обязана перечислять раскрытые факты и регулярно этого не делает:
     // заявитель отвечает «Там дети!», а обязательный вопрос остаётся открытым.
@@ -521,7 +535,9 @@ export class ScenarioEngineService {
     // разрешённых на этом ходу: словами открыть закрытое всё так же нельзя.
     const revealed = new Set([
       ...declared,
-      ...factsCarriedBy(input.reply.text, allowed.facts),
+      ...(callerV2
+        ? callerV2FactsCarriedBy(input.reply.text, allowed.facts)
+        : factsCarriedBy(input.reply.text, allowed.facts)),
     ]);
     const revealedNow = [...revealed].filter(
       (key) => !state.revealedFactKeys.includes(key),
@@ -583,20 +599,38 @@ export class ScenarioEngineService {
       ...(initiative ? { lastInitiativeAt: now } : {}),
     };
 
-    const firedTriggers = this.triggersFromTurn(
-      version,
-      matchedText,
-      revealedNow,
-    );
-    const transition = resolveEscalation({
-      rules: version.escalationRules,
-      currentLevel: state.panicLevel,
-      floor: version.panicFloor,
-      ceiling: version.panicCeiling,
-      firedTriggers,
-      changedAt: state.panicChangedAt,
-      now,
-    });
+    const firedTriggers = callerV2
+      ? []
+      : this.triggersFromTurn(version, matchedText, revealedNow);
+    const transition = callerV2
+      ? null
+      : resolveEscalation({
+          rules: version.escalationRules,
+          currentLevel: state.panicLevel,
+          floor: version.panicFloor,
+          ceiling: version.panicCeiling,
+          firedTriggers,
+          changedAt: state.panicChangedAt,
+          now,
+        });
+
+    if (callerV2 && input.reply.panicShift !== undefined) {
+      const level = shiftPanicLevel(state.panicLevel, input.reply.panicShift);
+      if (level !== state.panicLevel) {
+        patch.panicLevel = level;
+        patch.panicChangedAt = now;
+        events.push({
+          type: "panic.changed",
+          actor: "system",
+          occurredAt: now,
+          payload: {
+            from: state.panicLevel,
+            to: level,
+            trigger: "caller-v2",
+          },
+        });
+      }
+    }
 
     // Сработавшее правило записывается, даже если ступень не сдвинулась: на
     // потолке шкалы запрещённая фраза оператора иначе исчезала бы бесследно,

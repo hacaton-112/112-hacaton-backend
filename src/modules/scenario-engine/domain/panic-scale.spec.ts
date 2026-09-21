@@ -7,6 +7,7 @@ import {
   type PanicLevel,
   resolveEscalation,
   resolveVoice,
+  shiftPanicLevel,
 } from "./panic-scale";
 
 const NOW = new Date("2026-09-08T10:00:00.000Z");
@@ -21,6 +22,11 @@ const secondsAgo = (seconds: number): Date =>
   new Date(NOW.getTime() - seconds * 1_000);
 
 describe("panic profiles", () => {
+  it("ограничивает сдвиг студента общей шкалой", () => {
+    expect(shiftPanicLevel(4, 1)).toBe(4);
+    expect(shiftPanicLevel(0, -1)).toBe(0);
+    expect(shiftPanicLevel(2, -1)).toBe(1);
+  });
   it("tightens the fact budget as the caller loses control", () => {
     const budgets = PANIC_LEVELS.map((level) => panicProfile(level).factBudget);
 

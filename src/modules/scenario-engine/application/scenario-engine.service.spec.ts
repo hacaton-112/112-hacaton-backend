@@ -365,6 +365,37 @@ describe(`${ScenarioEngineService.name} stage transitions`, () => {
 });
 
 describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
+  it("в caller-v2 не разбирает вопрос и сразу передаёт все факты кроме never", async () => {
+    const hidden = {
+      ...version().facts[0]!,
+      key: "service_note",
+      promptValue: "Служебная подсказка.",
+      disclosure: { type: "never" as const },
+    };
+    const resolveAskedFacts = jest.fn(() =>
+      Promise.resolve(["address_street"]),
+    );
+    const { engine, store } = createEngine({
+      loadVersion: jest
+        .fn()
+        .mockResolvedValue(version({ facts: [...version().facts, hidden] })),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Где вы?",
+      replyProtocol: "caller-v2",
+      resolveAskedFacts,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+    expect(built.context.allowedFacts.map(({ id }) => id)).toEqual([
+      "incident_type",
+      "address_street",
+      "trapped_children",
+    ]);
+    expect(store.loadRecentTurns).toHaveBeenCalledWith("session-1", 10);
+  });
   it("passes only the facts the caller may reveal this turn", async () => {
     const { engine } = createEngine();
 
@@ -822,6 +853,37 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 });
 
 describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
+  it("в caller-v2 считает только произнесённые факты и применяет сдвиг паники", async () => {
+    const resolveAskedFacts = jest.fn(() => Promise.resolve([]));
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-v2",
+      operatorText: "Назовите адрес",
+      replyProtocol: "caller-v2",
+      reply: reply({
+        text: "Улица Учебная, дом двенадцать.",
+        revealedFactIds: ["trapped_children"],
+        panicShift: -1,
+        emotion: "calm",
+      }),
+      resolveAskedFacts,
+      now: NOW,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+    expect(snapshot.revealedFactKeys).toEqual(["address_street"]);
+    expect(snapshot.panicLevel).toBe(3);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.revealed",
+      "panic.changed",
+    ]);
+  });
   it("records the revealed fact and advances the checklist", async () => {
     const { engine, store } = createEngine();
 

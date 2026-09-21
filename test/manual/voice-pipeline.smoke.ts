@@ -73,6 +73,7 @@ const LOCAL_LLM_ENVIRONMENT_KEYS = [
   "LLM_API_KEY",
   "LLM_TIMEOUT_MS",
   "LLM_CONCURRENCY",
+  "LLM_REPLY_PROTOCOL",
 ] as const;
 
 const QWEN_ENVIRONMENT_KEYS = [
@@ -228,6 +229,10 @@ const createGenerationRequest = (
   sessionId: "synthetic-session-1",
   scenarioVersionId: "synthetic-fire-v1",
   operatorText: "Служба 112. Что произошло и по какому адресу?",
+  replyProtocol:
+    process.env.LLM_REPLY_PROTOCOL === "caller-v2" ? "caller-v2" : "legacy",
+  panicLevel: 3,
+  callerTurns: 0,
   context: {
     persona: {
       id: "synthetic-caller-1",
@@ -258,6 +263,7 @@ const createDialogueRuntime = () => {
       apiKey: environment.LLM_API_KEY,
       timeoutMs: environment.LLM_TIMEOUT_MS,
       concurrency: environment.LLM_CONCURRENCY,
+      replyProtocol: environment.LLM_REPLY_PROTOCOL,
     });
     const port = new ObservedLlmPort(
       new LocalLlmAdapter(config, globalThis.fetch.bind(globalThis)),

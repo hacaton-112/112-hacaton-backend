@@ -108,7 +108,17 @@ export const assertCallerReplyContent = (
       permitted.includes(factual)
     )
       continue;
-    if (operatorTexts.some((operator) => copied(sentence, operator))) {
+    // Студент v2 переспрашивает по-человечески («Что именно? Я не понимаю!»),
+    // а эхо из его корпуса судья уже отсеял. Широкий детектор копирования
+    // бракует такие переспросы, поэтому для него эхо — только весь ответ
+    // целиком, повторяющий реплику оператора.
+    const echoes =
+      request.replyProtocol === "caller-v2"
+        ? (operator: string) =>
+            words(reply.text).length >= 3 &&
+            normalize(reply.text) === normalize(operator)
+        : (operator: string) => copied(sentence, operator);
+    if (operatorTexts.some(echoes)) {
       throw new CallerReplyValidationError(
         "operator-echo",
         "Caller reply copies operator speech",

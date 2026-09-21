@@ -352,7 +352,8 @@ export class VoicePipelineService {
   }
 
   /**
-   * Слова берутся у модели, звучание — у сценария.
+   * Слова берутся у модели, базовое звучание — у сценария. В caller-v2 модель
+   * дополнительно выбирает эмоцию из закрытого списка.
    *
    * Раньше силу и темп речи задавала модель, и ступень паники до голоса не
    * доходила вовсе: заявитель на четвёртой ступени мог говорить размеренно, а
@@ -368,6 +369,10 @@ export class VoicePipelineService {
       text: generationResult.reply.text,
       language: request.generation.context.persona.language,
       ...request.voice,
+      // В caller-v2 эмоциональную окраску выбирает дообученный заявитель.
+      ...(request.generation.replyProtocol === "caller-v2"
+        ? { emotion: generationResult.reply.emotion }
+        : {}),
     });
   }
 

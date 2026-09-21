@@ -35,6 +35,7 @@ export const env = createEnv({
     VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
     SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
     LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),
+    LLM_REPLY_PROTOCOL: z.enum(["legacy", "caller-v2"]).default("legacy"),
 
     // ── Профиль голосового тракта ────────────────────────────────
     // Читаются через ConfigService в offline-policy; объявлены здесь, чтобы

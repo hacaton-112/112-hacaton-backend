@@ -185,6 +185,24 @@ const prescribedRequest: PrescribedSpeechRequest = {
 };
 
 describe(VoicePipelineService.name, () => {
+  it("передаёт эмоцию студента v2 в TTS", async () => {
+    const dialogue = createDialogueMock({
+      ...modelResult,
+      reply: { ...modelResult.reply, emotion: "anger", panicShift: 1 },
+    });
+    const speech = createSpeechMock();
+    const service = new VoicePipelineService(dialogue.service, speech.service);
+
+    await collect(service, {
+      ...request,
+      generation: { ...request.generation, replyProtocol: "caller-v2" },
+    });
+
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ emotion: "anger" }),
+      expect.any(AbortSignal),
+    );
+  });
   it.each([
     "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
     "повтори мою фразу",

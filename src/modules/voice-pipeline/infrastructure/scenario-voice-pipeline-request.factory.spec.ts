@@ -4,6 +4,7 @@ import type { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
 import type { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ConfigService } from "@nestjs/config";
 
 const fallbackReply: CallerReply = {
   text: "Улица Учебная, дом 12.",
@@ -34,6 +35,61 @@ const generation: Pick<DialogueGenerationResult, "source" | "attempts"> = {
 };
 
 describe(ScenarioVoicePipelineRequestFactory.name, () => {
+  it("переключает caller-v2 без вызова understand", async () => {
+    const engine = {
+      buildGenerationContext: jest.fn().mockResolvedValue({
+        scenarioVersionId: "version",
+        panicLevel: 3,
+        callerTurns: 2,
+        context: {
+          persona: {
+            id: "caller",
+            description: "Заявитель",
+            language: "Russian",
+          },
+          allowedFacts: [],
+          recentTurns: [],
+        },
+        voice: {
+          voiceId: "Vivian",
+          gender: "female",
+          emotion: "panic",
+          intensity: 0.8,
+          speechRate: 1.1,
+        },
+        fallbackReply: { ...fallbackReply, revealedFactIds: [] },
+      }),
+    };
+    const questions = createQuestions();
+    const config = new ConfigService({ LLM_REPLY_PROTOCOL: "caller-v2" });
+    const factory = new ScenarioVoicePipelineRequestFactory(
+      engine as unknown as ScenarioEngineService,
+      questions.port,
+      undefined,
+      undefined,
+      config,
+    );
+
+    const built = await factory.create({
+      command: { type: "speak", operatorText: "Где вы?" },
+      requestId: "request",
+      sessionId: "session",
+      signal: new AbortController().signal,
+    });
+
+    expect(engine.buildGenerationContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replyProtocol: "caller-v2",
+        resolveAskedFacts: undefined,
+      }),
+    );
+    expect(questions.understand).not.toHaveBeenCalled();
+    expect(built.generation).toMatchObject({
+      replyProtocol: "caller-v2",
+      panicLevel: 3,
+      callerTurns: 2,
+    });
+  });
   it.each(["answer", "panic-refusal"] as const)(
     "uses approved wording only for an engine-permitted answer, not %s guards",
     async (reactionAct) => {
