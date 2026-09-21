@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { DdsExerciseSchema } from "./dds-exercise";
+import {
+  DDS_RESPONSE_STATUSES,
+  DDS_SERVICE_CODES,
+  DdsExerciseSchema,
+} from "./dds-exercise";
 import { TrainingAttemptStatusSchema } from "./training";
 
 export const DdsReviewRequestSchema = z.object({
@@ -16,3 +20,43 @@ export const DdsTrainingAttemptSchema = z.object({
 export const DdsTrainingListSchema = z.object({ attempts: z.array(DdsTrainingAttemptSchema) });
 export type DdsTrainingAttempt = z.infer<typeof DdsTrainingAttemptSchema>;
 export type DdsReviewRequest = z.infer<typeof DdsReviewRequestSchema>;
+
+/** Наблюдение по идущей попытке. Это не нарушение в протоколе: попытка не завершена. */
+export const DDS_LIVE_FINDINGS = [
+  "acknowledgement_overdue",
+  "acknowledged_late",
+  "crew_handoff_overdue",
+  "wrong_crew_dialed",
+] as const;
+
+export const DdsLiveFindingSchema = z.enum(DDS_LIVE_FINDINGS);
+
+export const DdsLiveAttemptSchema = z.object({
+  exerciseId: z.uuid(),
+  assignmentId: z.uuid(),
+  assignmentTitle: z.string(),
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  attemptNumber: z.number().int().positive(),
+  startedAt: z.iso.datetime(),
+  addressedService: z.enum(DDS_SERVICE_CODES),
+  cardTitle: z.string(),
+  status: z.enum(DDS_RESPONSE_STATUSES),
+  acknowledgementDeadlineAt: z.iso.datetime(),
+  acknowledgedAt: z.iso.datetime().nullable(),
+  findings: z.array(DdsLiveFindingSchema),
+});
+
+export const DdsLiveListSchema = z.object({
+  attempts: z.array(DdsLiveAttemptSchema),
+});
+
+export type DdsLiveAttempt = z.infer<typeof DdsLiveAttemptSchema>;
+export type DdsLiveFinding = z.infer<typeof DdsLiveFindingSchema>;
+
+export const DDS_LIVE_FINDING_LABELS: Record<DdsLiveFinding, string> = {
+  acknowledgement_overdue: "Норматив истёк, статус не поставлен",
+  acknowledged_late: "Первичный статус позже норматива",
+  crew_handoff_overdue: "Наряд не вызван в норматив",
+  wrong_crew_dialed: "Набирал не тот наряд",
+};

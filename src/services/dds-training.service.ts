@@ -1,11 +1,16 @@
 import { API_CONFIG } from "../config/api";
 import { DdsExerciseSchema } from "../contracts/dds-exercise";
-import { DdsTrainingListSchema, DdsReviewRequestSchema, type DdsReviewRequest } from "../contracts/dds-training";
+import { DdsLiveListSchema, DdsTrainingListSchema, DdsReviewRequestSchema, type DdsReviewRequest } from "../contracts/dds-training";
 import { api } from "../lib/api";
 
 export const ddsTrainingService = {
   async start(assignmentId: string, eventId: string) {
     return DdsExerciseSchema.parse(await api.post<unknown>(API_CONFIG.getDdsAssignmentStartUrl(assignmentId), { eventId }));
+  },
+  async live(signal?: AbortSignal) {
+    return DdsLiveListSchema.parse(
+      await api.get<unknown>(API_CONFIG.getDdsTrainingLiveUrl(), { signal }),
+    ).attempts;
   },
   async list() {
     return DdsTrainingListSchema.parse(await api.get<unknown>(API_CONFIG.getDdsTrainingAttemptsUrl())).attempts;
