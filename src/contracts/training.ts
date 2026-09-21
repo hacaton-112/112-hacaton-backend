@@ -253,7 +253,7 @@ export interface TrainingAssignmentSettings {
 /** Назначение адресуется либо группе, либо одному оператору. */
 export type CreateTrainingAssignment = TrainingAssignmentSettings & {
   scenarioVersionId: string;
-  type: "voice_call";
+  type: "voice_call" | "card_action";
 } & ({ groupId: string } | { targetUserId: string });
 
 export type UpdateTrainingAssignment = Partial<TrainingAssignmentSettings>;

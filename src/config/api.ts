@@ -60,6 +60,10 @@ export const API_CONFIG = {
   getActiveClassifierRouteUrl: () => `/classifiers/active/route`,
   getCallsUrl: () => `/calls`,
   getDdsExercisesUrl: () => `/dds-exercises`,
+  getDdsAssignmentStartUrl: (assignmentId: string) => `/dds-training/assignments/${encodeURIComponent(assignmentId)}/start`,
+  getDdsTrainingAttemptsUrl: () => `/dds-training/attempts`,
+  getDdsTrainingReviewUrl: (exerciseId: string) => `/dds-training/attempts/${encodeURIComponent(exerciseId)}/reviews`,
+  getDdsTrainingStopUrl: (exerciseId: string) => `/dds-training/attempts/${encodeURIComponent(exerciseId)}/stop`,
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,
