@@ -89,7 +89,7 @@ export function OperatorAssignmentList() {
                 <OperatorAssignmentCard
                   key={assignment.id}
                   assignment={assignment}
-                  busy={startDds.isPending}
+                  busy={startDds.isPending && startDds.variables === assignment.id}
                   onStart={() =>
                     assignment.type === "card_action" ? startDds.mutate(assignment.id) : navigate(
                       ROUTES.operatorWithAssignment(
