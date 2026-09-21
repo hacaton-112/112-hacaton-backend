@@ -181,11 +181,10 @@ export class DdsExerciseService {
       );
     }
 
-    const handoff =
-      this.handoffRequired && !exercise.trainingAttemptId
-        ? ((await this.store.loadCrewHandoffs([exercise])).get(exercise.id) ??
-          null)
-        : null;
+    const handoff = this.handoffRequired
+      ? ((await this.store.loadCrewHandoffs([exercise])).get(exercise.id) ??
+        null)
+      : null;
 
     // Наряд выезжает по звонку диспетчера: без переданной карточки
     // «реагирование» было бы отметкой о том, чего не произошло.
@@ -270,9 +269,7 @@ export class DdsExerciseService {
     exercises: readonly StoredDdsExercise[],
   ): Promise<DdsExercise[]> {
     const handoffs = this.handoffRequired
-      ? await this.store.loadCrewHandoffs(
-          exercises.filter((item) => !item.trainingAttemptId),
-        )
+      ? await this.store.loadCrewHandoffs(exercises)
       : new Map<string, StoredCrewHandoff>();
 
     return exercises.map((exercise) =>

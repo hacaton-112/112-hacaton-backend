@@ -8,8 +8,8 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Req,
   Put,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import { ZodSerializerDto } from "nestjs-zod";
@@ -25,12 +25,14 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import {
   BindWorkstationRequestDto,
+  BrowserPhoneConfigDto,
   CrewCallCommandDto,
   ExtensionSchema,
   RescueCrewListDto,
   StartCrewCallRequestDto,
   TelephonyWorkstationListDto,
 } from "./dto/telephony.dto";
+import { BrowserPhoneProvisioningService } from "./application/browser-phone-provisioning.service";
 import { CrewClickToCallService } from "./application/crew-click-to-call.service";
 import { DrizzleTelephonyDirectory } from "./infrastructure/drizzle-telephony.directory";
 
@@ -57,7 +59,15 @@ export class TelephonyController {
   constructor(
     private readonly directory: DrizzleTelephonyDirectory,
     private readonly clickToCall: CrewClickToCallService,
+    private readonly browserPhone: BrowserPhoneProvisioningService,
   ) {}
+
+  @Get("browser-phone/config")
+  @Roles("operator")
+  @ZodSerializerDto(BrowserPhoneConfigDto)
+  browserPhoneConfig(@Req() request: AuthenticatedRequest) {
+    return this.browserPhone.get(request.user.sub);
+  }
 
   @Post("exercises/:exerciseId/crew-calls")
   @Roles("operator")
