@@ -1,6 +1,7 @@
 import { Callout, Flex, Heading, Skeleton, Tabs, Text } from "@bolid-ui/themes";
 import { AlertTriangle } from "lucide-react";
 
+import { DdsLiveAttempts } from "../../components/dds/dds-live-attempts";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { VoiceRuntimeStatus } from "../../components/training/voice-runtime-status";
 import { LiveSessionsPanel } from "../../components/training/live-sessions-panel";
@@ -37,8 +38,12 @@ export default function MonitoringPage() {
           </Tabs.Trigger>
         </Tabs.List>
 
-        <Tabs.Content value="live" className="overflow-auto pt-4">
+        <Tabs.Content
+          value="live"
+          className="flex flex-col gap-6 overflow-auto pt-4"
+        >
           <LiveSessionsPanel mutations={mutations} />
+          <DdsLiveAttempts />
         </Tabs.Content>
 
         <Tabs.Content
