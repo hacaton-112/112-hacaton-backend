@@ -967,8 +967,22 @@ body,
   min-height: 46px;
   border: 0;
   border-bottom: 1px solid rgb(255 255 255 / 92%);
+  border-radius: 0;
   background: transparent;
+  box-shadow: none;
   color: white;
+}
+
+/* В оригинале у полей только нижняя линия, рамки не появляется и в фокусе. */
+.arm-login-form :where(.rt-TextFieldRoot):focus-within {
+  box-shadow: none;
+  outline: 0;
+}
+
+.arm-login-form label,
+.arm-login-form .rt-Text:not(.arm-login-support) {
+  font-size: 13px;
+  text-transform: lowercase;
 }
 
 .arm-login-form :where(input) {
@@ -993,10 +1007,10 @@ body,
 }
 
 .arm-login-support {
-  margin-top: 28px;
+  margin-top: 34px;
   color: white !important;
-  font-size: 16px !important;
-  line-height: 1.45 !important;
+  font-size: 22px !important;
+  line-height: 1.35 !important;
 }
 
 @media (max-width: 767px) {
