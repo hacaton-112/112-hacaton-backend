@@ -18,7 +18,10 @@ export const offlineSettings = (config: ConfigurationReader) => ({
     .default(8_000)
     .parse(config.get("VOICE_EXCEPTION_BUDGET_MS")),
   hosts: (
-    config.get<string>("OFFLINE_AI_HOSTS") ?? "localhost,llm,asr,qwen-tts,minio"
+    // Имена сервисов из docker-compose. Без local-llm и piper-tts офлайн-профиль
+    // отклонял собственный инференс: список остался от прежнего GPU-стека.
+    config.get<string>("OFFLINE_AI_HOSTS") ??
+    "localhost,local-llm,asr,piper-tts,qwen-tts,minio"
   )
     .split(",")
     .map((host) => host.trim().toLowerCase())

@@ -4,7 +4,7 @@
 дикторов: она говорит тем голосом, который получила в запросе. Эти файлы и есть
 голос заявителя.
 
-Реестр читается при старте backend по пути из `QWEN_TTS_REFERENCE_VOICES_PATH`,
+Реестр читается при старте backend по пути из `TTS_REFERENCE_VOICES_PATH`,
 SHA-256 каждого файла сверяется тогда же, а сам WAV уходит в каждый запрос
 синтеза как `data:audio/wav;base64` — на TTS-сервере ничего настраивать не
 нужно.
@@ -18,7 +18,7 @@ SHA-256 каждого файла сверяется тогда же, а сам 
 записать эталон.
 
 ```bash
-QWEN_TTS_MODE=custom-voice bun run prepare:tts-reference -- \
+TTS_MODE=custom-voice bun run prepare:tts-reference -- \
   --output=assets/tts-references --voice=Serena,OnoAnna
 ```
 

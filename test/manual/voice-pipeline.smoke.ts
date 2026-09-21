@@ -68,21 +68,21 @@ const ALICE_ENVIRONMENT_KEYS = [
 ] as const satisfies readonly (keyof AliceAiEnvironment)[];
 
 const LOCAL_LLM_ENVIRONMENT_KEYS = [
-  "LOCAL_LLM_BASE_URL",
-  "LOCAL_LLM_MODEL",
-  "LOCAL_LLM_API_KEY",
-  "LOCAL_LLM_TIMEOUT_MS",
-  "LOCAL_LLM_CONCURRENCY",
+  "LLM_BASE_URL",
+  "LLM_MODEL",
+  "LLM_API_KEY",
+  "LLM_TIMEOUT_MS",
+  "LLM_CONCURRENCY",
 ] as const;
 
 const QWEN_ENVIRONMENT_KEYS = [
-  "QWEN_TTS_PROVIDER",
-  "QWEN_TTS_MODE",
-  "QWEN_TTS_BASE_URL",
-  "QWEN_TTS_MODEL",
-  "QWEN_TTS_REFERENCE_VOICES_PATH",
-  "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
-  "QWEN_TTS_REQUEST_TIMEOUT_MS",
+  "TTS_PROVIDER",
+  "TTS_MODE",
+  "TTS_BASE_URL",
+  "TTS_MODEL",
+  "TTS_REFERENCE_VOICES_PATH",
+  "TTS_STREAMING_INTERVAL_SECONDS",
+  "TTS_REQUEST_TIMEOUT_MS",
   "PIPER_TTS_BASE_URL",
   "PIPER_TTS_MALE_VOICE",
   "PIPER_TTS_FEMALE_VOICE",
@@ -253,11 +253,11 @@ const createDialogueRuntime = () => {
   if (process.env.LLM_PROVIDER === "local") {
     const environment = selectEnvironment(LOCAL_LLM_ENVIRONMENT_KEYS);
     const config = LocalLlmConfigSchema.parse({
-      baseUrl: environment.LOCAL_LLM_BASE_URL,
-      model: environment.LOCAL_LLM_MODEL,
-      apiKey: environment.LOCAL_LLM_API_KEY,
-      timeoutMs: environment.LOCAL_LLM_TIMEOUT_MS,
-      concurrency: environment.LOCAL_LLM_CONCURRENCY,
+      baseUrl: environment.LLM_BASE_URL,
+      model: environment.LLM_MODEL,
+      apiKey: environment.LLM_API_KEY,
+      timeoutMs: environment.LLM_TIMEOUT_MS,
+      concurrency: environment.LLM_CONCURRENCY,
     });
     const port = new ObservedLlmPort(
       new LocalLlmAdapter(config, globalThis.fetch.bind(globalThis)),

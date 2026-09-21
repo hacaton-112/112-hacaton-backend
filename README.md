@@ -29,7 +29,9 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
-- локальный CPU runtime `bitnet.cpp` с официальной BitNet b1.58 2B/4T I2_S;
+- локальный CPU runtime llama-server с Qwen3 0.6B Q4_K_M; образ собран из
+  пропатченного `bitnet.cpp`, но BitNet b1.58 2B/4T отклонён по замерам
+  (см. [`docs/LLM_CPU_BENCHMARK.md`](docs/LLM_CPU_BENCHMARK.md));
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - заменяемые потоковые адаптеры Qwen3-TTS для MLX-Audio и vLLM-Omni;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
@@ -650,14 +652,14 @@ Alice AI подмножеством, а все ограничения значе
 
 ## Qwen3-TTS
 
-`QwenTtsAdapterModule` выбирает runtime через `QWEN_TTS_PROVIDER`. Значение
+`QwenTtsAdapterModule` выбирает runtime через `TTS_PROVIDER`. Значение
 `mlx-audio` использует нативный MLX-Audio на Apple Silicon, а `vllm-omni` —
 vLLM-Omni, например в Linux-контейнере с CUDA. Оба адаптера реализуют один
 `TTS_PORT` и передают клиенту raw PCM S16LE без Base64 и WAV-заголовков. Формат
 фиксирован как mono 24 kHz. Последний непустой PCM-чанк помечается `isFinal`, а
 разделённые HTTP-границей `int16` samples безопасно объединяются.
 
-Режим задаёт `QWEN_TTS_MODE`. Совместимый `custom-voice` использует встроенного
+Режим задаёт `TTS_MODE`. Совместимый `custom-voice` использует встроенного
 диктора. `base-icl` выбирает синтетический WAV по сценарному `voiceId`, проверяет
 его SHA-256 при старте и передаёт тот же референс с точной расшифровкой на каждый
 запрос. Если точного профиля нет, допускается только явно заданный default того
@@ -694,7 +696,7 @@ TTS-сервере настраивать нечего.
 ### Подготовка синтетического ICL-голоса
 
 Сначала запустите текущий CustomVoice runtime и оставьте в `.env`
-`QWEN_TTS_MODE=custom-voice`. Команда создаст нейтральный синтетический WAV,
+`TTS_MODE=custom-voice`. Команда создаст нейтральный синтетический WAV,
 точную `refText` и реестр с SHA-256:
 
 ```bash
@@ -705,9 +707,9 @@ bun run prepare:tts-reference -- --output=/tmp/system112-dylan --voice=Dylan --g
 и укажите реестр:
 
 ```dotenv
-QWEN_TTS_MODE=base-icl
-QWEN_TTS_MODEL=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
-QWEN_TTS_REFERENCE_VOICES_PATH=/tmp/system112-dylan/reference-voices.json
+TTS_MODE=base-icl
+TTS_MODEL=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+TTS_REFERENCE_VOICES_PATH=/tmp/system112-dylan/reference-voices.json
 ```
 
 Для vLLM-Omni используйте модель `Qwen/Qwen3-TTS-12Hz-1.7B-Base`. После
@@ -743,22 +745,22 @@ curl --fail http://127.0.0.1:8091/health
 Backend на том же сервере настраивается так:
 
 ```dotenv
-QWEN_TTS_PROVIDER=vllm-omni
-QWEN_TTS_MODE=base-icl
-QWEN_TTS_BASE_URL=http://127.0.0.1:8091
-QWEN_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-Base
-QWEN_TTS_REFERENCE_VOICES_PATH=/absolute/path/to/reference-voices.json
+TTS_PROVIDER=vllm-omni
+TTS_MODE=base-icl
+TTS_BASE_URL=http://127.0.0.1:8091
+TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-Base
+TTS_REFERENCE_VOICES_PATH=/absolute/path/to/reference-voices.json
 ```
 
 Если синтетического референса ещё нет, его можно один раз подготовить на том же
 CUDA-сервере. Сначала временно задайте в `.env`:
 
 ```dotenv
-QWEN_TTS_CUDA_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
-QWEN_TTS_PROVIDER=vllm-omni
-QWEN_TTS_MODE=custom-voice
-QWEN_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
-QWEN_TTS_BASE_URL=http://127.0.0.1:8091
+TTS_CUDA_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+TTS_PROVIDER=vllm-omni
+TTS_MODE=custom-voice
+TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+TTS_BASE_URL=http://127.0.0.1:8091
 ```
 
 Пересоздайте контейнер и сгенерируйте референс:
@@ -781,7 +783,7 @@ bun run prepare:tts-reference -- \
 
 API vLLM-Omni не имеет авторизации проекта и по умолчанию привязан только к
 `127.0.0.1`. Если GPU runtime и backend находятся на разных хостах, задайте
-`QWEN_TTS_CUDA_BIND_ADDRESS` адресом приватной сети и ограничьте порт 8091
+`TTS_CUDA_BIND_ADDRESS` адресом приватной сети и ограничьте порт 8091
 сетевым firewall; публиковать его напрямую в интернет нельзя.
 
 ## Структура

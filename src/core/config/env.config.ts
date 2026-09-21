@@ -2,7 +2,20 @@ import { createEnv } from "@t3-oss/env-core";
 import * as dotenv from "dotenv";
 import { z } from "zod";
 
+import {
+  applyDeprecatedEnvironmentAliases,
+  deprecatedEnvironmentWarning,
+} from "./env-aliases";
+
 dotenv.config();
+
+// Перенос до createEnv: иначе окружение со старыми именами не пройдёт проверку,
+// и причина окажется не названа.
+const deprecatedNames = applyDeprecatedEnvironmentAliases(process.env);
+
+if (deprecatedNames.length > 0 && process.env.NODE_ENV !== "test") {
+  console.warn(deprecatedEnvironmentWarning(deprecatedNames));
+}
 
 const BooleanEnvironmentSchema = z
   .enum(["true", "false"])
@@ -22,6 +35,20 @@ export const env = createEnv({
     VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
     SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
     LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),
+
+    // ── Профиль голосового тракта ────────────────────────────────
+    // Читаются через ConfigService в offline-policy; объявлены здесь, чтобы
+    // профиль демо не приходилось искать по коду.
+    VOICE_EXECUTION_PROFILE: z
+      .enum(["standard", "offline-hybrid"])
+      .default("standard"),
+    VOICE_EXCEPTION_BUDGET_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(30_000)
+      .default(8_000),
+    OFFLINE_AI_HOSTS: z.string().trim().min(1).optional(),
 
     // ── CORS ─────────────────────────────────────────────────────
     CORS_ORIGINS: z
@@ -169,35 +196,35 @@ export const env = createEnv({
       .default(86_400),
 
     // ── Qwen TTS ────────────────────────────────────────────────
-    QWEN_TTS_PROVIDER: z
+    TTS_PROVIDER: z
       .enum(["mlx-audio", "vllm-omni", "piper"])
       .default("mlx-audio"),
-    QWEN_TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
-    QWEN_TTS_BASE_URL: z
+    TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
+    TTS_BASE_URL: z
       .url()
       .refine((url) => /^https?:\/\//.test(url), {
-        message: "QWEN_TTS_BASE_URL must use the http:// or https:// scheme",
+        message: "TTS_BASE_URL must use the http:// or https:// scheme",
       })
       .optional(),
-    QWEN_TTS_MODEL: z
+    TTS_MODEL: z
       .string()
       .trim()
       .min(1)
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
       .optional(),
-    QWEN_TTS_REFERENCE_VOICES_PATH: z
+    TTS_REFERENCE_VOICES_PATH: z
       .string()
       .trim()
       .min(1)
       .max(1_024)
       .optional(),
-    QWEN_TTS_STREAMING_INTERVAL_SECONDS: z.coerce
+    TTS_STREAMING_INTERVAL_SECONDS: z.coerce
       .number()
       .min(0.08)
       .max(2)
       .optional(),
-    QWEN_TTS_REQUEST_TIMEOUT_MS: z.coerce
+    TTS_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .min(1_000)

@@ -157,11 +157,11 @@ REST под `/api/v1/scenarios/dialogue-preparations`:
 
 ```dotenv
 LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
-LOCAL_LLM_MODEL=training-model
-LOCAL_LLM_TIMEOUT_MS=30000
-LOCAL_LLM_CONCURRENCY=1
-# LOCAL_LLM_API_KEY=...  # только если локальный сервер требует авторизацию
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=training-model
+LLM_TIMEOUT_MS=30000
+LLM_CONCURRENCY=1
+# LLM_API_KEY=...  # только если локальный сервер требует авторизацию
 ```
 
 `training-model` — alias реально загруженной модели в `llama-server`, а не имя
@@ -180,8 +180,8 @@ LOCAL_LLM_CONCURRENCY=1
 для decode (лучший результат среди 4/6/8/12), 12 SMT-потоков для prefill, два
 независимых prompt-cache слота, по 4096 токенов на слот, `mmap + mlock`, Flash
 Attention и KV cache `q8_0`. Для другого CPU начните с числа физических ядер
-для `LOCAL_LLM_THREADS`, числа логических потоков для
-`LOCAL_LLM_THREADS_BATCH`, затем прогоните свой benchmark. Проверка запуска:
+для `LLM_THREADS`, числа логических потоков для
+`LLM_THREADS_BATCH`, затем прогоните свой benchmark. Проверка запуска:
 
 ```bash
 docker compose build local-llm
@@ -204,7 +204,7 @@ docker compose exec local-llm curl -sf http://127.0.0.1:8080/health
 Ключи Alice не требуются. `LLM_PROVIDER=alice` сохраняет предыдущий режим.
 
 После review-fix фоновые `complete` резервируют последний слот для разговора.
-Поэтому при `LOCAL_LLM_CONCURRENCY=1` AI-подготовка вопросов намеренно недоступна:
+Поэтому при `LLM_CONCURRENCY=1` AI-подготовка вопросов намеренно недоступна:
 можно проверять вопросы вручную. Для AI-предложений в фоне нужен лимит минимум 2
 и runtime, который действительно выдерживает такую конкурентность. Worker не
 обходит этот резерв и при недоступности AI возвращается к ручной проверке.
@@ -222,11 +222,11 @@ LLM-ответы проходят существующую проверку JSON
 VOICE_EXECUTION_PROFILE=offline-hybrid
 VOICE_EXCEPTION_BUDGET_MS=8000
 LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
-LOCAL_LLM_MODEL=training-model
-LOCAL_LLM_CONCURRENCY=1
-LOCAL_LLM_QUEUE_SIZE=2
-LOCAL_LLM_QUEUE_WAIT_MS=500
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=training-model
+LLM_CONCURRENCY=1
+LLM_QUEUE_SIZE=2
+LLM_QUEUE_WAIT_MS=500
 OFFLINE_AI_HOSTS=localhost,llm,asr,qwen-tts,minio
 ```
 

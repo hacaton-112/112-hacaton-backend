@@ -128,9 +128,17 @@ export const buildAliceAiRequest = (
   const turnPlan = request.context.turnPlan;
   const userContext = {
     persona: request.context.persona,
+    // Подача отделена от личности ради KV-кеша локального рантайма; облаку
+    // она нужна так же, иначе заявитель перестаёт звучать по ступени паники.
+    ...(request.context.deliveryHint === undefined
+      ? {}
+      : { delivery: request.context.deliveryHint }),
     allowedFacts: request.context.allowedFacts,
     recentTurns: request.context.recentTurns,
     alreadyToldFactIds: request.context.alreadyToldFactIds ?? [],
+    ...(request.context.withheldTopics === undefined
+      ? {}
+      : { withheldTopics: request.context.withheldTopics }),
     operatorText: request.operatorText,
     ...(request.retryFeedback === undefined
       ? {}

@@ -94,7 +94,7 @@ openssl rand -base64 48
 
 - `YANDEX_AI_API_KEY` и `YANDEX_AI_FOLDER_ID` — ключ сервисного аккаунта
   Yandex Cloud.
-- `ASR_SERVICE_URL` и `QWEN_TTS_BASE_URL`. Внутри контейнера `127.0.0.1` — это
+- `ASR_SERVICE_URL` и `TTS_BASE_URL`. Внутри контейнера `127.0.0.1` — это
   сам контейнер. Если ASR и TTS подняты на этом же сервере, оставьте
   `host.docker.internal`; если на другой машине — укажите её адрес в частной
   сети.

@@ -15,6 +15,7 @@ import {
   parseAliceAiQuestionResponse,
 } from "../alice-ai/alice-ai.question";
 import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
+import { REACTION_ACT_INSTRUCTIONS } from "@/modules/dialogue-generation/domain/reaction-instructions";
 import { InferenceQueue } from "./inference-queue";
 import {
   expandLocalReply,
@@ -48,30 +49,52 @@ export const buildReplyPrompt = (
   const facts = request.context.allowedFacts
     .map(({ value }, index) => `${index + 1}. ${value}`)
     .join("\n");
-  const focusNumbers = (plan?.focusFactIds ?? [])
-    .map(
-      (id) =>
-        request.context.allowedFacts.findIndex((fact) => fact.id === id) + 1,
-    )
-    .filter((number) => number > 0);
+  // Фокус передаётся значениями, а не номерами. На номер («сведения № 1»)
+  // модель 0.6B отвечала самим номером: в пробе на живой модели такой ход
+  // портился в 5 случаях из 5, со значениями — ни разу.
+  const focusValues = (plan?.focusFactIds ?? [])
+    .map((id) => request.context.allowedFacts.find((fact) => fact.id === id))
+    .filter((fact) => fact !== undefined)
+    .map((fact) => fact.value);
+
+  const withheld = request.context.withheldTopics ?? [];
 
   return [
     `РОЛЬ ЗАЯВИТЕЛЯ:\n${request.context.persona.description}`,
     `ИСТОРИЯ:\n${conversation || "Это начало разговора."}`,
     `ПОСЛЕДНЯЯ РЕПЛИКА ОПЕРАТОРА:\n${request.operatorText}`,
     `ДОПУСТИМЫЕ СВЕДЕНИЯ:\n${facts || "Нет новых сведений."}`,
-    ...(focusNumbers.length
-      ? [`ГЛАВНОЕ ДЛЯ ЭТОГО ОТВЕТА:\nсведения № ${focusNumbers.join(", ")}`]
+    ...(focusValues.length
+      ? [`СКАЖИ СЕЙЧАС ОБ ЭТОМ:\n${focusValues.join(" ")}`]
+      : []),
+    // О чём спросили, но сценарий держит закрытым. Без этого раздела заявитель
+    // на точный вопрос отвечал молчанием или запасной фразой: разрешённых
+    // сведений на ход не оставалось, а о чём спросили — модель не знала.
+    // Ярлык темы подаётся как предмет вопроса с прямым запретом его произносить:
+    // перечисленный списком, он просто зачитывался вслух.
+    ...(withheld.length
+      ? [
+          `ОПЕРАТОР СПРОСИЛ ПРО «${withheld.join("», «")}», А ТЫ ЭТОГО НЕ ЗНАЕШЬ.\nСкажи ему, что не знаешь этого, своими словами. Сам ярлык не произноси.`,
+        ]
+      : []),
+    // Подача идёт после истории и сведений намеренно: она меняется каждый ход,
+    // и в начале промпта ломала бы общий префикс, а с ним и KV-кеш.
+    ...(request.context.deliveryHint
+      ? [`КАК ЗВУЧИТ СЕЙЧАС:\n${request.context.deliveryHint}`]
+      : []),
+    ...(plan
+      ? [`КАК ОТВЕЧАТЬ:\n${REACTION_ACT_INSTRUCTIONS[plan.reactionAct]}`]
       : []),
     ...(request.retryFeedback
       ? [
           "ПОВТОРНАЯ ПОПЫТКА:\nПредыдущий ответ отклонён. Скажи иначе, не повторяя речь оператора и служебные слова.",
         ]
       : []),
-    ...(request.fallbackReply
-      ? [
-          `${literalFactReplies ? "ДОСЛОВНЫЙ ОТВЕТ" : "ОТВЕТЬ ТАК ЖЕ ПО СМЫСЛУ"}:\n${request.fallbackReply.text}`,
-        ]
+    // Готовая фраза движка идёт в промпт только в дословном режиме. В обычном
+    // модель формулирует сама: увидев готовый ответ, она его переписывала, и
+    // заявитель говорил строками из базы сценария.
+    ...(literalFactReplies && request.fallbackReply
+      ? [`ДОСЛОВНЫЙ ОТВЕТ:\n${request.fallbackReply.text}`]
       : []),
   ].join("\n\n");
 };
@@ -242,7 +265,7 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
    *
    * Последний свободный слот остаётся живому звонку: проверка грамотности и
    * помощник сценария подождут, а заявитель не должен из-за них переходить на
-   * запасную реплику. При `LOCAL_LLM_CONCURRENCY=1` инструменты преподавателя
+   * запасную реплику. При `LLM_CONCURRENCY=1` инструменты преподавателя
    * на локальной модели не работают вовсе — это осознанный выбор приоритета.
    */
   complete(request: StructuredOutputRequest): Promise<unknown> {

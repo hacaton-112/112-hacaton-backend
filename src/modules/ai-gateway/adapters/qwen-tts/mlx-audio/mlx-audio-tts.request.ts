@@ -10,8 +10,8 @@ import {
 } from "@/contracts";
 
 import {
-  MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
-  MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
+  MAX_TTS_STREAMING_INTERVAL_SECONDS,
+  MIN_TTS_STREAMING_INTERVAL_SECONDS,
   type MlxAudioTtsConfig,
 } from "../qwen-tts.config";
 import { buildQwenTtsInstruction } from "../qwen-tts.instruction";
@@ -30,8 +30,8 @@ const MlxAudioCommonSpeechRequestSchema = z
     stream: z.literal(true),
     streaming_interval: z
       .number()
-      .min(MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS)
-      .max(MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS),
+      .min(MIN_TTS_STREAMING_INTERVAL_SECONDS)
+      .max(MAX_TTS_STREAMING_INTERVAL_SECONDS),
     max_tokens: z.literal(MLX_AUDIO_TTS_MAX_TOKENS),
     verbose: z.literal(false),
   })

@@ -106,6 +106,17 @@ export interface EngineGenerationContext {
   readonly fallbackReply: CallerReply;
 }
 
+/**
+ * Содержание одного хода: чем заявитель отвечает и о чём молчит.
+ *
+ * Темы без фактов нужны отдельно от фактов: их нельзя раскрывать, но вопрос
+ * оператора без ответа оставлять тоже нельзя.
+ */
+interface TurnFocus {
+  readonly facts: readonly ScenarioFact[];
+  readonly withheldTopics: readonly string[];
+}
+
 export type CallDirective =
   | { readonly type: "caller.initiative"; readonly reason: "operator-silence" }
   | { readonly type: "caller.interrupt" };
@@ -357,7 +368,7 @@ export class ScenarioEngineService {
     // Что оператор только что сделал не так или, наоборот, правильно: заявитель
     // обязан это заметить словами, а не только ступенью паники.
     const tone = this.operatorTone(version, matchedText);
-    const focusCandidates = this.focusFacts(
+    const focus = this.focusFacts(
       state,
       version,
       allowed.facts,
@@ -373,10 +384,10 @@ export class ScenarioEngineService {
       panicLevel: state.panicLevel,
       tone,
       initiative: input.initiative === true,
-      freshFactIds: focusCandidates
+      freshFactIds: focus.facts
         .filter((fact) => allowed.fresh.includes(fact.key))
         .map((fact) => fact.key),
-      focusFactIds: focusCandidates.map((fact) => fact.key),
+      focusFactIds: focus.facts.map((fact) => fact.key),
     });
     const focusFactIds = new Set(turnPlan.focusFactIds ?? []);
     const turnFacts = allowed.facts.filter((fact) =>
@@ -395,26 +406,33 @@ export class ScenarioEngineService {
         input.initiative === true,
       ),
       context: {
+        // Кто звонит. Эта часть не меняется за звонок, и только поэтому
+        // llama-server может переиспользовать KV-кеш: всё, что меняется от
+        // хода к ходу, вынесено в deliveryHint и уходит в конец промпта.
         persona: {
           id: version.scenarioCode,
           language: "Russian",
           description:
             `${version.persona.displayName}. ${version.persona.condition}. ` +
-            `${version.persona.speechStyle} Сейчас ${profile.description}.` +
-            ` Как говорит: ${profile.speechRules}` +
-            ` Так звучит его подача — это образец интонации, а не слова для реплики, сведений о происшествии в нём нет:` +
-            ` ${deliveryExamples(
-              state.panicLevel,
-              `${state.rngSeed}:${state.callerTurns}`,
-            )
-              .map((example) => `«${example}»`)
-              .join(" ")}` +
-            background +
-            TONE_PROMPTS[tone] +
-            (input.initiative === true
-              ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
-              : ""),
+            `${version.persona.speechStyle}` +
+            background,
         },
+        // Как он звучит именно сейчас: ступень паники, реакция на слова
+        // оператора и образцы интонации. Меняется каждый ход.
+        deliveryHint:
+          `Сейчас ${profile.description}.` +
+          ` Как говорит: ${profile.speechRules}` +
+          ` Так звучит его подача — это образец интонации, а не слова для реплики, сведений о происшествии в нём нет:` +
+          ` ${deliveryExamples(
+            state.panicLevel,
+            `${state.rngSeed}:${state.callerTurns}`,
+          )
+            .map((example) => `«${example}»`)
+            .join(" ")}` +
+          TONE_PROMPTS[tone] +
+          (input.initiative === true
+            ? " Оператор молчит, и заявитель не выдерживает паузы: он заговаривает сам, требует ответа."
+            : ""),
         // На конкретный ход модель получает не весь уже известный рассказ, а
         // только ответ на текущий вопрос. Полный набор повторно проверяется в
         // applyCallerReply, поэтому авторитет Scenario Engine сохраняется.
@@ -429,6 +447,11 @@ export class ScenarioEngineService {
         // список уже сказанного не даёт заявителю рассказывать одно и то же
         // по кругу.
         alreadyToldFactIds: [...state.revealedFactKeys],
+        // О чём спросили, но сценарий держит это закрытым. Значений здесь нет,
+        // только названия тем: заявитель отвечает на сам вопрос, а не молчит.
+        ...(focus.withheldTopics.length === 0
+          ? {}
+          : { withheldTopics: [...focus.withheldTopics] }),
         turnPlan,
       },
     };
@@ -911,7 +934,56 @@ export class ScenarioEngineService {
     operatorText: string,
     resolve?: (facts: readonly FactQuestion[]) => Promise<readonly string[]>,
   ): Promise<readonly string[] | undefined> {
-    if (resolve === undefined || operatorText.trim().length === 0) {
+    if (operatorText.trim().length === 0) {
+      return undefined;
+    }
+
+    // Most operator turns use the exact vocabulary authored in the scenario.
+    // Do not spend a second model call on a single unambiguous keyword match.
+    // Ambiguous matches (notably «дом» inside «домофон») still go through the
+    // semantic classifier, as do paraphrases with no authored keyword.
+    if (!isQuestionOrRequest(operatorText)) {
+      return [];
+    }
+
+    // An open question is handled by the scenario's normal priority order.
+    // Running the classifier here adds latency but cannot improve that order.
+    if (isOpenQuestion(operatorText)) {
+      return undefined;
+    }
+
+    // Only explicit disclosure vocabulary is safe for this shortcut. Content
+    // words may overlap (for example, «дом» inside «домофон») and therefore
+    // remain the semantic classifier's job.
+    const disclosureMatches = version.facts.filter(
+      (fact) =>
+        fact.disclosure.type === "on_question" &&
+        matchesKeywords(operatorText, fact.disclosure.keywords),
+    );
+    const contentMatches = version.facts.filter((fact) =>
+      carriesFactContent(operatorText, fact.contentKeywords),
+    );
+    const directAnswerMatches = disclosureMatches.filter((fact) =>
+      contentMatches.some((contentFact) => contentFact.key === fact.key),
+    );
+
+    // «В квартире есть дети?» matches both the address stem «квартир» and
+    // the children stem «дет». The fact whose own answer vocabulary is also
+    // present is the intended one, so it is still safe to resolve locally.
+    if (directAnswerMatches.length === 1) {
+      return [directAnswerMatches[0]!.key];
+    }
+
+    // A different fact carrying the words in the question signals ambiguity:
+    // «дом» in «домофон» must not unlock the house-number answer.
+    const hasConflictingContent = contentMatches.some(
+      (fact) => !disclosureMatches.some((match) => match.key === fact.key),
+    );
+    if (disclosureMatches.length === 1 && !hasConflictingContent) {
+      return [disclosureMatches[0]!.key];
+    }
+
+    if (resolve === undefined) {
       return undefined;
     }
 
@@ -971,9 +1043,9 @@ export class ScenarioEngineService {
     operatorText: string,
     initiative: boolean,
     askedFactKeys?: readonly string[],
-  ): readonly ScenarioFact[] {
+  ): TurnFocus {
     if (initiative) {
-      return [];
+      return { facts: [], withheldTopics: [] };
     }
 
     // О чём вопрос: слова факта описывают его содержание, поэтому по ним
@@ -992,14 +1064,19 @@ export class ScenarioEngineService {
     );
 
     if (answersQuestion.length > 0) {
-      return answersQuestion;
+      return { facts: answersQuestion, withheldTopics: [] };
     }
 
     // Спросили ровно о том, что сценарий пока держит закрытым. Подставить
     // вместо этого другой факт — худший из ответов: на «код домофона какой?»
     // заявитель сообщал номер дома, потому что «дом» нашлось в «домофона».
+    // Тема вопроса всё же уходит модели: значения факта в названии нет, а
+    // ответить по существу вопроса заявитель обязан.
     if (aboutQuestion.length > 0) {
-      return [];
+      return {
+        facts: [],
+        withheldTopics: aboutQuestion.map((fact) => fact.displayLabel),
+      };
     }
 
     const askedFor = allowedFacts.filter(
@@ -1009,7 +1086,7 @@ export class ScenarioEngineService {
     );
 
     if (askedFor.length > 0) {
-      return askedFor;
+      return { facts: askedFor, withheldTopics: [] };
     }
 
     // Прямого ответа у сценария нет. Факт, только что ставший доступным, — это
@@ -1020,7 +1097,7 @@ export class ScenarioEngineService {
     const openQuestion = isOpenQuestion(operatorText);
 
     if (isQuestionOrRequest(operatorText) && !openQuestion) {
-      return [];
+      return { facts: [], withheldTopics: [] };
     }
 
     const freshFacts = allowedFacts.filter((fact) =>
@@ -1028,14 +1105,14 @@ export class ScenarioEngineService {
     );
 
     if (freshFacts.length > 0) {
-      return freshFacts;
+      return { facts: freshFacts, withheldTopics: [] };
     }
 
     // «Что случилось?» после того, как заявитель это уже прокричал в первой
     // реплике: нового у него нет, но и молчать о главном он не станет —
     // повторяет самое важное из уже сказанного.
     if (!openQuestion && !isExplicitRepeatRequest(operatorText)) {
-      return [];
+      return { facts: [], withheldTopics: [] };
     }
 
     const revealed = allowedFacts.filter((fact) =>
@@ -1043,7 +1120,7 @@ export class ScenarioEngineService {
     );
 
     if (revealed.length === 0) {
-      return [];
+      return { facts: [], withheldTopics: [] };
     }
 
     if (openQuestion) {
@@ -1052,16 +1129,23 @@ export class ScenarioEngineService {
           right.priority - left.priority || left.orderIndex - right.orderIndex,
       )[0];
 
-      return mostImportant === undefined ? [] : [mostImportant];
+      return {
+        facts: mostImportant === undefined ? [] : [mostImportant],
+        withheldTopics: [],
+      };
     }
 
     const lastRevealedKey = [...state.revealedFactKeys]
       .reverse()
       .find((key) => revealed.some((fact) => fact.key === key));
 
-    return lastRevealedKey === undefined
-      ? []
-      : revealed.filter((fact) => fact.key === lastRevealedKey);
+    return {
+      facts:
+        lastRevealedKey === undefined
+          ? []
+          : revealed.filter((fact) => fact.key === lastRevealedKey),
+      withheldTopics: [],
+    };
   }
 
   /**

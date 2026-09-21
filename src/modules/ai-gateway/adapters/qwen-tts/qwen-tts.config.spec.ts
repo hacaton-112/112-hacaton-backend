@@ -3,11 +3,11 @@ import {
   DEFAULT_MLX_AUDIO_TTS_BASE_URL,
   DEFAULT_MLX_AUDIO_TTS_MODEL,
   DEFAULT_MLX_AUDIO_TTS_STREAMING_INTERVAL_SECONDS,
-  DEFAULT_QWEN_TTS_REQUEST_TIMEOUT_MS,
-  MAX_QWEN_TTS_REQUEST_TIMEOUT_MS,
-  MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
-  MIN_QWEN_TTS_REQUEST_TIMEOUT_MS,
-  MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
+  DEFAULT_TTS_REQUEST_TIMEOUT_MS,
+  MAX_TTS_REQUEST_TIMEOUT_MS,
+  MAX_TTS_STREAMING_INTERVAL_SECONDS,
+  MIN_TTS_REQUEST_TIMEOUT_MS,
+  MIN_TTS_STREAMING_INTERVAL_SECONDS,
   parseQwenTtsConfig,
 } from "./qwen-tts.config";
 import {
@@ -40,39 +40,39 @@ describe(parseQwenTtsConfig.name, () => {
       model: DEFAULT_MLX_AUDIO_TTS_MODEL,
       streamingIntervalSeconds:
         DEFAULT_MLX_AUDIO_TTS_STREAMING_INTERVAL_SECONDS,
-      requestTimeoutMs: DEFAULT_QWEN_TTS_REQUEST_TIMEOUT_MS,
+      requestTimeoutMs: DEFAULT_TTS_REQUEST_TIMEOUT_MS,
     });
   });
 
   it("applies vLLM Omni defaults", () => {
-    expect(parseQwenTtsConfig({ QWEN_TTS_PROVIDER: "vllm-omni" })).toEqual({
+    expect(parseQwenTtsConfig({ TTS_PROVIDER: "vllm-omni" })).toEqual({
       provider: "vllm-omni",
       mode: "custom-voice",
       baseUrl: DEFAULT_VLLM_OMNI_TTS_BASE_URL,
       model: DEFAULT_VLLM_OMNI_TTS_MODEL,
-      requestTimeoutMs: DEFAULT_QWEN_TTS_REQUEST_TIMEOUT_MS,
+      requestTimeoutMs: DEFAULT_TTS_REQUEST_TIMEOUT_MS,
     });
   });
 
   it("applies Piper CPU defaults", () => {
-    expect(parseQwenTtsConfig({ QWEN_TTS_PROVIDER: "piper" })).toEqual({
+    expect(parseQwenTtsConfig({ TTS_PROVIDER: "piper" })).toEqual({
       provider: "piper",
       mode: "custom-voice",
       model: "piper",
       baseUrl: "http://127.0.0.1:5000",
       maleVoice: "ru_RU-dmitri-medium",
       femaleVoice: "ru_RU-irina-medium",
-      requestTimeoutMs: DEFAULT_QWEN_TTS_REQUEST_TIMEOUT_MS,
+      requestTimeoutMs: DEFAULT_TTS_REQUEST_TIMEOUT_MS,
     });
   });
 
   it("normalizes custom values", () => {
     expect(
       parseQwenTtsConfig({
-        QWEN_TTS_BASE_URL: "http://localhost:8080/",
-        QWEN_TTS_MODEL: "local/qwen-tts",
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS: "0.5",
-        QWEN_TTS_REQUEST_TIMEOUT_MS: "90000",
+        TTS_BASE_URL: "http://localhost:8080/",
+        TTS_MODEL: "local/qwen-tts",
+        TTS_STREAMING_INTERVAL_SECONDS: "0.5",
+        TTS_REQUEST_TIMEOUT_MS: "90000",
       }),
     ).toEqual({
       provider: "mlx-audio",
@@ -87,8 +87,8 @@ describe(parseQwenTtsConfig.name, () => {
   it("ignores the MLX streaming interval for vLLM Omni", () => {
     expect(
       parseQwenTtsConfig({
-        QWEN_TTS_PROVIDER: "vllm-omni",
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS: "0.5",
+        TTS_PROVIDER: "vllm-omni",
+        TTS_STREAMING_INTERVAL_SECONDS: "0.5",
       }),
     ).not.toHaveProperty("streamingIntervalSeconds");
   });
@@ -96,10 +96,10 @@ describe(parseQwenTtsConfig.name, () => {
   it("normalizes custom vLLM Omni values", () => {
     expect(
       parseQwenTtsConfig({
-        QWEN_TTS_PROVIDER: "vllm-omni",
-        QWEN_TTS_BASE_URL: "http://localhost:8091/",
-        QWEN_TTS_MODEL: "local/Qwen3-TTS",
-        QWEN_TTS_REQUEST_TIMEOUT_MS: "90000",
+        TTS_PROVIDER: "vllm-omni",
+        TTS_BASE_URL: "http://localhost:8091/",
+        TTS_MODEL: "local/Qwen3-TTS",
+        TTS_REQUEST_TIMEOUT_MS: "90000",
       }),
     ).toEqual({
       provider: "vllm-omni",
@@ -118,9 +118,9 @@ describe(parseQwenTtsConfig.name, () => {
 
     const result = parseQwenTtsConfig(
       {
-        QWEN_TTS_PROVIDER: provider,
-        QWEN_TTS_MODE: "base-icl",
-        QWEN_TTS_REFERENCE_VOICES_PATH: "config/reference-voices.json",
+        TTS_PROVIDER: provider,
+        TTS_MODE: "base-icl",
+        TTS_REFERENCE_VOICES_PATH: "config/reference-voices.json",
       },
       loadReferences,
     );
@@ -137,16 +137,16 @@ describe(parseQwenTtsConfig.name, () => {
   });
 
   it("requires a registry and a Base model in ICL mode", () => {
-    expect(() => parseQwenTtsConfig({ QWEN_TTS_MODE: "base-icl" })).toThrow(
-      "QWEN_TTS_REFERENCE_VOICES_PATH",
+    expect(() => parseQwenTtsConfig({ TTS_MODE: "base-icl" })).toThrow(
+      "TTS_REFERENCE_VOICES_PATH",
     );
 
     expect(() =>
       parseQwenTtsConfig(
         {
-          QWEN_TTS_MODE: "base-icl",
-          QWEN_TTS_MODEL: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-          QWEN_TTS_REFERENCE_VOICES_PATH: "voices.json",
+          TTS_MODE: "base-icl",
+          TTS_MODEL: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+          TTS_REFERENCE_VOICES_PATH: "voices.json",
         },
         () => referenceVoices,
       ),
@@ -157,17 +157,17 @@ describe(parseQwenTtsConfig.name, () => {
     [
       "minimum boundaries",
       {
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS:
-          MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
-        QWEN_TTS_REQUEST_TIMEOUT_MS: MIN_QWEN_TTS_REQUEST_TIMEOUT_MS,
+        TTS_STREAMING_INTERVAL_SECONDS:
+          MIN_TTS_STREAMING_INTERVAL_SECONDS,
+        TTS_REQUEST_TIMEOUT_MS: MIN_TTS_REQUEST_TIMEOUT_MS,
       },
     ],
     [
       "maximum boundaries",
       {
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS:
-          MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS,
-        QWEN_TTS_REQUEST_TIMEOUT_MS: MAX_QWEN_TTS_REQUEST_TIMEOUT_MS,
+        TTS_STREAMING_INTERVAL_SECONDS:
+          MAX_TTS_STREAMING_INTERVAL_SECONDS,
+        TTS_REQUEST_TIMEOUT_MS: MAX_TTS_REQUEST_TIMEOUT_MS,
       },
     ],
   ])("accepts %s", (_name, input) => {
@@ -175,34 +175,34 @@ describe(parseQwenTtsConfig.name, () => {
   });
 
   it.each([
-    ["invalid URL", { QWEN_TTS_BASE_URL: "not-a-url" }],
-    ["unsupported URL scheme", { QWEN_TTS_BASE_URL: "ftp://localhost" }],
+    ["invalid URL", { TTS_BASE_URL: "not-a-url" }],
+    ["unsupported URL scheme", { TTS_BASE_URL: "ftp://localhost" }],
     [
       "short interval",
       {
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS:
-          MIN_QWEN_TTS_STREAMING_INTERVAL_SECONDS - 0.01,
+        TTS_STREAMING_INTERVAL_SECONDS:
+          MIN_TTS_STREAMING_INTERVAL_SECONDS - 0.01,
       },
     ],
     [
       "long interval",
       {
-        QWEN_TTS_STREAMING_INTERVAL_SECONDS:
-          MAX_QWEN_TTS_STREAMING_INTERVAL_SECONDS + 0.01,
+        TTS_STREAMING_INTERVAL_SECONDS:
+          MAX_TTS_STREAMING_INTERVAL_SECONDS + 0.01,
       },
     ],
     [
       "short timeout",
-      { QWEN_TTS_REQUEST_TIMEOUT_MS: MIN_QWEN_TTS_REQUEST_TIMEOUT_MS - 1 },
+      { TTS_REQUEST_TIMEOUT_MS: MIN_TTS_REQUEST_TIMEOUT_MS - 1 },
     ],
     [
       "long timeout",
-      { QWEN_TTS_REQUEST_TIMEOUT_MS: MAX_QWEN_TTS_REQUEST_TIMEOUT_MS + 1 },
+      { TTS_REQUEST_TIMEOUT_MS: MAX_TTS_REQUEST_TIMEOUT_MS + 1 },
     ],
-    ["fractional timeout", { QWEN_TTS_REQUEST_TIMEOUT_MS: 1_000.5 }],
-    ["invalid model", { QWEN_TTS_MODEL: "bad model" }],
-    ["invalid provider", { QWEN_TTS_PROVIDER: "unknown" }],
-    ["invalid mode", { QWEN_TTS_MODE: "voice-design" }],
+    ["fractional timeout", { TTS_REQUEST_TIMEOUT_MS: 1_000.5 }],
+    ["invalid model", { TTS_MODEL: "bad model" }],
+    ["invalid provider", { TTS_PROVIDER: "unknown" }],
+    ["invalid mode", { TTS_MODE: "voice-design" }],
     ["unknown setting", { UNKNOWN_SETTING: "value" }],
   ])("rejects %s", (_name, input) => {
     expect(() => parseQwenTtsConfig(input)).toThrow();
