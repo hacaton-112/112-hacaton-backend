@@ -38,6 +38,7 @@ class FakePbx implements TelephonyControlPort {
     this.listener = listener;
     return () => undefined;
   }
+  originate = jest.fn(async () => undefined);
   answer = jest.fn(async () => undefined);
   detectSpeech = jest.fn(async () => undefined);
   async play(_channelId: string, media: string) {
@@ -92,12 +93,13 @@ const setup = (
     ensure: jest.fn(async (text: string) => `sound:crew/${text}`),
     prepareAll: jest.fn(async () => undefined),
   };
+  const awaitingHandoff = jest.fn(async () => awaiting);
   const service = new CrewHandoffService(
     true,
     pbx,
     directory,
     prompts,
-    jest.fn(async () => awaiting),
+    awaitingHandoff,
   );
   service.onModuleInit();
 
@@ -124,7 +126,16 @@ const setup = (
     await settle();
   };
 
-  return { service, pbx, directory, prompts, call, finishPrompt, say };
+  return {
+    service,
+    pbx,
+    directory,
+    prompts,
+    awaitingHandoff,
+    call,
+    finishPrompt,
+    say,
+  };
 };
 
 describe(CrewHandoffService.name, () => {
@@ -189,6 +200,25 @@ describe(CrewHandoffService.name, () => {
     expect(directory.finishCall).toHaveBeenCalledWith(
       "c-1",
       expect.objectContaining({ outcome: "completed", acknowledgements: 1 }),
+    );
+  });
+
+  it("uses the exercise selected by click-to-call", async () => {
+    const { pbx, awaitingHandoff } = setup();
+
+    pbx.emit({
+      type: "call-started",
+      channelId: "c-1",
+      callerNumber: "201",
+      dialedNumber: "1012",
+      exerciseId: "assigned-exercise-1",
+      requestEventId: "event-1",
+    });
+    await settle();
+
+    expect(awaitingHandoff).toHaveBeenCalledWith(
+      "user-1",
+      "assigned-exercise-1",
     );
   });
 

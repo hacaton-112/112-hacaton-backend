@@ -176,6 +176,13 @@
       "when": 1790006400000,
       "tag": "0022_dds_assigned_card_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790092800000,
+      "tag": "0023_dds_click_to_call",
+      "breakpoints": true
     }
   ]
 }

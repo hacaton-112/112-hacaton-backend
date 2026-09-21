@@ -6,6 +6,9 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
   Put,
   UseGuards,
 } from "@nestjs/common";
@@ -13,16 +16,22 @@ import { ZodSerializerDto } from "nestjs-zod";
 
 import { AppBadRequestException } from "@/common/exceptions/app.exception";
 import { ApiRoutes, ErrorCodes } from "@/contracts";
-import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
+import {
+  JwtAuthGuard,
+  type AuthenticatedRequest,
+} from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import {
   BindWorkstationRequestDto,
+  CrewCallCommandDto,
   ExtensionSchema,
   RescueCrewListDto,
+  StartCrewCallRequestDto,
   TelephonyWorkstationListDto,
 } from "./dto/telephony.dto";
+import { CrewClickToCallService } from "./application/crew-click-to-call.service";
 import { DrizzleTelephonyDirectory } from "./infrastructure/drizzle-telephony.directory";
 
 const extension = (value: string): string => {
@@ -45,7 +54,22 @@ const extension = (value: string): string => {
 @Controller(ApiRoutes.Telephony)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TelephonyController {
-  constructor(private readonly directory: DrizzleTelephonyDirectory) {}
+  constructor(
+    private readonly directory: DrizzleTelephonyDirectory,
+    private readonly clickToCall: CrewClickToCallService,
+  ) {}
+
+  @Post("exercises/:exerciseId/crew-calls")
+  @Roles("operator")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ZodSerializerDto(CrewCallCommandDto)
+  startCrewCall(
+    @Param("exerciseId", new ParseUUIDPipe()) exerciseId: string,
+    @Body() body: StartCrewCallRequestDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.clickToCall.start(request.user.sub, exerciseId, body);
+  }
 
   @Get("crews")
   @Roles("instructor", "admin")

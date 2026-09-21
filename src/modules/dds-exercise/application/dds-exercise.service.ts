@@ -61,8 +61,8 @@ export class DdsExerciseService {
   ) {}
 
   /** Доставка, к которой относится звонок диспетчера наряду. */
-  findAwaitingHandoff(operatorId: string) {
-    return this.store.findAwaitingHandoff(operatorId);
+  findAwaitingHandoff(operatorId: string, exerciseId?: string) {
+    return this.store.findAwaitingHandoff(operatorId, exerciseId);
   }
 
   async start(
@@ -152,7 +152,10 @@ export class DdsExerciseService {
 
     const exercise = await this.requireOwn(exerciseId, operatorId);
     if (exercise.completedAt !== null) {
-      throw new AppConflictException(ErrorCodes.DDS_STATUS_TRANSITION_INVALID, "This DDS attempt is closed");
+      throw new AppConflictException(
+        ErrorCodes.DDS_STATUS_TRANSITION_INVALID,
+        "This DDS attempt is closed",
+      );
     }
     let comment: string | null;
 
@@ -178,10 +181,11 @@ export class DdsExerciseService {
       );
     }
 
-    const handoff = this.handoffRequired && !exercise.trainingAttemptId
-      ? ((await this.store.loadCrewHandoffs([exercise])).get(exercise.id) ??
-        null)
-      : null;
+    const handoff =
+      this.handoffRequired && !exercise.trainingAttemptId
+        ? ((await this.store.loadCrewHandoffs([exercise])).get(exercise.id) ??
+          null)
+        : null;
 
     // Наряд выезжает по звонку диспетчера: без переданной карточки
     // «реагирование» было бы отметкой о том, чего не произошло.
@@ -266,7 +270,9 @@ export class DdsExerciseService {
     exercises: readonly StoredDdsExercise[],
   ): Promise<DdsExercise[]> {
     const handoffs = this.handoffRequired
-      ? await this.store.loadCrewHandoffs(exercises.filter((item) => !item.trainingAttemptId))
+      ? await this.store.loadCrewHandoffs(
+          exercises.filter((item) => !item.trainingAttemptId),
+        )
       : new Map<string, StoredCrewHandoff>();
 
     return exercises.map((exercise) =>
@@ -287,7 +293,9 @@ export class DdsExerciseService {
       sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
-      allowedTransitions: exercise.completedAt ? [] : [...allowedDdsTransitions(exercise.status)],
+      allowedTransitions: exercise.completedAt
+        ? []
+        : [...allowedDdsTransitions(exercise.status)],
       card: exercise.card,
       acknowledgementDeadlineAt:
         exercise.acknowledgementDeadlineAt.toISOString(),

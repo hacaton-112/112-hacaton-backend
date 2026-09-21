@@ -338,8 +338,15 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       if (!updated) return { kind: "stale" };
 
       if (updated.trainingAttemptId && input.completedAt) {
-        await tx.update(trainingAttempts).set({ status: "completed", endedAt: input.completedAt })
-          .where(and(eq(trainingAttempts.id, updated.trainingAttemptId), eq(trainingAttempts.status, "active")));
+        await tx
+          .update(trainingAttempts)
+          .set({ status: "completed", endedAt: input.completedAt })
+          .where(
+            and(
+              eq(trainingAttempts.id, updated.trainingAttemptId),
+              eq(trainingAttempts.status, "active"),
+            ),
+          );
       }
 
       await tx.insert(ddsExerciseEvents).values({
@@ -397,7 +404,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     return row ? this.withEventsInTransaction(tx, row) : null;
   }
 
-  async findAwaitingHandoff(operatorId: string) {
+  async findAwaitingHandoff(operatorId: string, exerciseId?: string) {
     const access = await this.accessCondition(operatorId);
     const handedOff = this.db
       .select({ id: ddsCrewCalls.id })
@@ -421,7 +428,9 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         and(
           access,
           eq(ddsExercises.status, "accepted"),
-          isNull(ddsExercises.trainingAttemptId),
+          exerciseId
+            ? eq(ddsExercises.id, exerciseId)
+            : isNull(ddsExercises.trainingAttemptId),
           isNull(ddsExercises.completedAt),
           not(exists(handedOff)),
         ),

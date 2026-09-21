@@ -13,6 +13,9 @@ export type TelephonyEvent =
       readonly callerNumber: string;
       /** Набранный номер наряда. */
       readonly dialedNumber: string;
+      /** Экранный телефон передаёт карточку явно; ручной набор оставляет поле пустым. */
+      readonly exerciseId?: string;
+      readonly requestEventId?: string;
     }
   | {
       readonly type: "playback-finished";
@@ -33,6 +36,14 @@ export interface TelephonyControlPort {
   stop(): void;
   /** Подписка на события линии; возвращает отписку. */
   subscribe(listener: (event: TelephonyEvent) => void): () => void;
+  /** Звонит на SIP-устройство и после ответа передаёт канал приложению Stasis. */
+  originate(input: {
+    readonly endpoint: string;
+    readonly appArgs: readonly string[];
+    readonly callerId: string;
+    readonly channelId: string;
+    readonly timeoutSeconds: number;
+  }): Promise<void>;
   answer(channelId: string): Promise<void>;
   /** Включает определение речи: без него не узнать, что диспетчер договорил. */
   detectSpeech(channelId: string): Promise<void>;
