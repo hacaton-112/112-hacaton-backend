@@ -7,6 +7,7 @@ import {
   exists,
   inArray,
   isNotNull,
+  isNull,
   not,
   or,
 } from "drizzle-orm";
@@ -26,6 +27,7 @@ import {
   scenarioVersions,
   trainingGroupMembers,
   trainingGroups,
+  trainingAttempts,
   type DispatchService,
 } from "@/drizzle/schema";
 
@@ -74,6 +76,7 @@ const exerciseFromRows = (
   lastSequence: row.lastSequence,
   score: row.score,
   passed: row.passed,
+  passThreshold: row.passThreshold,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   events: events.map(eventFromRow),
@@ -249,6 +252,29 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     return Promise.all(rows.map((row) => this.withEvents(row)));
   }
 
+  async listByIds(
+    exerciseIds: readonly string[],
+  ): Promise<readonly StoredDdsExercise[]> {
+    if (!exerciseIds.length) return [];
+
+    const rows = await this.db
+      .select()
+      .from(ddsExercises)
+      .where(inArray(ddsExercises.id, [...exerciseIds]));
+    const events = await this.db
+      .select()
+      .from(ddsExerciseEvents)
+      .where(inArray(ddsExerciseEvents.exerciseId, [...exerciseIds]))
+      .orderBy(asc(ddsExerciseEvents.sequence));
+
+    return rows.map((row) =>
+      exerciseFromRows(
+        row,
+        events.filter((event) => event.exerciseId === row.id),
+      ),
+    );
+  }
+
   async loadOwn(
     exerciseId: string,
     operatorId: string,
@@ -304,11 +330,17 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
             eq(ddsExercises.id, input.exerciseId),
             eq(ddsExercises.status, input.expectedStatus),
             eq(ddsExercises.lastSequence, input.expectedSequence),
+            isNull(ddsExercises.completedAt),
           ),
         )
         .returning();
 
       if (!updated) return { kind: "stale" };
+
+      if (updated.trainingAttemptId && input.completedAt) {
+        await tx.update(trainingAttempts).set({ status: "completed", endedAt: input.completedAt })
+          .where(and(eq(trainingAttempts.id, updated.trainingAttemptId), eq(trainingAttempts.status, "active")));
+      }
 
       await tx.insert(ddsExerciseEvents).values({
         id: generateId(),
@@ -389,6 +421,8 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         and(
           access,
           eq(ddsExercises.status, "accepted"),
+          isNull(ddsExercises.trainingAttemptId),
+          isNull(ddsExercises.completedAt),
           not(exists(handedOff)),
         ),
       )
@@ -459,7 +493,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       ? eq(ddsExercises.operatorId, operatorId)
       : or(
           eq(ddsExercises.operatorId, operatorId),
-          inArray(ddsExercises.addressedService, services),
+          and(
+            isNull(ddsExercises.trainingAttemptId),
+            isNotNull(ddsExercises.sourceTrainingSessionId),
+            inArray(ddsExercises.addressedService, services),
+          ),
         );
   }
 

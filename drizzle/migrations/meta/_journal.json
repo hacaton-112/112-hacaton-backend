@@ -169,6 +169,13 @@
       "when": 1789870338035,
       "tag": "0021_crew_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790006400000,
+      "tag": "0022_dds_assigned_card_reviews",
+      "breakpoints": true
     }
   ]
 }
