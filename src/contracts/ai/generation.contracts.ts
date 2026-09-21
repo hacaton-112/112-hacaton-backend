@@ -5,6 +5,7 @@ const MAX_FACT_VALUE_LENGTH = 1_000;
 const MAX_OPERATOR_TEXT_LENGTH = 1_000;
 export const MAX_CALLER_REPLY_LENGTH = 500;
 export const MAX_RECENT_TURNS = 8;
+export const MAX_CALLER_V2_RECENT_TURNS = 10;
 export const MAX_TOLD_FACTS = 64;
 export const MAX_ALLOWED_FACTS = 64;
 
@@ -33,6 +34,9 @@ export const CallerEmotionSchema = z.enum([
   "anger",
   "confusion",
 ]);
+
+export const LlmReplyProtocolSchema = z.enum(["legacy", "caller-v2"]);
+export const PanicShiftSchema = z.number().int().min(-1).max(1);
 
 export const CallerReplyTextSchema = z
   .string()
@@ -132,6 +136,8 @@ export const CallerReplySchema = z
         message: "Revealed fact IDs must be unique",
       }),
     endCall: z.boolean(),
+    /** Есть только у студента v2: изменение ступени после произнесённой реплики. */
+    panicShift: PanicShiftSchema.optional(),
   })
   .strict();
 
@@ -144,10 +150,32 @@ export const GenerationContextSchema = z
       .refine((facts) => uniqueBy(facts, ({ id }) => id), {
         message: "Fact IDs must be unique",
       }),
-    recentTurns: z.array(DialogueTurnSchema).max(MAX_RECENT_TURNS),
+    recentTurns: z.array(DialogueTurnSchema).max(MAX_CALLER_V2_RECENT_TURNS),
+    /**
+     * Как заявитель звучит на этом ходу: ступень паники, реакция на слова
+     * оператора, образцы интонации.
+     *
+     * Отделено от `persona.description` ради KV-кеша локального рантайма.
+     * Личность за звонок не меняется и остаётся в начале промпта, а эта часть
+     * меняется каждый ход и уходит в его конец: иначе менялся бы весь префикс,
+     * и llama-server считал бы промпт заново целиком.
+     */
+    deliveryHint: z.string().trim().min(1).max(2_000).optional(),
     // Что заявитель уже сообщил за звонок. Окно недавних реплик короткое, и без
     // этого списка он на пятом ходу пересказывает то же, что на втором.
     alreadyToldFactIds: z.array(FactIdSchema).max(MAX_TOLD_FACTS).optional(),
+    /**
+     * О чём оператор спросил, но сценарий на этом ходу отвечать не разрешает.
+     *
+     * Передаются названия тем, а не значения фактов: раскрыть закрытое модель
+     * по ним не может, но ответить по существу вопроса — да. Без этого списка
+     * заявитель на «какой код домофона?» отвечал заготовкой «Алло?», потому
+     * что разрешённых фактов на ход не осталось.
+     */
+    withheldTopics: z
+      .array(z.string().trim().min(1).max(120))
+      .max(MAX_ALLOWED_FACTS)
+      .optional(),
     // Поле опционально для совместимости с диагностическими клиентами старой
     // версии. Настоящий Scenario Engine всегда его заполняет.
     turnPlan: CallerTurnPlanSchema.optional(),
@@ -173,6 +201,9 @@ export const GenerateCallerReplyRequestSchema = z
     sessionId: AiIdentifierSchema,
     scenarioVersionId: AiIdentifierSchema,
     operatorText: z.string().trim().min(1).max(MAX_OPERATOR_TEXT_LENGTH),
+    replyProtocol: LlmReplyProtocolSchema.optional(),
+    panicLevel: z.number().int().min(0).max(4).optional(),
+    callerTurns: z.number().int().nonnegative().optional(),
     context: GenerationContextSchema,
     /** Безопасная реплика от Scenario Engine на случай двух ошибок модели. */
     fallbackReply: CallerReplySchema.optional(),
@@ -186,6 +217,19 @@ export const GenerateCallerReplyRequestSchema = z
   })
   .strict()
   .superRefine((request, refinement) => {
+    if (
+      request.replyProtocol !== "caller-v2" &&
+      request.context.recentTurns.length > MAX_RECENT_TURNS
+    ) {
+      refinement.addIssue({
+        code: "too_big",
+        origin: "array",
+        maximum: MAX_RECENT_TURNS,
+        inclusive: true,
+        path: ["context", "recentTurns"],
+        message: `Too big: expected array to have <=${MAX_RECENT_TURNS} items`,
+      });
+    }
     const allowedFactIds = new Set(
       request.context.allowedFacts.map(({ id }) => id),
     );
@@ -270,6 +314,8 @@ export const DialogueGenerationResultSchema =
 export type AiIdentifier = z.infer<typeof AiIdentifierSchema>;
 export type FactId = z.infer<typeof FactIdSchema>;
 export type CallerEmotion = z.infer<typeof CallerEmotionSchema>;
+export type LlmReplyProtocol = z.infer<typeof LlmReplyProtocolSchema>;
+export type PanicShift = z.infer<typeof PanicShiftSchema>;
 export type CallerReplyText = z.infer<typeof CallerReplyTextSchema>;
 export type EmotionIntensity = z.infer<typeof EmotionIntensitySchema>;
 export type SpeechRate = z.infer<typeof SpeechRateSchema>;

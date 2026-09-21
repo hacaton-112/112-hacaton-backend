@@ -25,13 +25,13 @@ import { TtsStreamValidator } from "@/modules/speech-synthesis/application/tts-s
 const DEFAULT_REFERENCE_TEXT =
   "Проверка связи. Я говорю обычным голосом, спокойно и разборчиво.";
 const QWEN_ENVIRONMENT_KEYS = [
-  "QWEN_TTS_PROVIDER",
-  "QWEN_TTS_MODE",
-  "QWEN_TTS_BASE_URL",
-  "QWEN_TTS_MODEL",
-  "QWEN_TTS_REFERENCE_VOICES_PATH",
-  "QWEN_TTS_STREAMING_INTERVAL_SECONDS",
-  "QWEN_TTS_REQUEST_TIMEOUT_MS",
+  "TTS_PROVIDER",
+  "TTS_MODE",
+  "TTS_BASE_URL",
+  "TTS_MODEL",
+  "TTS_REFERENCE_VOICES_PATH",
+  "TTS_STREAMING_INTERVAL_SECONDS",
+  "TTS_REQUEST_TIMEOUT_MS",
 ] as const satisfies readonly (keyof QwenTtsEnvironment)[];
 
 const OptionsSchema = z
@@ -139,7 +139,7 @@ const main = async (): Promise<void> => {
 
   if (config.mode !== "custom-voice") {
     throw new Error(
-      "Prepare the synthetic reference with QWEN_TTS_MODE=custom-voice, then switch to base-icl.",
+      "Prepare the synthetic reference with TTS_MODE=custom-voice, then switch to base-icl.",
     );
   }
 

@@ -365,6 +365,37 @@ describe(`${ScenarioEngineService.name} stage transitions`, () => {
 });
 
 describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
+  it("в caller-v2 не разбирает вопрос и сразу передаёт все факты кроме never", async () => {
+    const hidden = {
+      ...version().facts[0]!,
+      key: "service_note",
+      promptValue: "Служебная подсказка.",
+      disclosure: { type: "never" as const },
+    };
+    const resolveAskedFacts = jest.fn(() =>
+      Promise.resolve(["address_street"]),
+    );
+    const { engine, store } = createEngine({
+      loadVersion: jest
+        .fn()
+        .mockResolvedValue(version({ facts: [...version().facts, hidden] })),
+    });
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Где вы?",
+      replyProtocol: "caller-v2",
+      resolveAskedFacts,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+    expect(built.context.allowedFacts.map(({ id }) => id)).toEqual([
+      "incident_type",
+      "address_street",
+      "trapped_children",
+    ]);
+    expect(store.loadRecentTurns).toHaveBeenCalledWith("session-1", 10);
+  });
   it("passes only the facts the caller may reveal this turn", async () => {
     const { engine } = createEngine();
 
@@ -420,6 +451,21 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     });
 
     expect(built.context.allowedFacts).toEqual([]);
+    // Ответить нечем, но вопрос назван: заявитель отвечает на него словами, а
+    // не заготовкой «Алло?». Значение закрытого факта при этом не передаётся.
+    expect(built.context.withheldTopics).toEqual(["Код двери"]);
+    expect(JSON.stringify(built.context)).not.toContain("сорок пять");
+  });
+
+  it("names no withheld topic when the scenario can answer", async () => {
+    const { engine } = createEngine();
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Что случилось?",
+    });
+
+    expect(built.context.withheldTopics).toBeUndefined();
   });
 
   it("returns to the main news when the operator asks openly", async () => {
@@ -523,7 +569,7 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
     await engine.buildGenerationContext({
       trainingSessionId: "session-1",
-      operatorText: "Где горит?",
+      operatorText: "Имеются пострадавшие?",
       resolveAskedFacts: (facts) => {
         seen = facts;
 
@@ -544,6 +590,35 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
     ]);
   });
 
+  it("does not call the parser for one unambiguous authored keyword", async () => {
+    const { engine } = createEngine();
+    const resolveAskedFacts = jest.fn(() => Promise.resolve([]));
+
+    const built = await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Назовите адрес",
+      resolveAskedFacts,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+    expect(built.context.allowedFacts.map((fact) => fact.id)).toContain(
+      "address_street",
+    );
+  });
+
+  it("does not call the parser for a statement that is not a question", async () => {
+    const { engine } = createEngine();
+    const resolveAskedFacts = jest.fn(() => Promise.resolve([]));
+
+    await engine.buildGenerationContext({
+      trainingSessionId: "session-1",
+      operatorText: "Я раньше жил по этому адресу",
+      resolveAskedFacts,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+  });
+
   it("falls back to the author's words when the parser fails", async () => {
     const warn = jest
       .spyOn(Logger.prototype, "warn")
@@ -552,14 +627,12 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 
     const built = await engine.buildGenerationContext({
       trainingSessionId: "session-1",
-      operatorText: "Назовите адрес",
+      operatorText: "Куда направить бригаду?",
       resolveAskedFacts: () => Promise.reject(new Error("provider is down")),
     });
 
     // Модель отказала — заявитель всё равно отвечает, как отвечал раньше.
-    expect(built.context.allowedFacts.map((fact) => fact.id)).toEqual([
-      "address_street",
-    ]);
+    expect(built.context.allowedFacts).toEqual([]);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -640,8 +713,8 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
       operatorText: "Что случилось?",
     });
 
-    expect(built.context.persona.description).toContain("взвинчен");
-    expect(built.context.persona.description).not.toContain("2");
+    expect(built.context.deliveryHint).toContain("взвинчен");
+    expect(built.context.deliveryHint).not.toContain("2");
   });
 
   it("selects a deterministic reaction and response pause", async () => {
@@ -780,6 +853,37 @@ describe(`${ScenarioEngineService.name} buildGenerationContext`, () => {
 });
 
 describe(`${ScenarioEngineService.name} applyCallerReply`, () => {
+  it("в caller-v2 считает только произнесённые факты и применяет сдвиг паники", async () => {
+    const resolveAskedFacts = jest.fn(() => Promise.resolve([]));
+    const { engine, store } = createEngine({
+      loadCall: jest.fn().mockResolvedValue(callState({ panicLevel: 4 })),
+    });
+
+    const snapshot = await engine.applyCallerReply({
+      trainingSessionId: "session-1",
+      eventId: "event-v2",
+      operatorText: "Назовите адрес",
+      replyProtocol: "caller-v2",
+      reply: reply({
+        text: "Улица Учебная, дом двенадцать.",
+        revealedFactIds: ["trapped_children"],
+        panicShift: -1,
+        emotion: "calm",
+      }),
+      resolveAskedFacts,
+      now: NOW,
+    });
+
+    expect(resolveAskedFacts).not.toHaveBeenCalled();
+    expect(snapshot.revealedFactKeys).toEqual(["address_street"]);
+    expect(snapshot.panicLevel).toBe(3);
+    expect(eventTypes(store)).toEqual([
+      "operator.utterance",
+      "caller.reply",
+      "fact.revealed",
+      "panic.changed",
+    ]);
+  });
   it("records the revealed fact and advances the checklist", async () => {
     const { engine, store } = createEngine();
 
@@ -1042,7 +1146,7 @@ describe(`${ScenarioEngineService.name} initiative`, () => {
     expect(built.context.allowedFacts.map((fact) => fact.id)).not.toContain(
       "address_street",
     );
-    expect(built.context.persona.description).toContain("Оператор молчит");
+    expect(built.context.deliveryHint).toContain("Оператор молчит");
   });
 });
 
@@ -1086,7 +1190,7 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
       operatorText: "Успокойтесь, мы вызвали пожарную.",
     });
 
-    expect(built.context.persona.description).toContain("только злит");
+    expect(built.context.deliveryHint).toContain("только злит");
   });
 
   it("tells the caller that help is on the way when it is", async () => {
@@ -1097,7 +1201,7 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
       operatorText: "Я вас слышу, бригада выехала.",
     });
 
-    expect(built.context.persona.description).toContain("чуть легче");
+    expect(built.context.deliveryHint).toContain("чуть легче");
   });
 
   it("describes how the caller speaks, not only how he feels", async () => {
@@ -1108,12 +1212,14 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
       operatorText: "Что произошло?",
     });
 
-    expect(built.context.persona.description).toContain("Как говорит:");
+    expect(built.context.deliveryHint).toContain("Как говорит:");
     // Примеры даются как образец подачи: раньше модель воспроизводила их
     // дословно ход за ходом.
-    expect(built.context.persona.description).toContain(
+    expect(built.context.deliveryHint).toContain(
       "образец интонации, а не слова для реплики",
     );
+    // Личность за звонок не меняется: на ней держится KV-кеш рантайма.
+    expect(built.context.persona.description).not.toContain("Как говорит:");
   });
 
   it("changes the delivery examples from turn to turn", async () => {
@@ -1128,7 +1234,7 @@ describe(`${ScenarioEngineService.name} the operator's own words`, () => {
         operatorText: "Что произошло?",
       });
 
-      descriptions.add(built.context.persona.description);
+      descriptions.add(built.context.deliveryHint ?? "");
     }
 
     // Одни и те же примеры в каждом ходе модель со временем произносит сама.

@@ -12,10 +12,7 @@ import {
 import { LLM_PORT, type LlmPort } from "@/modules/ai-gateway";
 
 import { CallerReplyValidationError } from "../domain/caller-reply-validation.error";
-import {
-  assertCallerReplyContent,
-  canUseEngineReaction,
-} from "../domain/caller-reply-content";
+import { assertCallerReplyContent } from "../domain/caller-reply-content";
 import { LlmReplyCollectionError } from "../domain/llm-reply-collection.error";
 import {
   isNearRepetition,
@@ -65,14 +62,6 @@ export class DialogueGenerationService {
     let retryFeedback: string | undefined;
 
     signal.throwIfAborted();
-
-    if (canUseEngineReaction(request)) {
-      return DialogueGenerationResultSchema.parse({
-        reply: request.fallbackReply,
-        source: "prepared",
-        attempts: [],
-      });
-    }
 
     for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
       const startedAt = performance.now();
@@ -148,10 +137,18 @@ export class DialogueGenerationService {
         });
 
         if (
-          isExplicitlyNonRetryableHttpError(error) ||
-          (error instanceof CallerReplyValidationError &&
-            ["instruction-leak", "operator-echo"].includes(error.reason))
+          attempt < MAX_GENERATION_ATTEMPTS &&
+          error instanceof CallerReplyValidationError
         ) {
+          retryFeedback ??=
+            error.reason === "instruction-leak"
+              ? "Прошлый вариант озвучивал служебное указание. Скажи только естественную реплику заявителя, не объясняя задачу."
+              : error.reason === "operator-echo"
+                ? "Прошлый вариант повторял слова оператора. Ответь на их смысл своими словами от лица заявителя."
+                : `Прошлый вариант отклонён: ${error.message}. Сформулируй другой безопасный ответ.`;
+        }
+
+        if (isExplicitlyNonRetryableHttpError(error)) {
           break;
         }
       }
@@ -195,7 +192,10 @@ export class DialogueGenerationService {
     request: GenerateCallerReplyRequest,
     reply: CallerReply,
   ): CallerReply {
-    if (request.context.turnPlan?.reactionAct === "repeat") {
+    if (
+      request.context.turnPlan?.reactionAct === "repeat" ||
+      this.engineIntendsRepetition(request)
+    ) {
       return reply;
     }
 
@@ -224,7 +224,10 @@ export class DialogueGenerationService {
     request: GenerateCallerReplyRequest,
     text: string,
   ): boolean {
-    if (request.context.turnPlan?.reactionAct === "repeat") {
+    if (
+      request.context.turnPlan?.reactionAct === "repeat" ||
+      this.engineIntendsRepetition(request)
+    ) {
       return false;
     }
 
@@ -233,6 +236,18 @@ export class DialogueGenerationService {
       .find((turn) => turn.role === "caller");
 
     return previous !== undefined && isNearRepetition(text, previous.text);
+  }
+
+  /** The scenario engine may deliberately answer a repeated open question. */
+  private engineIntendsRepetition(request: GenerateCallerReplyRequest): boolean {
+    if (!request.fallbackReply) return false;
+    const previous = [...request.context.recentTurns]
+      .reverse()
+      .find((turn) => turn.role === "caller");
+    return (
+      previous !== undefined &&
+      isNearRepetition(request.fallbackReply.text, previous.text)
+    );
   }
 
   private classifyFailure(error: unknown): GenerationAttemptMetrics["outcome"] {

@@ -185,6 +185,24 @@ const prescribedRequest: PrescribedSpeechRequest = {
 };
 
 describe(VoicePipelineService.name, () => {
+  it("передаёт эмоцию студента v2 в TTS", async () => {
+    const dialogue = createDialogueMock({
+      ...modelResult,
+      reply: { ...modelResult.reply, emotion: "anger", panicShift: 1 },
+    });
+    const speech = createSpeechMock();
+    const service = new VoicePipelineService(dialogue.service, speech.service);
+
+    await collect(service, {
+      ...request,
+      generation: { ...request.generation, replyProtocol: "caller-v2" },
+    });
+
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ emotion: "anger" }),
+      expect.any(AbortSignal),
+    );
+  });
   it.each([
     "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
     "повтори мою фразу",
@@ -228,12 +246,22 @@ describe(VoicePipelineService.name, () => {
         expect.objectContaining({ text: fallback.text }),
         expect.any(AbortSignal),
       );
-      expect(streamReply).toHaveBeenCalledTimes(1);
+      expect(streamReply).toHaveBeenCalledTimes(2);
+      expect(streamReply.mock.calls[1]?.[0]).toEqual(
+        expect.objectContaining({ retryFeedback: expect.any(String) }),
+      );
       expect(events.at(-1)?.type).toBe("voice.completed");
     },
   );
-  it("uses engine text with live TTS and zero LLM calls when reaction audio is missing", async () => {
-    const streamReply = jest.fn();
+  it("lets caller-v2 phrase an engine reaction instead of the prepared wording", async () => {
+    const natural = {
+      ...fallbackResult.reply,
+      text: "Подождите... я не успеваю понять, скажите покороче!",
+    };
+    const streamReply = jest.fn().mockImplementation(async function* () {
+      yield { type: "text.delta", delta: JSON.stringify(natural) };
+      yield { type: "response.completed" };
+    });
     const dialogue = new DialogueGenerationService(
       { streamReply },
       new LlmReplyStreamCollector(new CallerReplySafetyService()),
@@ -251,6 +279,7 @@ describe(VoicePipelineService.name, () => {
       ...request,
       generation: {
         ...request.generation,
+        replyProtocol: "caller-v2",
         fallbackReply: fallback,
         context: {
           ...request.generation.context,
@@ -259,13 +288,17 @@ describe(VoicePipelineService.name, () => {
         },
       },
     });
-    expect(streamReply).not.toHaveBeenCalled();
+    expect(streamReply).toHaveBeenCalledTimes(1);
     expect(events[0]).toMatchObject({
       type: "voice.reply.ready",
-      result: { source: "prepared", attempts: [], reply: fallback },
+      result: {
+        source: "model",
+        attempts: [expect.objectContaining({ outcome: "success" })],
+        reply: natural,
+      },
     });
     expect(speech.synthesize).toHaveBeenCalledWith(
-      expect.objectContaining({ text: fallback.text }),
+      expect.objectContaining({ text: natural.text }),
       expect.any(AbortSignal),
     );
   });
@@ -350,7 +383,7 @@ describe(VoicePipelineService.name, () => {
   });
 
   it.each([true, false, undefined])(
-    "replays an allowed prepared answer with parser hint %s and honest metrics",
+    "lets caller-v2 phrase the turn before reusing matching audio with parser hint %s",
     async (preferPreparedReply) => {
       const dialogue = createDialogueMock();
       const speech = createSpeechMock();
@@ -369,18 +402,22 @@ describe(VoicePipelineService.name, () => {
       const events = await collect(service, {
         ...request,
         preferPreparedReply,
-        generation: { ...request.generation, fallbackReply: modelResult.reply },
+        generation: {
+          ...request.generation,
+          replyProtocol: "caller-v2",
+          fallbackReply: modelResult.reply,
+        },
       });
-      expect(dialogue.generate).not.toHaveBeenCalled();
+      expect(dialogue.generate).toHaveBeenCalledTimes(1);
       expect(speech.synthesize).not.toHaveBeenCalled();
       expect(events[0]).toMatchObject({
         type: "voice.reply.ready",
-        result: { source: "prepared", attempts: [] },
+        result: { source: "model", attempts: modelResult.attempts },
       });
       expect(events.at(-1)).toMatchObject({
         type: "voice.completed",
         metrics: {
-          generation: { source: "prepared", attempts: [] },
+          generation: { source: "model", attempts: modelResult.attempts },
           synthesis: { source: "prepared", attempts: [] },
         },
       });

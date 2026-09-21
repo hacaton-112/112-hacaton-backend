@@ -4,6 +4,8 @@ import { performance } from "node:perf_hooks";
 import { Client } from "pg";
 import WebSocket from "ws";
 
+import { resamplePcm16Mono } from "@/modules/ai-gateway/diagnostics/tts-diagnostic";
+
 /**
  * Нагрузочный прогон учебных звонков против запущенного backend.
  *
@@ -122,15 +124,18 @@ const readPcm = async (path: string): Promise<Uint8Array> => {
 
       if (
         format.channels !== 1 ||
-        format.sampleRate !== SAMPLE_RATE ||
         format.bits !== 16
       ) {
         throw new Error(
-          `${path}: expected mono PCM16 at ${SAMPLE_RATE} Hz, got ${format.channels}ch ${format.sampleRate}Hz ${format.bits}bit`,
+          `${path}: expected mono PCM16, got ${format.channels}ch ${format.sampleRate}Hz ${format.bits}bit`,
         );
       }
 
-      return new Uint8Array(file.subarray(body, body + size));
+      const pcm = new Uint8Array(file.subarray(body, body + size));
+
+      return format.sampleRate === SAMPLE_RATE
+        ? pcm
+        : resamplePcm16Mono(pcm, format.sampleRate, SAMPLE_RATE);
     }
 
     // Размер чанка выравнивается до чётного, сам он это в себя не включает.
@@ -179,23 +184,46 @@ const login = async (options: Options): Promise<string> => {
   return session.accessToken;
 };
 
-const findScenarioVersion = async (): Promise<string> => {
+const findAssignment = async (
+  email: string,
+  scenarioVersionId: string | null,
+): Promise<{ assignmentId: string; scenarioVersionId: string }> => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
 
   try {
-    const result = await client.query<{ id: string }>(
-      "select id from scenario_versions where published_at is not null order by published_at desc limit 1",
+    const result = await client.query<{
+      assignment_id: string;
+      scenario_version_id: string;
+    }>(
+      `select a.id as assignment_id, a.scenario_version_id
+       from training_assignments a
+       join users u on u.email = $1
+       where a.status = 'in_progress'
+         and ($2::text is null or a.scenario_version_id = $2)
+         and (
+           a.target_user_id = u.id
+           or exists (
+             select 1 from training_group_members gm
+             where gm.group_id = a.group_id and gm.user_id = u.id
+           )
+         )
+       order by a.created_at desc
+       limit 1`,
+      [email, scenarioVersionId],
     );
-    const id = result.rows[0]?.id;
+    const assignment = result.rows[0];
 
-    if (id === undefined) {
+    if (assignment === undefined) {
       throw new Error(
-        'No published scenario version found. Run "bun run db:seed" first.',
+        `No runnable assignment found for ${email}. Run "bun run db:seed" first.`,
       );
     }
 
-    return id;
+    return {
+      assignmentId: assignment.assignment_id,
+      scenarioVersionId: assignment.scenario_version_id,
+    };
   } finally {
     await client.end();
   }
@@ -264,16 +292,18 @@ class SyntheticOperator {
 
   async run(
     scenarioVersionId: string,
+    assignmentId: string,
     turns: number,
     pcm: Uint8Array,
   ): Promise<void> {
     await once(this.socket, "open");
 
-    this.send({ type: "start", scenarioVersionId });
+    this.send({ type: "start", scenarioVersionId, assignmentId });
     await this.expect("call.offered");
 
     this.send({ type: "accept" });
     await this.expect("call.accepted");
+    await this.expect("audio.done");
 
     for (let turn = 0; turn < turns; turn += 1) {
       await this.speak(pcm);
@@ -407,8 +437,10 @@ const report = (label: string, values: readonly number[]): void => {
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const token = await login(options);
-  const scenarioVersionId =
-    options.scenarioVersionId ?? (await findScenarioVersion());
+  const assignment = await findAssignment(
+    options.email,
+    options.scenarioVersionId,
+  );
   const pcm =
     options.wav === null ? syntheticPcm(3) : await readPcm(options.wav);
   const url = `${options.api.replace(/^http/, "ws")}/voice-pipeline/stream`;
@@ -430,7 +462,12 @@ async function main(): Promise<void> {
 
   const outcomes = await Promise.allSettled(
     operators.map((operator) =>
-      operator.run(scenarioVersionId, options.turns, pcm),
+      operator.run(
+        assignment.scenarioVersionId,
+        assignment.assignmentId,
+        options.turns,
+        pcm,
+      ),
     ),
   );
 

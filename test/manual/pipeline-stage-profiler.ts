@@ -46,7 +46,10 @@ async function main(): Promise<void> {
     throw new Error("turns must be between 1 and " + SCRIPT.length);
   }
   const app = await NestFactory.createApplicationContext(CoreModule, {
-    logger: ["error"],
+    // Rejection reasons are part of latency diagnosis: a hidden retry can
+    // otherwise look like unexplained model slowness.
+    logger: ["error", "warn"],
+    abortOnError: false,
   });
   const engine = app.get(ScenarioEngineService);
   const factory = app.get<VoicePipelineRequestFactory>(

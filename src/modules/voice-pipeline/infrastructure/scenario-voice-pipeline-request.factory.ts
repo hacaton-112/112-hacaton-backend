@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
@@ -58,6 +59,7 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     private readonly questions: QuestionUnderstandingPort,
     @Optional() private readonly audio?: ScenarioAudioService,
     @Optional() private readonly runtime?: VoiceRuntimeService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async create({
@@ -81,42 +83,53 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     let exceptionReason: VoicePipelineRequest["exceptionReason"];
     let preferPreparedReply = false;
     const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
+    const replyProtocol =
+      this.config?.get<"legacy" | "caller-v2">("LLM_REPLY_PROTOCOL") ??
+      "legacy";
 
     const built = await this.engine.buildGenerationContext({
       trainingSessionId: sessionId,
       operatorText: command.operatorText,
       initiative,
-      resolveAskedFacts: async (facts) => {
-        if (offline && requestsInstructionOverride(command.operatorText)) {
-          exceptionReason = "prompt-injection";
-          this.rememberTurn(requestId, []);
-          return [];
-        }
-        try {
-          const asked = await this.understand(
-            requestId,
-            command.operatorText,
-            facts,
-            turnSignal,
-            entries,
-            sessionId,
-          );
-          // Exact questions need no model. Paraphrases may use the local intent
-          // parser once, but still reuse approved wording and recorded audio.
-          preferPreparedReply = asked.length > 0;
-          this.rememberTurn(requestId, asked);
-          if (offline && !asked.length) exceptionReason = "unknown-question";
-          return asked;
-        } catch (error) {
-          signal.throwIfAborted();
-          if (!offline) throw error;
-          exceptionReason = turnSignal.aborted
-            ? "deadline"
-            : "intent-unavailable";
-          this.rememberTurn(requestId, []);
-          return [];
-        }
-      },
+      replyProtocol,
+      resolveAskedFacts:
+        replyProtocol === "caller-v2"
+          ? undefined
+          : async (facts) => {
+              if (
+                offline &&
+                requestsInstructionOverride(command.operatorText)
+              ) {
+                exceptionReason = "prompt-injection";
+                this.rememberTurn(requestId, []);
+                return [];
+              }
+              try {
+                const asked = await this.understand(
+                  requestId,
+                  command.operatorText,
+                  facts,
+                  turnSignal,
+                  entries,
+                  sessionId,
+                );
+                // Exact questions need no model. Paraphrases may use the local intent
+                // parser once, but still reuse approved wording and recorded audio.
+                preferPreparedReply = asked.length > 0;
+                this.rememberTurn(requestId, asked);
+                if (offline && !asked.length)
+                  exceptionReason = "unknown-question";
+                return asked;
+              } catch (error) {
+                signal.throwIfAborted();
+                if (!offline) throw error;
+                exceptionReason = turnSignal.aborted
+                  ? "deadline"
+                  : "intent-unavailable";
+                this.rememberTurn(requestId, []);
+                return [];
+              }
+            },
     });
 
     signal.throwIfAborted();
@@ -166,6 +179,9 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
         sessionId,
         scenarioVersionId: built.scenarioVersionId,
         operatorText: command.operatorText,
+        replyProtocol,
+        panicLevel: built.panicLevel,
+        callerTurns: built.callerTurns,
         context: built.context,
         fallbackReply,
       },
@@ -237,6 +253,9 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
     initiative,
   }: RecordCallerReplyOptions): Promise<void> {
     const entries = (await this.audio?.approvedEntries(sessionId)) ?? [];
+    const replyProtocol =
+      this.config?.get<"legacy" | "caller-v2">("LLM_REPLY_PROTOCOL") ??
+      "legacy";
     await this.engine.applyCallerReply({
       trainingSessionId: sessionId,
       initiative,
@@ -246,21 +265,25 @@ export class ScenarioVoicePipelineRequestFactory implements VoicePipelineRequest
       operatorText,
       reply,
       generation,
+      replyProtocol,
       // Разбор этого же вопроса уже лежит в кеше после сборки контекста:
       // запись хода сверяется с тем же ответом, а не спрашивает модель снова.
-      resolveAskedFacts: (facts) =>
-        this.turnAnswers.has(requestId)
-          ? Promise.resolve(this.turnAnswers.get(requestId)!)
-          : this.runtime?.settings.enabled
-            ? Promise.resolve([])
-            : this.understand(
-                requestId,
-                operatorText,
-                facts,
-                new AbortController().signal,
-                entries,
-                sessionId,
-              ),
+      resolveAskedFacts:
+        replyProtocol === "caller-v2"
+          ? undefined
+          : (facts) =>
+              this.turnAnswers.has(requestId)
+                ? Promise.resolve(this.turnAnswers.get(requestId)!)
+                : this.runtime?.settings.enabled
+                  ? Promise.resolve([])
+                  : this.understand(
+                      requestId,
+                      operatorText,
+                      facts,
+                      new AbortController().signal,
+                      entries,
+                      sessionId,
+                    ),
     });
   }
 }

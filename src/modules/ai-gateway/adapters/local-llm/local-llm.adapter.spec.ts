@@ -3,7 +3,11 @@ import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 import { ALICE_AI_SYSTEM_PROMPT } from "../alice-ai/alice-ai.request";
 import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
 import { createAiProviders } from "../alice-ai/alice-ai-adapter.module";
-import { LocalLlmAdapter, LocalLlmConfigSchema } from "./local-llm.adapter";
+import {
+  buildReplyPrompt,
+  LocalLlmAdapter,
+  LocalLlmConfigSchema,
+} from "./local-llm.adapter";
 
 const config = LocalLlmConfigSchema.parse({
   baseUrl: "http://127.0.0.1:8080/v1/",
@@ -31,6 +35,9 @@ const response = () =>
   Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
 
 describe(LocalLlmAdapter.name, () => {
+  it("keeps the legacy reply protocol by default", () => {
+    expect(config.replyProtocol).toBe("legacy");
+  });
   it.each([true, false])(
     "exposes local style policy with literal mode %s",
     (literalFactReplies) => {
@@ -113,7 +120,7 @@ describe(LocalLlmAdapter.name, () => {
         {
           index: 0,
           delta: {
-            content: '{"text":"Во дворе.","revealedFactIds":["place"]}',
+            content: '{"t":"Во дворе.","f":[1]}',
           },
         },
       ],
@@ -167,15 +174,260 @@ describe(LocalLlmAdapter.name, () => {
     expect(events.at(-1)?.type).toBe("response.completed");
     const body = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
     expect(body.response_format.json_schema.schema.required).toEqual([
-      "text",
-      "revealedFactIds",
+      "t",
+      "f",
     ]);
+    expect(body.messages[0].content).toContain("{t, f}");
     expect(body.messages[0].content).toContain("дословно");
     expect(body.messages[0].content.length).toBeLessThan(
       ALICE_AI_SYSTEM_PROMPT.length,
     );
-    expect(body.max_tokens).toBe(128);
+    expect(body.max_tokens).toBe(256);
+    expect(body).toMatchObject({
+      temperature: 0.3,
+      chat_template_kwargs: { enable_thinking: false },
+      reasoning_effort: "none",
+    });
     expect(body).not.toHaveProperty("id_slot");
+    expect(body.messages[1].content).toContain("1. Во дворе.");
+    expect(body.messages[1].content).toContain("ДОСЛОВНЫЙ ОТВЕТ:\nВо дворе.");
+    expect(body.messages[1].content).not.toContain("СОСТОЯНИЕ:");
+    expect(body.messages[1].content).not.toContain("place");
+    expect(body.messages[1].content).not.toContain("operatorText");
+
+    for await (const _event of adapter.streamReply(
+      { ...request, retryFeedback: "Сформулируй иначе" },
+      new AbortController().signal,
+    )) {
+      // Consume the retry stream to inspect its provider request.
+    }
+    const retryBody = JSON.parse(fetcher.mock.calls[1]![1]!.body as string);
+    expect(retryBody).toMatchObject({
+      chat_template_kwargs: { enable_thinking: true },
+      reasoning_effort: "low",
+    });
+  });
+  it("uses the exact caller-v2 request without a JSON grammar", async () => {
+    const delta = JSON.stringify({
+      choices: [{ index: 0, delta: { content: "0 panic\nПожар!" } }],
+    });
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        new Response("data: " + delta + "\n\ndata: [DONE]\n\n", {
+          headers: { "content-type": "text/event-stream" },
+        }),
+      );
+    const callerRequest: GenerateCallerReplyRequest = {
+      requestId: "caller-v2",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Что случилось?",
+      replyProtocol: "caller-v2",
+      panicLevel: 3,
+      callerTurns: 0,
+      context: {
+        persona: {
+          id: "caller",
+          description: "Мужчина, свидетель.",
+          language: "Russian",
+        },
+        allowedFacts: [{ id: "incident", value: "Пожар." }],
+        recentTurns: [],
+      },
+    };
+    const events: LlmStreamEvent[] = [];
+    for await (const event of new LocalLlmAdapter(
+      { ...config, replyProtocol: "caller-v2" },
+      fetcher,
+    ).streamReply(callerRequest, new AbortController().signal)) {
+      events.push(event);
+    }
+    const body = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(body).toEqual({
+      model: "training-model",
+      stream: true,
+      temperature: 0.3,
+      max_tokens: 100,
+      chat_template_kwargs: { enable_thinking: false },
+      reasoning_effort: "none",
+      cache_prompt: true,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Ты заявитель: сам звонишь в 112 за помощью. Ты не оператор и не диспетчер. Отвечай только на последнюю реплику оператора и только тем, что знаешь.",
+        },
+        {
+          role: "user",
+          content:
+            "Ты: Мужчина, свидетель.\nЗнаешь:\n- Пожар.\nРазговор:\n(начало)\nСейчас: в панике, отвечает одним-двумя предложениями и сбивается на отдельных словах\nОператор: Что случилось?",
+        },
+      ],
+    });
+    expect(body).not.toHaveProperty("response_format");
+    expect(
+      events.map((event) => ("delta" in event ? event.delta : "")).join(""),
+    ).not.toContain("0 panic");
+  });
+  it("lets the model word the turn instead of rephrasing the engine sentence", async () => {
+    const delta = JSON.stringify({
+      choices: [
+        { index: 0, delta: { content: '{"t":"Я во дворе стою!","f":[1]}' } },
+      ],
+    });
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockImplementation(
+        async () =>
+          new Response("data: " + delta + "\n\ndata: [DONE]\n\n", {
+            headers: { "content-type": "text/event-stream" },
+          }),
+      );
+    const request: GenerateCallerReplyRequest = {
+      requestId: "reply",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Где вы находитесь?",
+      context: {
+        persona: {
+          id: "caller",
+          description: "Учебный заявитель",
+          language: "Russian",
+        },
+        allowedFacts: [{ id: "place", value: "Во дворе." }],
+        recentTurns: [],
+        turnPlan: {
+          reactionAct: "answer",
+          focusFactIds: ["place"],
+          minimumResponseDelayMs: 300,
+        },
+      },
+      fallbackReply: {
+        text: "Во дворе.",
+        revealedFactIds: ["place"],
+        emotion: "panic",
+        intensity: 0.8,
+        speechRate: 1.2,
+        endCall: false,
+      },
+    };
+
+    for await (const _event of new LocalLlmAdapter(config, fetcher).streamReply(
+      request,
+      new AbortController().signal,
+    )) {
+      // Consume the stream to inspect the provider request.
+    }
+
+    const prompt = JSON.parse(fetcher.mock.calls[0]![1]!.body as string)
+      .messages[1].content as string;
+    // Раньше движок диктовал предложение, и модель его переписывала.
+    expect(prompt).not.toContain("ОТВЕТЬ ТАК ЖЕ ПО СМЫСЛУ");
+    expect(prompt).not.toContain("ДОСЛОВНЫЙ ОТВЕТ");
+    expect(prompt).toContain("КАК ОТВЕЧАТЬ:");
+    expect(prompt).toContain("ДОПУСТИМЫЕ СВЕДЕНИЯ:\n1. Во дворе.");
+    expect(prompt).not.toContain("reactionAct");
+    // Номер вместо значения 0.6B произносит буквально: «сведения № 1»
+    // давало реплику «1» в пробе на живой модели.
+    expect(prompt).toContain("СКАЖИ СЕЙЧАС ОБ ЭТОМ:\nВо дворе.");
+    expect(prompt).not.toContain("сведения № ");
+  });
+  it("names the asked topic the scenario still withholds", async () => {
+    const delta = JSON.stringify({
+      choices: [
+        { index: 0, delta: { content: '{"t":"Я не знаю код!","f":[]}' } },
+      ],
+    });
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockImplementation(
+        async () =>
+          new Response("data: " + delta + "\n\ndata: [DONE]\n\n", {
+            headers: { "content-type": "text/event-stream" },
+          }),
+      );
+    const request: GenerateCallerReplyRequest = {
+      requestId: "reply",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Какой код домофона?",
+      context: {
+        persona: {
+          id: "caller",
+          description: "Учебный заявитель",
+          language: "Russian",
+        },
+        allowedFacts: [],
+        recentTurns: [],
+        withheldTopics: ["Код домофона"],
+        turnPlan: { reactionAct: "clarify", minimumResponseDelayMs: 300 },
+      },
+    };
+
+    for await (const _event of new LocalLlmAdapter(config, fetcher).streamReply(
+      request,
+      new AbortController().signal,
+    )) {
+      // Consume the stream to inspect the provider request.
+    }
+
+    const prompt = JSON.parse(fetcher.mock.calls[0]![1]!.body as string)
+      .messages[1].content as string;
+    expect(prompt).toContain("«Код домофона»");
+    // Перечисленный списком ярлык модель просто зачитывала вслух.
+    expect(prompt).toContain("Сам ярлык не произноси.");
+    // Название темы — не её значение: раскрыть закрытый факт по нему нельзя.
+    expect(prompt).not.toContain("withheldTopics");
+  });
+  it("keeps the prompt prefix stable while the delivery changes", () => {
+    const turn = (
+      deliveryHint: string,
+      recentTurns: GenerateCallerReplyRequest["context"]["recentTurns"],
+    ): GenerateCallerReplyRequest => ({
+      requestId: "reply",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Что происходит?",
+      context: {
+        persona: {
+          id: "caller",
+          description: "Мужчина, 34 года. Волнение. Говорит рублеными фразами.",
+          language: "Russian",
+        },
+        allowedFacts: [{ id: "place", value: "Во дворе." }],
+        recentTurns,
+        deliveryHint,
+        turnPlan: { reactionAct: "answer", minimumResponseDelayMs: 300 },
+      },
+    });
+
+    const first = buildReplyPrompt(
+      turn("Сейчас он взвинчен.", [{ role: "operator", text: "Слушаю вас." }]),
+    );
+    const second = buildReplyPrompt(
+      turn("Сейчас он в панике.", [
+        { role: "operator", text: "Слушаю вас." },
+        { role: "caller", text: "Я во дворе!" },
+      ]),
+    );
+
+    let shared = 0;
+    while (
+      shared < first.length &&
+      shared < second.length &&
+      first[shared] === second[shared]
+    ) {
+      shared += 1;
+    }
+
+    // Общий префикс — это ровно то, что llama-server переиспользует из KV-кеша.
+    // Пока подача стояла в персоне, он обрывался на первых же символах.
+    expect(first.slice(0, shared)).toContain("Мужчина, 34 года");
+    expect(first.slice(0, shared)).toContain("Слушаю вас.");
+    expect(first.indexOf("КАК ЗВУЧИТ СЕЙЧАС:")).toBeGreaterThan(
+      first.indexOf("ДОПУСТИМЫЕ СВЕДЕНИЯ:"),
+    );
   });
   it("uses a local model name, structured output and non-thinking mode without cloud headers", async () => {
     const fetcher = jest
@@ -234,8 +486,8 @@ describe(LocalLlmAdapter.name, () => {
     const providers = createAiProviders(
       new ConfigService({
         LLM_PROVIDER: "local",
-        LOCAL_LLM_BASE_URL: config.baseUrl,
-        LOCAL_LLM_MODEL: config.model,
+        LLM_BASE_URL: config.baseUrl,
+        LLM_MODEL: config.model,
       }),
       jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(),
     );

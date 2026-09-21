@@ -188,6 +188,10 @@ export const clampPanicLevel = (
   return (isPanicLevel(bounded) ? bounded : floor) as PanicLevel;
 };
 
+/** Сдвиг студента v2 всегда остаётся внутри общей шкалы 0–4. */
+export const shiftPanicLevel = (level: PanicLevel, shift: number): PanicLevel =>
+  clampPanicLevel(level + Math.min(1, Math.max(-1, shift)), 0, 4);
+
 /**
  * Параметры синтеза для ступени. Темп ограничен диапазоном контракта, иначе
  * быстрый персонаж на верхней ступени вышел бы за пределы `SpeechRateSchema`.

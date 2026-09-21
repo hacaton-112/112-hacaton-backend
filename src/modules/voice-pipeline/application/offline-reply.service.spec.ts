@@ -137,6 +137,32 @@ const generatedRequest = (): VoicePipelineRequest => {
 };
 
 describe("offline hybrid turn", () => {
+  it("в caller-v2 не подменяет модель подготовленным ответом", async () => {
+    const s = setup();
+    s.lookup.mockResolvedValue(pcm);
+    s.generate.mockResolvedValue({
+      ...model(),
+      reply: {
+        ...model().reply,
+        text: "Я во дворе стою!",
+        emotion: "anger",
+        panicShift: 1,
+        revealedFactIds: [],
+      },
+    });
+    const input = request();
+    input.generation.replyProtocol = "caller-v2";
+
+    const result = await s.offline.resolve(input, signal());
+
+    expect(result.result.resolution?.path).toBe("local-generated");
+    expect(s.lookup).not.toHaveBeenCalled();
+    expect(s.generate).toHaveBeenCalledTimes(1);
+    expect(s.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ emotion: "anger" }),
+      expect.any(AbortSignal),
+    );
+  });
   it("does not replay an instruction embedded in corrupted safe audio metadata", async () => {
     const s = setup();
     s.safeFallback.mockResolvedValue({

@@ -47,13 +47,14 @@ export class OfflineReplyService {
         Math.max(1, Math.ceil(deadlineAt - performance.now())),
       ),
     ]);
-    const tts = (text: string) =>
+    const tts = (text: string, emotion = request.voice.emotion) =>
       TtsSynthesisRequestSchema.parse({
         requestId: request.generation.requestId,
         sessionId: request.generation.sessionId,
         text,
         language: request.generation.context.persona.language,
         ...request.voice,
+        emotion,
       });
     let reason: Reason = request.exceptionReason;
     if (performance.now() >= deadlineAt) reason = "deadline";
@@ -63,7 +64,11 @@ export class OfflineReplyService {
     try {
       if (!reason) {
         const fallback = request.generation.fallbackReply;
-        if (fallback && canUsePreparedReply(request)) {
+        if (
+          request.generation.replyProtocol !== "caller-v2" &&
+          fallback &&
+          canUsePreparedReply(request)
+        ) {
           const lookupStartedAt = performance.now();
           const recorded = await abortable(
             this.audio.lookup(
@@ -107,14 +112,20 @@ export class OfflineReplyService {
           ),
         );
         if (result.source === "fallback") reason = "generation-failed";
-        else if (!isGroundedOfflineReply(result.reply, request.generation))
+        else if (
+          request.generation.replyProtocol !== "caller-v2" &&
+          !isGroundedOfflineReply(result.reply, request.generation)
+        )
           reason = "ungrounded-response";
         else {
           assertCallerReplyContent(result.reply, request.generation);
           // Commit text only after the entire limited audio stream has succeeded.
           reason = "synthesis-failed";
           const events = await this.buffer(
-            this.synthesis.synthesize(tts(result.reply.text), deadline),
+            this.synthesis.synthesize(
+              tts(result.reply.text, result.reply.emotion),
+              deadline,
+            ),
             request.generation.requestId,
             deadline,
           );
