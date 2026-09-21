@@ -14,16 +14,19 @@ Grafana. Всё запускается из `docker-compose.yml` этого ре
 | Сервис | Назначение | Порт на хосте | Слушает по умолчанию |
 | --- | --- | --- | --- |
 | `backend` | REST API и WebSocket голосового канала | 3000 | `0.0.0.0` |
-| `migrate` | применяет миграции перед каждым запуском backend и выходит | — | — |
+| `asr` | распознавание речи на CPU, модели зашиты в образ | 8787 | `127.0.0.1` |
+| `local-llm` | llama-server с локальной моделью | 8080 | `127.0.0.1` |
+| `piper-tts` | синтез речи на CPU | 5000 | `127.0.0.1` |
 | `postgres` | база данных | 54322 | `127.0.0.1` |
-| `minio`, `minio-bucket` | хранилище записей звонков | 9000, 9001 | `127.0.0.1` |
+| `minio` | хранилище записей звонков и подготовленного аудио | 9000, 9001 | `127.0.0.1` |
 | `prometheus` | сбор метрик | 9090 | `127.0.0.1` |
 | `grafana` | дашборды | 3001 | `127.0.0.1` |
 | `pgadmin` | администрирование базы | 5050 | `127.0.0.1` |
+| `asterisk` | учебная АТС, нужна только при `TELEPHONY_ENABLED=true` | 5060, 10000–10099 | `0.0.0.0` |
 
-`backend` и `migrate` входят в профиль `app`: без `--profile app` compose
-поднимает только зависимости — так работают разработчики, у которых backend
-запущен на хосте.
+Отдельного сервиса миграций больше нет: backend применяет их сам при старте
+(`drizzle/migrate.ts`). Профиля `app` тоже нет — `docker compose up -d`
+поднимает весь стек, включая backend.
 
 Метрики backend отдаются на порту 9464 только внутри сети compose и наружу не
 публикуются: авторизации у них нет. Записи звонков приложение получает через
@@ -107,31 +110,44 @@ openssl rand -base64 48
 ## 3. Первый запуск
 
 ```bash
-docker compose --profile app up -d --build
+docker compose up -d --build
 ```
 
-Первая сборка образа занимает несколько минут. Затем проверьте состояние:
+Первая сборка долгая: образ распознавания собирается из Rust, а llama-server
+скачивает модель в том `llm_models`. Затем проверьте состояние:
 
 ```bash
-docker compose --profile app ps -a
+docker compose ps
 ```
 
-`migrate` должен завершиться с кодом 0, `backend` — перейти в состояние
-`healthy`. Если backend перезапускается, причина будет в его журнале:
+`backend` должен перейти в `healthy`; миграции он применяет сам при старте.
+Если backend перезапускается, причина будет в его журнале:
 
 ```bash
-docker compose --profile app logs backend
+docker compose logs backend
 ```
+
+Образ распознавания собирается из соседнего репозитория `asr-service`:
+клонируйте его рядом с backend или задайте путь через `ASR_SOURCE_DIR`.
 
 ## 4. Сценарии и первая учётная запись
 
-Разовые команды выполняются в образе `migrate`: в нём есть исходный код и
-инструменты разработки, которых нет в рабочем образе backend.
+Разовые команды требуют исходного кода, которого нет в рабочем образе
+backend, поэтому выполняйте их с хоста: база опубликована на
+`127.0.0.1:54322`, и адрес из `.env` подходит как есть.
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+```bash
+bun install --frozen-lockfile
+```
 
 Опубликуйте демонстрационные сценарии:
 
 ```bash
-docker compose --profile app run --rm migrate bun run db:seed
+bun run db:seed
 ```
 
 Создайте учётную запись администратора. Пароль читается без эха, поэтому не
@@ -143,7 +159,7 @@ read -rs ADMIN_PASSWORD
 ```
 
 ```bash
-docker compose --profile app run --rm migrate bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
+bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
 ```
 
 Роль — `operator`, `instructor` или `admin`. Публичной регистрации нет: всех
@@ -208,22 +224,22 @@ VITE_API_URL=http://203.0.113.10:3000
 ## 7. Обновление
 
 ```bash
-git pull && docker compose --profile app up -d --build
+git pull && docker compose up -d --build
 ```
 
 Миграции применяются автоматически: новый backend стартует только после того,
-как `migrate` отработал успешно. Если миграция упала, compose остановится с
+как backend применил миграции. Если миграция упала, контейнер уйдёт в перезапуск, а причина будет в журнале:
 ошибкой, и причина будет в журнале:
 
 ```bash
-docker compose --profile app logs migrate
+docker compose logs backend
 ```
 
 Если изменились файлы сценариев в `drizzle/seed/scenarios`, опубликуйте их
 заново. Сид публикует новую версию только для изменённого сценария:
 
 ```bash
-docker compose --profile app run --rm migrate bun run db:seed
+bun run db:seed
 ```
 
 Старые образы после обновления можно удалить:
@@ -258,14 +274,14 @@ docker run --rm -v system112_minio_data:/data:ro -v "$PWD":/backup alpine tar cz
 ## 9. Журналы
 
 ```bash
-docker compose --profile app logs -f backend
+docker compose logs -f backend
 ```
 
 В production backend пишет только предупреждения и ошибки, в формате JSON. Те же
 записи и журнал аудита лежат файлами в томе `system112_backend_logs`:
 
 ```bash
-docker compose --profile app exec backend ls /app/logs
+docker compose exec backend ls /app/logs
 ```
 
 ## 10. HTTPS
@@ -309,7 +325,7 @@ api.example.ru {
 ## 12. Остановка
 
 ```bash
-docker compose --profile app down
+docker compose down
 ```
 
 > Не добавляйте `-v`: эта опция удаляет тома, то есть базу, записи звонков и
