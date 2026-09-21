@@ -60,14 +60,19 @@ export const API_CONFIG = {
   getActiveClassifierRouteUrl: () => `/classifiers/active/route`,
   getCallsUrl: () => `/calls`,
   getDdsExercisesUrl: () => `/dds-exercises`,
-  getDdsAssignmentStartUrl: (assignmentId: string) => `/dds-training/assignments/${encodeURIComponent(assignmentId)}/start`,
+  getDdsAssignmentStartUrl: (assignmentId: string) =>
+    `/dds-training/assignments/${encodeURIComponent(assignmentId)}/start`,
   getDdsTrainingAttemptsUrl: () => `/dds-training/attempts`,
   getDdsTrainingLiveUrl: () => `/dds-training/live`,
-  getDdsTrainingReviewUrl: (exerciseId: string) => `/dds-training/attempts/${encodeURIComponent(exerciseId)}/reviews`,
-  getDdsTrainingStopUrl: (exerciseId: string) => `/dds-training/attempts/${encodeURIComponent(exerciseId)}/stop`,
+  getDdsTrainingReviewUrl: (exerciseId: string) =>
+    `/dds-training/attempts/${encodeURIComponent(exerciseId)}/reviews`,
+  getDdsTrainingStopUrl: (exerciseId: string) =>
+    `/dds-training/attempts/${encodeURIComponent(exerciseId)}/stop`,
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,
+  getDdsCrewCallUrl: (exerciseId: string) =>
+    `/telephony/exercises/${encodeURIComponent(exerciseId)}/crew-calls`,
   getDdsExerciseUrl: (exerciseId: string) => `/dds-exercises/${exerciseId}`,
   getDdsExerciseTransitionsUrl: (exerciseId: string) =>
     `/dds-exercises/${exerciseId}/transitions`,

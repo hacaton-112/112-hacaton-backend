@@ -84,6 +84,13 @@ const API_ERROR_MESSAGES: Record<string, string> = {
     "Этот статус нельзя установить на текущем этапе реагирования",
   DDS_STATUS_TRANSITION_CONFLICT:
     "Статус карточки уже изменился. Данные обновлены",
+  DDS_CREW_NOT_NOTIFIED: "Сначала передайте карточку наряду по телефону",
+  TELEPHONY_DISABLED: "Учебная телефония сейчас отключена",
+  TELEPHONY_UNAVAILABLE: "Asterisk не смог начать звонок",
+  TELEPHONY_WORKSTATION_REQUIRED:
+    "Администратор ещё не закрепил за вами телефон рабочего места",
+  TELEPHONY_CREW_UNAVAILABLE: "Этот номер недоступен для текущей карточки",
+  TELEPHONY_CALL_CONFLICT: "Команда звонка уже использована для другого номера",
   VALIDATION_FAILED: "Проверьте введённые данные",
 };
 

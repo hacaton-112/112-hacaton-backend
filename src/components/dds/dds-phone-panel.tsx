@@ -1,0 +1,201 @@
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Flex,
+  Text,
+  TextField,
+} from "@bolid-ui/themes";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Delete, PhoneCall, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import type { DdsCrewHandoff } from "../../contracts/dds-exercise";
+import { telephonyService } from "../../services/telephony.service";
+import { isOfferedCrewNumber, normalizeDialedNumber } from "./dds-phone";
+
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
+
+export function DdsPhonePanel({
+  exerciseId,
+  handoff,
+  canCall,
+}: {
+  exerciseId: string;
+  handoff: DdsCrewHandoff;
+  canCall: boolean;
+}) {
+  const client = useQueryClient();
+  const [number, setNumber] = useState(handoff.crews[0]?.phoneNumber ?? "");
+  const command = useRef<{ number: string; eventId: string } | null>(null);
+  const callsBeforeCommand = useRef<number | null>(null);
+  const call = useMutation({
+    mutationFn: () => {
+      callsBeforeCommand.current ??= handoff.calls.length;
+      if (command.current?.number !== number) {
+        command.current = { number, eventId: crypto.randomUUID() };
+      }
+      return telephonyService.startCrewCall(exerciseId, {
+        eventId: command.current.eventId,
+        dialedNumber: number,
+      });
+    },
+    retry: false,
+    onSuccess: async () => {
+      command.current = null;
+      await client.invalidateQueries({ queryKey: ["dds-exercises"] });
+    },
+  });
+  const latestCall = handoff.calls.at(-1);
+
+  useEffect(() => {
+    if (
+      call.isSuccess &&
+      callsBeforeCommand.current !== null &&
+      handoff.calls.length > callsBeforeCommand.current &&
+      latestCall?.endedAt
+    ) {
+      callsBeforeCommand.current = null;
+      call.reset();
+    }
+  }, [call, handoff.calls.length, latestCall?.endedAt]);
+  const offered = isOfferedCrewNumber(handoff, number);
+
+  return (
+    <Card
+      size="2"
+      variant="classic"
+      className="bg-gray-12 grid gap-3 text-white"
+    >
+      <Flex align="center" justify="between" gap="2" wrap="wrap">
+        <Flex align="center" gap="2">
+          <PhoneCall size={17} />
+          <Text size="2" weight="bold">
+            Телефон ДДС
+          </Text>
+        </Flex>
+        <Badge color={call.isSuccess ? "green" : "gray"} variant="soft">
+          {call.isSuccess ? "Вызов отправлен" : "Готов"}
+        </Badge>
+      </Flex>
+
+      <div className="rounded-(--radius-2) bg-black/50 p-2">
+        <Text size="1" color="gray">
+          Номер наряда
+        </Text>
+        <TextField.Root
+          aria-label="Номер наряда"
+          inputMode="numeric"
+          value={number}
+          onChange={(event) => {
+            setNumber(normalizeDialedNumber(event.currentTarget.value));
+            call.reset();
+          }}
+          className="mt-1 font-mono text-lg tabular-nums"
+        />
+      </div>
+
+      <div
+        className="grid grid-cols-3 gap-1.5"
+        aria-label="Клавиатура телефона"
+      >
+        {KEYS.slice(0, 9).map((key) => (
+          <Button
+            key={key}
+            variant="soft"
+            color="gray"
+            onClick={() => {
+              setNumber((current) => normalizeDialedNumber(`${current}${key}`));
+              call.reset();
+            }}
+          >
+            {key}
+          </Button>
+        ))}
+        <Button
+          aria-label="Очистить номер"
+          variant="soft"
+          color="gray"
+          onClick={() => {
+            setNumber("");
+            call.reset();
+          }}
+        >
+          <X size={16} />
+        </Button>
+        <Button
+          variant="soft"
+          color="gray"
+          onClick={() => {
+            setNumber((current) => normalizeDialedNumber(`${current}0`));
+            call.reset();
+          }}
+        >
+          0
+        </Button>
+        <Button
+          aria-label="Удалить последнюю цифру"
+          variant="soft"
+          color="gray"
+          onClick={() => {
+            setNumber((current) => current.slice(0, -1));
+            call.reset();
+          }}
+        >
+          <Delete size={16} />
+        </Button>
+      </div>
+
+      <div className="grid gap-1">
+        {handoff.crews.map((crew) => (
+          <Button
+            key={crew.phoneNumber}
+            size="1"
+            variant={number === crew.phoneNumber ? "solid" : "soft"}
+            onClick={() => {
+              setNumber(crew.phoneNumber);
+              call.reset();
+            }}
+          >
+            {crew.callsign} · {crew.phoneNumber}
+          </Button>
+        ))}
+      </div>
+
+      {!canCall && (
+        <Text size="1" color="gray">
+          Сначала примите карточку. После этого станет доступен звонок наряду.
+        </Text>
+      )}
+      {number && !offered && (
+        <Text size="1" color="amber">
+          Для этой карточки можно вызвать только наряд из справочника выше.
+        </Text>
+      )}
+      <Button
+        color="green"
+        disabled={!canCall || !offered || call.isPending || call.isSuccess}
+        loading={call.isPending}
+        onClick={() => call.mutate()}
+      >
+        <PhoneCall size={16} /> Позвонить
+      </Button>
+
+      {call.data && (
+        <Callout.Root color="green">
+          <Callout.Text>
+            Asterisk вызывает телефон рабочего места{" "}
+            {call.data.workstationExtension}. Снимите трубку и передайте
+            карточку наряду.
+          </Callout.Text>
+        </Callout.Root>
+      )}
+      {call.error && (
+        <Callout.Root color="red" role="alert">
+          <Callout.Text>{call.error.message}</Callout.Text>
+        </Callout.Root>
+      )}
+    </Card>
+  );
+}

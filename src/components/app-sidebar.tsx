@@ -116,11 +116,21 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <SidebarGroupLabel>Обучение</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {user?.role === "operator" && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.assignments())}
+                  icon={GraduationCap}
+                  label="Мои назначения"
+                  onClick={() => goTo(ROUTES.assignments())}
+                >
+                  Мои назначения
+                </SidebarNavItem>
+              )}
               <SidebarNavItem
                 active={location.pathname === ROUTES.operator()}
                 icon={Headphones}
                 label="Рабочее место"
-                onClick={() => goTo(ROUTES.operator())}
+                onClick={() => goTo(ROUTES.operatorWorkplace())}
               >
                 Рабочее место
               </SidebarNavItem>
@@ -152,16 +162,6 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               >
                 Методические материалы
               </SidebarNavItem>
-              {user?.role === "operator" && (
-                <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.assignments())}
-                  icon={GraduationCap}
-                  label="Мои назначения"
-                  onClick={() => goTo(ROUTES.assignments())}
-                >
-                  Мои назначения
-                </SidebarNavItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

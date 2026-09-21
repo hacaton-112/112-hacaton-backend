@@ -33,10 +33,12 @@ export const ROUTE_PATTERNS = {
 
 export const ROUTES = {
   operator: () => "/",
+  operatorWorkplace: () => "/?workplace=1",
   auth: () => "/auth",
   debrief: () => "/debrief",
   dds: () => "/dds",
-  ddsExercise: (exerciseId: string) => `/dds?exercise=${encodeURIComponent(exerciseId)}`,
+  ddsExercise: (exerciseId: string) =>
+    `/dds?exercise=${encodeURIComponent(exerciseId)}`,
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
@@ -65,6 +67,7 @@ export const ROUTES = {
 /** Имя параметра, которым брифинг передаёт сценарий на рабочее место. */
 export const SCENARIO_QUERY_PARAM = "scenario";
 export const ASSIGNMENT_QUERY_PARAM = "assignment";
+export const WORKPLACE_QUERY_PARAM = "workplace";
 
 /**
  * Окно карты. В Tauri оно уже создано и адресуется меткой из `tauri.conf.json`;

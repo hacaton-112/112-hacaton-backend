@@ -3,6 +3,7 @@ import { PhoneCall } from "lucide-react";
 
 import type { DdsCrewHandoff } from "../../contracts/dds-exercise";
 import { crewCallVerdict } from "./dds-formatters";
+import { DdsPhonePanel } from "./dds-phone-panel";
 
 /**
  * Передача карточки наряду по телефону.
@@ -10,7 +11,17 @@ import { crewCallVerdict } from "./dds-formatters";
  * Звонит диспетчер с SIP-телефона рабочего места, а не из интерфейса: здесь
  * справочник нарядов своей службы и журнал того, кому и чем закончился звонок.
  */
-export function DdsCrewHandoffBlock({ handoff }: { handoff: DdsCrewHandoff }) {
+export function DdsCrewHandoffBlock({
+  exerciseId,
+  handoff,
+  canCall,
+  readOnly,
+}: {
+  exerciseId: string;
+  handoff: DdsCrewHandoff;
+  canCall: boolean;
+  readOnly: boolean;
+}) {
   return (
     <Card
       size="2"
@@ -32,8 +43,8 @@ export function DdsCrewHandoffBlock({ handoff }: { handoff: DdsCrewHandoff }) {
 
       {!handoff.notified && (
         <Text size="1" color="gray">
-          Наберите номер наряда на телефоне рабочего места и зачитайте карточку.
-          Начало реагирования станет доступно, когда наряд примет её.
+          Выберите наряд в экранном телефоне. Asterisk вызовет закреплённый за
+          вами SIP-телефон; снимите трубку и зачитайте карточку.
         </Text>
       )}
 
@@ -85,6 +96,14 @@ export function DdsCrewHandoffBlock({ handoff }: { handoff: DdsCrewHandoff }) {
             );
           })}
         </div>
+      )}
+
+      {!readOnly && !handoff.notified && (
+        <DdsPhonePanel
+          exerciseId={exerciseId}
+          handoff={handoff}
+          canCall={canCall}
+        />
       )}
     </Card>
   );
