@@ -1543,9 +1543,9 @@ body,
 .arm-dds-table-head,
 .arm-dds-table-row {
   display: grid;
-  min-width: 1180px;
+  min-width: 1108px;
   grid-template-columns:
-    72px 44px 104px 92px 84px minmax(190px, 1.05fr)
+    44px 104px 92px 84px minmax(190px, 1.05fr)
     minmax(270px, 1.5fr) minmax(160px, 0.7fr) 44px;
   align-items: stretch;
 }
@@ -1610,11 +1610,6 @@ body,
 .arm-dds-status-cell {
   background: var(--arm-slate-cell);
   color: #edeff0;
-}
-
-.arm-dds-row-icons {
-  justify-content: space-around;
-  color: #c5cbcd;
 }
 
 .arm-dds-cell-main {

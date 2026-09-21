@@ -178,7 +178,7 @@ export default function OperatorPage() {
         state={call.state}
       />
       <ScrollArea
-        className="operator-page-scroll min-h-0 flex-1 pb-16"
+        className="operator-page-scroll min-h-0 flex-1 pb-24"
         scrollbars="vertical"
         type="auto"
       >
@@ -228,6 +228,11 @@ export default function OperatorPage() {
       <CallControlDock
         {...call}
         missingCardFields={missingCardFields}
+        dispatchError={
+          incidentCard.errorOperation === "dispatch"
+            ? incidentCard.error
+            : undefined
+        }
         isCardSubmitted={Boolean(incidentCard.card?.submittedAt)}
         isDispatching={incidentCard.isDispatching}
         isEnding={isEnding}
