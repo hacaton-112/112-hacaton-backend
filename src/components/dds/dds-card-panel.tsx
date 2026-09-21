@@ -1,41 +1,17 @@
-import {
-  Badge,
-  Card,
-  Flex,
-  Grid,
-  Heading,
-  Separator,
-  Text,
-} from "@bolid-ui/themes";
-import { ClipboardCheck, MapPin, Phone, Trophy, UserRound } from "lucide-react";
+import { Badge, Card, Flex, Heading, Text } from "@bolid-ui/themes";
+import { ClipboardCheck, Trophy } from "lucide-react";
 
 import type {
   DdsExercise,
   DdsResponseStatus,
 } from "../../contracts/dds-exercise";
 import { DdsAcknowledgementTimer } from "./dds-acknowledgement-timer";
+import { DdsCardArmHeader } from "./dds-card-arm-header";
 import { DdsCrewHandoffBlock } from "./dds-crew-handoff";
-import {
-  DDS_SERVICE_LABELS,
-  DDS_STATUS_LABELS,
-  DDS_VIOLATION_LABELS,
-} from "./dds-formatters";
+import { DDS_STATUS_LABELS, DDS_VIOLATION_LABELS } from "./dds-formatters";
 import { DdsStatusActions } from "./dds-status-actions";
 
 type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
-
-function Field({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div className="arm-dds-field min-w-0">
-      <Text as="p" size="1" color="gray">
-        {label}
-      </Text>
-      <Text as="p" size="2" weight="medium">
-        {value || "Не указано"}
-      </Text>
-    </div>
-  );
-}
 
 export function DdsCardPanel({
   exercise,
@@ -60,140 +36,38 @@ export function DdsCardPanel({
         <ClipboardCheck className="text-gray-8 mx-auto" size={34} />
         <Heading size="4">Выберите входящую карточку</Heading>
         <Text size="2" color="gray">
-          Откройте назначение преподавателя или дождитесь отправки карточки оператором 112.
+          Откройте назначение преподавателя или дождитесь отправки карточки
+          оператором 112.
         </Text>
       </Card>
     );
   }
 
-  const { card } = exercise;
-
   return (
     <div className="arm-dds-card-panel grid content-start gap-2">
-      <Card size="3" variant="classic" className="arm-dds-card grid gap-4">
-        <Flex
-          className="arm-dds-card-header"
-          align="start"
-          justify="between"
-          gap="3"
-          wrap="wrap"
-        >
-          <div>
-            <Flex align="center" gap="2" mb="1">
-              <Badge variant="soft">{card.scenarioCode}</Badge>
-              <Badge
-                color={
-                  exercise.status === "completed"
-                    ? "green"
-                    : exercise.status === "refused"
-                      ? "red"
-                      : "amber"
-                }
-                variant="soft"
-              >
-                {DDS_STATUS_LABELS[exercise.status]}
-              </Badge>
-            </Flex>
-            <Heading size="5">{card.title}</Heading>
-            <Text as="p" size="2" color="gray" mt="1">
-              Карточка направлена в службу «
-              {DDS_SERVICE_LABELS[exercise.addressedService]}»
-            </Text>
-          </div>
+      <DdsCardArmHeader exercise={exercise} />
+
+      <Card size="3" variant="classic" className="arm-dds-card grid gap-3">
+        <Flex align="center" justify="between" gap="3" wrap="wrap">
+          <Text size="2" weight="bold">
+            Статус службы: {DDS_STATUS_LABELS[exercise.status]}
+          </Text>
           <DdsAcknowledgementTimer key={exercise.id} exercise={exercise} />
         </Flex>
-
-        <Separator size="4" />
-
-        <Grid
-          className="arm-dds-info-grid"
-          columns={{ initial: "1", sm: "2" }}
-          gap="2"
-        >
-          <Card
-            size="2"
-            variant="surface"
-            className="arm-dds-info-block grid gap-3"
-          >
-            <Flex align="center" gap="2">
-              <MapPin size={17} />
-              <Text size="2" weight="bold">
-                Место происшествия
-              </Text>
-            </Flex>
-            <Field label="Адрес" value={card.addressText} />
-            <Text size="1" color="gray">
-              Координаты: {card.latitude.toFixed(6)},{" "}
-              {card.longitude.toFixed(6)}
-            </Text>
-          </Card>
-
-          <Card
-            size="2"
-            variant="surface"
-            className="arm-dds-info-block grid gap-3"
-          >
-            <Flex align="center" gap="2">
-              <UserRound size={17} />
-              <Text size="2" weight="bold">
-                Заявитель
-              </Text>
-            </Flex>
-            <Field label="ФИО" value={card.callerName} />
-            <Flex align="center" gap="2">
-              <Phone size={14} />
-              <Text size="2">{card.callerPhone || "Телефон не указан"}</Text>
-            </Flex>
-          </Card>
-        </Grid>
-
-        <Card
-          size="2"
-          variant="surface"
-          className="arm-dds-info-block arm-dds-incident-block grid gap-3"
-        >
-          <Grid columns={{ initial: "1", sm: "2" }} gap="3">
-            <Field label="Тип происшествия" value={card.incidentType} />
-            <Field
-              label="Пострадавшие"
-              value={
-                card.victimsTotal === null
-                  ? "Не указано"
-                  : String(card.victimsTotal)
-              }
-            />
-          </Grid>
-          <Field label="Описание" value={card.description} />
-        </Card>
-
-        <div className="arm-dds-service-tabs" aria-label="Оповещённые службы">
-          {card.services.map((service) => {
-            const active = service === exercise.addressedService;
-
-            return (
-              <div key={service} data-active={active || undefined}>
-                <strong>{DDS_SERVICE_LABELS[service]}</strong>
-                <span>
-                  {active
-                    ? DDS_STATUS_LABELS[exercise.status]
-                    : "Отдельная доставка"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
 
         {exercise.crewHandoff && (
           <DdsCrewHandoffBlock handoff={exercise.crewHandoff} />
         )}
 
-        {!readOnly && <DdsStatusActions
-          key={`${exercise.id}:${exercise.status}`}
-          exercise={exercise}
-          pending={pending}
-          error={error}
-          onTransition={onTransition}
-        />}
+        {!readOnly && (
+          <DdsStatusActions
+            key={`${exercise.id}:${exercise.status}`}
+            exercise={exercise}
+            pending={pending}
+            error={error}
+            onTransition={onTransition}
+          />
+        )}
       </Card>
 
       {exercise.result && (
@@ -235,33 +109,27 @@ export function DdsCardPanel({
         </Card>
       )}
 
-      <Card size="3" variant="classic" className="arm-dds-history">
-        <div className="arm-dds-history-title">
-          <Heading size="3">Хронология реагирования</Heading>
-          <Text size="1">Событий: {exercise.events.length}</Text>
+      {/* Журнал статусов службы: в реальном АРМ он открывается синей панелью. */}
+      <div className="arm-card-journal-panel">
+        <div className="arm-card-journal-head">
+          <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
+          <span>Событий: {exercise.events.length}</span>
         </div>
-        <div className="arm-dds-history-events grid gap-3">
-          {exercise.events.map((event) => (
-            <Flex key={event.sequence} align="start" gap="3">
-              <Badge radius="full" variant="soft">
-                {event.sequence}
-              </Badge>
-              <div>
-                <Text as="p" size="2" weight="medium">
-                  {DDS_STATUS_LABELS[event.toStatus]}
-                </Text>
-                <Text as="p" size="1" color="gray">
-                  {new Date(event.occurredAt).toLocaleString("ru-RU")}
-                  {event.actorId
-                    ? ` · оператор ${event.actorId.slice(-8).toUpperCase()}`
-                    : " · система"}
-                  {event.comment ? ` · ${event.comment}` : ""}
-                </Text>
-              </div>
-            </Flex>
-          ))}
-        </div>
-      </Card>
+        {exercise.events.map((event) => (
+          <div key={event.sequence} className="arm-card-journal-row">
+            <span className="arm-card-journal-actor">оп. 0</span>
+            <span className="arm-card-journal-time">
+              {new Date(event.occurredAt).toLocaleString("ru-RU")}
+            </span>
+            <span className="arm-card-journal-status">
+              {DDS_STATUS_LABELS[event.toStatus]}
+            </span>
+            {event.comment && (
+              <span className="arm-card-journal-comment">{event.comment}</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

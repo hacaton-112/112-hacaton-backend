@@ -1864,3 +1864,257 @@ body,
     padding: 4px;
   }
 }
+
+/* DDS card, скопирована с АРМ-112 ---------------------------------------- */
+
+.arm-card {
+  display: grid;
+  gap: 2px;
+  background: var(--arm-slate);
+}
+
+.arm-card-phonebar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(230px, 0.9fr);
+  gap: 2px;
+}
+
+.arm-card-phone,
+.arm-card-incident {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: #efefef;
+  padding: 8px 10px;
+  color: var(--arm-ink);
+}
+
+.arm-card-phone > span {
+  color: #6b7176;
+  font-size: 11px;
+}
+
+.arm-card-phone > strong {
+  min-height: 17px;
+  font-size: 13px;
+}
+
+.arm-card-phone-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.arm-card-phone-buttons > span {
+  border: 1px solid #b7bdc0;
+  background: #dcdcdc;
+  padding: 2px 8px;
+  color: #454c50;
+  font-size: 10px;
+}
+
+.arm-card-incident > strong {
+  font-size: 14px;
+}
+
+.arm-card-incident > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-body {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 2px;
+}
+
+.arm-card-left,
+.arm-card-right {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 2px;
+}
+
+.arm-card-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: #efefef;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.arm-card-strip > span {
+  color: #6b7176;
+}
+
+.arm-card-address {
+  display: grid;
+  gap: 2px;
+  background: #e6e6e6;
+  padding: 9px 10px;
+}
+
+.arm-card-address > strong {
+  font-size: 13px;
+}
+
+.arm-card-address > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-journal {
+  min-height: 120px;
+  border: 1px solid #d5d5d5;
+  background: #efefef;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.arm-card-journal p {
+  margin: 0;
+  color: #2c3237;
+}
+
+.arm-card-journal span {
+  color: #4a5155;
+}
+
+.arm-card-journal-text {
+  margin-top: 2px !important;
+}
+
+.arm-card-flags {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #b7bdc0;
+  background: #e4e4e4;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-badge-warn {
+  border-color: #d2531f;
+  background: #ec653b;
+  color: white;
+}
+
+.arm-card-block {
+  display: grid;
+  gap: 2px;
+}
+
+.arm-card-block-head {
+  background: #303335;
+  padding: 5px 10px;
+  color: #f1f1f1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-block-row {
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-block-row-muted {
+  color: #6b7176;
+}
+
+.arm-card-services {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  background: #2f353a;
+  padding: 6px;
+}
+
+.arm-card-services-label {
+  align-self: center;
+  padding: 0 8px;
+  color: #e4e6e7;
+  font-size: 11px;
+}
+
+.arm-card-services > div {
+  display: grid;
+  min-width: 116px;
+  gap: 2px;
+  background: #3c444a;
+  padding: 6px 10px;
+  color: #eceeef;
+  text-align: center;
+}
+
+.arm-card-services > div[data-active="true"] {
+  background: #157dbd;
+}
+
+.arm-card-services strong {
+  font-size: 12px;
+}
+
+.arm-card-services span {
+  font-size: 10px;
+}
+
+.arm-card-journal-panel {
+  display: grid;
+  gap: 1px;
+  background: #157dbd;
+  padding: 8px 10px;
+  color: white;
+}
+
+.arm-card-journal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+.arm-card-journal-head span {
+  font-size: 11px;
+}
+
+.arm-card-journal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.arm-card-journal-actor {
+  color: #d6ecfa;
+  font-size: 11px;
+}
+
+.arm-card-journal-comment {
+  color: #e8f4fc;
+}
+
+@media (max-width: 1199px) {
+  .arm-card-phonebar,
+  .arm-card-body {
+    grid-template-columns: 1fr;
+  }
+}
