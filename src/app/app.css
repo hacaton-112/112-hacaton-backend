@@ -1260,6 +1260,27 @@ body,
   border-top: 4px solid var(--arm-graphite-2) !important;
 }
 
+/* Незавершённые обязательные поля карточки видны непосредственно в форме. */
+.arm-required-target {
+  border: 2px solid transparent;
+  border-radius: var(--radius-3);
+  padding: var(--space-2);
+  margin-inline: calc(-1 * var(--space-2));
+}
+
+.arm-required-target[data-missing="true"] {
+  border-color: var(--red-9);
+  background: var(--red-a2);
+  box-shadow: 0 0 0 2px var(--red-a4);
+}
+
+.dispatch-services-card[data-missing="true"],
+.dispatch-map-card[data-missing="true"] {
+  outline: 3px solid var(--red-9);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 3px var(--red-a4) !important;
+}
+
 .arm-operator-dock {
   border-top: 1px solid #d84d28;
   background: var(--arm-orange);

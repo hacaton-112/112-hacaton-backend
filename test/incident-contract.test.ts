@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  CALLER_LANGUAGE_OPTIONS,
   IncidentCardDispatchReceiptSchema,
   IncidentCardSchema,
 } from "../src/contracts/incident";
@@ -41,6 +42,16 @@ const emptyBackendCard = {
 };
 
 describe("IncidentCardSchema", () => {
+  it("offers common caller languages without duplicate values", () => {
+    expect(CALLER_LANGUAGE_OPTIONS).toContain("Русский");
+    expect(CALLER_LANGUAGE_OPTIONS).toContain("Азербайджанский");
+    expect(CALLER_LANGUAGE_OPTIONS).toContain("Английский");
+    expect(CALLER_LANGUAGE_OPTIONS).toContain("Китайский");
+    expect(new Set(CALLER_LANGUAGE_OPTIONS).size).toBe(
+      CALLER_LANGUAGE_OPTIONS.length,
+    );
+  });
+
   it("accepts an unfilled incident card returned by the backend", () => {
     const card = IncidentCardSchema.parse(emptyBackendCard);
 

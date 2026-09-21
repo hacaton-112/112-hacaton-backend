@@ -30,6 +30,30 @@ export const INCIDENT_CATEGORIES = [
   "important",
 ] as const;
 
+/** Языки, которые оператор может зафиксировать со слов заявителя. */
+export const CALLER_LANGUAGE_OPTIONS = [
+  "Русский",
+  "Азербайджанский",
+  "Армянский",
+  "Белорусский",
+  "Грузинский",
+  "Казахский",
+  "Киргизский",
+  "Таджикский",
+  "Туркменский",
+  "Узбекский",
+  "Украинский",
+  "Английский",
+  "Арабский",
+  "Китайский",
+  "Корейский",
+  "Турецкий",
+  "Немецкий",
+  "Французский",
+  "Испанский",
+  "Другой",
+] as const;
+
 export const DispatchServiceSchema = z.enum(DISPATCH_SERVICES);
 export const IncidentCategorySchema = z.enum(INCIDENT_CATEGORIES);
 

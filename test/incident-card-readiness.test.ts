@@ -4,6 +4,7 @@ import { IncidentCardSchema } from "../src/contracts/incident";
 import {
   getClassifierDispatchServices,
   getMissingIncidentCardFields,
+  getMissingIncidentCardRequirements,
 } from "../src/lib/incident-card-readiness";
 
 const completeCard = IncidentCardSchema.parse({
@@ -55,24 +56,35 @@ describe("incident card dispatch readiness", () => {
   });
 
   test("explains every missing operator action", () => {
-    expect(
-      getMissingIncidentCardFields({
-        ...completeCard,
-        addressText: " ",
-        latitude: null,
-        longitude: null,
-        incidentType: null,
-        classifierRouting: null,
-        description: null,
-        services: [],
-      }),
-    ).toEqual([
+    const incompleteCard = {
+      ...completeCard,
+      addressText: " ",
+      latitude: null,
+      longitude: null,
+      incidentType: null,
+      classifierRouting: null,
+      description: null,
+      services: [],
+    };
+    expect(getMissingIncidentCardFields(incompleteCard)).toEqual([
       "адрес",
       "точка на карте",
       "тип происшествия",
       "классификация происшествия",
       "описание со слов заявителя",
       "служба ДДС",
+    ]);
+    expect(
+      getMissingIncidentCardRequirements(incompleteCard).map(
+        ({ field }) => field,
+      ),
+    ).toEqual([
+      "address",
+      "point",
+      "incidentType",
+      "classifierRouting",
+      "description",
+      "services",
     ]);
   });
 
