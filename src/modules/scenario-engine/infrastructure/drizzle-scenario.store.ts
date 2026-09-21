@@ -371,6 +371,7 @@ export class DrizzleScenarioStore implements ScenarioStore {
       .select({
         trainingSessionId: callStates.trainingSessionId,
         lastActivityAt,
+        stage: callStates.stage,
       })
       .from(callStates)
       .leftJoin(
@@ -378,13 +379,14 @@ export class DrizzleScenarioStore implements ScenarioStore {
         eq(callEvents.trainingSessionId, callStates.trainingSessionId),
       )
       .where(inArray(callStates.stage, ["offered", "conversation"]))
-      .groupBy(callStates.trainingSessionId, callStates.offeredAt)
+      .groupBy(callStates.trainingSessionId, callStates.offeredAt, callStates.stage)
       .having(lt(lastActivityAt, idleSince))
       .limit(limit);
 
     return rows.map((row) => ({
       trainingSessionId: row.trainingSessionId,
       lastActivityAt: new Date(row.lastActivityAt),
+      stage: row.stage === "offered" ? ("offered" as const) : ("conversation" as const),
     }));
   }
 

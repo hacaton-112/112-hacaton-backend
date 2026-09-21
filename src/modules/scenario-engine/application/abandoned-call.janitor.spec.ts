@@ -12,20 +12,24 @@ const LAST_ACTIVITY = new Date("2026-09-12T09:05:00.000Z");
 const createJanitor = (
   sessions: string[],
   endCall = jest.fn().mockResolvedValue(undefined),
+  stage: "offered" | "conversation" = "conversation",
+  declineCall = jest.fn().mockResolvedValue(undefined),
 ) => {
   const abandoned = sessions.map((trainingSessionId) => ({
     trainingSessionId,
     lastActivityAt: LAST_ACTIVITY,
+    stage,
   }));
   const store = {
     listAbandonedCalls: jest.fn().mockResolvedValue(abandoned),
   } as unknown as ScenarioStore;
-  const engine = { endCall } as unknown as ScenarioEngineService;
+  const engine = { endCall, declineCall } as unknown as ScenarioEngineService;
 
   return {
     janitor: new AbandonedCallJanitor(store, engine),
     store,
     endCall,
+    declineCall,
   };
 };
 
@@ -41,6 +45,25 @@ describe(AbandonedCallJanitor.name, () => {
         reason: "abandoned",
         // Звонок кончился, когда оператор пропал, а не когда уборка это
         // заметила: иначе в разборе он длится до самой уборки.
+        now: LAST_ACTIVITY,
+      }),
+    );
+  });
+
+  it("declines an offer nobody took instead of ending it", async () => {
+    // Завершение предложенного вызова движок не принимает, и раньше уборка
+    // спотыкалась об одни и те же предложения на каждом проходе.
+    const { janitor, endCall, declineCall } = createJanitor(
+      ["session-1"],
+      jest.fn().mockResolvedValue(undefined),
+      "offered",
+    );
+
+    await expect(janitor.sweep(NOW)).resolves.toBe(1);
+    expect(endCall).not.toHaveBeenCalled();
+    expect(declineCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trainingSessionId: "session-1",
         now: LAST_ACTIVITY,
       }),
     );
@@ -81,7 +104,10 @@ describe(AbandonedCallJanitor.name, () => {
     } as unknown as ScenarioStore;
     const janitor = new AbandonedCallJanitor(
       store,
-      { endCall: jest.fn() } as unknown as ScenarioEngineService,
+      {
+        endCall: jest.fn(),
+        declineCall: jest.fn(),
+      } as unknown as ScenarioEngineService,
     );
 
     await expect(janitor.sweep(NOW)).resolves.toBe(0);

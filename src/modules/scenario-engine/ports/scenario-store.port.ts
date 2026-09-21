@@ -119,6 +119,8 @@ export interface AbandonedCall {
   readonly trainingSessionId: string;
   /** Когда звонок подавал признаки жизни в последний раз. */
   readonly lastActivityAt: Date;
+  /** Предложенный вызов закрывается отказом, начатый — завершением. */
+  readonly stage: "offered" | "conversation";
 }
 
 export interface RecoveryLease {
