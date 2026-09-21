@@ -7,6 +7,19 @@ import {
 
 const KNOWN_DISPATCH_SERVICES = new Set<string>(DISPATCH_SERVICES);
 
+export type IncidentCardRequirement =
+  | "address"
+  | "point"
+  | "incidentType"
+  | "classifierRouting"
+  | "description"
+  | "services";
+
+export interface MissingIncidentCardRequirement {
+  field: IncidentCardRequirement;
+  label: string;
+}
+
 const CLASSIFIER_SERVICE_CODES: Readonly<Record<string, DispatchService>> = {
   fire: "dds_01",
   police: "dds_02",
@@ -70,20 +83,45 @@ export function getClassifierDispatchServices(
  * оператору причину отказа, а окончательное решение всё равно остаётся за
  * backend.
  */
-export function getMissingIncidentCardFields(card?: IncidentCard): string[] {
-  if (!card) return ["карточка ещё загружается"];
+export function getMissingIncidentCardRequirements(
+  card?: IncidentCard,
+): MissingIncidentCardRequirement[] {
+  if (!card) return [];
 
   return [
-    ...(!card.addressText?.trim() ? ["адрес"] : []),
-    ...(card.latitude === null || card.longitude === null
-      ? ["точка на карте"]
+    ...(!card.addressText?.trim()
+      ? [{ field: "address" as const, label: "адрес" }]
       : []),
-    ...(!card.incidentType?.trim() ? ["тип происшествия"] : []),
-    ...(!card.classifierRouting ? ["классификация происшествия"] : []),
-    ...(!card.description?.trim() ? ["описание со слов заявителя"] : []),
+    ...(card.latitude === null || card.longitude === null
+      ? [{ field: "point" as const, label: "точка на карте" }]
+      : []),
+    ...(!card.incidentType?.trim()
+      ? [{ field: "incidentType" as const, label: "тип происшествия" }]
+      : []),
+    ...(!card.classifierRouting
+      ? [
+          {
+            field: "classifierRouting" as const,
+            label: "классификация происшествия",
+          },
+        ]
+      : []),
+    ...(!card.description?.trim()
+      ? [
+          {
+            field: "description" as const,
+            label: "описание со слов заявителя",
+          },
+        ]
+      : []),
     ...(card.services.length === 0 &&
     getClassifierDispatchServices(card.classifierRouting).length === 0
-      ? ["служба ДДС"]
+      ? [{ field: "services" as const, label: "служба ДДС" }]
       : []),
   ];
+}
+
+export function getMissingIncidentCardFields(card?: IncidentCard): string[] {
+  if (!card) return ["карточка ещё загружается"];
+  return getMissingIncidentCardRequirements(card).map(({ label }) => label);
 }

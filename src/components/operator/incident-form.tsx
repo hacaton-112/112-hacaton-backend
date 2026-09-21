@@ -29,6 +29,7 @@ import {
   IncidentCardSchema,
 } from "../../contracts/incident";
 import type { IncidentLocationFill } from "../../contracts/geo";
+import type { IncidentCardRequirement } from "../../lib/incident-card-readiness";
 import { FormField } from "../auth/form-field";
 import { ClassifierPicker } from "./classifier-picker";
 
@@ -44,6 +45,8 @@ interface IncidentFormProps {
   onChange?: (patch: IncidentCardPatch) => void;
   /** Место, отмеченное на карте: адрес и координаты подставляются в поля. */
   locationFill?: IncidentLocationFill;
+  /** Обязательные для отправки поля, которые оператор ещё не заполнил. */
+  missingRequirements?: readonly IncidentCardRequirement[];
 }
 
 export function IncidentForm({
@@ -52,6 +55,7 @@ export function IncidentForm({
   card,
   onChange,
   locationFill,
+  missingRequirements = [],
 }: IncidentFormProps) {
   const { control, register, reset, getValues, setValue } = useForm<
     IncidentCardInput,
@@ -133,18 +137,24 @@ export function IncidentForm({
           Место происшествия
         </Text>
 
-        <FormField
-          label="Адрес (улица, дом, корпус, строение, владение, дорога, километр, метр, адресный участок, объект)"
-          htmlFor="addressText"
+        <RequiredField
+          missing={missingRequirements.includes("address")}
+          message="Укажите адрес происшествия"
         >
-          <TextField.Root
-            id="addressText"
-            size="1"
-            placeholder="Введите адрес"
-            disabled={disabled}
-            {...register("addressText")}
-          />
-        </FormField>
+          <FormField
+            label="Адрес (улица, дом, корпус, строение, владение, дорога, километр, метр, адресный участок, объект)"
+            htmlFor="addressText"
+          >
+            <TextField.Root
+              id="addressText"
+              size="1"
+              placeholder="Введите адрес"
+              disabled={disabled}
+              aria-invalid={missingRequirements.includes("address")}
+              {...register("addressText")}
+            />
+          </FormField>
+        </RequiredField>
 
         <div className="incident-pair-grid mt-3 grid gap-2">
           <TextInput
@@ -242,14 +252,22 @@ export function IncidentForm({
           О происшествии
         </Text>
 
-        <ClassifierPicker
-          entryId={card?.classifierEntryId ?? null}
-          qualifierCodes={card?.classifierQualifierCodes ?? []}
-          routing={card?.classifierRouting ?? null}
-          incidentType={card?.incidentType ?? null}
-          disabled={disabled}
-          onChange={onChange}
-        />
+        <RequiredField
+          missing={
+            missingRequirements.includes("incidentType") ||
+            missingRequirements.includes("classifierRouting")
+          }
+          message="Выберите тип и классификацию происшествия"
+        >
+          <ClassifierPicker
+            entryId={card?.classifierEntryId ?? null}
+            qualifierCodes={card?.classifierQualifierCodes ?? []}
+            routing={card?.classifierRouting ?? null}
+            incidentType={card?.incidentType ?? null}
+            disabled={disabled}
+            onChange={onChange}
+          />
+        </RequiredField>
 
         <div className="incident-meta-grid mt-3 grid items-end gap-2">
           <div className="min-w-0">
@@ -330,18 +348,49 @@ export function IncidentForm({
           />
         </div>
 
-        <FormField label="Описание со слов заявителя" htmlFor="description">
-          <TextArea
-            id="description"
-            size="1"
-            rows={2}
-            placeholder="Напишите…"
-            disabled={disabled}
-            {...register("description")}
-          />
-        </FormField>
+        <RequiredField
+          missing={missingRequirements.includes("description")}
+          message="Запишите краткое описание со слов заявителя"
+        >
+          <FormField label="Описание со слов заявителя" htmlFor="description">
+            <TextArea
+              id="description"
+              size="1"
+              rows={2}
+              placeholder="Напишите…"
+              disabled={disabled}
+              aria-invalid={missingRequirements.includes("description")}
+              {...register("description")}
+            />
+          </FormField>
+        </RequiredField>
       </Card>
     </form>
+  );
+}
+
+function RequiredField({
+  missing,
+  message,
+  children,
+}: {
+  missing: boolean;
+  message: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="arm-required-target"
+      data-missing={missing || undefined}
+      aria-invalid={missing || undefined}
+    >
+      {children}
+      {missing && (
+        <Text as="p" size="1" color="red" weight="bold" mt="1">
+          {message}
+        </Text>
+      )}
+    </div>
   );
 }
 

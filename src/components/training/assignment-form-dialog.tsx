@@ -37,6 +37,13 @@ interface AssignmentFormDialogProps {
   error?: string;
   onCreate: (input: CreateTrainingAssignment) => void;
   onUpdate: (input: TrainingAssignmentSettings) => void;
+  /** Предустановленный режим для входа из специализированного раздела. */
+  initialMode?: "voice_call" | "card_action";
+  /** Не даёт уйти из специализированного режима, например из раздела ДДС. */
+  lockMode?: boolean;
+  createTitle?: string;
+  createDescription?: string;
+  createSubmitLabel?: string;
 }
 
 /**
@@ -51,7 +58,10 @@ export function AssignmentFormDialog(props: AssignmentFormDialogProps) {
       open={props.open}
       onOpenChange={props.pending ? undefined : props.onOpenChange}
     >
-      <Dialog.Content maxWidth="820px" className="w-[calc(100vw-2rem)] sm:max-w-[820px]">
+      <Dialog.Content
+        maxWidth="820px"
+        className="w-[calc(100vw-2rem)] sm:max-w-[820px]"
+      >
         {/* Форма монтируется заново на каждое открытие со своим черновиком. */}
         {props.open && <AssignmentForm {...props} />}
       </Dialog.Content>
@@ -67,10 +77,17 @@ function AssignmentForm({
   error,
   onCreate,
   onUpdate,
+  initialMode,
+  lockMode = false,
+  createTitle,
+  createDescription,
+  createSubmitLabel,
 }: AssignmentFormDialogProps) {
   const isEdit = assignment !== undefined;
   const [mode, setMode] = useState<"voice_call" | "card_action">(
-    assignment?.type === "card_action" ? "card_action" : "voice_call",
+    assignment?.type === "card_action"
+      ? "card_action"
+      : (initialMode ?? "voice_call"),
   );
   const [title, setTitle] = useState(assignment?.title ?? "");
   const [scenarioVersionId, setScenarioVersionId] = useState(
@@ -83,7 +100,10 @@ function AssignmentForm({
     assignment?.cardSource ?? "generated",
   );
   const [answerNormSeconds, setAnswerNormSeconds] = useState(
-    String(assignment?.answerNormSeconds ?? 240),
+    String(
+      assignment?.answerNormSeconds ??
+        (initialMode === "card_action" ? 30 : 240),
+    ),
   );
   const [passThreshold, setPassThreshold] = useState(
     String(assignment?.passThreshold ?? 75),
@@ -143,26 +163,37 @@ function AssignmentForm({
   return (
     <form onSubmit={submit}>
       <Dialog.Title>
-        {isEdit ? "Изменить занятие" : "Новое занятие"}
+        {isEdit ? "Изменить занятие" : (createTitle ?? "Новое занятие")}
       </Dialog.Title>
       <Dialog.Description size="2" mb="4" color="gray">
-        {target.kind === "group"
-          ? `Группа «${target.group.name}». Занятие создаётся черновиком: обучающиеся увидят его, когда вы запустите занятие.`
-          : `Индивидуальное занятие для обучающегося ${target.student.fullName}. Оно создаётся черновиком: обучающийся увидит его, когда вы запустите занятие.`}
+        {!isEdit && createDescription
+          ? createDescription
+          : target.kind === "group"
+            ? `Группа «${target.group.name}». Занятие создаётся черновиком: обучающиеся увидят его, когда вы запустите занятие.`
+            : `Индивидуальное занятие для обучающегося ${target.student.fullName}. Оно создаётся черновиком: обучающийся увидит его, когда вы запустите занятие.`}
       </Dialog.Description>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <TrainingField label="Режим занятия" className="sm:col-span-2">
-          <Select.Root value={mode} disabled={isEdit} onValueChange={(value) => {
-            const next = value === "card_action" ? "card_action" : "voice_call";
-            setMode(next);
-            setAnswerNormSeconds(next === "card_action" ? "30" : "240");
-            if (next === "card_action") setCardSource("generated");
-          }}>
+          <Select.Root
+            value={mode}
+            disabled={isEdit || lockMode}
+            onValueChange={(value) => {
+              const next =
+                value === "card_action" ? "card_action" : "voice_call";
+              setMode(next);
+              setAnswerNormSeconds(next === "card_action" ? "30" : "240");
+              if (next === "card_action") setCardSource("generated");
+            }}
+          >
             <Select.Trigger aria-label="Режим занятия" />
             <Select.Content>
-              <Select.Item value="voice_call">Оператор 112 — голосовой звонок</Select.Item>
-              <Select.Item value="card_action">Диспетчер ДДС — действия с карточкой</Select.Item>
+              <Select.Item value="voice_call">
+                Оператор 112 — голосовой звонок
+              </Select.Item>
+              <Select.Item value="card_action">
+                Диспетчер ДДС — действия с карточкой
+              </Select.Item>
             </Select.Content>
           </Select.Root>
         </TrainingField>
@@ -225,11 +256,18 @@ function AssignmentForm({
           >
             <Select.Trigger />
             <Select.Content>
-              {CardSourceSchema.options.filter((source) => mode !== "card_action" || source === "generated" || source === "ticket").map((source) => (
-                <Select.Item key={source} value={source}>
-                  {CARD_SOURCE_LABELS[source]}
-                </Select.Item>
-              ))}
+              {CardSourceSchema.options
+                .filter(
+                  (source) =>
+                    mode !== "card_action" ||
+                    source === "generated" ||
+                    source === "ticket",
+                )
+                .map((source) => (
+                  <Select.Item key={source} value={source}>
+                    {CARD_SOURCE_LABELS[source]}
+                  </Select.Item>
+                ))}
             </Select.Content>
           </Select.Root>
         </TrainingField>
@@ -295,7 +333,7 @@ function AssignmentForm({
           </Button>
         </Dialog.Close>
         <Button type="submit" disabled={!canSubmit}>
-          {isEdit ? "Сохранить" : "Создать"}
+          {isEdit ? "Сохранить" : (createSubmitLabel ?? "Создать")}
         </Button>
       </Flex>
     </form>

@@ -23,6 +23,7 @@ import type { CallSnapshot } from "../../hooks/use-call";
 import type { IncidentPointStatus } from "../../hooks/use-incident-point";
 import type { GeoPoint } from "../../contracts/geo";
 import type { ClassifierRouting } from "../../contracts/classifier";
+import type { IncidentCardRequirement } from "../../lib/incident-card-readiness";
 
 interface ServicesProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
@@ -48,6 +49,7 @@ type DispatchCallPanelProps = CallSnapshot &
     callerName: string;
     isCardReady: boolean;
     isEnding: boolean;
+    missingRequirements: readonly IncidentCardRequirement[];
   };
 
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
@@ -57,7 +59,13 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="2"
         variant="classic"
         aria-labelledby="services-title"
+        aria-invalid={
+          props.missingRequirements.includes("services") || undefined
+        }
         data-tour="dispatch-services"
+        data-missing={
+          props.missingRequirements.includes("services") || undefined
+        }
         className="dispatch-services-card isolate min-h-64 overflow-x-hidden overflow-y-auto [--card-background-color:var(--color-panel-solid)]"
       >
         <Text id="services-title" size="2" weight="bold">
@@ -89,6 +97,11 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         <Text as="div" size="1" color="gray" mt="2">
           Выбор служб для отправки
         </Text>
+        {props.missingRequirements.includes("services") && (
+          <Text as="div" size="1" color="red" weight="bold" mt="1">
+            Выберите хотя бы одну службу ДДС
+          </Text>
+        )}
 
         <div className="mt-2 flex flex-wrap gap-1.5">
           {DISPATCH_SERVICES.map((service) => {
@@ -176,6 +189,8 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
         size="1"
         variant="classic"
         data-tour="incident-map"
+        aria-invalid={props.missingRequirements.includes("point") || undefined}
+        data-missing={props.missingRequirements.includes("point") || undefined}
         className="dispatch-map-card relative min-h-64 overflow-hidden p-0!"
       >
         <IncidentMap
@@ -191,6 +206,7 @@ export function DispatchCallPanel(props: DispatchCallPanelProps) {
             selectable={Boolean(props.onSelectPoint)}
             hasPoint={Boolean(props.selectedPoint)}
             status={props.pointStatus}
+            required={props.missingRequirements.includes("point")}
           />
           <MapWindowButton label="Открыть в окне" />
         </div>
@@ -209,10 +225,12 @@ function PointHint({
   selectable,
   hasPoint,
   status,
+  required,
 }: {
   selectable: boolean;
   hasPoint: boolean;
   status: IncidentPointStatus;
+  required: boolean;
 }) {
   if (!selectable && status.state === "idle") return null;
 
@@ -252,13 +270,13 @@ function PointHint({
           <>
             <Crosshair
               size={14}
-              className="shrink-0 text-(--gray-11)"
+              className={`shrink-0 ${required ? "text-(--red-9)" : "text-(--gray-11)"}`}
               aria-hidden
             />
             <span>
               {hasPoint
                 ? "Кликните по карте, чтобы перенести точку"
-                : "Кликните по карте, чтобы отметить место происшествия"}
+                : `${required ? "Обязательно: " : ""}кликните по карте, чтобы отметить место происшествия`}
             </span>
           </>
         );

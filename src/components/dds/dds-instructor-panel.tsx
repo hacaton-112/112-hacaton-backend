@@ -3,7 +3,6 @@ import {
   Button,
   Callout,
   Card,
-  Flex,
   Heading,
   Select,
   Spinner,
@@ -13,20 +12,18 @@ import {
 } from "@bolid-ui/themes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router";
-import { ROUTES } from "../../config/routes";
 import type {
   DdsStandaloneResult,
   DdsTrainingAttempt,
 } from "../../contracts/dds-training";
 import { ddsTrainingService } from "../../services/dds-training.service";
 import { DdsCardPanel } from "./dds-card-panel";
+import { DdsAssignmentCreator } from "./dds-assignment-creator";
 import { DDS_STATUS_LABELS } from "./dds-formatters";
 
 const queryKey = ["dds-training-attempts"] as const;
 
 export function DdsInstructorPanel() {
-  const navigate = useNavigate();
   const attempts = useQuery({
     queryKey,
     queryFn: ddsTrainingService.list,
@@ -56,31 +53,7 @@ export function DdsInstructorPanel() {
             места оператора 112.
           </Text>
         </header>
-        <Card size="3" className="grid gap-3">
-          <Heading size="4">Создание учебной карточки ДДС</Heading>
-          <Text as="p" size="2" color="gray">
-            Создайте занятие для группы или ученика, выберите режим «Диспетчер
-            ДДС — действия с карточкой», сценарий и запустите назначение. После
-            этого ученик откроет его в разделе «Мои назначения».
-          </Text>
-          <Flex gap="2" wrap="wrap">
-            <Button
-              type="button"
-              variant="soft"
-              onClick={() => navigate(ROUTES.groups())}
-            >
-              Перейти к группам
-            </Button>
-            <Button
-              type="button"
-              variant="soft"
-              color="gray"
-              onClick={() => navigate(ROUTES.students())}
-            >
-              Перейти к ученикам
-            </Button>
-          </Flex>
-        </Card>
+        <DdsAssignmentCreator />
         {attempts.isPending && <Spinner />}
         {attempts.error && (
           <Callout.Root color="red" role="alert">

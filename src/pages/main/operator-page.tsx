@@ -15,6 +15,7 @@ import { useIncidentPoint } from "../../hooks/use-incident-point";
 import {
   getClassifierDispatchServices,
   getMissingIncidentCardFields,
+  getMissingIncidentCardRequirements,
 } from "../../lib/incident-card-readiness";
 import { useAuthStore } from "../../stores/auth.store";
 
@@ -35,6 +36,9 @@ export default function OperatorPage() {
       : undefined,
   });
   const missingCardFields = getMissingIncidentCardFields(incidentCard.card);
+  const missingCardRequirements = getMissingIncidentCardRequirements(
+    incidentCard.card,
+  ).map(({ field }) => field);
   const classifierServices = getClassifierDispatchServices(
     incidentCard.card?.classifierRouting,
   );
@@ -206,6 +210,9 @@ export default function OperatorPage() {
               disabled={!isCardEditable}
               onChange={incidentCard.update}
               locationFill={incidentPoint.fill}
+              missingRequirements={
+                call.state === "active" ? missingCardRequirements : []
+              }
             />
           </main>
           <DispatchCallPanel
@@ -222,6 +229,9 @@ export default function OperatorPage() {
             callerName={callerName}
             isCardReady={isCardEditable}
             isEnding={isEnding}
+            missingRequirements={
+              call.state === "active" ? missingCardRequirements : []
+            }
           />
         </div>
       </ScrollArea>
