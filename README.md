@@ -426,10 +426,33 @@ MVP-балл: 40 баллов за первичный статус в норма
 ### Передача карточки наряду по телефону
 
 Приняв карточку, диспетчер ДДС передаёт её наряду так же, как на реальном
-рабочем месте: набирает номер наряда на SIP-телефоне и зачитывает карточку.
-Учебная IP-АТС — Asterisk в compose; рабочие места 201–204
-регистрируются на ней аппаратным телефоном вроде РТУ Т16Р или софтфоном
-(сервер — адрес хоста, порт 5060, пароль `ASTERISK_SIP_PASSWORD`, кодек G.722).
+рабочем месте: выбирает наряд на экранном телефоне, нажимает «Позвонить» и
+зачитывает карточку. Приложение открывает отдельное browser-compatible окно
+телефона, регистрирует его в Asterisk по SIP over WebSocket и после регистрации
+отправляет Click-to-call. Диспетчер принимает входящий вызов в этом окне;
+микрофон и звук разговора работают через WebRTC. Отдельный Linphone или
+аппаратный телефон для WebRTC-рабочего места не нужен.
+
+`GET /api/v1/telephony/browser-phone/config` выдаёт оператору только параметры
+закреплённого за ним рабочего места. SIP-пароль выводится как HMAC от master
+secret и номера АРМ: пароль одного окна нельзя использовать для другого, а
+`ASTERISK_ARI_PASSWORD` никогда не попадает в браузер.
+
+Кнопка вызывает `POST /api/v1/telephony/exercises/:exerciseId/crew-calls`:
+
+```json
+{
+  "eventId": "7cef0dcc-1f32-4b32-a8c0-bbf42f3123dc",
+  "dialedNumber": "1121"
+}
+```
+
+Backend проверяет владельца и статус карточки, доступность номера для её
+службы и привязку SIP-рабочего места. `eventId` делает команду идемпотентной,
+а `exerciseId` связывает разговор именно с открытой карточкой, а не с любой
+последней карточкой оператора. В ответ на принятую команду API возвращает
+`202 Accepted` и состояние `ringing`. Повтор той же команды не запускает второй
+звонок.
 
 Любой номер, набранный с рабочего места, Asterisk отдаёт приложению Stasis
 `crew-handoff`, и на том конце отвечает backend:
@@ -446,11 +469,13 @@ MVP-балл: 40 баллов за первичный статус в норма
 которого нет в справочнике, отвечает автоинформатор, и такой набор считается
 ошибкой.
 
-Звонок относится к последней карточке, которую диспетчер принял и ещё не
-передал. Кто сидит за телефоном, знает таблица рабочих мест: администратор
-рассаживает людей через `PUT /api/v1/telephony/workstations/:extension`
-(`{ "userId": "…" }`). Справочник нарядов — `GET /api/v1/telephony/crews`,
-учебные наряды заводит `bun run db:seed:crews`.
+Для экранного набора звонок относится к карточке из URL команды. Рабочие места,
+не включённые в `ASTERISK_WEBRTC_WORKSTATIONS`, сохраняют режим обычного
+SIP-телефона и могут использоваться как аппаратный fallback. Кто сидит за
+телефоном, знает таблица рабочих мест: администратор рассаживает людей через
+`PUT /api/v1/telephony/workstations/:extension` (`{ "userId": "…" }`).
+Справочник нарядов — `GET /api/v1/telephony/crews`, учебные наряды заводит
+`bun run db:seed:crews`.
 
 С `TELEPHONY_ENABLED=true` звонок становится обязательным шагом:
 
@@ -470,6 +495,20 @@ bun run db:seed:crews
 ```
 
 и в `.env` backend — `TELEPHONY_ENABLED=true` с тем же `ASTERISK_ARI_PASSWORD`.
+Для встроенного телефона добавьте:
+
+```dotenv
+ASTERISK_WORKSTATIONS=201,202,203,204
+ASTERISK_WEBRTC_WORKSTATIONS=201,202,203,204
+ASTERISK_WEBRTC_WS_URL=ws://127.0.0.1:8088/ws
+ASTERISK_WEBRTC_SIP_DOMAIN=localhost
+```
+
+`ws://localhost` предназначен только для локальной разработки. Обычный браузер
+в production должен открываться по HTTPS и подключаться к
+`wss://<доверенный-домен>/ws`; reverse proxy публикует только WebSocket, а ARI
+остаётся в закрытой сети.
+
 Разговоры нарядов живут в памяти процесса, поэтому телефонию обслуживает один
 экземпляр backend. Если телефоны стоят в сети класса, а Asterisk в Docker,
 задайте `ASTERISK_EXTERNAL_ADDRESS` — адрес хоста, который видят телефоны.
@@ -797,6 +836,10 @@ src/
 drizzle/
   schema/       # Drizzle-схемы
   migrations/   # генерируется drizzle-kit
+ops/
+  nginx/        # TLS gateway для REST и WebSocket
+  postgres-backup/ # backup, restore и restore drill PostgreSQL
+  tls/          # dev/stage helper; ключи и сертификаты исключены из Git
 ```
 
 ## Локальный запуск
@@ -813,9 +856,11 @@ bun run start:dev
 ## Запуск в Docker и выкладка на сервер
 
 Backend собирается в образ по `Dockerfile` и запускается в `docker-compose.yml`
-вместе с базой, MinIO, Prometheus и Grafana. Приложение и миграции входят в
-профиль `app`, поэтому обычный `docker compose up -d` для разработки их не
-трогает:
+вместе с базой, MinIO, Prometheus, Grafana, ежедневным backup и NGINX gateway.
+Приложение и миграции входят в профиль `app`, поэтому обычный
+`docker compose up -d` для разработки их не трогает. До первого production-
+запуска положите сертификат внутреннего CA в пути из `.env` (для dev/stage есть
+`ops/tls/generate-self-signed.sh`):
 
 ```bash
 cp .env.production.example .env
@@ -823,8 +868,11 @@ docker compose --profile app up -d --build
 ```
 
 Перед каждым запуском backend сервис `migrate` применяет миграции и выходит.
-Порядок выкладки на сервер, сид сценариев, первая учётная запись, обновление,
-резервные копии и HTTPS описаны в [`docs/deployment.md`](docs/deployment.md).
+HTTP-порт backend наружу не публикуется: desktop подключается к gateway по
+HTTPS/WSS, а NGINX проксирует оба протокола. `postgres-backup` делает проверенный
+custom-format dump при старте и затем каждые 24 часа; restore требует явного
+подтверждения имени базы. Порядок выкладки, restore drill и замена сертификатов
+описаны в [`docs/deployment.md`](docs/deployment.md).
 
 ### Метрики и Grafana
 
@@ -850,6 +898,7 @@ bun run lint
 bun run typecheck
 bun run test
 bun run build
+bun run ops:check
 ```
 
 ### Ручная проверка AI pipeline

@@ -16,6 +16,8 @@ import {
   CrewHandoffService,
   TELEPHONY_ENABLED,
 } from "./application/crew-handoff.service";
+import { BrowserPhoneProvisioningService } from "./application/browser-phone-provisioning.service";
+import { CrewClickToCallService } from "./application/crew-click-to-call.service";
 import { AriTelephonyControl } from "./infrastructure/ari-telephony.control";
 import { DrizzleTelephonyDirectory } from "./infrastructure/drizzle-telephony.directory";
 import { FileCrewPromptStore } from "./infrastructure/file-crew-prompt.store";
@@ -73,10 +75,13 @@ import { TelephonyController } from "./telephony.controller";
     {
       provide: AWAITING_HANDOFF,
       inject: [DdsExerciseService],
-      useFactory: (dds: DdsExerciseService) => (userId: string) =>
-        dds.findAwaitingHandoff(userId),
+      useFactory:
+        (dds: DdsExerciseService) => (userId: string, exerciseId?: string) =>
+          dds.findAwaitingHandoff(userId, exerciseId),
     },
     CrewHandoffService,
+    CrewClickToCallService,
+    BrowserPhoneProvisioningService,
   ],
 })
 export class TelephonyModule {}

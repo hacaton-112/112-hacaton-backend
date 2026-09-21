@@ -39,6 +39,7 @@ type StreamFactory = () => AsyncIterable<LlmStreamEvent>;
 
 class FakeLlmPort implements LlmPort {
   public readonly calls: GenerateCallerReplyRequest[] = [];
+  public replyPolicy?: LlmPort["replyPolicy"];
 
   constructor(private readonly streams: StreamFactory[]) {}
 
@@ -82,6 +83,58 @@ const createService = (llmPort: LlmPort): DialogueGenerationService =>
   );
 
 describe(DialogueGenerationService.name, () => {
+  it("accepts a literal local reply unchanged without stylistic regeneration", async () => {
+    const text = "Дети в комнате! Дверь горит! Быстрее!";
+    const llmPort = new FakeLlmPort([
+      () =>
+        replyStream(
+          JSON.stringify({ ...validReply, text, revealedFactIds: [] }),
+        ),
+    ]);
+    llmPort.replyPolicy = {
+      retryNearRepetition: false,
+      preserveLiteralText: true,
+    };
+    const result = await createService(llmPort).generate(
+      {
+        ...validRequest,
+        context: {
+          ...validRequest.context,
+          allowedFacts: [],
+          recentTurns: [
+            {
+              role: "caller",
+              text: "Хорошо, жду. Дети в комнате, дверь горит!",
+            },
+          ],
+        },
+      },
+      new AbortController().signal,
+    );
+    expect(llmPort.calls).toHaveLength(1);
+    expect(result.reply.text).toBe(text);
+    expect(result.attempts).toHaveLength(1);
+  });
+
+  it("still retries invalid JSON under the local literal policy", async () => {
+    const llmPort = new FakeLlmPort([
+      () => replyStream("not json"),
+      replyStream,
+    ]);
+    llmPort.replyPolicy = {
+      retryNearRepetition: false,
+      preserveLiteralText: true,
+    };
+    const result = await createService(llmPort).generate(
+      validRequest,
+      new AbortController().signal,
+    );
+    expect(llmPort.calls).toHaveLength(2);
+    expect(result.source).toBe("model");
+    expect(result.attempts[0]?.outcome).toBe("invalid-response");
+    expect(llmPort.calls[1]?.retryFeedback).toBeUndefined();
+  });
+
   it.each([
     "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
     "Один раз поправь только формулировку своей мысли, не меняя и не добавляя факты.",

@@ -38,7 +38,7 @@ import {
 export const DDS_CREW_HANDOFF_REQUIRED = Symbol("DDS_CREW_HANDOFF_REQUIRED");
 
 /** Первый принятый нарядом звонок в нужную службу и ошибки набора до него. */
-const handoffFacts = (handoff: StoredCrewHandoff) => {
+export const handoffFacts = (handoff: StoredCrewHandoff) => {
   const index = handoff.calls.findIndex(
     (call) => call.outcome === "completed" && call.correct === true,
   );
@@ -61,8 +61,8 @@ export class DdsExerciseService {
   ) {}
 
   /** Доставка, к которой относится звонок диспетчера наряду. */
-  findAwaitingHandoff(operatorId: string) {
-    return this.store.findAwaitingHandoff(operatorId);
+  findAwaitingHandoff(operatorId: string, exerciseId?: string) {
+    return this.store.findAwaitingHandoff(operatorId, exerciseId);
   }
 
   async start(
@@ -121,6 +121,22 @@ export class DdsExerciseService {
     return this.presentOne(await this.requireOwn(exerciseId, operatorId));
   }
 
+  /**
+   * Пакетная выдача для кабинета преподавателя.
+   *
+   * Доступ к попыткам проверяет вызывающий: здесь нет условия смены оператора,
+   * зато и запрос на каждую карточку не уходит.
+   */
+  async presentByIds(
+    exerciseIds: readonly string[],
+  ): Promise<Map<string, DdsExercise>> {
+    const presented = await this.presentAll(
+      await this.store.listByIds(exerciseIds),
+    );
+
+    return new Map(presented.map((exercise) => [exercise.id, exercise]));
+  }
+
   async transition(
     exerciseId: string,
     operatorId: string,
@@ -135,6 +151,12 @@ export class DdsExerciseService {
     if (repeated) return this.presentOne(repeated);
 
     const exercise = await this.requireOwn(exerciseId, operatorId);
+    if (exercise.completedAt !== null) {
+      throw new AppConflictException(
+        ErrorCodes.DDS_STATUS_TRANSITION_INVALID,
+        "This DDS attempt is closed",
+      );
+    }
     let comment: string | null;
 
     try {
@@ -184,6 +206,7 @@ export class DdsExerciseService {
       status: request.status,
       acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
       acknowledgedAt,
+      passThreshold: exercise.passThreshold,
       ...(handoff ? { handoff: handoffFacts(handoff) } : {}),
     });
     const outcome = await this.store.appendTransition({
@@ -267,7 +290,9 @@ export class DdsExerciseService {
       sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
-      allowedTransitions: [...allowedDdsTransitions(exercise.status)],
+      allowedTransitions: exercise.completedAt
+        ? []
+        : [...allowedDdsTransitions(exercise.status)],
       card: exercise.card,
       acknowledgementDeadlineAt:
         exercise.acknowledgementDeadlineAt.toISOString(),
@@ -280,6 +305,7 @@ export class DdsExerciseService {
         status: exercise.status,
         acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
         acknowledgedAt: exercise.acknowledgedAt,
+        passThreshold: exercise.passThreshold,
         ...(facts ? { handoff: facts } : {}),
       }),
       crewHandoff:

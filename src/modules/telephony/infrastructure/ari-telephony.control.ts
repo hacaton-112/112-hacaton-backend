@@ -66,6 +66,27 @@ export class AriTelephonyControl implements TelephonyControlPort {
     return () => this.listeners.delete(listener);
   }
 
+  async originate(input: {
+    readonly endpoint: string;
+    readonly appArgs: readonly string[];
+    readonly callerId: string;
+    readonly channelId: string;
+    readonly timeoutSeconds: number;
+  }): Promise<void> {
+    const query = new URLSearchParams({
+      endpoint: input.endpoint,
+      app: this.config.app,
+      appArgs: input.appArgs.join(","),
+      callerId: input.callerId,
+      channelId: input.channelId,
+      timeout: String(input.timeoutSeconds),
+    });
+    // Повтор одной команды использует тот же channelId. Для ARI конфликт
+    // означает, что этот канал уже создаётся или существует — это успех
+    // идемпотентного click-to-call, а не повод звонить ещё раз.
+    await this.request("POST", `/channels?${query}`, [409]);
+  }
+
   async answer(channelId: string): Promise<void> {
     await this.request(
       "POST",
@@ -210,6 +231,8 @@ export function translateAriEvent(event: AriEvent): TelephonyEvent | null {
             callerNumber: event.channel?.caller?.number ?? "",
             dialedNumber:
               event.args?.[0] ?? event.channel?.dialplan?.exten ?? "",
+            ...(event.args?.[1] ? { exerciseId: event.args[1] } : {}),
+            ...(event.args?.[2] ? { requestEventId: event.args[2] } : {}),
           }
         : null;
     case "StasisEnd":

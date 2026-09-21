@@ -6,6 +6,7 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   type CrewCallOutcome,
   type DispatchService,
+  ddsCrewCallCommands,
   ddsCrewCalls,
   rescueCrews,
   telephonyWorkstations,
@@ -24,6 +25,16 @@ export interface TelephonyWorkstation {
   readonly extension: string;
   readonly userId: string;
   readonly fullName: string;
+}
+
+export interface CrewCallCommandRecord {
+  readonly eventId: string;
+  readonly exerciseId: string;
+  readonly operatorId: string;
+  readonly callerExtension: string;
+  readonly dialedNumber: string;
+  readonly channelId: string;
+  readonly startedAt: Date | null;
 }
 
 /**
@@ -69,6 +80,16 @@ export class DrizzleTelephonyDirectory {
     return workstation?.userId ?? null;
   }
 
+  async findWorkstationExtension(userId: string): Promise<string | null> {
+    const [workstation] = await this.db
+      .select({ extension: telephonyWorkstations.extension })
+      .from(telephonyWorkstations)
+      .where(eq(telephonyWorkstations.userId, userId))
+      .limit(1);
+
+    return workstation?.extension ?? null;
+  }
+
   listWorkstations(): Promise<TelephonyWorkstation[]> {
     return this.db
       .select({
@@ -106,6 +127,39 @@ export class DrizzleTelephonyDirectory {
     await this.db
       .delete(telephonyWorkstations)
       .where(eq(telephonyWorkstations.extension, extension));
+  }
+
+  async reserveCrewCallCommand(input: {
+    readonly eventId: string;
+    readonly exerciseId: string;
+    readonly operatorId: string;
+    readonly callerExtension: string;
+    readonly dialedNumber: string;
+    readonly channelId: string;
+  }): Promise<CrewCallCommandRecord> {
+    const [created] = await this.db
+      .insert(ddsCrewCallCommands)
+      .values(input)
+      .onConflictDoNothing({ target: ddsCrewCallCommands.eventId })
+      .returning();
+    if (created) return created;
+
+    const [existing] = await this.db
+      .select()
+      .from(ddsCrewCallCommands)
+      .where(eq(ddsCrewCallCommands.eventId, input.eventId))
+      .limit(1);
+    // Конфликт уже обработан БД, поэтому отсутствие строки возможно только при
+    // внешнем удалении между INSERT и SELECT. Повтор INSERT восстановит её.
+    if (!existing) return this.reserveCrewCallCommand(input);
+    return existing;
+  }
+
+  async markCrewCallCommandStarted(eventId: string, startedAt: Date) {
+    await this.db
+      .update(ddsCrewCallCommands)
+      .set({ startedAt })
+      .where(eq(ddsCrewCallCommands.eventId, eventId));
   }
 
   async startCall(call: {

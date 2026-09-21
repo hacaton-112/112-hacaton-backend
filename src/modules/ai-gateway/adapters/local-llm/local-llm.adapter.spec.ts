@@ -38,6 +38,17 @@ describe(LocalLlmAdapter.name, () => {
   it("keeps the legacy reply protocol by default", () => {
     expect(config.replyProtocol).toBe("legacy");
   });
+  it.each([true, false])(
+    "exposes local style policy with literal mode %s",
+    (literalFactReplies) => {
+      expect(
+        new LocalLlmAdapter({ ...config, literalFactReplies }).replyPolicy,
+      ).toEqual({
+        retryNearRepetition: false,
+        preserveLiteralText: literalFactReplies,
+      });
+    },
+  );
   it.each([400, 408, 429])(
     "marks HTTP %s non-retryable to prevent duplicate inference",
     async (status) => {

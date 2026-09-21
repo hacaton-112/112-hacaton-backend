@@ -63,7 +63,10 @@ export interface CrewPromptSource {
 }
 
 /** Доставка ДДС, которую диспетчер принял и ещё не передал наряду. */
-export type AwaitingHandoff = (userId: string) => Promise<{
+export type AwaitingHandoff = (
+  userId: string,
+  exerciseId?: string,
+) => Promise<{
   readonly id: string;
   readonly addressedService: DispatchService;
 } | null>;
@@ -175,7 +178,9 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
           this.directory.findCrewByNumber(event.dialedNumber),
           this.directory.findWorkstationUser(event.callerNumber),
         ]);
-        const awaiting = userId ? await this.awaitingHandoff(userId) : null;
+        const awaiting = userId
+          ? await this.awaitingHandoff(userId, event.exerciseId)
+          : null;
         call.crew = crew;
 
         await this.directory.startCall({

@@ -85,6 +85,7 @@ interface StoreMocks {
   findOwnByTransitionEvent: jest.Mock;
   create: jest.Mock;
   listByOperator: jest.Mock;
+  listByIds: jest.Mock;
   loadOwn: jest.Mock;
   appendTransition: jest.Mock;
   findAwaitingHandoff: jest.Mock;
@@ -110,6 +111,7 @@ const createService = (
       }),
     ),
     listByOperator: jest.fn().mockResolvedValue([]),
+    listByIds: jest.fn().mockResolvedValue([]),
     loadOwn: jest.fn().mockResolvedValue(stored()),
     appendTransition: jest.fn().mockImplementation(async (input) => ({
       kind: "updated",
@@ -456,6 +458,78 @@ describe(DdsExerciseService.name, () => {
 
       expect(exercise!.crewHandoff).toBeNull();
       expect(store.loadCrewHandoffs).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("attempts assigned by an instructor", () => {
+    const closed = () =>
+      stored({
+        status: "accepted",
+        trainingAttemptId: "attempt-1",
+        completedAt: new Date("2026-09-15T12:05:00.000Z"),
+      });
+
+    it("refuses a transition after the instructor closed the attempt", async () => {
+      const { service } = createService({
+        loadOwn: jest.fn().mockResolvedValue(closed()),
+      });
+
+      expect(
+        await codeOf(() =>
+          service.transition(EXERCISE_ID, "operator-1", {
+            eventId: TRANSITION_EVENT_ID,
+            status: "responding",
+          }),
+        ),
+      ).toBe(ErrorCodes.DDS_STATUS_TRANSITION_INVALID);
+    });
+
+    it("offers no transitions on a closed attempt", async () => {
+      const { service } = createService({
+        loadOwn: jest.fn().mockResolvedValue(closed()),
+      });
+
+      expect(
+        (await service.get(EXERCISE_ID, "operator-1")).allowedTransitions,
+      ).toEqual([]);
+    });
+
+    it("reads the instructor cabinet in one batch", async () => {
+      const { service, store } = createService({
+        listByIds: jest.fn().mockResolvedValue([stored()]),
+      });
+
+      const presented = await service.presentByIds([EXERCISE_ID]);
+
+      expect(store.listByIds).toHaveBeenCalledWith([EXERCISE_ID]);
+      expect(presented.get(EXERCISE_ID)?.id).toBe(EXERCISE_ID);
+    });
+
+    it("shows crew handoff for an assigned card attempt", async () => {
+      const assigned = stored({ trainingAttemptId: "attempt-1" });
+      const assignedCrews = [
+        { callsign: "ПСЧ-12", phoneNumber: "1012" },
+      ];
+      const { service, store } = createService(
+        {
+          listByIds: jest.fn().mockResolvedValue([assigned]),
+          loadCrewHandoffs: jest.fn().mockResolvedValue(
+            new Map([
+              [EXERCISE_ID, { crews: assignedCrews, calls: [] }],
+            ]),
+          ),
+        },
+        true,
+      );
+
+      const presented = await service.presentByIds([EXERCISE_ID]);
+
+      expect(presented.get(EXERCISE_ID)?.crewHandoff).toEqual({
+        notified: false,
+        crews: assignedCrews,
+        calls: [],
+      });
+      expect(store.loadCrewHandoffs).toHaveBeenCalledWith([assigned]);
     });
   });
 });

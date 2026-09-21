@@ -22,6 +22,7 @@ import { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
 import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
+import { canUsePreparedReply } from "../domain/prepared-reply";
 
 import {
   VoicePipelineError,
@@ -143,14 +144,35 @@ export class VoicePipelineService {
         generationResult = resolved.result;
         bufferedStream = resolved.stream;
       } else {
-        // In the ordinary profile prepared wording is only a fallback. Let the
-        // model phrase every conversational turn, then reuse prepared audio if
-        // its accepted text happens to match. Offline mode above keeps the
-        // deterministic prepared-first path.
-        generationResult = await this.dialogueGeneration.generate(
-          request.generation,
-          signal,
-        );
+        const fallback = request.generation.fallbackReply;
+        // Заготовка движка в caller-v2 подменила бы ответ дообученного
+        // заявителя, ради которого этот режим и включают.
+        if (
+          request.generation.replyProtocol !== "caller-v2" &&
+          fallback &&
+          canUsePreparedReply(request)
+        ) {
+          const candidate: DialogueGenerationResult = {
+            reply: fallback,
+            source: "prepared",
+            attempts: [],
+          };
+          const candidateLookupAt = performance.now();
+          prepared =
+            (await this.preparedAudio?.lookup(
+              request.generation.scenarioVersionId,
+              this.createSynthesisRequest(request, candidate),
+              signal,
+            )) ?? null;
+          preparedLookupMs += performance.now() - candidateLookupAt;
+          // Missing audio requires synthesis, not a new version of approved text.
+          generationResult = candidate;
+        } else {
+          generationResult = await this.dialogueGeneration.generate(
+            request.generation,
+            signal,
+          );
+        }
         generationResult =
           DialogueGenerationResultSchema.parse(generationResult);
         assertCallerReplyContent(
@@ -159,7 +181,11 @@ export class VoicePipelineService {
         );
         // A model/fallback may return an already approved phrase too. Reuse its
         // audio without erasing the real generation attempts from the metrics.
-        if (!prepared && this.preparedAudio) {
+        if (
+          !prepared &&
+          this.preparedAudio &&
+          generationResult.source !== "prepared"
+        ) {
           const replyLookupAt = performance.now();
           prepared = await this.preparedAudio.lookup(
             request.generation.scenarioVersionId,

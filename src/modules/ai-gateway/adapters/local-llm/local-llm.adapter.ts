@@ -155,10 +155,15 @@ class LocalLlmHttpError extends Error {
 export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   private readonly logger = new Logger(LocalLlmAdapter.name);
   private readonly queue: InferenceQueue;
+  readonly replyPolicy: NonNullable<LlmPort["replyPolicy"]>;
   constructor(
     private readonly config: LocalLlmConfig,
     private readonly fetchImplementation: typeof fetch = fetch,
   ) {
+    this.replyPolicy = {
+      retryNearRepetition: false,
+      preserveLiteralText: config.literalFactReplies,
+    };
     this.queue = new InferenceQueue(
       config.concurrency,
       config.queueSize,

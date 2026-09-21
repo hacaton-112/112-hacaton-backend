@@ -3,6 +3,9 @@ dist/
 coverage/
 logs/
 var/tts-reference/
+var/backups/
+ops/tls/certs/*
+!ops/tls/certs/.gitkeep
 
 .env
 .env.*

@@ -47,3 +47,43 @@ export class TelephonyWorkstationListDto extends createZodDto(
 export class BindWorkstationRequestDto extends createZodDto(
   BindWorkstationRequestSchema,
 ) {}
+
+export const StartCrewCallRequestSchema = z
+  .object({
+    eventId: z.uuid(),
+    dialedNumber: ExtensionSchema,
+  })
+  .strict();
+
+export const CrewCallCommandSchema = z
+  .object({
+    eventId: z.uuid(),
+    exerciseId: z.uuid(),
+    dialedNumber: ExtensionSchema,
+    workstationExtension: ExtensionSchema,
+    state: z.literal("ringing"),
+  })
+  .strict();
+
+export const BrowserPhoneConfigSchema = z
+  .object({
+    extension: ExtensionSchema,
+    aor: z.string().startsWith("sip:"),
+    websocketUrl: z
+      .url()
+      .refine((value) => ["ws:", "wss:"].includes(new URL(value).protocol)),
+    authorizationUsername: ExtensionSchema,
+    authorizationPassword: z.string().min(32),
+    displayName: z.string().min(1),
+  })
+  .strict();
+
+export class StartCrewCallRequestDto extends createZodDto(
+  StartCrewCallRequestSchema,
+) {}
+export class CrewCallCommandDto extends createZodDto(CrewCallCommandSchema) {}
+export class BrowserPhoneConfigDto extends createZodDto(
+  BrowserPhoneConfigSchema,
+) {}
+export type CrewCallCommand = z.infer<typeof CrewCallCommandSchema>;
+export type BrowserPhoneConfig = z.infer<typeof BrowserPhoneConfigSchema>;

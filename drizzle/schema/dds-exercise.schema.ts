@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -60,6 +61,7 @@ export const ddsExercises = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     lastSequence: integer("last_sequence").notNull().default(1),
     score: smallint("score"),
+    passThreshold: smallint("pass_threshold").notNull().default(75),
     passed: boolean("passed"),
     /** Makes a retried start command return the exercise it already created. */
     startEventId: text("start_event_id").notNull(),
@@ -121,6 +123,20 @@ export const ddsExerciseEvents = pgTable(
 );
 
 export type DdsExerciseRecord = typeof ddsExercises.$inferSelect;
+
+/** Append-only instructor assessments; they never overwrite the automatic score. */
+export const ddsExerciseReviews = pgTable("dds_exercise_reviews", {
+  id: text("id").primaryKey(),
+  exerciseId: text("exercise_id").notNull().references(() => ddsExercises.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull(),
+  instructorId: text("instructor_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  score: smallint("score").notNull(),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("dds_reviews_exercise_event_idx").on(table.exerciseId, table.eventId),
+  check("dds_exercise_reviews_score_check", sql`${table.score} between 0 and 100`),
+]);
 export type NewDdsExerciseRecord = typeof ddsExercises.$inferInsert;
 export type DdsExerciseEventRecord = typeof ddsExerciseEvents.$inferSelect;
 export type NewDdsExerciseEventRecord = typeof ddsExerciseEvents.$inferInsert;

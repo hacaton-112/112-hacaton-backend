@@ -48,6 +48,7 @@ export interface StoredDdsExercise {
   readonly lastSequence: number;
   readonly score: number | null;
   readonly passed: boolean | null;
+  readonly passThreshold?: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly events: readonly DdsExerciseEvent[];
@@ -107,6 +108,11 @@ export interface DdsExerciseStore {
 
   listByOperator(operatorId: string): Promise<readonly StoredDdsExercise[]>;
 
+  /** Кабинет преподавателя открывает десятки попыток сразу, поэтому без запроса на каждую. */
+  listByIds(
+    exerciseIds: readonly string[],
+  ): Promise<readonly StoredDdsExercise[]>;
+
   loadOwn(
     exerciseId: string,
     operatorId: string,
@@ -123,6 +129,7 @@ export interface DdsExerciseStore {
    */
   findAwaitingHandoff(
     operatorId: string,
+    exerciseId?: string,
   ): Promise<{
     readonly id: string;
     readonly addressedService: DispatchService;

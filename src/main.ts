@@ -18,7 +18,7 @@ const GLOBAL_API_PREFIX = "api";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("Bootstrap");
-  const adapter = createFastifyAdapter();
+  const adapter = createFastifyAdapter(env.TRUST_PROXY_HOPS);
   const app = await NestFactory.create<FastifyNestApplication>(
     CoreModule,
     adapter,
@@ -54,6 +54,13 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    // Адаптер Fastify по умолчанию разрешает браузеру только GET, HEAD и POST,
+    // поэтому правка учётной записи, посадка за SIP-телефон и любое удаление
+    // отваливались в браузере ещё до запроса, на preflight.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    // Рабочее место опрашивает очередь постоянно, а каждый запрос с токеном
+    // тянет за собой preflight: без кеша их ровно столько же, сколько GET.
+    maxAge: 600,
   });
 
   app.enableShutdownHooks();

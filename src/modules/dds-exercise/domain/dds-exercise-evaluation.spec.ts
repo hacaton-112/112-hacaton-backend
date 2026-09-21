@@ -129,5 +129,21 @@ describe(evaluateDdsExercise.name, () => {
         violations: ["crew_handoff_missing"],
       });
     });
+
+    it("honours the threshold of the assignment that opened the card", () => {
+      const input = {
+        status: "completed",
+        acknowledgementDeadlineAt: deadline,
+        acknowledgedAt,
+        handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
+      } as const;
+
+      expect(evaluateDdsExercise({ ...input, passThreshold: 60 })).toMatchObject(
+        { score: 70, passed: true },
+      );
+      expect(evaluateDdsExercise({ ...input, passThreshold: 90 })).toMatchObject(
+        { score: 70, passed: false },
+      );
+    });
   });
 });

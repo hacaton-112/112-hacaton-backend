@@ -26,6 +26,19 @@ describe("translateAriEvent", () => {
     });
   });
 
+  it("reads the explicit exercise of a click-to-call channel", () => {
+    expect(
+      translateAriEvent({
+        type: "StasisStart",
+        args: ["1012", "exercise-1", "event-1"],
+        channel: { id: "c-1", caller: { number: "201" } },
+      }),
+    ).toMatchObject({
+      exerciseId: "exercise-1",
+      requestEventId: "event-1",
+    });
+  });
+
   it("finds the channel of a finished playback in its target", () => {
     expect(
       translateAriEvent({
@@ -57,6 +70,27 @@ describe("translateAriEvent", () => {
 });
 
 describe(AriTelephonyControl.name, () => {
+  it("originates an idempotent call to the operator's SIP endpoint", async () => {
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const control = new AriTelephonyControl(config, fetcher);
+
+    await control.originate({
+      endpoint: "PJSIP/201",
+      appArgs: ["1012", "exercise-1", "event-1"],
+      callerId: "201",
+      channelId: "event-1",
+      timeoutSeconds: 30,
+    });
+
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe(
+      "http://asterisk:8088/ari/channels?endpoint=PJSIP%2F201&app=crew-handoff&appArgs=1012%2Cexercise-1%2Cevent-1&callerId=201&channelId=event-1&timeout=30",
+    );
+    expect(init?.method).toBe("POST");
+  });
+
   it("returns the id of a playback it started", async () => {
     const fetcher = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()

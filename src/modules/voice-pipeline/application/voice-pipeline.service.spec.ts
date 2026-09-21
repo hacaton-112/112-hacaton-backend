@@ -253,7 +253,7 @@ describe(VoicePipelineService.name, () => {
       expect(events.at(-1)?.type).toBe("voice.completed");
     },
   );
-  it("lets the model phrase an engine reaction when prepared audio is missing", async () => {
+  it("lets caller-v2 phrase an engine reaction instead of the prepared wording", async () => {
     const natural = {
       ...fallbackResult.reply,
       text: "Подождите... я не успеваю понять, скажите покороче!",
@@ -279,6 +279,7 @@ describe(VoicePipelineService.name, () => {
       ...request,
       generation: {
         ...request.generation,
+        replyProtocol: "caller-v2",
         fallbackReply: fallback,
         context: {
           ...request.generation.context,
@@ -382,7 +383,7 @@ describe(VoicePipelineService.name, () => {
   });
 
   it.each([true, false, undefined])(
-    "generates natural wording before reusing matching audio with parser hint %s",
+    "lets caller-v2 phrase the turn before reusing matching audio with parser hint %s",
     async (preferPreparedReply) => {
       const dialogue = createDialogueMock();
       const speech = createSpeechMock();
@@ -401,7 +402,11 @@ describe(VoicePipelineService.name, () => {
       const events = await collect(service, {
         ...request,
         preferPreparedReply,
-        generation: { ...request.generation, fallbackReply: modelResult.reply },
+        generation: {
+          ...request.generation,
+          replyProtocol: "caller-v2",
+          fallbackReply: modelResult.reply,
+        },
       });
       expect(dialogue.generate).toHaveBeenCalledTimes(1);
       expect(speech.synthesize).not.toHaveBeenCalled();
@@ -442,18 +447,38 @@ describe(VoicePipelineService.name, () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it("falls back to the existing live path when prepared audio is missing", async () => {
+  it("synthesizes approved text without generation or duplicate lookup when audio is missing", async () => {
     const dialogue = createDialogueMock();
     const speech = createSpeechMock();
+    const lookup = jest.fn().mockResolvedValue(null);
     const service = new VoicePipelineService(dialogue.service, speech.service, {
-      lookup: jest.fn().mockResolvedValue(null),
+      lookup,
     } as unknown as ScenarioAudioService);
-    await collect(service, {
+    const events = await collect(service, {
       ...request,
       preferPreparedReply: true,
       generation: { ...request.generation, fallbackReply: modelResult.reply },
     });
-    expect(dialogue.generate).toHaveBeenCalledTimes(1);
+    expect(dialogue.generate).not.toHaveBeenCalled();
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(speech.synthesize).toHaveBeenCalledTimes(1);
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: modelResult.reply.text }),
+      expect.any(AbortSignal),
+    );
+    expect(events[0]).toMatchObject({
+      result: { source: "prepared", attempts: [], reply: modelResult.reply },
+    });
+  });
+
+  it("synthesizes approved text even without an audio catalog", async () => {
+    const dialogue = createDialogueMock();
+    const speech = createSpeechMock();
+    await collect(new VoicePipelineService(dialogue.service, speech.service), {
+      ...request,
+      generation: { ...request.generation, fallbackReply: modelResult.reply },
+    });
+    expect(dialogue.generate).not.toHaveBeenCalled();
     expect(speech.synthesize).toHaveBeenCalledTimes(1);
   });
 
