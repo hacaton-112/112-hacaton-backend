@@ -1,5 +1,6 @@
 import { Text } from "@bolid-ui/themes";
-import { ChevronDown, Inbox, Link2, TimerReset } from "lucide-react";
+import { Fragment } from "react";
+import { ChevronDown, ClipboardList, Inbox, Link2, TimerReset } from "lucide-react";
 
 import type { DdsExercise } from "../../contracts/dds-exercise";
 import { DDS_SERVICE_LABELS, DDS_STATUS_LABELS } from "./dds-formatters";
@@ -33,6 +34,7 @@ export function DdsExerciseList({
         <span>Тип происшествия</span>
         <span>Постр. Адрес</span>
         <span>Статус службы</span>
+        <span />
       </div>
       {exercises.map((exercise) => {
         const terminal =
@@ -40,8 +42,8 @@ export function DdsExerciseList({
         const createdAt = new Date(exercise.createdAt);
 
         return (
+          <Fragment key={exercise.id}>
           <button
-            key={exercise.id}
             type="button"
             className="arm-dds-table-row"
             data-selected={selectedId === exercise.id || undefined}
@@ -75,7 +77,21 @@ export function DdsExerciseList({
             <span className="arm-dds-status-cell">
               {DDS_STATUS_LABELS[exercise.status]}
             </span>
+            <span className="arm-dds-row-open" aria-hidden="true">
+              <ClipboardList size={15} />
+            </span>
           </button>
+          {selectedId === exercise.id && (
+            <div className="arm-dds-row-description">
+              <span>Описание:</span>
+              <em>
+                {createdAt.toLocaleString("ru-RU")}{" "}
+                {DDS_SERVICE_LABELS[exercise.addressedService]}
+              </em>
+              <strong>{exercise.card.description}</strong>
+            </div>
+          )}
+          </Fragment>
         );
       })}
     </div>

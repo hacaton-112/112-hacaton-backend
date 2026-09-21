@@ -1,5 +1,6 @@
 import { Badge, Card, Flex, Heading, Text } from "@bolid-ui/themes";
 import { ClipboardCheck, Trophy } from "lucide-react";
+import { useState } from "react";
 
 import type {
   DdsExercise,
@@ -26,6 +27,11 @@ export function DdsCardPanel({
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
   readOnly?: boolean;
 }) {
+  // Журнал раскрыт сразу, а смена статуса ждёт карандаша на плитке: в АРМ
+  // диспетчер сначала видит историю службы и только потом правит статус.
+  const [journalOpen, setJournalOpen] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
+
   if (!exercise) {
     return (
       <Card
@@ -45,7 +51,13 @@ export function DdsCardPanel({
 
   return (
     <div className="arm-dds-card-panel grid content-start gap-2">
-      <DdsCardArmHeader exercise={exercise} />
+      <DdsCardArmHeader
+        exercise={exercise}
+        journalOpen={journalOpen}
+        onToggleJournal={() => setJournalOpen((open) => !open)}
+        canEdit={!readOnly}
+        onEdit={() => setEditorOpen(true)}
+      />
 
       <Card size="3" variant="classic" className="arm-dds-card grid gap-3">
         <Flex align="center" justify="between" gap="3" wrap="wrap">
@@ -64,7 +76,7 @@ export function DdsCardPanel({
           />
         )}
 
-        {!readOnly && (
+        {!readOnly && editorOpen && (
           <DdsStatusActions
             key={`${exercise.id}:${exercise.status}`}
             exercise={exercise}
@@ -114,7 +126,8 @@ export function DdsCardPanel({
         </Card>
       )}
 
-      {/* Журнал статусов службы: в реальном АРМ он открывается синей панелью. */}
+      {/* Журнал статусов службы: в реальном АРМ он раскрывается с плитки. */}
+      {journalOpen && (
       <div className="arm-card-journal-panel">
         <div className="arm-card-journal-head">
           <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
@@ -135,6 +148,7 @@ export function DdsCardPanel({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

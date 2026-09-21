@@ -3,10 +3,9 @@ import {
   Flex,
   ScrollArea,
   Spinner,
-  Text,
   TextField,
 } from "@bolid-ui/themes";
-import { AlertTriangle, Clock3, RadioTower, Search } from "lucide-react";
+import { AlertTriangle, ChevronUp, Clock3, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuthStore } from "../../stores/auth.store";
@@ -40,10 +39,15 @@ function DdsLearnerPage() {
   >(requestedExerciseId);
 
   // Ссылка из списка назначений может смениться, пока рабочее место открыто:
-  // диспетчер начал вторую попытку и должен увидеть новую карточку.
-  useEffect(() => {
+  // диспетчер начал вторую попытку и должен увидеть новую карточку. Правка
+  // состояния во время отрисовки — штатный приём React для такой синхронизации,
+  // эффект здесь дал бы лишний проход отрисовки.
+  const [appliedExerciseId, setAppliedExerciseId] = useState(requestedExerciseId);
+
+  if (requestedExerciseId !== appliedExerciseId) {
+    setAppliedExerciseId(requestedExerciseId);
     if (requestedExerciseId) setSelectedExerciseId(requestedExerciseId);
-  }, [requestedExerciseId]);
+  }
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ru-RU");
@@ -83,13 +87,20 @@ function DdsLearnerPage() {
       <main className="arm-dds-page min-h-full w-full">
         <header className="arm-dds-search-header">
           <div>
-            <Flex align="center" gap="2">
-              <RadioTower size={22} />
+            <Flex align="center" justify="between" gap="2">
               <h1>Поиск происшествий</h1>
+              <Search className="arm-dds-search-glass" size={26} />
             </Flex>
-            <Text as="p" size="1">
-              Рабочее место дежурно-диспетчерской службы
-            </Text>
+            <div className="arm-dds-search-filters">
+              <span>расширенный по параметрам</span>
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                disabled={query === ""}
+              >
+                сбросить
+              </button>
+            </div>
           </div>
           <DdsClock />
         </header>
@@ -131,7 +142,9 @@ function DdsLearnerPage() {
 
         <section className="arm-dds-queue" aria-labelledby="dds-queue-title">
           <div className="arm-dds-section-title">
-            <strong id="dds-queue-title">Список происшествий</strong>
+            <strong id="dds-queue-title">
+              Список происшествий <ChevronUp size={15} />
+            </strong>
             <span>
               {dds.exercises.isFetching && <Spinner size="1" />}{" "}
               {filtered.length}
@@ -144,6 +157,15 @@ function DdsLearnerPage() {
             selectedId={selectedExercise?.id}
             onSelect={setSelectedExerciseId}
           />
+          {filtered.length > 0 && (
+            <div className="arm-dds-pagination">
+              <span>Страница: 1</span>
+              <span>Записей на странице: {filtered.length}</span>
+              <strong>
+                1-{filtered.length} из {list.length}
+              </strong>
+            </div>
+          )}
         </section>
 
         <section className="arm-dds-detail" aria-label="Карточка происшествия">
