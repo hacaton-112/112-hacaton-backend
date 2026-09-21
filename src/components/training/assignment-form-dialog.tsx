@@ -69,6 +69,9 @@ function AssignmentForm({
   onUpdate,
 }: AssignmentFormDialogProps) {
   const isEdit = assignment !== undefined;
+  const [mode, setMode] = useState<"voice_call" | "card_action">(
+    assignment?.type === "card_action" ? "card_action" : "voice_call",
+  );
   const [title, setTitle] = useState(assignment?.title ?? "");
   const [scenarioVersionId, setScenarioVersionId] = useState(
     assignment?.scenarioVersionId ?? "",
@@ -130,7 +133,7 @@ function AssignmentForm({
     onCreate({
       ...settings,
       scenarioVersionId,
-      type: "voice_call",
+      type: mode,
       ...(target.kind === "group"
         ? { groupId: target.group.id }
         : { targetUserId: target.student.id }),
@@ -149,6 +152,20 @@ function AssignmentForm({
       </Dialog.Description>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <TrainingField label="Режим занятия" className="sm:col-span-2">
+          <Select.Root value={mode} disabled={isEdit} onValueChange={(value) => {
+            const next = value === "card_action" ? "card_action" : "voice_call";
+            setMode(next);
+            setAnswerNormSeconds(next === "card_action" ? "30" : "240");
+            if (next === "card_action") setCardSource("generated");
+          }}>
+            <Select.Trigger aria-label="Режим занятия" />
+            <Select.Content>
+              <Select.Item value="voice_call">Оператор 112 — голосовой звонок</Select.Item>
+              <Select.Item value="card_action">Диспетчер ДДС — действия с карточкой</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </TrainingField>
         <TrainingField label="Название занятия" className="sm:col-span-2">
           <TextField.Root
             required
@@ -208,7 +225,7 @@ function AssignmentForm({
           >
             <Select.Trigger />
             <Select.Content>
-              {CardSourceSchema.options.map((source) => (
+              {CardSourceSchema.options.filter((source) => mode !== "card_action" || source === "generated" || source === "ticket").map((source) => (
                 <Select.Item key={source} value={source}>
                   {CARD_SOURCE_LABELS[source]}
                 </Select.Item>
