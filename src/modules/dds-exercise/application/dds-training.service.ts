@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { AppBadRequestException, AppConflictException, AppNotFoundException } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
@@ -12,9 +12,18 @@ import {
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import { attemptBlocker, isAssignedToOperator, type TrainingActor } from "@/modules/training/training.service";
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
-import { DDS_EXERCISE_STORE, type DdsExerciseStore } from "../ports/dds-exercise.store.port";
-import type { DdsTrainingAttempt, ReviewDdsDto } from "../dto/dds-training.dto";
-import { DdsExerciseService } from "./dds-exercise.service";
+import {
+  DDS_EXERCISE_STORE,
+  type DdsExerciseStore,
+  type StoredCrewHandoff,
+} from "../ports/dds-exercise.store.port";
+import { ddsLiveFindings } from "../domain/dds-live-findings";
+import type { DdsLiveAttempt, DdsTrainingAttempt, ReviewDdsDto } from "../dto/dds-training.dto";
+import {
+  DDS_CREW_HANDOFF_REQUIRED,
+  DdsExerciseService,
+  handoffFacts,
+} from "./dds-exercise.service";
 
 type Database = DrizzleService["db"];
 
@@ -26,7 +35,71 @@ export class DdsTrainingService {
     @Inject(DDS_EXERCISE_STORE) private readonly store: DdsExerciseStore,
     private readonly exercises: DdsExerciseService,
     private readonly audit: AuditLogService,
+    @Inject(DDS_CREW_HANDOFF_REQUIRED)
+    private readonly handoffRequired: boolean,
   ) {}
+
+  /**
+   * Идущие карточные попытки для мониторинга.
+   *
+   * Преподаватель сидит на одном месте, поэтому ему нужны не результаты, а
+   * текущее состояние: сколько осталось от норматива и что уже пошло не так.
+   * Наблюдения не являются оценкой: её считает завершение попытки.
+   */
+  async live(actor: TrainingActor): Promise<DdsLiveAttempt[]> {
+    const rows = await this.db.select({
+      id: ddsExercises.id, assignmentId: trainingAssignments.id,
+      assignmentTitle: trainingAssignments.title,
+      operatorId: trainingAttempts.operatorId, operatorName: users.fullName,
+      attemptNumber: trainingAttempts.attemptNumber, startedAt: trainingAttempts.startedAt,
+      status: ddsExercises.status, addressedService: ddsExercises.addressedService,
+      card: ddsExercises.card,
+      acknowledgementDeadlineAt: ddsExercises.acknowledgementDeadlineAt,
+      acknowledgedAt: ddsExercises.acknowledgedAt,
+    }).from(ddsExercises)
+      .innerJoin(trainingAttempts, eq(trainingAttempts.id, ddsExercises.trainingAttemptId))
+      .innerJoin(trainingAssignments, eq(trainingAssignments.id, trainingAttempts.assignmentId))
+      .innerJoin(users, eq(users.id, trainingAttempts.operatorId))
+      .leftJoin(trainingGroups, eq(trainingGroups.id, trainingAssignments.groupId))
+      .where(and(
+        eq(trainingAttempts.status, "active"),
+        isNull(ddsExercises.completedAt),
+        this.scope(actor),
+      ))
+      .orderBy(asc(ddsExercises.acknowledgementDeadlineAt)).limit(50);
+    // Звонки наряду подгружаются одним запросом и только когда телефония включена.
+    const handoffs = this.handoffRequired && rows.length
+      ? await this.store.loadCrewHandoffs(
+          await this.store.listByIds(rows.map((row) => row.id)),
+        )
+      : new Map<string, StoredCrewHandoff>();
+    const now = new Date();
+
+    return rows.map((row) => {
+      const handoff = handoffs.get(row.id);
+
+      return {
+        exerciseId: row.id,
+        assignmentId: row.assignmentId,
+        assignmentTitle: row.assignmentTitle,
+        operatorId: row.operatorId,
+        operatorName: row.operatorName,
+        attemptNumber: row.attemptNumber,
+        startedAt: row.startedAt.toISOString(),
+        addressedService: row.addressedService,
+        cardTitle: row.card.title,
+        status: row.status,
+        acknowledgementDeadlineAt: row.acknowledgementDeadlineAt.toISOString(),
+        acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
+        findings: ddsLiveFindings({
+          acknowledgementDeadlineAt: row.acknowledgementDeadlineAt,
+          acknowledgedAt: row.acknowledgedAt,
+          ...(handoff ? { handoff: handoffFacts(handoff) } : {}),
+          now,
+        }),
+      };
+    });
+  }
 
   async start(operatorId: string, assignmentId: string, eventId: string) {
     const exerciseId = await this.db.transaction(async (tx) => {

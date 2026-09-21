@@ -38,7 +38,7 @@ import {
 export const DDS_CREW_HANDOFF_REQUIRED = Symbol("DDS_CREW_HANDOFF_REQUIRED");
 
 /** Первый принятый нарядом звонок в нужную службу и ошибки набора до него. */
-const handoffFacts = (handoff: StoredCrewHandoff) => {
+export const handoffFacts = (handoff: StoredCrewHandoff) => {
   const index = handoff.calls.findIndex(
     (call) => call.outcome === "completed" && call.correct === true,
   );
