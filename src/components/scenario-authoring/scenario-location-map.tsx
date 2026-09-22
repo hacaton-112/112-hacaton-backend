@@ -6,6 +6,8 @@ import {
   ScaleControl,
 } from "maplibre-gl";
 
+import "../../lib/map-worker";
+
 import {
   hasWebGl,
   isMissingTileError,

@@ -6,6 +6,7 @@ import {
   ScaleControl,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../lib/map-worker";
 
 import {
   hasWebGl,

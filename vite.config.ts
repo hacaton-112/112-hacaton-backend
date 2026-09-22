@@ -12,6 +12,9 @@ export default defineConfig(() => ({
     exclude: ["maplibre-gl"],
   },
 
+  // Воркер карты собирается как ES-модуль: его подключает src/lib/map-worker.ts.
+  worker: { format: "es" },
+
   clearScreen: false,
   server: {
     port: 1420,
