@@ -10,7 +10,7 @@ import {
   trainingAttempts, trainingGroups, trainingGroupMembers, users,
 } from "@/drizzle/schema";
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
-import { attemptBlocker, isAssignedToOperator, type TrainingActor } from "@/modules/training/training.service";
+import { attemptBlocker, isAssignedToOperator, TrainingService, type TrainingActor } from "@/modules/training/training.service";
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import {
   DDS_EXERCISE_STORE,
@@ -37,6 +37,7 @@ export class DdsTrainingService {
     private readonly audit: AuditLogService,
     @Inject(DDS_CREW_HANDOFF_REQUIRED)
     private readonly handoffRequired: boolean,
+    private readonly training: TrainingService,
   ) {}
 
   /**
@@ -137,6 +138,9 @@ export class DdsTrainingService {
   }
 
   async start(operatorId: string, assignmentId: string, eventId: string) {
+    // A voice call may have been closed by the janitor after its gateway was
+    // lost. Such an attempt is no longer active and must not block DDS.
+    await this.training.reconcileOperatorAttempts(operatorId);
     const exerciseId = await this.db.transaction(async (tx) => {
       // Same assignment lock as voice starts / instructor completion.
       const [assignment] = await tx.select().from(trainingAssignments)

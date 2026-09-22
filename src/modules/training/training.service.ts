@@ -45,6 +45,7 @@ import { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import type {
   AddTrainingGroupMember,
+  ActiveTrainingAttempt,
   CreateTrainingAssignment,
   CreateTrainingGroup,
   GroupStudentView,
@@ -666,6 +667,7 @@ export class TrainingService {
   async listMyAssignments(
     operatorId: string,
   ): Promise<TrainingAssignmentView[]> {
+    await this.reconcileOperatorAttempts(operatorId);
     const memberships = await this.operatorMemberships(operatorId);
     const groupIds = memberships.map(({ groupId }) => groupId);
     const rows = await this.assignmentRows(
@@ -690,6 +692,49 @@ export class TrainingService {
       ),
       operatorId,
     );
+  }
+
+  /** Назначения вместе с понятным контекстом глобально активной попытки. */
+  async myAssignmentsOverview(operatorId: string): Promise<{
+    assignments: TrainingAssignmentView[];
+    activeAttempt: ActiveTrainingAttempt | null;
+  }> {
+    const assignments = await this.listMyAssignments(operatorId);
+    const [active] = await this.db
+      .select({
+        trainingSessionId: trainingAttempts.trainingSessionId,
+        assignmentId: trainingAssignments.id,
+        assignmentTitle: trainingAssignments.title,
+        scenarioVersionId: trainingAssignments.scenarioVersionId,
+        type: trainingAssignments.type,
+        attemptNumber: trainingAttempts.attemptNumber,
+        startedAt: trainingAttempts.startedAt,
+        exerciseId: ddsExercises.id,
+      })
+      .from(trainingAttempts)
+      .innerJoin(
+        trainingAssignments,
+        eq(trainingAttempts.assignmentId, trainingAssignments.id),
+      )
+      .leftJoin(
+        ddsExercises,
+        eq(ddsExercises.trainingAttemptId, trainingAttempts.id),
+      )
+      .where(
+        and(
+          eq(trainingAttempts.operatorId, operatorId),
+          inArray(trainingAttempts.status, ACTIVE_ATTEMPT_STATUSES),
+        ),
+      )
+      .orderBy(desc(trainingAttempts.startedAt))
+      .limit(1);
+
+    return {
+      assignments,
+      activeAttempt: active
+        ? { ...active, startedAt: active.startedAt.toISOString() }
+        : null,
+    };
   }
 
   async listScenarioVersionIdsForOperator(
@@ -914,6 +959,16 @@ export class TrainingService {
   }
 
   /**
+   * Убирает только доказанно осиротевшие попытки. Идущий звонок или карточка
+   * ДДС остаются активными и продолжают блокировать параллельный старт.
+   */
+  async reconcileOperatorAttempts(operatorId: string): Promise<void> {
+    await this.closeOrphanedAttempts(
+      eq(trainingAttempts.operatorId, operatorId),
+    );
+  }
+
+  /**
    * Закрывает попытки, звонок которых уже закончился без gateway: его закрыла
    * уборка брошенных звонков после падения процесса, или звонок так и не
    * создался. Иначе такая попытка навсегда держала бы оператора «в звонке».
@@ -951,8 +1006,12 @@ export class TrainingService {
                   ),
               ),
               notExists(
-                this.db.select({ id: ddsExercises.id }).from(ddsExercises)
-                  .where(eq(ddsExercises.trainingAttemptId, trainingAttempts.id)),
+                this.db
+                  .select({ id: ddsExercises.id })
+                  .from(ddsExercises)
+                  .where(
+                    eq(ddsExercises.trainingAttemptId, trainingAttempts.id),
+                  ),
               ),
             ),
           ),
