@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 
 import {
   categoryAppearance,
-  criticalQuestionsLabel,
   formatClock,
   scenarioCountLabel,
 } from "../src/components/scenario-catalog/scenario-catalog-formatters";
@@ -22,11 +21,6 @@ describe("scenario catalog formatters", () => {
     expect(scenarioCountLabel(11)).toBe("Доступно 11 сценариев");
     expect(scenarioCountLabel(21)).toBe("Доступен 21 сценарий");
     expect(scenarioCountLabel(24)).toBe("Доступно 24 сценария");
-  });
-
-  it("counts critical questions", () => {
-    expect(criticalQuestionsLabel(1)).toBe("1 критичный");
-    expect(criticalQuestionsLabel(4)).toBe("4 критичных");
   });
 
   it("gives every known category its label and colour", () => {

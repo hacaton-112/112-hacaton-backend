@@ -54,28 +54,8 @@
   backdrop-filter: blur(8px);
 }
 
-.scenario-briefing-panel {
-  container: scenario-briefing / inline-size;
-}
-
-.scenario-catalog-page {
-  container: scenario-catalog-page / inline-size;
-}
-
-/* Выбранный сценарий обведён, как карточка в прежнем каталоге. Таблица
-   Bolid называет строки data-table-row и красит чётные сама, поэтому фон
-   перебивается явно. */
-.data-table-row.scenario-row--selected {
-  background-color: var(--blue-a3) !important;
-  box-shadow: inset 0 0 0 2px var(--blue-8);
-}
-
 .data-table-row.scenario-row--job {
   background-color: var(--violet-a2) !important;
-}
-
-.data-table-row:not(.scenario-row--job) {
-  cursor: pointer;
 }
 
 /* Неопределённый ход генерации: модель не сообщает процент готовности. */
@@ -100,56 +80,18 @@
   }
 }
 
-.scenario-briefing-actions {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .debrief-detail-tabs .rt-BaseTabListTrigger:hover .rt-BaseTabListTriggerInner {
   background-color: transparent;
 }
 
 /* Scrollbars внутри скруглённых поверхностей не пересекают их углы. */
-:where(.rt-Card, .scenario-briefing-panel) .rt-ScrollAreaRoot {
+:where(.rt-Card) .rt-ScrollAreaRoot {
   --scrollarea-scrollbar-vertical-margin-top: var(--space-3);
   --scrollarea-scrollbar-vertical-margin-bottom: var(--space-3);
   --scrollarea-scrollbar-vertical-margin-right: var(--space-2);
   --scrollarea-scrollbar-horizontal-margin-right: var(--space-3);
   --scrollarea-scrollbar-horizontal-margin-left: var(--space-3);
   --scrollarea-scrollbar-horizontal-margin-bottom: var(--space-2);
-}
-
-@container scenario-briefing (min-width: 520px) {
-  .scenario-briefing-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .scenario-briefing-start {
-    grid-column: 1 / -1;
-  }
-}
-
-@container scenario-catalog-page (max-width: 1099px) {
-  .scenario-briefing-scroll,
-  .scenario-briefing-scroll > .rt-ScrollAreaViewport {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  .scenario-briefing-scroll > .rt-ScrollAreaScrollbar {
-    display: none;
-  }
-}
-
-@container scenario-catalog-page (min-width: 1100px) {
-  .scenario-catalog-layout {
-    height: 100%;
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(420px, 600px);
-  }
-
-  .scenario-briefing-panel {
-    height: 100%;
-  }
 }
 
 :root {

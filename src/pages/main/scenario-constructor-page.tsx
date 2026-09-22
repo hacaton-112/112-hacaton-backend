@@ -444,9 +444,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
         toast.success("Опубликована новая версия", {
           description: `${result.code} · версия ${result.version}`,
         });
-        navigate(
-          `/scenarios?selected=${encodeURIComponent(result.scenarioVersionId)}`,
-        );
+        navigate(ROUTES.scenarios());
         return;
       }
 
@@ -534,11 +532,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
                 size="2"
                 variant="soft"
                 color="gray"
-                onClick={() =>
-                  navigate(
-                    `/scenarios?selected=${encodeURIComponent(base.scenarioVersionId)}`,
-                  )
-                }
+                onClick={() => navigate(ROUTES.scenarios())}
               >
                 <ArrowLeft size={16} /> К сценариям
               </Button>

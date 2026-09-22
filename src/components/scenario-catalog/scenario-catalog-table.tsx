@@ -1,13 +1,21 @@
 import { DataTableReact } from "@bolid-ui/data-table";
 import type {
   ColDef,
-  GridApi,
   ICellRendererParams,
   RowClassParams,
 } from "@bolid-ui/data-table/community";
-import { Button, Flex, Spinner, Text } from "@bolid-ui/themes";
-import { AlertTriangle, FilePlus2, RotateCcw, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Flex, Spinner, Text, Tooltip } from "@bolid-ui/themes";
+import {
+  AlertTriangle,
+  FilePlus2,
+  Pencil,
+  PhoneIncoming,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { ScenarioSummary } from "../../contracts/call";
 import type { ScenarioGenerationJob } from "../../contracts/scenario-authoring";
@@ -27,8 +35,9 @@ type CatalogRow =
 interface ScenarioCatalogTableProps {
   scenarios: ScenarioSummary[];
   jobs: ScenarioGenerationJob[];
-  selectedId?: string;
-  onSelect: (scenarioVersionId: string) => void;
+  onStart: (scenario: ScenarioSummary) => void;
+  onEdit: (scenario: ScenarioSummary) => void;
+  onDelete: (scenario: ScenarioSummary) => void;
   onOpenDraft: (job: ScenarioGenerationJob) => void;
   onRetry: (job: ScenarioGenerationJob) => void;
   onDismiss: (job: ScenarioGenerationJob) => void;
@@ -43,19 +52,13 @@ interface ScenarioCatalogTableProps {
 export function ScenarioCatalogTable({
   scenarios,
   jobs,
-  selectedId,
-  onSelect,
+  onStart,
+  onEdit,
+  onDelete,
   onOpenDraft,
   onRetry,
   onDismiss,
 }: ScenarioCatalogTableProps) {
-  const gridApi = useRef<GridApi<CatalogRow> | null>(null);
-  // Класс строки таблица считает при отрисовке: смена выбора её не трогает,
-  // поэтому обводка переносится явной перерисовкой.
-  useEffect(() => {
-    gridApi.current?.redrawRows();
-  }, [selectedId]);
-
   const rows = useMemo<CatalogRow[]>(
     () =>
       scenarios.map((scenario) => ({
@@ -96,7 +99,7 @@ export function ScenarioCatalogTable({
         minWidth: 260,
         // Черновику остальные колонки не нужны: его описание, статус и кнопки
         // занимают всю ширину, и таблица не уезжает вбок рядом с брифингом.
-        colSpan: ({ data }) => (data?.kind === "job" ? 3 : 1),
+        colSpan: ({ data }) => (data?.kind === "job" ? 4 : 1),
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.title : "",
         tooltipValueGetter: ({ data }) =>
@@ -127,6 +130,23 @@ export function ScenarioCatalogTable({
           ) : null,
       },
       {
+        colId: "actions",
+        headerName: "",
+        flex: 0,
+        width: 132,
+        sortable: false,
+        resizable: false,
+        cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
+          data?.kind === "scenario" ? (
+            <ScenarioActions
+              scenario={data.scenario}
+              onStart={onStart}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ) : null,
+      },
+      {
         colId: "difficulty",
         headerName: "Сложность",
         flex: 0,
@@ -141,7 +161,7 @@ export function ScenarioCatalogTable({
           ) : null,
       },
     ],
-    [onDismiss, onOpenDraft, onRetry],
+    [onDelete, onDismiss, onEdit, onOpenDraft, onRetry, onStart],
   );
 
   return (
@@ -151,24 +171,64 @@ export function ScenarioCatalogTable({
       pinnedTopRowData={jobRows}
       columnDefs={columnDefs}
       getRowId={({ data }) => data.id}
-      onGridReady={({ api }) => {
-        gridApi.current = api;
-      }}
       tooltipShowDelay={400}
       // У черновика две строки: описание и ход генерации.
       getRowHeight={({ data }) => (data?.kind === "job" ? 56 : undefined)}
       overlayNoRowsTemplate="Опубликованных сценариев пока нет"
       getRowClass={({ data }: RowClassParams<CatalogRow>) =>
-        data?.kind === "job"
-          ? "scenario-row--job"
-          : data?.id === selectedId
-            ? "scenario-row--selected"
-            : undefined
+        data?.kind === "job" ? "scenario-row--job" : undefined
       }
-      onRowClicked={({ data }) => {
-        if (data?.kind === "scenario") onSelect(data.id);
-      }}
     />
+  );
+}
+
+/** Действия по сценарию: запуск тренировки, правка и удаление. */
+function ScenarioActions({
+  scenario,
+  onStart,
+  onEdit,
+  onDelete,
+}: {
+  scenario: ScenarioSummary;
+  onStart: (scenario: ScenarioSummary) => void;
+  onEdit: (scenario: ScenarioSummary) => void;
+  onDelete: (scenario: ScenarioSummary) => void;
+}) {
+  return (
+    <Flex align="center" gap="1" height="100%">
+      <Tooltip content="Начать тренировку">
+        <Button
+          size="1"
+          variant="soft"
+          aria-label={`Начать тренировку: ${scenario.title}`}
+          onClick={() => onStart(scenario)}
+        >
+          <PhoneIncoming size={14} />
+        </Button>
+      </Tooltip>
+      <Tooltip content="Редактировать">
+        <Button
+          size="1"
+          variant="soft"
+          color="gray"
+          aria-label={`Редактировать: ${scenario.title}`}
+          onClick={() => onEdit(scenario)}
+        >
+          <Pencil size={14} />
+        </Button>
+      </Tooltip>
+      <Tooltip content="Удалить">
+        <Button
+          size="1"
+          variant="soft"
+          color="red"
+          aria-label={`Удалить: ${scenario.title}`}
+          onClick={() => onDelete(scenario)}
+        >
+          <Trash2 size={14} />
+        </Button>
+      </Tooltip>
+    </Flex>
   );
 }
 
