@@ -30,7 +30,7 @@ export class DdsTrainingController {
   @Get("attempts")
   @ZodSerializerDto(DdsTrainingListDto)
   async list(@Req() request: AuthenticatedRequest) {
-    return { attempts: await this.training.list({ id: request.user.sub, role: request.user.role }) };
+    return this.training.list({ id: request.user.sub, role: request.user.role });
   }
 
   @Post("attempts/:exerciseId/reviews")

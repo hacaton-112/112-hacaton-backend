@@ -338,7 +338,7 @@ async function main(): Promise<void> {
       score: 88,
       comment: "Smoke review",
     });
-    const [reviewed] = (await ddsTraining.list(instructor)).filter(
+    const [reviewed] = (await ddsTraining.list(instructor)).attempts.filter(
       ({ exercise }) => exercise.id === dds.id,
     );
     if (
