@@ -10,7 +10,7 @@ export const ddsTrainingService = {
   async live(signal?: AbortSignal) {
     return DdsLiveListSchema.parse(
       await api.get<unknown>(API_CONFIG.getDdsTrainingLiveUrl(), { signal }),
-    ).attempts;
+    );
   },
   async list() {
     return DdsTrainingListSchema.parse(await api.get<unknown>(API_CONFIG.getDdsTrainingAttemptsUrl()));

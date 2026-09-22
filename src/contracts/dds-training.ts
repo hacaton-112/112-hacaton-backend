@@ -58,11 +58,29 @@ export const DdsLiveAttemptSchema = z.object({
   findings: z.array(DdsLiveFindingSchema),
 }).strict();
 
+/** Карточка очереди смены: назначения и номера попытки у неё нет. */
+export const DdsLiveStandaloneSchema = z.object({
+  exerciseId: z.uuid(),
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  startedAt: z.iso.datetime(),
+  addressedService: z.enum(DDS_SERVICE_CODES),
+  cardTitle: z.string(),
+  status: z.enum(DDS_RESPONSE_STATUSES),
+  acknowledgementDeadlineAt: z.iso.datetime(),
+  acknowledgedAt: z.iso.datetime().nullable(),
+  findings: z.array(DdsLiveFindingSchema),
+}).strict();
+
 export const DdsLiveListSchema = z.object({
   attempts: z.array(DdsLiveAttemptSchema),
+  // Совместимость на время раздельной выкатки приложения и backend.
+  standaloneAttempts: z.array(DdsLiveStandaloneSchema).default([]),
 });
 
 export type DdsLiveAttempt = z.infer<typeof DdsLiveAttemptSchema>;
+export type DdsLiveStandalone = z.infer<typeof DdsLiveStandaloneSchema>;
+export type DdsLiveList = z.infer<typeof DdsLiveListSchema>;
 export type DdsLiveFinding = z.infer<typeof DdsLiveFindingSchema>;
 
 export const DDS_LIVE_FINDING_LABELS: Record<DdsLiveFinding, string> = {

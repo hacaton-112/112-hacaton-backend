@@ -7,6 +7,7 @@ import { QUERY_KEYS } from "../../config/query-keys";
 import {
   DDS_LIVE_FINDING_LABELS,
   type DdsLiveAttempt,
+  type DdsLiveStandalone,
 } from "../../contracts/dds-training";
 import { ddsTrainingService } from "../../services/dds-training.service";
 import {
@@ -32,6 +33,12 @@ export function DdsLiveAttempts() {
     retry: false,
   });
   const [now, setNow] = useState(() => Date.now());
+  // Карточка очереди смены назначения не имеет, но работа по ней такая же
+  // идущая: в мониторинге они стоят вместе, отличается только подпись.
+  const watched = [
+    ...(attempts.data?.attempts ?? []),
+    ...(attempts.data?.standaloneAttempts ?? []),
+  ];
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 500);
@@ -62,9 +69,9 @@ export function DdsLiveAttempts() {
 
       {attempts.isPending ? (
         <Skeleton height="96px" className="rounded-(--radius-4)" />
-      ) : attempts.data?.length ? (
+      ) : watched.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
-          {attempts.data.map((attempt) => (
+          {watched.map((attempt) => (
             <LiveAttemptCard
               key={attempt.exerciseId}
               attempt={attempt}
@@ -85,7 +92,7 @@ function LiveAttemptCard({
   attempt,
   now,
 }: {
-  attempt: DdsLiveAttempt;
+  attempt: DdsLiveAttempt | DdsLiveStandalone;
   now: number;
 }) {
   const waiting = attempt.acknowledgedAt === null;
@@ -100,7 +107,9 @@ function LiveAttemptCard({
         <div>
           <Text weight="medium">{attempt.operatorName}</Text>
           <Text as="p" size="1" color="gray">
-            {attempt.assignmentTitle} · попытка {attempt.attemptNumber}
+            {"assignmentTitle" in attempt
+              ? `${attempt.assignmentTitle} · попытка ${attempt.attemptNumber}`
+              : "Очередь смены"}
           </Text>
         </div>
         <Flex align="center" gap="2" wrap="wrap">
