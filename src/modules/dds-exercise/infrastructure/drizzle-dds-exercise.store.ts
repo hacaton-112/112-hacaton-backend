@@ -10,6 +10,7 @@ import {
   isNull,
   not,
   or,
+  sql,
 } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
@@ -318,6 +319,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           status: input.nextStatus,
           lastSequence: input.expectedSequence + 1,
           updatedAt: input.occurredAt,
+          // Карточка из очереди смены приходит без владельца. Первый переход
+          // закрепляет её за диспетчером и больше владельца не меняет: иначе о
+          // том, кто её вёл, знал бы только журнал событий, и преподаватель не
+          // нашёл бы результат.
+          operatorId: sql`coalesce(${ddsExercises.operatorId}, ${input.operatorId})`,
           ...(input.acknowledgedAt
             ? { acknowledgedAt: input.acknowledgedAt }
             : {}),

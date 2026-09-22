@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNull, or } from "drizzle-orm";
 import { AppBadRequestException, AppConflictException, AppNotFoundException } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
@@ -163,17 +163,22 @@ export class DdsTrainingService {
   }
 
   async list(actor: TrainingActor): Promise<DdsTrainingAttempt[]> {
+    // Карточка приходит двумя путями: назначением преподавателя и очередью
+    // смены. Вторая попытки не имеет, и кабинет её не показывал вовсе —
+    // диспетчер закрывал карточку, а результата преподаватель не видел.
     const rows = await this.db.select({
-      id: ddsExercises.id, operatorId: trainingAttempts.operatorId,
+      // Владелец берётся из соединения с пользователями: там он заведомо есть.
+      id: ddsExercises.id, operatorId: users.id,
       assignmentId: trainingAssignments.id, assignmentTitle: trainingAssignments.title,
       operatorName: users.fullName, attemptNumber: trainingAttempts.attemptNumber,
       attemptStatus: trainingAttempts.status, passThreshold: ddsExercises.passThreshold,
     }).from(ddsExercises)
-      .innerJoin(trainingAttempts, eq(trainingAttempts.id, ddsExercises.trainingAttemptId))
-      .innerJoin(trainingAssignments, eq(trainingAssignments.id, trainingAttempts.assignmentId))
-      .innerJoin(users, eq(users.id, trainingAttempts.operatorId))
+      .leftJoin(trainingAttempts, eq(trainingAttempts.id, ddsExercises.trainingAttemptId))
+      .leftJoin(trainingAssignments, eq(trainingAssignments.id, trainingAttempts.assignmentId))
+      .innerJoin(users, eq(users.id, ddsExercises.operatorId))
       .leftJoin(trainingGroups, eq(trainingGroups.id, trainingAssignments.groupId))
-      .where(this.scope(actor)).orderBy(desc(ddsExercises.createdAt)).limit(200);
+      .where(or(this.scope(actor), this.ownStudents(actor)))
+      .orderBy(desc(ddsExercises.createdAt)).limit(200);
     const reviews = rows.length ? await this.db.select().from(ddsExerciseReviews)
       .where(inArray(ddsExerciseReviews.exerciseId, rows.map((row) => row.id)))
       .orderBy(desc(ddsExerciseReviews.createdAt)) : [];
@@ -236,6 +241,22 @@ export class DdsTrainingService {
 
   private scope(actor: TrainingActor) {
     return actor.role === "admin" ? undefined : or(eq(trainingAssignments.createdBy, actor.id), eq(trainingGroups.instructorId, actor.id));
+  }
+
+  /** Карточки очереди смены видит тот, кто ведёт группу этого диспетчера. */
+  private ownStudents(actor: TrainingActor) {
+    if (actor.role === "admin") return undefined;
+
+    return exists(
+      this.db.select({ id: trainingGroupMembers.userId })
+        .from(trainingGroupMembers)
+        .innerJoin(trainingGroups, eq(trainingGroups.id, trainingGroupMembers.groupId))
+        .where(and(
+          eq(trainingGroupMembers.userId, ddsExercises.operatorId),
+          eq(trainingGroups.instructorId, actor.id),
+          eq(trainingGroups.status, "active"),
+        )),
+    );
   }
   private unavailable(): never {
     throw new AppNotFoundException(ErrorCodes.ASSIGNMENT_NOT_AVAILABLE, "There is no DDS assignment available to this learner");

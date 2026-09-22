@@ -17,12 +17,14 @@ export const StopDdsSchema = z.object({ reason: z.string().trim().min(3).max(1_0
 export class StopDdsDto extends createZodDto(StopDdsSchema) {}
 export const DdsTrainingAttemptSchema = z.object({
   exercise: DdsExerciseSchema,
-  assignmentId: z.uuid(),
-  assignmentTitle: z.string(),
+  // Карточка очереди смены приходит без назначения и попытки: её диспетчер
+  // взял из профильной очереди, а не получил учебным заданием.
+  assignmentId: z.uuid().nullable(),
+  assignmentTitle: z.string().nullable(),
   operatorId: z.uuid(),
   operatorName: z.string(),
-  attemptNumber: z.number().int().positive(),
-  attemptStatus: z.enum(ATTEMPT_STATUSES),
+  attemptNumber: z.number().int().positive().nullable(),
+  attemptStatus: z.enum(ATTEMPT_STATUSES).nullable(),
   passThreshold: z.number().int().min(50).max(100),
   reviews: z.array(z.object({
     eventId: z.uuid(), instructorId: z.uuid(), score: z.number().int().min(0).max(100),
