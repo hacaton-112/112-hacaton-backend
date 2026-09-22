@@ -5,6 +5,8 @@ import {
   NavigationControl,
   ScaleControl,
 } from "maplibre-gl";
+
+import { isMissingTileError } from "../../lib/map-errors";
 import {
   Card,
   Code,
@@ -129,7 +131,10 @@ export function ScenarioLocationMap({
       });
     };
     map.on("click", handleClick);
-    map.on("error", () => setFailed(true));
+    // Пустой квадрат за границей детальных тайлов сбоем не считается.
+    map.on("error", (event) => {
+      if (!isMissingTileError(event.error)) setFailed(true);
+    });
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);

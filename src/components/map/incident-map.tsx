@@ -6,6 +6,8 @@ import {
   ScaleControl,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+import { isMissingTileError } from "../../lib/map-errors";
 import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
@@ -77,8 +79,11 @@ export function IncidentMap({
         "bottom-left",
       );
     }
-    // Подложка живёт по сети; без неё карта остаётся серой, поэтому говорим об этом прямо.
-    map.on("error", () => setFailed(true));
+    // Без подложки карта остаётся серой, поэтому о сбое говорим прямо. Но
+    // отсутствующий тайл за пределами детализации — не сбой (см. isMissingTileError).
+    map.on("error", (event) => {
+      if (!isMissingTileError(event.error)) setFailed(true);
+    });
     // Обработчик один на всю жизнь карты: отмечать ли точку, решает текущий
     // колбэк, а не пересоздание карты.
     map.on("click", (event) =>
