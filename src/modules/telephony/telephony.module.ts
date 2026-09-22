@@ -16,6 +16,7 @@ import {
   CrewHandoffService,
   TELEPHONY_ENABLED,
 } from "./application/crew-handoff.service";
+import { BrowserPhoneProvisioningService } from "./application/browser-phone-provisioning.service";
 import { CrewClickToCallService } from "./application/crew-click-to-call.service";
 import { AriTelephonyControl } from "./infrastructure/ari-telephony.control";
 import { DrizzleTelephonyDirectory } from "./infrastructure/drizzle-telephony.directory";
@@ -80,6 +81,7 @@ import { TelephonyController } from "./telephony.controller";
     },
     CrewHandoffService,
     CrewClickToCallService,
+    BrowserPhoneProvisioningService,
   ],
 })
 export class TelephonyModule {}
