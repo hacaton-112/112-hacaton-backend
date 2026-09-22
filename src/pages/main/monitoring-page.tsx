@@ -1,6 +1,8 @@
-import { Callout, Flex, Heading, Skeleton, Tabs, Text } from "@bolid-ui/themes";
+import { Button, Callout, Card, Flex, Heading, Skeleton, Tabs, Text } from "@bolid-ui/themes";
 import { AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router";
 
+import { ROUTES } from "../../config/routes";
 import { DdsLiveAttempts } from "../../components/dds/dds-live-attempts";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { VoiceRuntimeStatus } from "../../components/training/voice-runtime-status";
@@ -12,6 +14,7 @@ import {
 
 /** Единое рабочее место преподавателя: живые попытки и завершённые разборы. */
 export default function MonitoringPage() {
+  const navigate = useNavigate();
   const mutations = useTrainingMutations();
   const calls = useInstructorCalls();
   const finishedCalls =
@@ -60,6 +63,20 @@ export default function MonitoringPage() {
               </Text>
             )}
           </Flex>
+
+          <Card size="2" variant="surface">
+            <Flex align="center" justify="between" gap="3" wrap="wrap">
+              <div>
+                <Text as="p" weight="bold">Результаты карточек ДДС</Text>
+                <Text as="p" size="2" color="gray">
+                  Назначенные попытки и диагностические карточки вне занятия находятся в рабочем месте ДДС.
+                </Text>
+              </div>
+              <Button variant="soft" onClick={() => navigate(ROUTES.dds())}>
+                Открыть результаты ДДС
+              </Button>
+            </Flex>
+          </Card>
 
           {calls.error && (
             <Callout.Root color="red" role="alert">

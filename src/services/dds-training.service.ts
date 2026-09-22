@@ -13,7 +13,7 @@ export const ddsTrainingService = {
     ).attempts;
   },
   async list() {
-    return DdsTrainingListSchema.parse(await api.get<unknown>(API_CONFIG.getDdsTrainingAttemptsUrl())).attempts;
+    return DdsTrainingListSchema.parse(await api.get<unknown>(API_CONFIG.getDdsTrainingAttemptsUrl()));
   },
   async review(exerciseId: string, input: DdsReviewRequest) {
     await api.post(API_CONFIG.getDdsTrainingReviewUrl(exerciseId), DdsReviewRequestSchema.parse(input));
