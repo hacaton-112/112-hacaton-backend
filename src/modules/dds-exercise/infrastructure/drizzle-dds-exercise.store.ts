@@ -67,6 +67,7 @@ const exerciseFromRows = (
   scenarioVersionId: row.scenarioVersionId,
   operatorId: row.operatorId,
   trainingAttemptId: row.trainingAttemptId,
+  lessonId: row.lessonId,
   sourceTrainingSessionId: row.sourceTrainingSessionId,
   addressedService: row.addressedService,
   status: row.status,

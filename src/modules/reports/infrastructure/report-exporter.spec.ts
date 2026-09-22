@@ -88,6 +88,18 @@ const report: InstructorReport = {
     status: "unavailable",
     message: "Проверка грамматики ещё не входит в main.",
   },
+  dds: {
+    cards: 0,
+    averageScore: null,
+    finalScore: null,
+    withinNormPercent: null,
+    outcomes: [],
+    topErrors: [],
+    averageCoveragePercent: null,
+    scoreDynamics: [],
+    weakPoints: [],
+    recentAttempts: [],
+  },
 };
 
 describe(ReportExporter.name, () => {

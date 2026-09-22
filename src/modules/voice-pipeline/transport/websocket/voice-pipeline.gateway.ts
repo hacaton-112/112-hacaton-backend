@@ -95,6 +95,18 @@ const MAX_TRANSCRIPT_CHARACTERS = 4_000;
 const UNAUTHORIZED_CLOSE_CODE = 4401;
 const GATEWAY_PATH = "/api/v1/voice-pipeline/stream";
 
+export function websocketAuthorization(
+  request?: IncomingMessage,
+): string | undefined {
+  if (request?.headers.authorization) return request.headers.authorization;
+  const protocols = request?.headers["sec-websocket-protocol"]
+    ?.split(",")
+    .map((value) => value.trim());
+  const bearer = protocols?.indexOf("bearer") ?? -1;
+  const token = bearer >= 0 ? protocols?.[bearer + 1] : undefined;
+  return token ? `Bearer ${token}` : undefined;
+}
+
 interface ActiveRequest {
   controller: AbortController;
   requestId: string;
@@ -197,7 +209,7 @@ export class VoicePipelineGateway
     request?: IncomingMessage,
   ): Promise<void> {
     const user = await this.accessTokenVerifier.verify(
-      request?.headers.authorization,
+      websocketAuthorization(request),
     );
 
     if (user === null) {

@@ -39,6 +39,20 @@ export const env = createEnv({
     SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
     LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),
     LLM_REPLY_PROTOCOL: z.enum(["legacy", "caller-v2"]).default("legacy"),
+    TOOLS_LLM_BASE_URL: z
+      .url()
+      .refine((url) => /^https?:\/\//.test(url), {
+        message: "TOOLS_LLM_BASE_URL must use the http:// or https:// scheme",
+      })
+      .optional(),
+    TOOLS_LLM_MODEL: z.string().trim().min(1).max(200).default("tools-model"),
+    TOOLS_LLM_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(300_000)
+      .default(120_000),
+    TOOLS_LLM_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(1),
 
     // ── Профиль голосового тракта ────────────────────────────────
     // Читаются через ConfigService в offline-policy; объявлены здесь, чтобы
@@ -217,12 +231,7 @@ export const env = createEnv({
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
       .optional(),
-    TTS_REFERENCE_VOICES_PATH: z
-      .string()
-      .trim()
-      .min(1)
-      .max(1_024)
-      .optional(),
+    TTS_REFERENCE_VOICES_PATH: z.string().trim().min(1).max(1_024).optional(),
     TTS_STREAMING_INTERVAL_SECONDS: z.coerce
       .number()
       .min(0.08)

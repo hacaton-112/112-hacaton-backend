@@ -144,17 +144,13 @@ export const CreateTrainingAssignmentSchema = z
       1,
     { message: "Exactly one assignment target is required" },
   )
-  // Занятие с карточкой берёт её из сценария, поэтому доставка звонком
-  // оператора для него невозможна. Раньше это выяснялось только у ученика,
-  // когда он нажимал запуск и получал отказ.
+  // Одиночное карточное назначение берёт опубликованный сценарий. Билеты не
+  // имеют отдельного набора данных, поэтому новые назначения их не обещают;
+  // старое enum-значение остаётся только для чтения уже созданных строк.
   .refine(
-    (value) =>
-      value.type !== "card_action" ||
-      value.cardSource === "generated" ||
-      value.cardSource === "ticket",
+    (value) => value.type !== "card_action" || value.cardSource === "generated",
     {
-      message:
-        "A card exercise needs a scenario card: choose a generated card or a ticket",
+      message: "A card exercise needs a generated scenario card",
       path: ["cardSource"],
     },
   )

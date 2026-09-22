@@ -15,13 +15,36 @@ import {
 } from "./application/dds-exercise.service";
 import { DdsExerciseController } from "./dds-exercise.controller";
 import { DdsTrainingController } from "./dds-training.controller";
+import { DdsLessonController } from "./dds-lesson.controller";
 import { DdsTrainingService } from "./application/dds-training.service";
+import { DdsLessonService } from "./application/dds-lesson.service";
 import { DrizzleDdsExerciseStore } from "./infrastructure/drizzle-dds-exercise.store";
 import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { GrammarModule } from "@/modules/grammar";
+import { DdsTextEvaluationService } from "./application/dds-text-evaluation.service";
+import { DdsReferenceService } from "./application/dds-reference.service";
+import { DdsReferenceController } from "./dds-reference.controller";
+import { ReportExporter } from "@/modules/reports/infrastructure/report-exporter";
+import { DdsReportService } from "./application/dds-report.service";
+import { DdsInsightsService } from "./application/dds-insights.service";
+import { DdsReportController } from "./dds-report.controller";
 
 @Module({
-  imports: [AuthModule, ConfigModule, TrainingModule],
-  controllers: [DdsExerciseController, DdsTrainingController],
+  imports: [
+    AuthModule,
+    ConfigModule,
+    TextAiAdapterModule,
+    GrammarModule,
+    TrainingModule,
+  ],
+  controllers: [
+    DdsExerciseController,
+    DdsTrainingController,
+    DdsLessonController,
+    DdsReferenceController,
+    DdsReportController,
+  ],
   providers: [
     {
       provide: DDS_CREW_HANDOFF_REQUIRED,
@@ -35,10 +58,16 @@ import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
     },
     DdsExerciseService,
     DdsTrainingService,
+    DdsLessonService,
     DdsDispatchService,
+    DdsTextEvaluationService,
+    DdsReferenceService,
+    DdsReportService,
+    DdsInsightsService,
+    ReportExporter,
     DrizzleDdsExerciseStore,
     { provide: DDS_EXERCISE_STORE, useExisting: DrizzleDdsExerciseStore },
   ],
-  exports: [DdsExerciseService, DdsDispatchService],
+  exports: [DdsExerciseService, DdsDispatchService, DdsReferenceService],
 })
 export class DdsExerciseModule {}

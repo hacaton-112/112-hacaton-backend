@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 
-import { AliceAiAdapterModule } from "./adapters/alice-ai/alice-ai-adapter.module";
+import { TextAiAdapterModule } from "./adapters/text-ai-adapter.module";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
 
 @Module({
-  imports: [AliceAiAdapterModule, QwenTtsAdapterModule],
-  exports: [AliceAiAdapterModule, QwenTtsAdapterModule],
+  imports: [TextAiAdapterModule, QwenTtsAdapterModule],
+  exports: [TextAiAdapterModule, QwenTtsAdapterModule],
 })
 export class AiGatewayModule {}

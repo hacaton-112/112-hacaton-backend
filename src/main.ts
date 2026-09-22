@@ -1,6 +1,5 @@
 import { Logger, VersioningType } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { WsAdapter } from "@nestjs/platform-ws";
 import { WinstonModule } from "nest-winston";
 
 import { env } from "@/core/config/env.config";
@@ -13,6 +12,7 @@ import {
 import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
 import { HttpMetrics } from "@/modules/metrics/application/http-metrics";
+import { AuthenticatedWsAdapter } from "@/core/http/authenticated-ws.adapter";
 
 const GLOBAL_API_PREFIX = "api";
 
@@ -33,7 +33,7 @@ async function bootstrap(): Promise<void> {
   const port = env.PORT;
 
   configureFastifyRequestLifecycle(adapter, app.get(HttpMetrics));
-  app.useWebSocketAdapter(new WsAdapter(app));
+  app.useWebSocketAdapter(new AuthenticatedWsAdapter(app));
 
   // ── Fastify-native security and multipart plugins ────────────
   await registerFastifyPlugins(app);

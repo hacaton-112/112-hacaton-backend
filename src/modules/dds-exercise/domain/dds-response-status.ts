@@ -15,6 +15,7 @@ export const DDS_RESPONSE_STATUSES = [
   "working",
   "completed",
   "refused",
+  "lesson_finished",
 ] as const;
 
 export type DdsResponseStatus = (typeof DDS_RESPONSE_STATUSES)[number];
@@ -28,6 +29,7 @@ const NEXT_STATUSES: Record<DdsResponseStatus, readonly DdsResponseStatus[]> = {
   working: ["completed", "refused"],
   completed: [],
   refused: [],
+  lesson_finished: [],
 };
 
 export type DdsTransitionErrorReason =
@@ -45,7 +47,9 @@ export const allowedDdsTransitions = (
 ): readonly DdsResponseStatus[] => NEXT_STATUSES[status];
 
 export const isTerminalDdsStatus = (status: DdsResponseStatus): boolean =>
-  status === "completed" || status === "refused";
+  status === "completed" ||
+  status === "refused" ||
+  status === "lesson_finished";
 
 export const requiresDdsComment = (status: DdsResponseStatus): boolean =>
   status === "not_accepted" || status === "refused";

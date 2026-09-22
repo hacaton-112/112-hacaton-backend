@@ -15,21 +15,31 @@ const codes = (input: unknown): string[] => {
 };
 
 describe("CreateTrainingAssignmentSchema", () => {
-  it("accepts a card exercise fed by a scenario card", () => {
+  it("accepts a card exercise fed by a generated scenario card", () => {
     expect(
       CreateTrainingAssignmentSchema.parse({
         ...assignment,
         type: "card_action",
-        cardSource: "ticket",
+        cardSource: "generated",
         answerNormSeconds: 30,
       }).cardSource,
-    ).toBe("ticket");
+    ).toBe("generated");
+  });
+
+  it("does not offer tickets for new card assignments without ticket data", () => {
+    expect(
+      codes({ ...assignment, type: "card_action", cardSource: "ticket" }),
+    ).toEqual(["cardSource"]);
   });
 
   it("refuses a card exercise that waits for an operator call", () => {
     // Раньше отказ приходил только ученику, когда он нажимал запуск.
     expect(
-      codes({ ...assignment, type: "card_action", cardSource: "operator_call" }),
+      codes({
+        ...assignment,
+        type: "card_action",
+        cardSource: "operator_call",
+      }),
     ).toEqual(["cardSource"]);
   });
 

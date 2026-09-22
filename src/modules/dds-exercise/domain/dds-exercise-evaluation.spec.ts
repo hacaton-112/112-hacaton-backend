@@ -1,4 +1,35 @@
-import { evaluateDdsExercise } from "./dds-exercise-evaluation";
+import {
+  combineDdsTextScore,
+  evaluateDdsExercise,
+} from "./dds-exercise-evaluation";
+
+describe(combineDdsTextScore.name, () => {
+  it("adds deterministic coverage and grammar parts", () => {
+    expect(
+      combineDdsTextScore({
+        baseScore: 100,
+        presentItems: 3,
+        totalItems: 4,
+        contradictions: 0,
+        grammarErrors: 0,
+        grammarStyleIssues: 1,
+      }),
+    ).toEqual({ score: 93, passed: true });
+  });
+
+  it("keeps a heavily penalized score at zero", () => {
+    expect(
+      combineDdsTextScore({
+        baseScore: 0,
+        presentItems: 0,
+        totalItems: 1,
+        contradictions: 20,
+        grammarErrors: 10,
+        grammarStyleIssues: 10,
+      }).score,
+    ).toBe(0);
+  });
+});
 
 const deadline = new Date("2026-09-15T12:00:30.000Z");
 
@@ -138,12 +169,12 @@ describe(evaluateDdsExercise.name, () => {
         handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
       } as const;
 
-      expect(evaluateDdsExercise({ ...input, passThreshold: 60 })).toMatchObject(
-        { score: 70, passed: true },
-      );
-      expect(evaluateDdsExercise({ ...input, passThreshold: 90 })).toMatchObject(
-        { score: 70, passed: false },
-      );
+      expect(
+        evaluateDdsExercise({ ...input, passThreshold: 60 }),
+      ).toMatchObject({ score: 70, passed: true });
+      expect(
+        evaluateDdsExercise({ ...input, passThreshold: 90 }),
+      ).toMatchObject({ score: 70, passed: false });
     });
   });
 });

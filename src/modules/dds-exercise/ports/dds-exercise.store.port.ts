@@ -38,6 +38,7 @@ export interface StoredDdsExercise {
   readonly scenarioVersionId: string;
   readonly operatorId: string | null;
   readonly trainingAttemptId: string | null;
+  readonly lessonId: string | null;
   readonly sourceTrainingSessionId: string | null;
   readonly addressedService: DispatchService;
   readonly status: DdsResponseStatus;

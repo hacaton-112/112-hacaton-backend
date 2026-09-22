@@ -5,7 +5,7 @@ import { MODULE_METADATA } from "@nestjs/common/constants";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation/dialogue-generation.module";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthesis.module";
 
-import { AliceAiAdapterModule } from "./adapters/alice-ai/alice-ai-adapter.module";
+import { TextAiAdapterModule } from "./adapters/text-ai-adapter.module";
 import { AliceAiStructuredOutputClient } from "./adapters/alice-ai/alice-ai-structured-output.client";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
 import { createQwenTtsAdapter } from "./adapters/qwen-tts/qwen-tts.factory";
@@ -16,6 +16,7 @@ import {
 import { AiGatewayModule } from "./ai-gateway.module";
 import { LLM_PORT, TTS_PORT } from "./ai-gateway.tokens";
 import { QUESTION_UNDERSTANDING_PORT } from "./ports/question-understanding.port";
+import { STRUCTURED_OUTPUT_PORT } from "./ports/structured-output.port";
 
 const getModuleMetadata = (
   metadataKey: string,
@@ -26,22 +27,22 @@ const getModuleMetadata = (
 
 describe("AI provider module registration", () => {
   it("keeps LLM and TTS provider tokens isolated", () => {
-    const aliceProviders = getModuleMetadata(
+    const textProviders = getModuleMetadata(
       MODULE_METADATA.PROVIDERS,
-      AliceAiAdapterModule,
+      TextAiAdapterModule,
     );
     const qwenProviders = getModuleMetadata(
       MODULE_METADATA.PROVIDERS,
       QwenTtsAdapterModule,
     );
 
-    expect(aliceProviders).toContainEqual(
+    expect(textProviders).toContainEqual(
       expect.objectContaining({
         provide: LLM_PORT,
         useFactory: expect.any(Function),
       }),
     );
-    expect(aliceProviders).not.toContainEqual(
+    expect(textProviders).not.toContainEqual(
       expect.objectContaining({ provide: TTS_PORT }),
     );
     expect(qwenProviders).toContainEqual({
@@ -57,14 +58,14 @@ describe("AI provider module registration", () => {
   it("imports only the provider required by each orchestration module", () => {
     expect(
       getModuleMetadata(MODULE_METADATA.IMPORTS, DialogueGenerationModule),
-    ).toEqual([AliceAiAdapterModule]);
+    ).toEqual([TextAiAdapterModule]);
     expect(
       getModuleMetadata(MODULE_METADATA.IMPORTS, SpeechSynthesisModule),
     ).toEqual([QwenTtsAdapterModule]);
   });
 
   it("exposes both isolated provider modules through the gateway aggregator", () => {
-    const expectedModules = [AliceAiAdapterModule, QwenTtsAdapterModule];
+    const expectedModules = [TextAiAdapterModule, QwenTtsAdapterModule];
 
     expect(getModuleMetadata(MODULE_METADATA.IMPORTS, AiGatewayModule)).toEqual(
       expectedModules,
@@ -75,10 +76,11 @@ describe("AI provider module registration", () => {
     // Разбор вопроса оператора — вторая работа того же провайдера, и порт у неё
     // свой: играть заявителя и отвечать на служебный вопрос движка — разное.
     expect(
-      getModuleMetadata(MODULE_METADATA.EXPORTS, AliceAiAdapterModule),
+      getModuleMetadata(MODULE_METADATA.EXPORTS, TextAiAdapterModule),
     ).toEqual([
       LLM_PORT,
       AliceAiStructuredOutputClient,
+      STRUCTURED_OUTPUT_PORT,
       QUESTION_UNDERSTANDING_PORT,
     ]);
     expect(

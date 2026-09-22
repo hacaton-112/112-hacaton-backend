@@ -31,7 +31,10 @@ import type { TrainingService } from "@/modules/training/training.service";
 
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "../../application/voice-pipeline.service";
-import { VoicePipelineGateway } from "./voice-pipeline.gateway";
+import {
+  VoicePipelineGateway,
+  websocketAuthorization,
+} from "./voice-pipeline.gateway";
 
 const request: VoicePipelineRequest = {
   generation: {
@@ -444,6 +447,25 @@ const createRuntime = async (
 };
 
 describe(VoicePipelineGateway.name, () => {
+  it("accepts a browser bearer token from the WebSocket protocols", () => {
+    expect(
+      websocketAuthorization({
+        headers: { "sec-websocket-protocol": "bearer, browser-token" },
+      } as IncomingMessage),
+    ).toBe("Bearer browser-token");
+  });
+
+  it("prefers the Authorization header used by native clients", () => {
+    expect(
+      websocketAuthorization({
+        headers: {
+          authorization: "Bearer header-token",
+          "sec-websocket-protocol": "bearer, browser-token",
+        },
+      } as IncomingMessage),
+    ).toBe("Bearer header-token");
+  });
+
   it("closes a handshake that carries no valid access token", async () => {
     const verify = jest.fn().mockResolvedValue(null);
     const streamReply = jest.fn();

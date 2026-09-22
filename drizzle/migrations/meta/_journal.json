@@ -195,7 +195,42 @@
       "idx": 27,
       "version": "7",
       "when": 1790265600000,
-      "tag": "0025_detailed_incident_address",
+      "tag": "0025_dds_lessons",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790308800000,
+      "tag": "0026_dds_text_evaluation",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790352000000,
+      "tag": "0027_scenario_generation_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790438400000,
+      "tag": "0028_dds_lesson_insights",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790524800000,
+      "tag": "0029_dds_reference_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790611200000,
+      "tag": "0030_detailed_incident_address",
       "breakpoints": true
     }
   ]

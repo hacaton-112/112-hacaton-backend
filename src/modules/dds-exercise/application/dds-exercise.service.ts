@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import {
   AppBadRequestException,
@@ -7,6 +7,7 @@ import {
 } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
+import type { DdsTextEvaluationRecord } from "@/drizzle/schema";
 
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import { evaluateDdsExercise } from "../domain/dds-exercise-evaluation";
@@ -28,6 +29,7 @@ import {
   type StoredCrewHandoff,
   type StoredDdsExercise,
 } from "../ports/dds-exercise.store.port";
+import { DdsTextEvaluationService } from "./dds-text-evaluation.service";
 
 /**
  * Передача карточки наряду по телефону — обязательный шаг.
@@ -58,6 +60,7 @@ export class DdsExerciseService {
     private readonly store: DdsExerciseStore,
     @Inject(DDS_CREW_HANDOFF_REQUIRED)
     private readonly handoffRequired: boolean,
+    @Optional() private readonly textEvaluations?: DdsTextEvaluationService,
   ) {}
 
   /** Доставка, к которой относится звонок диспетчера наряду. */
@@ -240,6 +243,10 @@ export class DdsExerciseService {
       );
     }
 
+    if (isTerminalDdsStatus(request.status)) {
+      await this.textEvaluations?.enqueue(outcome.exercise.id);
+    }
+
     return this.presentOne(outcome.exercise);
   }
 
@@ -271,22 +278,48 @@ export class DdsExerciseService {
     const handoffs = this.handoffRequired
       ? await this.store.loadCrewHandoffs(exercises)
       : new Map<string, StoredCrewHandoff>();
+    const textEvaluations = this.textEvaluations
+      ? await this.textEvaluations.loadMany(exercises.map(({ id }) => id))
+      : new Map();
 
     return exercises.map((exercise) =>
-      this.present(exercise, handoffs.get(exercise.id) ?? null),
+      this.present(
+        exercise,
+        handoffs.get(exercise.id) ?? null,
+        textEvaluations.get(exercise.id) ?? null,
+      ),
     );
   }
 
   private present(
     exercise: StoredDdsExercise,
     handoff: StoredCrewHandoff | null,
+    textEvaluation: DdsTextEvaluationRecord | null,
   ): DdsExercise {
     const facts = handoff ? handoffFacts(handoff) : null;
+    const processResult = evaluateDdsExercise({
+      status: exercise.status,
+      acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
+      acknowledgedAt: exercise.acknowledgedAt,
+      passThreshold: exercise.passThreshold,
+      ...(facts ? { handoff: facts } : {}),
+    });
+    // После асинхронной проверки текста итог хранится в карточке. Повторный
+    // расчёт только по статусам здесь затёр бы текстовую часть результата.
+    const result =
+      processResult && exercise.score !== null
+        ? {
+            ...processResult,
+            score: exercise.score,
+            passed: exercise.passed ?? processResult.passed,
+          }
+        : processResult;
 
     return {
       id: exercise.id,
       scenarioVersionId: exercise.scenarioVersionId,
       trainingAttemptId: exercise.trainingAttemptId,
+      lessonId: exercise.lessonId,
       sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
@@ -301,13 +334,20 @@ export class DdsExerciseService {
       createdAt: exercise.createdAt.toISOString(),
       updatedAt: exercise.updatedAt.toISOString(),
       events: [...exercise.events],
-      result: evaluateDdsExercise({
-        status: exercise.status,
-        acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
-        acknowledgedAt: exercise.acknowledgedAt,
-        passThreshold: exercise.passThreshold,
-        ...(facts ? { handoff: facts } : {}),
-      }),
+      result,
+      textEvaluation: textEvaluation
+        ? {
+            status: textEvaluation.status,
+            preliminary: textEvaluation.status === "pending",
+            coverage: textEvaluation.coverage,
+            contradictions: textEvaluation.contradictions,
+            summary: textEvaluation.summary,
+            grammar: textEvaluation.grammar,
+            model: textEvaluation.model,
+            durationMs: textEvaluation.durationMs,
+            error: textEvaluation.error,
+          }
+        : null,
       crewHandoff:
         handoff && facts
           ? {

@@ -26,6 +26,16 @@ describe("DDS response status", () => {
     expect(allowedDdsTransitions("not_accepted")).toEqual(["accepted"]);
   });
 
+  it("keeps instructor lesson completion terminal and unavailable to operators", () => {
+    expect(allowedDdsTransitions("lesson_finished")).toEqual([]);
+    expect(() =>
+      validateDdsTransition({
+        current: "pending",
+        next: "lesson_finished",
+      }),
+    ).toThrow(new DdsTransitionError("invalid-transition"));
+  });
+
   it("requires a meaningful comment for not accepted and refusal", () => {
     for (const next of ["not_accepted", "refused"] as const) {
       const current = next === "not_accepted" ? "pending" : "accepted";

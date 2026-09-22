@@ -9,16 +9,26 @@ import type {
   InstructorReportFormat,
   InstructorReportStats,
 } from "../dto/instructor-report.dto";
+import {
+  DDS_PROCESS_ERROR_LABELS,
+  DDS_STATUS_LABELS,
+} from "@/modules/dds-exercise/domain/dds-report-aggregation";
+import type { DdsLessonReport } from "@/modules/dds-exercise/dto/dds-report.dto";
 
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const FONT_PATH = join(
+/**
+ * Шрифт отчётов: кириллица, латиница и цифры в одном файле.
+ *
+ * Кириллический субсет Noto Sans, который стоял здесь раньше, рисовал вместо
+ * цифр и латиницы пустые квадраты — в субсете этих глифов нет.
+ */
+export const REPORT_FONT_PATH = join(
   process.cwd(),
   "node_modules",
-  "@fontsource",
-  "noto-sans",
-  "files",
-  "noto-sans-cyrillic-400-normal.woff",
+  "dejavu-fonts-ttf",
+  "ttf",
+  "DejaVuSans.ttf",
 );
 
 export interface ReportArtifact {
@@ -144,6 +154,194 @@ export class ReportExporter {
     };
   }
 
+  async exportDdsLesson(
+    report: DdsLessonReport,
+    format: InstructorReportFormat,
+  ): Promise<ReportArtifact> {
+    const filename = `dds-lesson-${report.lesson.id.slice(0, 8)}-${report.lesson.finishedAt?.slice(0, 10) ?? "active"}.${format}`;
+    if (format === "csv") {
+      const headers = [
+        "Стажёр",
+        "Код сценария",
+        "Сценарий",
+        "Статус",
+        "Реакция, сек.",
+        "Норматив реакции, сек.",
+        "В нормативе",
+        "Завершение, сек.",
+        "Автоматический балл",
+        "Оценка преподавателя",
+        "Итоговый балл",
+        "Ошибки",
+        "Пропущенные пункты",
+      ];
+      const rows = report.cards.map((card) =>
+        csvRow([
+          card.operatorName,
+          card.scenarioCode,
+          card.scenarioTitle,
+          DDS_STATUS_LABELS[card.finalStatus] ?? card.finalStatus,
+          card.timing.reactionSeconds,
+          card.timing.reactionNormSeconds,
+          card.timing.reactionWithinNorm,
+          card.timing.completionSeconds,
+          card.automaticScore,
+          card.instructorReview?.score ?? null,
+          card.finalScore,
+          card.processErrors
+            .map((error) => DDS_PROCESS_ERROR_LABELS[error])
+            .join(" | "),
+          card.coverage
+            .filter(({ status }) => status === "missing")
+            .map(({ label }) => label)
+            .join(" | "),
+        ]),
+      );
+      return {
+        buffer: Buffer.from(
+          `\uFEFF${[csvRow(headers), ...rows].join("\r\n")}\r\n`,
+          "utf8",
+        ),
+        contentType: "text/csv; charset=utf-8",
+        filename,
+      };
+    }
+    if (format === "xlsx") {
+      const workbook = new Workbook();
+      const summary = workbook.addWorksheet("Сводка");
+      summary.addRows([
+        ["Занятие", report.lesson.title],
+        ["Карточек", report.summary.cards],
+        ["Средний балл", report.summary.averageScore ?? "—"],
+        ["Минимальный балл", report.summary.minScore ?? "—"],
+        ["Максимальный балл", report.summary.maxScore ?? "—"],
+        ["В нормативе, %", report.summary.withinNormPercent ?? "—"],
+      ]);
+      summary.getColumn(1).width = 28;
+      summary.getColumn(2).width = 60;
+
+      const students = workbook.addWorksheet("Стажёры");
+      students.addRow(["Стажёр", "Карточек", "Средний", "Минимум", "Максимум"]);
+      students.addRows(
+        report.students.map((student) => [
+          student.operatorName,
+          student.cards,
+          student.averageScore,
+          student.minScore,
+          student.maxScore,
+        ]),
+      );
+      this.styleTableHeader(students.getRow(1));
+
+      const cards = workbook.addWorksheet("Карточки");
+      cards.addRow([
+        "Стажёр",
+        "Код",
+        "Сценарий",
+        "Статус",
+        "Реакция, сек.",
+        "Норматив, сек.",
+        "Итоговый балл",
+        "Комментарий преподавателя",
+      ]);
+      cards.addRows(
+        report.cards.map((card) => [
+          card.operatorName,
+          card.scenarioCode,
+          card.scenarioTitle,
+          DDS_STATUS_LABELS[card.finalStatus] ?? card.finalStatus,
+          card.timing.reactionSeconds,
+          card.timing.reactionNormSeconds,
+          card.finalScore,
+          card.instructorReview?.comment ?? "",
+        ]),
+      );
+      this.styleTableHeader(cards.getRow(1));
+
+      const errors = workbook.addWorksheet("Ошибки");
+      errors.addRow(["Стажёр", "Код", "Тип", "Количество"]);
+      for (const card of report.cards)
+        for (const error of card.processErrors)
+          errors.addRow([
+            card.operatorName,
+            card.scenarioCode,
+            DDS_PROCESS_ERROR_LABELS[error],
+            1,
+          ]);
+      this.styleTableHeader(errors.getRow(1));
+      for (const sheet of workbook.worksheets)
+        sheet.columns.forEach((column) => {
+          if (!column.width) column.width = 24;
+          column.alignment = { vertical: "top", wrapText: true };
+        });
+      return {
+        buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+        contentType: XLSX_MIME,
+        filename,
+      };
+    }
+    return {
+      buffer: await this.ddsPdf(report),
+      contentType: "application/pdf",
+      filename,
+    };
+  }
+
+  private ddsPdf(report: DdsLessonReport): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const document = new PDFDocument({
+        size: "A4",
+        margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        info: { Title: `Отчёт ДДС — ${report.lesson.title}` },
+      });
+      const chunks: Buffer[] = [];
+      document.on("data", (chunk: Buffer) => chunks.push(chunk));
+      document.on("end", () => resolve(Buffer.concat(chunks)));
+      document.on("error", reject);
+      document.registerFont("ReportSans", REPORT_FONT_PATH).font("ReportSans");
+      document.fontSize(18).text(`Отчёт по занятию ДДС`);
+      document.fontSize(12).text(report.lesson.title).moveDown();
+      document
+        .fontSize(10)
+        .text(
+          `Карточек: ${report.summary.cards}. Средний балл: ${text(report.summary.averageScore)}. В нормативе: ${percent(report.summary.withinNormPercent)}.`,
+        );
+      document.moveDown().fontSize(13).text("Стажёры");
+      for (const student of report.students) {
+        this.ensurePdfSpace(document, 24);
+        document
+          .fontSize(9)
+          .text(
+            `${student.operatorName}: карточек ${student.cards}, средний балл ${text(student.averageScore)}`,
+          );
+      }
+      document.moveDown().fontSize(13).text("Карточки и ошибки");
+      for (const card of report.cards) {
+        this.ensurePdfSpace(document, 55);
+        document
+          .fontSize(9)
+          .text(
+            `${card.operatorName} · ${card.scenarioCode} — ${card.scenarioTitle}`,
+          )
+          .text(
+            `Статус: ${DDS_STATUS_LABELS[card.finalStatus] ?? card.finalStatus}; реакция: ${text(card.timing.reactionSeconds)} сек.; балл: ${text(card.finalScore)}`,
+          )
+          .text(
+            `Ошибки: ${card.processErrors.map((error) => DDS_PROCESS_ERROR_LABELS[error]).join(", ") || "не выявлены"}`,
+          );
+      }
+      if (report.insights?.status === "done") {
+        document.moveDown().fontSize(13).text("Выводы по группе");
+        document
+          .fontSize(9)
+          .text(`Сильные стороны: ${report.insights.strengths.join("; ")}`)
+          .text(`Слабые стороны: ${report.insights.weaknesses.join("; ")}`)
+          .text(`Рекомендации: ${report.insights.recommendations.join("; ")}`);
+      }
+      document.end();
+    });
+  }
+
   private csv(report: InstructorReport): string {
     const rows: string[] = [
       csvRow(["Отчёт преподавателя"]),
@@ -156,6 +354,16 @@ export class ReportExporter {
       "",
       csvRow(["Показатель", "Значение"]),
       ...statsRows(report.stats).map((row) => csvRow(row)),
+      "",
+      csvRow(["ДДС"]),
+      csvRow(["Карточек", report.dds.cards]),
+      csvRow(["Средний автоматический балл", report.dds.averageScore]),
+      csvRow(["Итоговый балл", report.dds.finalScore]),
+      csvRow(["В нормативе", percent(report.dds.withinNormPercent)]),
+      csvRow(["Полнота текста", percent(report.dds.averageCoveragePercent)]),
+      ...report.dds.topErrors.map((error) =>
+        csvRow([DDS_PROCESS_ERROR_LABELS[error.type], error.count]),
+      ),
       "",
       csvRow(ATTEMPT_HEADERS),
       ...report.attempts.map((attempt) => csvRow(attemptRow(attempt))),
@@ -235,6 +443,33 @@ export class ReportExporter {
       to: { row: 1, column: ATTEMPT_HEADERS.length },
     };
 
+    const dds = workbook.addWorksheet("ДДС");
+    dds.addRows([
+      ["Показатель", "Значение"],
+      ["Карточек", report.dds.cards],
+      ["Средний автоматический балл", report.dds.averageScore ?? "—"],
+      ["Итоговый балл", report.dds.finalScore ?? "—"],
+      ["В нормативе, %", report.dds.withinNormPercent ?? "—"],
+      ["Полнота текста, %", report.dds.averageCoveragePercent ?? "—"],
+      [],
+      ["Частая ошибка", "Количество"],
+      ...report.dds.topErrors.map(({ type, count }) => [
+        DDS_PROCESS_ERROR_LABELS[type],
+        count,
+      ]),
+      [],
+      ["Занятие", "Дата", "Средний балл"],
+      ...report.dds.scoreDynamics.map(({ title, occurredAt, score }) => [
+        title,
+        occurredAt,
+        score ?? "—",
+      ]),
+    ]);
+    dds.getColumn(1).width = 42;
+    dds.getColumn(2).width = 24;
+    dds.getColumn(3).width = 18;
+    this.styleTableHeader(dds.getRow(1));
+
     const output = await workbook.xlsx.writeBuffer();
     return Buffer.from(output);
   }
@@ -260,7 +495,7 @@ export class ReportExporter {
       document.on("data", (chunk: Buffer) => chunks.push(chunk));
       document.on("end", () => resolve(Buffer.concat(chunks)));
       document.on("error", reject);
-      document.registerFont("NotoSans", FONT_PATH).font("NotoSans");
+      document.registerFont("ReportSans", REPORT_FONT_PATH).font("ReportSans");
 
       document.fontSize(18).text("Отчёт преподавателя");
       document.moveDown(0.4).fontSize(10);
@@ -277,6 +512,21 @@ export class ReportExporter {
       for (const [label, value] of statsRows(report.stats)) {
         document.text(`${label}: ${text(value)}`);
       }
+
+      document.moveDown().fontSize(13).text("ДДС");
+      document
+        .fontSize(9)
+        .text(`Карточек: ${report.dds.cards}`)
+        .text(`Средний автоматический балл: ${text(report.dds.averageScore)}`)
+        .text(`Итоговый балл: ${text(report.dds.finalScore)}`)
+        .text(`В нормативе: ${percent(report.dds.withinNormPercent)}`)
+        .text(`Полнота текста: ${percent(report.dds.averageCoveragePercent)}`);
+      if (report.dds.cards === 0)
+        document.text("За выбранный период карточек ДДС нет.");
+      for (const error of report.dds.topErrors)
+        document.text(
+          `${DDS_PROCESS_ERROR_LABELS[error.type]}: ${error.count}`,
+        );
 
       if (report.students.length > 0) {
         document.moveDown().fontSize(13).text("Ученики");

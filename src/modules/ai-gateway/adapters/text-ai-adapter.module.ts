@@ -2,30 +2,64 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { z } from "zod";
 
-import { LLM_PORT } from "../../ai-gateway.tokens";
-import { QUESTION_UNDERSTANDING_PORT } from "../../ports/question-understanding.port";
-import { AliceAiStructuredOutputClient } from "./alice-ai-structured-output.client";
-import { AliceAiLlmAdapter } from "./alice-ai.adapter";
-import { AliceAiQuestionAdapter } from "./alice-ai.question.adapter";
-import { type AliceAiEnvironment, parseAliceAiConfig } from "./alice-ai.config";
+import { LLM_PORT } from "../ai-gateway.tokens";
+import { QUESTION_UNDERSTANDING_PORT } from "../ports/question-understanding.port";
+import { AliceAiStructuredOutputClient } from "./alice-ai/alice-ai-structured-output.client";
+import { AliceAiLlmAdapter } from "./alice-ai/alice-ai.adapter";
+import { AliceAiQuestionAdapter } from "./alice-ai/alice-ai.question.adapter";
+import {
+  type AliceAiEnvironment,
+  parseAliceAiConfig,
+} from "./alice-ai/alice-ai.config";
 import {
   LocalLlmAdapter,
   LocalLlmConfigSchema,
-} from "../local-llm/local-llm.adapter";
-import type { LlmPort } from "../../ports/llm.port";
-import type { QuestionUnderstandingPort } from "../../ports/question-understanding.port";
+} from "./local-llm/local-llm.adapter";
+import type { LlmPort } from "../ports/llm.port";
+import type { QuestionUnderstandingPort } from "../ports/question-understanding.port";
+import {
+  STRUCTURED_OUTPUT_PORT,
+  type StructuredOutputPort,
+} from "../ports/structured-output.port";
 import {
   assertOfflineEndpoint,
   guardedOfflineFetch,
   offlineSettings,
-} from "../../offline-policy";
+} from "../offline-policy";
 
 const AI_PROVIDERS = Symbol("AI_PROVIDERS");
 interface AiProviders {
   llm: LlmPort;
   questions: QuestionUnderstandingPort;
-  structured: Pick<AliceAiStructuredOutputClient, "complete">;
+  structured: StructuredOutputPort;
 }
+
+const createToolsLlm = (
+  config: ConfigService,
+  fetchImplementation: typeof fetch,
+): LocalLlmAdapter | null => {
+  const baseUrl = config.get<string>("TOOLS_LLM_BASE_URL");
+  if (!baseUrl) return null;
+  const offline = offlineSettings(config);
+  if (offline.enabled) assertOfflineEndpoint(baseUrl, offline.hosts);
+  const timeoutMs = config.get<number>("TOOLS_LLM_TIMEOUT_MS") ?? 120_000;
+
+  return new LocalLlmAdapter(
+    LocalLlmConfigSchema.parse({
+      baseUrl,
+      model: config.get("TOOLS_LLM_MODEL") ?? "tools-model",
+      timeoutMs,
+      concurrency: config.get("TOOLS_LLM_CONCURRENCY") ?? 1,
+      // Фоновые JSON-задачи не делят очередь и CPU со звонком.
+      queueSize: 16,
+      queueWaitMs: timeoutMs,
+      reserveLiveSlot: false,
+      literalFactReplies: false,
+      replyThinking: false,
+    }),
+    guardedOfflineFetch(config, fetchImplementation),
+  );
+};
 
 export const createAiProviders = (
   config: ConfigService,
@@ -39,6 +73,7 @@ export const createAiProviders = (
     throw new Error(
       "offline-hybrid requires LLM_PROVIDER=local; cloud fallback is prohibited",
     );
+  const tools = createToolsLlm(config, fetchImplementation);
   if (provider === "local") {
     if (offline.enabled)
       assertOfflineEndpoint(
@@ -56,21 +91,21 @@ export const createAiProviders = (
         replyTemperature: config.get("LLM_REPLY_TEMPERATURE"),
         replyThinking: config.get("LLM_REPLY_THINKING"),
         concurrency: config.get("LLM_CONCURRENCY"),
-        queueSize:
-          config.get("LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),
+        queueSize: config.get("LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),
         queueWaitMs: config.get("LLM_QUEUE_WAIT_MS"),
         literalFactReplies: offline.enabled,
         replyProtocol: config.get("LLM_REPLY_PROTOCOL"),
       }),
       guardedOfflineFetch(config, fetchImplementation),
     );
-    return { llm: client, questions: client, structured: client };
+    return { llm: client, questions: client, structured: tools ?? client };
   }
   const alice = createAliceAiConfig(config);
   return {
     llm: new AliceAiLlmAdapter(alice, fetchImplementation),
     questions: new AliceAiQuestionAdapter(alice, fetchImplementation),
-    structured: new AliceAiStructuredOutputClient(alice, fetchImplementation),
+    structured:
+      tools ?? new AliceAiStructuredOutputClient(alice, fetchImplementation),
   };
 };
 
@@ -104,6 +139,11 @@ const createAliceAiConfig = (configService: ConfigService) =>
       useFactory: (providers: AiProviders) => providers.structured,
     },
     {
+      provide: STRUCTURED_OUTPUT_PORT,
+      inject: [AI_PROVIDERS],
+      useFactory: (providers: AiProviders) => providers.structured,
+    },
+    {
       provide: LLM_PORT,
       inject: [AI_PROVIDERS],
       useFactory: (providers: AiProviders) => providers.llm,
@@ -117,7 +157,8 @@ const createAliceAiConfig = (configService: ConfigService) =>
   exports: [
     LLM_PORT,
     AliceAiStructuredOutputClient,
+    STRUCTURED_OUTPUT_PORT,
     QUESTION_UNDERSTANDING_PORT,
   ],
 })
-export class AliceAiAdapterModule {}
+export class TextAiAdapterModule {}

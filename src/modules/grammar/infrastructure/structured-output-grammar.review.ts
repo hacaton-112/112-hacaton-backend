@@ -1,7 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 
-import { AliceAiStructuredOutputClient } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-structured-output.client";
+import {
+  STRUCTURED_OUTPUT_PORT,
+  type StructuredOutputPort,
+} from "@/modules/ai-gateway/ports/structured-output.port";
 
 import type {
   GrammarReviewFinding,
@@ -78,8 +81,11 @@ const REVIEW_TIMEOUT_MS = 15_000;
  * доходит.
  */
 @Injectable()
-export class AliceAiGrammarReview implements GrammarReviewPort {
-  constructor(private readonly client: AliceAiStructuredOutputClient) {}
+export class StructuredOutputGrammarReview implements GrammarReviewPort {
+  constructor(
+    @Inject(STRUCTURED_OUTPUT_PORT)
+    private readonly client: StructuredOutputPort,
+  ) {}
 
   async review(
     texts: readonly GrammarReviewInput[],
