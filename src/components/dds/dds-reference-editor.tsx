@@ -29,21 +29,35 @@ export function DdsReferenceEditor({ versionId }: { versionId: string }) {
         Подготовка эталона…
       </Text>
     );
+  const running =
+    query.data.jobStatus === "pending" || query.data.jobStatus === "processing";
   return (
-    <DdsReferenceForm
-      key={`${query.data.id}:${query.data.version}`}
-      versionId={versionId}
-      initial={query.data}
-    />
+    <>
+      {running && (
+        <Text size="2" color="gray">
+          Помощник пересобирает эталон — пункты обновятся здесь же.
+        </Text>
+      )}
+      {/* Ключ включает ход генерации: без него форма осталась бы на прежних
+          пунктах, и готовый эталон не был бы виден. */}
+      <DdsReferenceForm
+        key={`${query.data.id}:${query.data.version}:${query.data.jobStatus}`}
+        versionId={versionId}
+        initial={query.data}
+        pending={running}
+      />
+    </>
   );
 }
 
 function DdsReferenceForm({
   versionId,
   initial,
+  pending,
 }: {
   versionId: string;
   initial: DdsCardReference;
+  pending: boolean;
 }) {
   const client = useQueryClient();
   const [draft, setDraft] = useState(initial);
@@ -142,7 +156,7 @@ function DdsReferenceForm({
         />
         <Button
           variant="soft"
-          disabled={comment.trim().length < 2}
+          disabled={pending || comment.trim().length < 2}
           onClick={() => regenerate.mutate()}
         >
           Перегенерировать

@@ -1,5 +1,5 @@
 import { Flex, Spinner } from "@bolid-ui/themes";
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 import { Outlet, Route, Routes } from "react-router";
 
 import { ROUTE_PATTERNS } from "./config/routes";
@@ -11,6 +11,7 @@ import {
   TRAINEE_ROLES,
   TRAINING_MANAGER_ROLES,
 } from "./config/roles";
+import { clearChunkReloadMark, lazyImport } from "./lib/lazy-page";
 import { AppLayout } from "./layouts/app-layout";
 import { AuthLayout } from "./layouts/auth-layout";
 import { RoleLayout } from "./layouts/role-layout";
@@ -25,32 +26,38 @@ import {
   withPhoneWindowProviders,
 } from "./providers";
 
-const ScenarioConstructorPage = lazy(
+const ScenarioConstructorPage = lazyImport(
   () => import("./pages/main/scenario-constructor-page"),
 );
-const ScenarioCatalogPage = lazy(
+const ScenarioCatalogPage = lazyImport(
   () => import("./pages/main/scenario-catalog-page"),
 );
-const DdsReferencesPage = lazy(
+const DdsReferencesPage = lazyImport(
   () => import("./pages/main/dds-references-page"),
 );
-const AssignmentsPage = lazy(() => import("./pages/main/assignments-page"));
-const MonitoringPage = lazy(() => import("./pages/main/monitoring-page"));
-const ReportsPage = lazy(() => import("./pages/main/reports-page"));
-const DdsLessonReportPage = lazy(
+const AssignmentsPage = lazyImport(
+  () => import("./pages/main/assignments-page"),
+);
+const MonitoringPage = lazyImport(() => import("./pages/main/monitoring-page"));
+const ReportsPage = lazyImport(() => import("./pages/main/reports-page"));
+const DdsLessonReportPage = lazyImport(
   () => import("./pages/main/dds-lesson-report-page"),
 );
-const DdsMyResultsPage = lazy(() => import("./pages/main/dds-my-results-page"));
-const GroupsPage = lazy(() => import("./pages/main/groups-page"));
-const GroupPage = lazy(() => import("./pages/main/group-page"));
-const StudentPage = lazy(() => import("./pages/main/student-page"));
-const StudentsPage = lazy(() => import("./pages/main/students-page"));
-const AdminPage = lazy(() => import("./pages/main/admin-page"));
-const ClassifierPage = lazy(() => import("./pages/main/classifier-page"));
-const MethodicalMaterialsPage = lazy(
+const DdsMyResultsPage = lazyImport(
+  () => import("./pages/main/dds-my-results-page"),
+);
+const GroupsPage = lazyImport(() => import("./pages/main/groups-page"));
+const GroupPage = lazyImport(() => import("./pages/main/group-page"));
+const StudentPage = lazyImport(() => import("./pages/main/student-page"));
+const StudentsPage = lazyImport(() => import("./pages/main/students-page"));
+const AdminPage = lazyImport(() => import("./pages/main/admin-page"));
+const ClassifierPage = lazyImport(() => import("./pages/main/classifier-page"));
+const MethodicalMaterialsPage = lazyImport(
   () => import("./pages/main/methodical-materials-page"),
 );
-const BrowserPhonePage = lazy(() => import("./pages/phone/browser-phone-page"));
+const BrowserPhonePage = lazyImport(
+  () => import("./pages/phone/browser-phone-page"),
+);
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -75,6 +82,9 @@ const lazyPage = (page: ReactNode) => (
 );
 
 export function Routing() {
+  // Разделы загрузились — значит сборка целая, и метка разовой перезагрузки больше не нужна.
+  useEffect(clearChunkReloadMark, []);
+
   return (
     <Routes>
       <Route element={withAppProviders(<Outlet />)}>
