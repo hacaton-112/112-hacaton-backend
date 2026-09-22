@@ -28,7 +28,13 @@ async function prepareFonts(): Promise<void> {
         next += 1;
         const job = jobs[index];
         if (!job) return;
-        const directory = resolve(fontsRoot, job.fontstack);
+        // TileServer разбирает набор на отдельные шрифты и ищет каждый по
+        // его собственному имени, поэтому диапазоны набора кладутся в каталог
+        // первого шрифта: остальных в наборе всё равно нет.
+        const directory = resolve(
+          fontsRoot,
+          job.fontstack.split(",")[0]!.trim(),
+        );
         await mkdir(directory, { recursive: true });
         const response = await fetch(
           `${FONT_UPSTREAM}/${encodeURIComponent(job.fontstack)}/${job.range}`,
