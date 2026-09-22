@@ -21,15 +21,21 @@ import type { TrainingActor } from "@/modules/training/training.service";
 
 import type { UpdateDdsReference } from "../dto/dds-reference.dto";
 
+/** Подписи видит преподаватель при утверждении: только по-русски. */
+const RussianText = z
+  .string()
+  .min(2)
+  .regex(/[А-Яа-яЁё]/u, "Пишите по-русски");
+
 const GeneratedSchema = z.object({
   expectedOutcome: z.enum(["accept", "refuse"]),
-  refusalReasons: z.array(z.string().min(1)).max(20),
+  refusalReasons: z.array(RussianText).max(20),
   requiredItems: z
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(2),
-        hint: z.string().min(2),
+        label: RussianText,
+        hint: RussianText,
       }),
     )
     .min(1)
@@ -64,6 +70,22 @@ const JSON_SCHEMA = {
     expectedCrewService: { type: ["string", "null"] },
   },
 } as const;
+
+/**
+ * Эталон — для диспетчера ДДС, а не для оператора 112.
+ *
+ * Без этого модель перечисляла поля адреса — работу оператора, который
+ * заполняет карточку, — и писала подписи по-английски.
+ */
+const REFERENCE_PROMPT = [
+  "Ты готовишь эталон для проверки рабочих комментариев диспетчера ДДС (не оператора 112).",
+  "Диспетчер получил уже заполненную карточку происшествия и пишет короткие комментарии при смене статуса: «Принята», «Работы завершены» или «Отказ».",
+  "Перечисли 3–6 сведений, которые должны быть в его комментариях по этой карточке: подтверждение приёма, какая бригада или наряд направлены, ориентир или уточнение места из карточки, что сделано на месте, итог работ.",
+  "Не требуй того, что диспетчер не может знать, и не перечисляй поля адреса — их заполнил оператор 112.",
+  "label — коротко по-русски, что должно прозвучать, например «Бригада направлена»; hint — по-русски, как это обычно пишут, например «Указать номер или тип бригады»; id — короткий латинский идентификатор.",
+  "expectedOutcome — accept, если служба должна отработать карточку; refuse — если карточка не для неё. refusalReasons — по-русски допустимые причины отказа, пустой список, если отказ не ожидается.",
+  "Не пиши готовый ответ и не выставляй балл.",
+].join(" ");
 
 @Injectable()
 export class DdsReferenceService {
@@ -216,8 +238,7 @@ export class DdsReferenceService {
             schemaName: "dds_card_reference",
             schemaDescription: "Эталон текста действий диспетчера ДДС",
             schema: JSON_SCHEMA,
-            systemPrompt:
-              "Составь проверяемые сведения для краткого рабочего комментария диспетчера. Не пиши готовый ответ и не выставляй балл. id должны быть короткими латинскими идентификаторами.",
+            systemPrompt: REFERENCE_PROMPT,
             userPrompt: JSON.stringify({
               title: source.scenario.title,
               summary: source.scenario.summary,
