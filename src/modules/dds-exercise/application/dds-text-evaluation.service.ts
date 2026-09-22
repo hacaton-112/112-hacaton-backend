@@ -249,7 +249,9 @@ export class DdsTextEvaluationService implements OnModuleInit {
       if (!task) return null;
       const leaseUntil = new Date(
         now.getTime() +
-          (this.config.get<number>("TOOLS_LLM_TIMEOUT_MS") ?? 120_000) +
+          // Значение из окружения может прийти строкой: без приведения срок
+          // аренды склеивается в строку и становится Invalid Date.
+          Number(this.config.get("TOOLS_LLM_TIMEOUT_MS") ?? 120_000) +
           10_000,
       );
       const [claimed] = await tx
@@ -298,7 +300,7 @@ export class DdsTextEvaluationService implements OnModuleInit {
       .map((item) => `[${item.label}] ${item.value}`)
       .join("\n");
     const started = Date.now();
-    const timeout = this.config.get<number>("TOOLS_LLM_TIMEOUT_MS") ?? 120_000;
+    const timeout = Number(this.config.get("TOOLS_LLM_TIMEOUT_MS") ?? 120_000);
     const parsed = await requestDdsTextCoverage(
       this.structured,
       {

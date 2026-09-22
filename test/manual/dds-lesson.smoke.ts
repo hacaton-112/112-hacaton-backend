@@ -152,6 +152,7 @@ async function main(): Promise<void> {
         })
         .onConflictDoUpdate({
           target: ddsCardReferences.scenarioVersionId,
+          targetWhere: isNotNull(ddsCardReferences.scenarioVersionId),
           set: { requiredItems: [], status: "draft", approvedAt: null },
         });
       step("эталон отключён флагом --without-llm");
@@ -177,6 +178,13 @@ async function main(): Promise<void> {
       comment:
         "Сообщение принято, пожарная бригада направлена по учебному адресу",
     });
+    // Текст оценивается по завершении карточки, а не на каждом статусе.
+    await exercises.transition(firstExercise.id, ids.student, {
+      eventId: generateId(),
+      status: "refused",
+      comment: "Учебная карточка обработана",
+    });
+    step("ученик завершил сгенерированную карточку");
     let evaluated = await exercises.get(firstExercise.id, ids.student);
     const evaluationDeadline = Date.now() + 130_000;
     while (
@@ -205,12 +213,6 @@ async function main(): Promise<void> {
         ? "карточка оценена прежней формулой без текста"
         : "получены покрытие эталона, грамотность и итоговый балл",
     );
-    await exercises.transition(firstExercise.id, ids.student, {
-      eventId: generateId(),
-      status: "refused",
-      comment: "Учебная карточка обработана",
-    });
-    step("ученик завершил сгенерированную карточку");
 
     const now = new Date();
     await db.insert(callStates).values({
