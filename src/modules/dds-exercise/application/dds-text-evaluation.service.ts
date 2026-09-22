@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { and, asc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { generateId } from "@/common/utils/id";
@@ -374,7 +374,11 @@ export class DdsTextEvaluationService implements OnModuleInit {
         status: "approved",
         approvedAt: new Date(),
       })
-      .onConflictDoNothing({ target: ddsCardReferences.exerciseId })
+      .onConflictDoNothing({
+        target: ddsCardReferences.exerciseId,
+        // Индекс частичный, и предикат нужен, чтобы Postgres его распознал.
+        where: isNotNull(ddsCardReferences.exerciseId),
+      })
       .returning();
     return row ?? null;
   }

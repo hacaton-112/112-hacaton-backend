@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { AppNotFoundException } from "@/common/exceptions/app.exception";
@@ -132,10 +132,14 @@ export class DdsReferenceService {
       versionId: string;
       durationMs: number;
       ok: boolean;
+      error?: string;
     }) => void,
   ): Promise<{ prepared: number; failed: number }> {
-    const versions = await this.db
-      .select({ id: scenarioVersions.id })
+    const rows = await this.db
+      .select({
+        id: scenarioVersions.id,
+        scenarioId: scenarioVersions.scenarioId,
+      })
       .from(scenarioVersions)
       .innerJoin(scenarios, eq(scenarios.id, scenarioVersions.scenarioId))
       .where(
@@ -143,7 +147,15 @@ export class DdsReferenceService {
           eq(scenarios.status, "published"),
           isNotNull(scenarioVersions.publishedAt),
         ),
-      );
+      )
+      .orderBy(desc(scenarioVersions.version));
+    // Эталон нужен только действующей версии: прошлые остаются за
+    // проведёнными звонками, и готовить их — вдвое дольше впустую.
+    const current = new Map<string, string>();
+    for (const row of rows) {
+      if (!current.has(row.scenarioId)) current.set(row.scenarioId, row.id);
+    }
+    const versions = [...current.values()].map((id) => ({ id }));
     let prepared = 0;
     let failed = 0;
     for (const { id } of versions) {
@@ -156,12 +168,16 @@ export class DdsReferenceService {
           durationMs: Date.now() - startedAt,
           ok: true,
         });
-      } catch {
+      } catch (error) {
         failed += 1;
         onPrepared?.({
           versionId: id,
           durationMs: Date.now() - startedAt,
           ok: false,
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 300)
+              : String(error),
         });
       }
     }
@@ -242,6 +258,9 @@ export class DdsReferenceService {
       .values({ id: generateId(), scenarioVersionId: versionId, ...values })
       .onConflictDoUpdate({
         target: ddsCardReferences.scenarioVersionId,
+        // Индекс частичный: без того же условия Postgres не находит его для
+        // ON CONFLICT и отклоняет каждую запись эталона.
+        targetWhere: isNotNull(ddsCardReferences.scenarioVersionId),
         set: {
           ...values,
           version: sql`${ddsCardReferences.version} + 1`,

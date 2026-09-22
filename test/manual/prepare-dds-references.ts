@@ -11,9 +11,9 @@ async function main(): Promise<void> {
   try {
     const result = await app
       .get(DdsReferenceService)
-      .preparePublished(({ versionId, durationMs, ok }) => {
+      .preparePublished(({ versionId, durationMs, ok, error }) => {
         console.log(
-          `${ok ? "готов" : "ошибка"} ${versionId}: ${Math.round(durationMs / 100) / 10} с`,
+          `${ok ? "готов" : "ошибка"} ${versionId}: ${Math.round(durationMs / 100) / 10} с${error ? ` — ${error}` : ""}`,
         );
       });
     const seconds = Math.round((Date.now() - started) / 100) / 10;
