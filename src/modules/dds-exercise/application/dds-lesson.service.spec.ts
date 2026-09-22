@@ -154,7 +154,13 @@ describe(`${DdsLessonService.name}.create`, () => {
     const current = lesson();
     const { service } = createService([
       [],
-      [{ id: current.groupId, status: "active", instructorId: current.createdBy }],
+      [
+        {
+          id: current.groupId,
+          status: "active",
+          instructorId: current.createdBy,
+        },
+      ],
       [current],
       [
         {
