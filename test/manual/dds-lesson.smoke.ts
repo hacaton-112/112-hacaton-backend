@@ -7,6 +7,7 @@ import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callStates,
+  ddsCardReferences,
   ddsExercises,
   ddsLessons,
   incidentCards,
@@ -15,10 +16,12 @@ import {
   trainingGroupMembers,
   trainingGroups,
   users,
+  type DdsCardReferenceRecord,
 } from "@/drizzle/schema";
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
 import { DdsDispatchService } from "@/modules/dds-exercise/application/dds-dispatch.service";
 import { DdsLessonService } from "@/modules/dds-exercise/application/dds-lesson.service";
+import { DdsReferenceService } from "@/modules/dds-exercise/application/dds-reference.service";
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
 
 const step = (message: string): void => console.log(`• ${message}`);
@@ -37,6 +40,8 @@ async function main(): Promise<void> {
   const dispatches = app.get(DdsDispatchService);
   const exercises = app.get(DdsExerciseService);
   const monitoring = app.get(DdsTrainingService);
+  const references = app.get(DdsReferenceService);
+  const withoutLlm = process.argv.includes("--without-llm");
   const suffix = generateId().slice(0, 8);
   const ids = {
     instructor: generateId(),
@@ -46,6 +51,8 @@ async function main(): Promise<void> {
     sourceSession: generateId(),
   };
   let lessonId: string | null = null;
+  let originalReference: DdsCardReferenceRecord | null = null;
+  let scenarioVersionId: string | null = null;
 
   try {
     const [version] = await db
@@ -65,7 +72,6 @@ async function main(): Promise<void> {
       throw new Error(
         "Нет опубликованного сценария категории fire — выполните db:seed",
       );
-
     await db.insert(users).values([
       {
         id: ids.instructor,
@@ -122,10 +128,78 @@ async function main(): Promise<void> {
     if (first.status !== "ready" || !first.exercise)
       throw new Error(first.reason ?? "The first card was not issued");
     const firstExercise = first.exercise;
+    scenarioVersionId = firstExercise.scenarioVersionId;
+    const [storedReference] = await db
+      .select()
+      .from(ddsCardReferences)
+      .where(eq(ddsCardReferences.scenarioVersionId, scenarioVersionId))
+      .limit(1);
+    originalReference = storedReference ?? null;
+    if (withoutLlm) {
+      await db
+        .insert(ddsCardReferences)
+        .values({
+          id: generateId(),
+          scenarioVersionId,
+          expectedOutcome: "accept",
+          requiredItems: [],
+          status: "draft",
+        })
+        .onConflictDoUpdate({
+          target: ddsCardReferences.scenarioVersionId,
+          set: { requiredItems: [], status: "draft", approvedAt: null },
+        });
+      step("эталон отключён флагом --without-llm");
+    } else {
+      const generated = await references.getScenario(scenarioVersionId);
+      await references.update(
+        { id: ids.instructor, role: "instructor" },
+        scenarioVersionId,
+        {
+          eventId: generateId(),
+          expectedOutcome: generated.expectedOutcome,
+          refusalReasons: generated.refusalReasons,
+          requiredItems: generated.requiredItems,
+          expectedCrewService: generated.expectedCrewService,
+          approveAll: true,
+        },
+      );
+      step("эталон сценария подготовлен и подтверждён");
+    }
     await exercises.transition(firstExercise.id, ids.student, {
       eventId: generateId(),
       status: "accepted",
+      comment:
+        "Сообщение принято, пожарная бригада направлена по учебному адресу",
     });
+    let evaluated = await exercises.get(firstExercise.id, ids.student);
+    const evaluationDeadline = Date.now() + 130_000;
+    while (
+      (!evaluated.textEvaluation ||
+        evaluated.textEvaluation.status === "pending") &&
+      Date.now() < evaluationDeadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      evaluated = await exercises.get(firstExercise.id, ids.student);
+    }
+    if (withoutLlm) {
+      if (evaluated.textEvaluation?.status !== "skipped")
+        throw new Error("Путь без оценки текста не перешёл в skipped");
+    } else if (
+      evaluated.textEvaluation?.status !== "done" ||
+      evaluated.textEvaluation.coverage.length === 0 ||
+      evaluated.textEvaluation.grammar === null ||
+      evaluated.result === null
+    ) {
+      throw new Error(
+        "Асинхронная оценка текста не сформировала полный результат",
+      );
+    }
+    step(
+      withoutLlm
+        ? "карточка оценена прежней формулой без текста"
+        : "получены покрытие эталона, грамотность и итоговый балл",
+    );
     await exercises.transition(firstExercise.id, ids.student, {
       eventId: generateId(),
       status: "refused",
@@ -234,6 +308,31 @@ async function main(): Promise<void> {
       .where(eq(ddsExercises.sourceTrainingSessionId, ids.sourceSession));
     if (lessonId)
       await db.delete(ddsLessons).where(eq(ddsLessons.id, lessonId));
+    if (originalReference) {
+      await db
+        .update(ddsCardReferences)
+        .set({
+          expectedOutcome: originalReference.expectedOutcome,
+          refusalReasons: originalReference.refusalReasons,
+          requiredItems: originalReference.requiredItems,
+          expectedCrewService: originalReference.expectedCrewService,
+          status: originalReference.status,
+          version: originalReference.version,
+          approvedBy: originalReference.approvedBy,
+          approvedAt: originalReference.approvedAt,
+          generationComment: originalReference.generationComment,
+          leaseOwner: originalReference.leaseOwner,
+          leaseUntil: originalReference.leaseUntil,
+          attemptCount: originalReference.attemptCount,
+          error: originalReference.error,
+          updatedAt: originalReference.updatedAt,
+        })
+        .where(eq(ddsCardReferences.id, originalReference.id));
+    } else if (scenarioVersionId) {
+      await db
+        .delete(ddsCardReferences)
+        .where(eq(ddsCardReferences.scenarioVersionId, scenarioVersionId));
+    }
     await db
       .delete(callStates)
       .where(eq(callStates.trainingSessionId, ids.sourceSession));
