@@ -32,8 +32,8 @@ export function WindowTitlebar({
   sidebarOpen?: boolean;
   title?: string;
 }) {
-  // Вне Tauri (обычный `bun run dev` в браузере) окна нет — шапка остаётся
-  // декоративной, а кнопки просто ничего не делают.
+  // В браузере системным окном управляет сам браузер. Не показываем элементы,
+  // которые там заведомо ничего не делают и выглядят как сломанные кнопки.
   const window = useMemo(() => (isTauri() ? getCurrentWindow() : null), []);
   const [maximized, setMaximized] = useState(false);
 
@@ -120,37 +120,39 @@ export function WindowTitlebar({
         </Text>
       </Flex>
       <Box className="h-full min-w-0 flex-1" data-tauri-drag-region />
-      <Flex align="stretch" className="shrink-0" height="100%">
-        <TitlebarButton
-          label="Свернуть"
-          onClick={() =>
-            runWindowAction(window, (current) => current.minimize())
-          }
-        >
-          <Minus aria-hidden="true" size={14} strokeWidth={1.5} />
-        </TitlebarButton>
-        <TitlebarButton
-          label={maximized ? "Восстановить" : "Развернуть"}
-          onClick={toggleMaximize}
-        >
-          {maximized ? (
-            <Copy aria-hidden="true" size={12} strokeWidth={1.5} />
-          ) : (
-            <Square aria-hidden="true" size={12} strokeWidth={1.5} />
-          )}
-        </TitlebarButton>
-        <TitlebarButton
-          close
-          label="Закрыть"
-          onClick={() =>
-            runWindowAction(window, (current) =>
-              closeBehavior === "hide" ? current.hide() : current.close(),
-            )
-          }
-        >
-          <X aria-hidden="true" size={14} strokeWidth={1.5} />
-        </TitlebarButton>
-      </Flex>
+      {window && (
+        <Flex align="stretch" className="shrink-0" height="100%">
+          <TitlebarButton
+            label="Свернуть"
+            onClick={() =>
+              runWindowAction(window, (current) => current.minimize())
+            }
+          >
+            <Minus aria-hidden="true" size={14} strokeWidth={1.5} />
+          </TitlebarButton>
+          <TitlebarButton
+            label={maximized ? "Восстановить" : "Развернуть"}
+            onClick={toggleMaximize}
+          >
+            {maximized ? (
+              <Copy aria-hidden="true" size={12} strokeWidth={1.5} />
+            ) : (
+              <Square aria-hidden="true" size={12} strokeWidth={1.5} />
+            )}
+          </TitlebarButton>
+          <TitlebarButton
+            close
+            label="Закрыть"
+            onClick={() =>
+              runWindowAction(window, (current) =>
+                closeBehavior === "hide" ? current.hide() : current.close(),
+              )
+            }
+          >
+            <X aria-hidden="true" size={14} strokeWidth={1.5} />
+          </TitlebarButton>
+        </Flex>
+      )}
     </Flex>
   );
 }

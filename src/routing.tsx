@@ -18,6 +18,7 @@ import AuthPage from "./pages/main/auth-page";
 import DebriefPage from "./pages/main/debrief-page";
 import DdsExercisePage from "./pages/main/dds-exercise-page";
 import HomePage from "./pages/main/home-page";
+import OperatorPage from "./pages/main/operator-page";
 import MapPage from "./pages/map/map-page";
 import {
   withAppProviders,
@@ -74,6 +75,7 @@ export function Routing() {
         <Route element={<AppLayout />}>
           <Route element={<AuthLayout />}>
             <Route index element={<HomePage />} />
+            <Route path={ROUTE_PATTERNS.operator} element={<OperatorPage />} />
             <Route path={ROUTE_PATTERNS.debrief} element={<DebriefPage />} />
             <Route
               path={ROUTE_PATTERNS.methodicalMaterials}

@@ -9,7 +9,7 @@
 
 /** Шаблоны для `<Route path>`: только здесь встречаются `:параметры`. */
 export const ROUTE_PATTERNS = {
-  operator: "/",
+  operator: "/operator",
   auth: "/auth",
   debrief: "/debrief",
   debriefSession: "/debrief/:trainingSessionId",
@@ -33,8 +33,8 @@ export const ROUTE_PATTERNS = {
 } as const;
 
 export const ROUTES = {
-  operator: () => "/",
-  operatorWorkplace: () => "/?workplace=1",
+  operator: () => "/operator",
+  operatorWorkplace: () => "/operator",
   auth: () => "/auth",
   debrief: () => "/debrief",
   dds: () => "/dds",
@@ -60,9 +60,9 @@ export const ROUTES = {
     `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,
   /** Рабочее место с уже выбранным сценарием: брифинг открывает звонок так. */
   operatorWithScenario: (scenarioVersionId: string) =>
-    `/?scenario=${encodeURIComponent(scenarioVersionId)}`,
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}`,
   operatorWithAssignment: (scenarioVersionId: string, assignmentId: string) =>
-    `/?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
 } as const;
 
 /** Имя параметра, которым брифинг передаёт сценарий на рабочее место. */

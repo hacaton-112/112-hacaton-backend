@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { QUERY_KEYS } from "../../config/query-keys";
 import { CallerPanel } from "../../components/operator/caller-panel";
 import { CallControlDock } from "../../components/operator/call-control-dock";
-import { DispatchCallPanel } from "../../components/operator/dispatch-call-panel";
+import { IncidentMapDialog } from "../../components/operator/incident-map-dialog";
 import { IncidentForm } from "../../components/operator/incident-form";
 import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
 import { useCall } from "../../hooks/use-call";
@@ -84,24 +84,6 @@ export default function OperatorPage() {
     }
   };
 
-  const callerName = (() => {
-    if (incidentCard.card?.callerAnonymous) return "Анонимный заявитель";
-
-    const fullName = [
-      incidentCard.card?.callerLastName,
-      incidentCard.card?.callerFirstName,
-      incidentCard.card?.callerMiddleName,
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    return (
-      fullName ||
-      incidentCard.card?.callerPhone ||
-      call.callerNumber ||
-      "Заявитель"
-    );
-  })();
   // Карточка остаётся открытой до конца разговора: заявитель называет
   // подъезд или пострадавшего уже после отправки в ДДС, и этим сведениям
   // нужно место. Сама доставка от правок не меняется — ДДС получает снимок,
@@ -182,6 +164,13 @@ export default function OperatorPage() {
         startedAt={call.startedAt}
         state={call.state}
       />
+      {!call.voiceTransportAvailable && (
+        <div className="arm112-browser-notice" role="status">
+          В браузерной версии карточка доступна для проверки, но голосовой
+          звонок ещё использует нативный транспорт Tauri. Для запуска звонка
+          откройте desktop-версию.
+        </div>
+      )}
       {/* Карточка занимает экран целиком и не прокручивается страницей: в АРМ
           оператор не ищет поле колесом мыши, всё лежит на своих местах. */}
       <main className="arm112-workspace" aria-label="Карточка происшествия">
@@ -193,6 +182,15 @@ export default function OperatorPage() {
           disabled={!isCardEditable}
           onChange={incidentCard.update}
           locationFill={incidentPoint.fill}
+          locationAction={
+            <IncidentMapDialog
+              incident={call.incident}
+              selectedPoint={incidentPoint.point}
+              status={incidentPoint.status}
+              required={missingCardRequirements.includes("point")}
+              onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
+            />
+          }
           missingRequirements={
             call.state === "active" ? missingCardRequirements : []
           }
@@ -208,24 +206,6 @@ export default function OperatorPage() {
                 onChange={incidentCard.update}
               />
             </div>
-          }
-        />
-        <DispatchCallPanel
-          {...call}
-          selectedPoint={incidentPoint.point}
-          pointStatus={incidentPoint.status}
-          onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
-          services={incidentCard.services}
-          requiredServices={
-            incidentCard.card?.classifierRouting?.requiredServices ?? []
-          }
-          classifierServices={classifierServices}
-          onToggleService={incidentCard.toggleService}
-          callerName={callerName}
-          isCardReady={isCardEditable}
-          isEnding={isEnding}
-          missingRequirements={
-            call.state === "active" ? missingCardRequirements : []
           }
         />
       </main>
@@ -281,10 +261,9 @@ function OperatorTelephoneStrip({
                 ? "Подключение"
                 : "Отключение"}
           </strong>
-          <div className="arm112-hangup-actions">
-            <span>записи звонков</span>
-            <span>список SMS</span>
-          </div>
+          <span className="arm112-connection-kind">
+            Учебный телефонный вызов
+          </span>
         </div>
       </div>
 

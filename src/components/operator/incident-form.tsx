@@ -46,6 +46,8 @@ interface IncidentFormProps {
   missingRequirements?: readonly IncidentCardRequirement[];
   /** Строка заявителя: в АРМ она стоит над адресом, в том же столбце. */
   callerSlot?: ReactNode;
+  /** Карта — отдельное действие в заголовке адреса, а не постоянная панель. */
+  locationAction?: ReactNode;
 }
 
 export function IncidentForm({
@@ -56,6 +58,7 @@ export function IncidentForm({
   locationFill,
   missingRequirements = [],
   callerSlot,
+  locationAction,
 }: IncidentFormProps) {
   const { control, register, reset, getValues, setValue } = useForm<
     IncidentCardInput,
@@ -145,15 +148,19 @@ export function IncidentForm({
             <span id="location-title">
               <MapPin size={14} aria-hidden /> Адрес:
             </span>
-            <button
-              type="button"
-              className="arm112-icon-button"
-              aria-label="Очистить адрес"
-              disabled={disabled}
-              onClick={clearAddress}
-            >
-              <X size={16} aria-hidden />
-            </button>
+            <div className="arm112-address-toolbar">
+              {locationAction}
+              <button
+                type="button"
+                className="arm112-icon-button"
+                aria-label="Очистить адрес"
+                title="Очистить адрес"
+                disabled={disabled}
+                onClick={clearAddress}
+              >
+                <X size={16} aria-hidden />
+              </button>
+            </div>
           </header>
 
           <RequiredField
@@ -223,7 +230,9 @@ export function IncidentForm({
                     size="1"
                     checked={field.value}
                     disabled={disabled}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
                   />
                 )}
               />
@@ -456,9 +465,18 @@ function LineField({
   wide?: boolean;
 }) {
   return (
-    <label className="arm112-field" data-wide={wide || undefined} htmlFor={name}>
+    <label
+      className="arm112-field"
+      data-wide={wide || undefined}
+      htmlFor={name}
+    >
       <span>{label}</span>
-      <input id={name} autoComplete="off" disabled={disabled} {...register(name)} />
+      <input
+        id={name}
+        autoComplete="off"
+        disabled={disabled}
+        {...register(name)}
+      />
     </label>
   );
 }
@@ -495,6 +513,8 @@ function CountField({
             }
             onChange={field.onChange}
             onBlur={field.onBlur}
+            decrementAriaLabel={`Уменьшить: ${label}`}
+            incrementAriaLabel={`Увеличить: ${label}`}
             minValue={0}
             maxValue={9_999}
             disabled={disabled}

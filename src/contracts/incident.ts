@@ -207,11 +207,11 @@ export const INCIDENT_CATEGORY_LABELS: Record<IncidentCategory, string> = {
 };
 
 export const DISPATCH_SERVICE_LABELS: Record<DispatchService, string> = {
-  dds_01: "ДДС-01",
-  dds_02: "ДДС-02",
-  dds_03: "ДДС-03",
-  dds_04: "ДДС-04",
-  zhkh: "ЖКХ",
+  dds_01: "Служба 101",
+  dds_02: "Служба 102",
+  dds_03: "Служба 103",
+  dds_04: "Служба 104",
+  zhkh: "Деп. ЖКХ",
   antiterror: "Антитеррор",
   eddc: "ЕДДС",
   uadit: "УАДиТ",

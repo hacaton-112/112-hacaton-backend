@@ -68,7 +68,7 @@ export function CallControlDock(props: CallControlDockProps) {
 
   return (
     <div
-      className="arm-operator-dock absolute inset-x-0 bottom-0 z-50"
+      className="arm-operator-dock z-50 shrink-0"
       data-tour="call-controls"
       aria-label="Управление звонком"
     >
