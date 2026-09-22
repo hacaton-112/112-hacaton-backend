@@ -77,8 +77,10 @@ export class ScenarioAuthoringService {
       } catch (error) {
         lastError = error;
         feedback = this.validationFeedback(error);
+        // Причина в журнале: без неё по «failed validation» нельзя понять,
+        // какое поле модель заполняет неверно.
         this.logger.warn(
-          `Scenario assistant attempt ${attempt}/${MAX_ASSISTANT_ATTEMPTS} failed validation or generation`,
+          `Scenario assistant attempt ${attempt}/${MAX_ASSISTANT_ATTEMPTS} failed: ${feedback}`,
         );
       }
     }

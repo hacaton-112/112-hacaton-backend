@@ -75,7 +75,7 @@ describe(ScenarioAuthoringService.name, () => {
 
     expect(result.scenario.code).toMatch(/^S-AI-[A-F0-9]{8}$/);
     expect(generate).toHaveBeenCalledTimes(2);
-    expect(generate.mock.calls[1][0].validationFeedback).toContain("persona");
+    expect(generate.mock.calls[1][0].validationFeedback).toContain("caller");
     expect(publish).not.toHaveBeenCalled();
   });
 

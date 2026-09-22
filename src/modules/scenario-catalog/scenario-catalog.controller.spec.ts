@@ -7,6 +7,7 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 import type { TrainingService } from "@/modules/training/training.service";
 
 import type { ScenarioAuthoringService } from "./application/scenario-authoring.service";
+import type { ScenarioGenerationService } from "./application/scenario-generation.service";
 import type { ScenarioCatalog } from "./ports/scenario-catalog.port";
 import { ScenarioCatalogController } from "./scenario-catalog.controller";
 
@@ -37,6 +38,7 @@ const createController = () => {
     controller: new ScenarioCatalogController(
       catalog as ScenarioCatalog,
       authoring as unknown as ScenarioAuthoringService,
+      {} as ScenarioGenerationService,
       training as unknown as TrainingService,
     ),
     authoring,

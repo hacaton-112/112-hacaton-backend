@@ -18,28 +18,36 @@ describe("scenario assistant suggestion", () => {
     ).toBe(true);
     expect(seed).toMatchObject({
       code: "S-AI-TEST",
-      persona: { voiceId: "serena" },
+      persona: { gender: "female" },
       version: { expectedServices: ["fire", "ambulance"] },
     });
+    expect(["serena", "vivian", "sohee", "ono_anna"]).toContain(
+      seed.persona.voiceId,
+    );
     expect(seed).not.toHaveProperty("location");
-    expect(seed.referenceCard.fields).toHaveLength(3);
+    // Факты и обязательные вопросы собирает код: модель их больше не пишет,
+    // поэтому и сослаться на несуществующий факт ей негде.
+    expect(seed.facts.map((fact) => fact.key)).toEqual([
+      "incident_type",
+      "victims",
+      "caller_name",
+      "detail_1",
+      "detail_2",
+    ]);
+    expect(seed.mandatoryQuestions.map((question) => question.text)).toEqual([
+      "Есть ли пострадавшие и сколько",
+      "Как зовут заявителя",
+    ]);
   });
 
-  it("rejects a mandatory question that refers to an unknown fact", () => {
-    const suggestion = validAssistantSuggestion();
-    suggestion.mandatoryQuestions[0].satisfiedByFactKeys = ["missing"];
-
-    expect(() =>
-      buildScenarioDraftFromSuggestion("S-AI-BROKEN", suggestion),
-    ).toThrow();
+  it("keeps the model answer short", () => {
+    // Пара сотен токенов вместо тысячи: на CPU это секунды, а не минута.
+    expect(JSON.stringify(validAssistantSuggestion()).length).toBeLessThan(600);
   });
 
-  it.each([
-    ["openingLine", "Здравствуйте, служба 112, что случилось?"],
-    ["fallbackLine", "Пожалуйста, расскажите подробнее, что произошло"],
-  ] as const)("rejects an operator phrase in %s", (field, utterance) => {
+  it("rejects an operator phrase in the opening line", () => {
     const suggestion = validAssistantSuggestion();
-    suggestion[field] = utterance;
+    suggestion.openingLine = "Здравствуйте, служба 112, что случилось?";
 
     expect(
       ScenarioAssistantSuggestionSchema.safeParse(suggestion).success,
@@ -49,7 +57,7 @@ describe("scenario assistant suggestion", () => {
   it("preserves the services explicitly listed by the author", () => {
     const suggestion = {
       ...validAssistantSuggestion(),
-      expectedServices: ["ambulance", "police", "gas"] as const,
+      services: ["ambulance", "police", "gas"] as const,
     };
     const brief =
       "Наезд на пешехода во дворе. Службы: скорая, ГИБДД. Тяжёлый факт — возможный перелом.";
@@ -89,14 +97,12 @@ describe("scenario assistant suggestion", () => {
     ).toBe(false);
   });
 
-  it("rejects address fields in generated incident-card facts", () => {
-    const suggestion = validAssistantSuggestion() as unknown as {
-      facts: { cardField: string }[];
-    };
-    suggestion.facts[0].cardField = "street";
-
+  it("rejects an address returned by the model", () => {
     expect(
-      ScenarioAssistantSuggestionSchema.safeParse(suggestion).success,
+      ScenarioAssistantSuggestionSchema.safeParse({
+        ...validAssistantSuggestion(),
+        address: "улица Учебная, дом 1",
+      }).success,
     ).toBe(false);
   });
 });

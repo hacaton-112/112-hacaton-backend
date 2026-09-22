@@ -9,17 +9,17 @@ import {
   EMERGENCY_SERVICES,
   SCENARIO_CATEGORIES,
   TERRAIN_TYPES,
-  type ScenarioCategory,
   type TerrainType,
 } from "@/drizzle/schema";
+import { buildIncidentScenario } from "@/modules/scenario-catalog/domain/incident-scenario";
 
 /**
  * Вызовы из экзаменационных билетов АГС ГСИ как сценарии тренажёра.
  *
  * Билет задаёт только суть вызова: что случилось, кто звонит, адрес и
- * уточнение адреса. Всё остальное — голос, раскрытие фактов, эскалация —
- * строится здесь по одним правилам, чтобы 94 вызова не расходились в
- * мелочах. Результат проходит ту же ScenarioSeedSchema, что и сценарии,
+ * уточнение адреса. Голос, раскрытие фактов и эскалацию строит общий
+ * buildIncidentScenario — тот же, что собирает черновик помощника, — а
+ * здесь добавляется место происшествия, которое у билета известно. Результат проходит ту же ScenarioSeedSchema, что и сценарии,
  * написанные вручную: у билета нет отдельной, более слабой двери в базу.
  *
  * Из каждого опубликованного сценария строится и карточка ДДС, поэтому
@@ -80,11 +80,6 @@ const TicketsFileSchema = z
 
 export type Ticket = z.infer<typeof TicketSchema>;
 
-const VOICES = {
-  male: ["aiden", "dylan", "eric", "ryan"],
-  female: ["serena", "vivian", "sohee", "ono_anna"],
-} as const;
-
 /** Радиус локатора: в поле и в лесу базовая станция накрывает километры. */
 const LOCATOR_RADIUS: Record<TerrainType, number> = {
   city_dense: 300,
@@ -94,47 +89,6 @@ const LOCATOR_RADIUS: Record<TerrainType, number> = {
   open_field: 2_500,
   forest: 3_000,
 };
-
-const CATEGORY_LABEL: Record<ScenarioCategory, string> = {
-  fire: "Пожар",
-  road_accident: "ДТП",
-  medical: "Медицинская помощь",
-  criminal: "Правонарушение",
-  gas_leak: "Запах газа",
-  other: "Прочее",
-};
-
-const SERVICE_LABEL: Record<string, string> = {
-  dds_01: "пожарная охрана (01)",
-  dds_02: "полиция (02)",
-  dds_03: "скорая помощь (03)",
-  dds_04: "газовая служба (04)",
-  zhkh: "ЖКХ",
-  antiterror: "антитеррор",
-  eddc: "ЕДДС",
-  uadit: "УАДИТ",
-  rosgvardia: "Росгвардия",
-  cuks: "ЦУКС",
-  ass: "аварийно-спасательная служба",
-  lpc: "лесопожарный центр",
-  ss: "социальная служба",
-};
-
-const hash = (value: string): number =>
-  [...value].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
-
-/** Корни слов для засчитывания факта: окончания в речи всё равно другие. */
-const stems = (text: string, limit: number): string[] =>
-  [
-    ...new Set(
-      text
-        .toLocaleLowerCase("ru-RU")
-        .replace(/ё/g, "е")
-        .split(/[^а-яa-z0-9]+/u)
-        .filter((word) => word.length >= 5)
-        .map((word) => word.slice(0, 6)),
-    ),
-  ].slice(0, limit);
 
 /**
  * Части адреса с подписями: карточка ДДС склеивает их через запятую, и без
@@ -157,343 +111,31 @@ const labelledAddress = (
   );
 };
 
-const houseNumber = (house: string): string =>
-  house.replace(/^(вл\.|владение)\s*/iu, "");
-
-const victimsLine = (victims: number | null): string =>
-  victims === null
-    ? "Не знаю, есть ли пострадавшие, отсюда не видно."
-    : victims === 0
-      ? "Пострадавших нет."
-      : `Пострадавших: ${victims}.`;
-
 export function ticketToScenario(ticket: Ticket): unknown {
-  const { caller, address } = ticket;
-  const panic = ticket.difficulty >= 4 ? 3 : ticket.difficulty === 3 ? 2 : 1;
-  const voices = VOICES[caller.gender];
   const radius = LOCATOR_RADIUS[ticket.terrain];
   // Центр локатора смещён от точки на 40 % радиуса: вызов попадает в
   // зону, но точку оператору всё равно нужно найти по адресу.
   const shift = (radius * 0.4) / 111_000;
-  const anonymous = caller.name === "Не назвался";
-
-  const facts = [
-    {
-      key: "incident_type",
-      promptValue: ticket.situation,
-      displayLabel: "Что случилось",
-      severity: ticket.victims ? "heavy" : "normal",
-      cardField: "category",
-      cardValue: ticket.title,
-      contentKeywords: stems(ticket.title, 4),
-      disclosure: { type: "immediate" },
-      priority: 9,
-    },
-    {
-      key: "address",
-      promptValue: address.spoken,
-      displayLabel: "Адрес",
-      severity: "normal",
-      cardField: "street",
-      cardValue: address.parts.street ?? address.parts.object ?? address.spoken,
-      contentKeywords: stems(address.parts.street ?? address.spoken, 3),
-      disclosure: {
-        type: "on_question",
-        keywords: ["адрес", "улиц", "где", "куда", "дом", "место", "находит"],
-      },
-      priority: 9,
-    },
-    ...(address.clarified
-      ? [
-          {
-            key: "address_clarified",
-            promptValue: address.clarified,
-            displayLabel: "Уточнение адреса",
-            severity: "normal",
-            cardField: "landmarks",
-            cardValue: address.clarified,
-            contentKeywords: stems(address.clarified, 3),
-            disclosure: {
-              type: "on_question",
-              keywords: [
-                "уточн",
-                "точнее",
-                "точный",
-                "номер дома",
-                "какой дом",
-                "ориентир",
-                "рядом",
-              ],
-            },
-            priority: 8,
-          },
-        ]
-      : []),
-    {
-      key: "victims",
-      promptValue: victimsLine(ticket.victims),
-      displayLabel: "Пострадавшие",
-      severity: ticket.victims ? "heavy" : "normal",
-      cardField: "victims_total",
-      cardValue: ticket.victims === null ? null : String(ticket.victims),
-      contentKeywords: ["пострадав", "ранен", "люди"],
-      disclosure: {
-        type: "on_question",
-        keywords: [
-          "пострадав",
-          "ранен",
-          "люди",
-          "живы",
-          "сколько",
-          "дышит",
-          "сознани",
-        ],
-      },
-      priority: 8,
-    },
-    {
-      key: "caller_name",
-      promptValue: anonymous
-        ? "Не буду я представляться."
-        : `Меня зовут ${caller.name}.`,
-      displayLabel: "Заявитель",
-      severity: "normal",
-      cardField: "caller_name",
-      cardValue: anonymous ? null : caller.name,
-      contentKeywords: anonymous ? [] : stems(caller.name, 2),
-      disclosure: {
-        type: "on_question",
-        keywords: ["зовут", "фамили", "имя", "представ", "кто звонит"],
-      },
-      priority: 5,
-    },
-    ...ticket.details.map((detail, index) => ({
-      key: `detail_${index + 1}`,
-      promptValue: detail,
-      displayLabel: "Подробности",
-      severity: "normal",
-      cardField: index === 0 ? "dispatcher_notes" : null,
-      cardValue: index === 0 ? detail : null,
-      contentKeywords: stems(detail, 3),
-      disclosure: {
-        type: "on_question",
-        keywords: [
-          "подробн",
-          "ещё",
-          "еще",
-          "приметы",
-          "номер",
-          "опишите",
-          "видите",
-          "что там",
-        ],
-      },
-      priority: 5,
-    })),
-  ];
-
-  const referenceFields = [
-    ...(address.parts.street
-      ? [
-          {
-            field: "street",
-            expectedValue: address.parts.street,
-            comparison: "contains",
-            isRequired: true,
-            sourceFactKey: "address",
-          },
-        ]
-      : []),
-    ...(address.parts.house
-      ? [
-          {
-            field: "house",
-            expectedValue: houseNumber(address.parts.house),
-            comparison: "contains",
-            isRequired: true,
-            sourceFactKey: address.clarified ? "address_clarified" : "address",
-          },
-        ]
-      : []),
-    ...(address.parts.apartment
-      ? [
-          {
-            field: "apartment",
-            expectedValue: address.parts.apartment,
-            comparison: "contains",
-            isRequired: true,
-            sourceFactKey: "address",
-          },
-        ]
-      : []),
-    {
-      field: "category",
-      expectedValue: CATEGORY_LABEL[ticket.category],
-      acceptableValues: [ticket.title],
-      comparison: "contains",
-      isRequired: true,
-      sourceFactKey: "incident_type",
-    },
-    ...(ticket.victims === null
-      ? []
-      : [
-          {
-            field: "victims_total",
-            expectedValue: String(ticket.victims),
-            comparison: "numeric_range",
-            isRequired: true,
-            sourceFactKey: "victims",
-          },
-        ]),
-    ...(anonymous
-      ? []
-      : [
-          {
-            // Полное имя — его показывает карточка ДДС; фамилии оператору
-            // достаточно, поэтому она принимается как вариант.
-            field: "caller_name",
-            expectedValue: caller.name,
-            acceptableValues: [caller.name.split(/[ ,]/u)[0]],
-            comparison: "contains",
-            isRequired: false,
-            sourceFactKey: "caller_name",
-          },
-        ]),
-    {
-      field: "caller_phone",
-      expectedValue: caller.phone,
-      comparison: "normalized",
-      isRequired: false,
-      sourceFactKey: null,
-    },
-  ];
-
-  const dispatchNote =
-    ticket.dispatch.length > 0
-      ? `Службы: ${ticket.dispatch.map((code) => SERVICE_LABEL[code]).join(", ")}.`
-      : "Экстренного повода нет, службы не направляются.";
 
   return {
-    code: ticket.code,
-    title: ticket.title,
-    category: ticket.category,
-    difficulty: ticket.difficulty,
-    summary: ticket.situation,
-    persona: {
-      code: `ticket-${ticket.code.toLowerCase()}`,
-      displayName: `${caller.name}, ${caller.age} лет`.slice(0, 120),
-      gender: caller.gender,
-      ageYears: caller.age,
-      condition:
-        panic >= 3
-          ? "Напуган, торопит, отвечает сбивчиво"
-          : "Взволнован, но отвечает на вопросы",
-      speechStyle:
-        "Говорит от первого лица: сначала главное, остальное — только на вопросы. Адрес называет так, как привык, уточнение даёт, если переспросят. Длинных объяснений не любит.",
-      voiceId: voices[hash(ticket.code) % voices.length],
-      baselinePanicLevel: panic,
-      baseSpeechRate: panic >= 3 ? 1.08 : 1,
-    },
-    version: {
-      panicFloor: 0,
-      panicCeiling: 4,
-      maxInterruptions: ticket.difficulty >= 4 ? 4 : 2,
-      initiativeCooldownSeconds: 12,
-      answerNormSeconds: 240,
-      expectedDurationSeconds: 180 + ticket.difficulty * 45,
-      passThreshold: 75,
-      expectedServices: ticket.services,
-      referenceNotes: [
-        dispatchNote,
-        address.clarified ? `Уточнение адреса: ${address.clarified}.` : null,
-        ...ticket.details,
-      ]
-        .filter(Boolean)
-        .join(" "),
-      openingLine:
-        ticket.opening ??
-        `${panic >= 3 ? "Алло, помогите!" : "Алло!"} ${ticket.title}!`,
-      fallbackLine: "Что? Плохо слышно, повторите, пожалуйста.",
-    },
+    ...buildIncidentScenario({
+      ...ticket,
+      personaCode: `ticket-${ticket.code.toLowerCase()}`,
+      referenceLabel: `Билет ${ticket.code}`,
+    }),
     location: {
       terrain: ticket.terrain,
-      exactAddress: labelledAddress(address.parts),
+      exactAddress: labelledAddress(ticket.address.parts),
       exactPoint: ticket.point,
       locatorCenter: [ticket.point[0] + shift, ticket.point[1]],
       locatorRadiusMeters: radius,
-      locatorLabel: `Мобильный · базовая станция рядом с местом вызова (${address.parts.city ?? "Московский регион"})`,
+      locatorLabel: `Мобильный · базовая станция рядом с местом вызова (${ticket.address.parts.city ?? "Московский регион"})`,
       locatorAccuracy:
         ticket.terrain === "forest" || ticket.terrain === "open_field"
           ? "approximate"
           : "identified",
-      callerNumber: caller.phone,
+      callerNumber: ticket.caller.phone,
       previouslyCalled: false,
-    },
-    escalation: [
-      {
-        trigger: "operator_silence",
-        direction: "up",
-        cooldownSeconds: 10,
-        params: { seconds: 7 },
-      },
-      { trigger: "heavy_fact_revealed", direction: "up", cooldownSeconds: 0 },
-      {
-        trigger: "question_repeated",
-        direction: "up",
-        cooldownSeconds: 15,
-        params: { times: 2 },
-      },
-      {
-        trigger: "forbidden_phrase",
-        direction: "up",
-        cooldownSeconds: 0,
-        params: { keywords: ["успокойтесь", "не кричите", "подождите"] },
-      },
-      {
-        trigger: "calming_phrase",
-        direction: "down",
-        cooldownSeconds: 0,
-        params: {
-          keywords: ["помощь уже едет", "бригада выехала", "я вас слышу"],
-        },
-      },
-      { trigger: "services_confirmed", direction: "down", cooldownSeconds: 0 },
-      {
-        trigger: "instruction_followed",
-        direction: "down",
-        cooldownSeconds: 0,
-      },
-    ],
-    facts,
-    mandatoryQuestions: [
-      {
-        text: "Точный адрес происшествия",
-        satisfiedByFactKeys: ["address"],
-        isCritical: true,
-      },
-      ...(address.clarified
-        ? [
-            {
-              text: "Уточнение адреса или ориентир",
-              satisfiedByFactKeys: ["address_clarified"],
-              isCritical: true,
-            },
-          ]
-        : []),
-      {
-        text: "Есть ли пострадавшие и сколько",
-        satisfiedByFactKeys: ["victims"],
-        isCritical: true,
-      },
-      {
-        text: "Как зовут заявителя",
-        satisfiedByFactKeys: ["caller_name"],
-        isCritical: false,
-      },
-    ],
-    referenceCard: {
-      fields: referenceFields,
-      notes: `Билет ${ticket.code}. ${dispatchNote}`,
     },
   };
 }

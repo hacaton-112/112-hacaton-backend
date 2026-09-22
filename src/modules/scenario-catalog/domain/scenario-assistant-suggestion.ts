@@ -1,98 +1,40 @@
 import { z } from "zod";
 
-import {
-  EMERGENCY_SERVICES,
-  FACT_SEVERITIES,
-  INCIDENT_CARD_FIELDS,
-  SCENARIO_CATEGORIES,
-} from "@/drizzle/schema";
+import { EMERGENCY_SERVICES, SCENARIO_CATEGORIES } from "@/drizzle/schema";
 import { CallerUtteranceSchema } from "@/modules/scenario-engine/domain/caller-utterance.schema";
 import {
   ScenarioSeedSchema,
   type ScenarioSeed,
 } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
-const ASSISTANT_CARD_FIELDS = [
-  "object_type",
-  "landmarks",
-  "caller_name",
-  "caller_phone",
-  "caller_type",
-  "dispatcher_notes",
-  "category",
-  "clarification",
-  "started_at",
-  "victims_total",
-  "children_count",
-  "victims_condition",
-] as const satisfies readonly (typeof INCIDENT_CARD_FIELDS)[number][];
-
-const AssistantCardFieldSchema = z.enum([...ASSISTANT_CARD_FIELDS, "none"]);
+import { buildIncidentScenario } from "./incident-scenario";
 
 /**
- * A deliberately smaller model-facing shape than ScenarioSeed.
+ * Вводная, которую пишет модель: только суть происшествия.
  *
- * The assistant describes the incident. Technical defaults and the complete
- * Scenario Engine shape are assembled deterministically on the server and
- * validated through ScenarioSeedSchema afterwards.
+ * Раньше модель заполняла персонажа, 3–12 фактов с ключевыми словами и
+ * обязательные вопросы со ссылками на ключи фактов — тысячу с лишним
+ * токенов на попытку, около минуты на CPU, и ошибалась в перекрёстных
+ * ссылках. Теперь ответ умещается в пару сотен токенов, а полный сценарий
+ * собирает buildIncidentScenario по тем же правилам, что и билеты.
  */
 export const ScenarioAssistantSuggestionSchema = z
   .object({
     title: z.string().min(3).max(120),
     category: z.enum(SCENARIO_CATEGORIES),
     difficulty: z.number().int().min(1).max(5),
-    summary: z.string().min(10).max(400),
-    persona: z
+    situation: z.string().min(10).max(400),
+    caller: z
       .object({
+        name: z.string().min(2).max(80),
         gender: z.enum(["male", "female"]),
-        displayName: z.string().min(2).max(120),
-        ageYears: z.number().int().min(1).max(110),
-        condition: z.string().min(2).max(200),
-        speechStyle: z.string().min(10).max(2_000),
-        backgroundSounds: z.string().max(200),
-        baselinePanicLevel: z.number().int().min(0).max(4),
-        baseSpeechRate: z.number().min(0.5).max(2),
+        age: z.number().int().min(10).max(100),
       })
       .strict(),
+    victims: z.number().int().min(0).max(50).nullable(),
+    services: z.array(z.enum(EMERGENCY_SERVICES)).min(1).max(4),
+    details: z.array(z.string().min(2).max(200)).max(5),
     openingLine: CallerUtteranceSchema,
-    fallbackLine: CallerUtteranceSchema,
-    expectedServices: z.array(z.enum(EMERGENCY_SERVICES)).min(1).max(4),
-    facts: z
-      .array(
-        z
-          .object({
-            key: z
-              .string()
-              .min(1)
-              .max(128)
-              .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/),
-            promptValue: z.string().min(2).max(1_000),
-            displayLabel: z.string().min(2).max(120),
-            severity: z.enum(FACT_SEVERITIES),
-            cardField: AssistantCardFieldSchema,
-            cardValue: z.string().max(200),
-            contentKeywords: z.array(z.string().min(2)).min(1).max(12),
-            disclosureType: z.enum(["immediate", "on_question", "never"]),
-            questionKeywords: z.array(z.string().min(2)).min(1).max(12),
-            priority: z.number().int().min(0).max(100),
-          })
-          .strict(),
-      )
-      .min(3)
-      .max(12),
-    mandatoryQuestions: z
-      .array(
-        z
-          .object({
-            text: z.string().min(5).max(300),
-            satisfiedByFactKeys: z.array(z.string().min(1).max(128)).min(1),
-            isCritical: z.boolean(),
-          })
-          .strict(),
-      )
-      .min(2)
-      .max(10),
-    referenceNotes: z.string().max(2_000),
   })
   .strict();
 
@@ -196,99 +138,21 @@ export const buildScenarioDraftFromSuggestion = (
     authoringBrief === undefined
       ? undefined
       : explicitExpectedServicesFromBrief(authoringBrief);
-  const seenReferenceFields = new Set<string>();
-  const referenceFields = suggestion.facts.flatMap((fact) => {
-    if (
-      fact.cardField === "none" ||
-      fact.cardValue.trim().length === 0 ||
-      seenReferenceFields.has(fact.cardField)
-    ) {
-      return [];
-    }
 
-    seenReferenceFields.add(fact.cardField);
-
-    return [
-      {
-        field: fact.cardField,
-        expectedValue: fact.cardValue,
-        acceptableValues: [],
-        comparison: "normalized" as const,
-        isRequired: true,
-        sourceFactKey: fact.key,
-      },
-    ];
-  });
-
-  return ScenarioAssistantDraftSchema.parse({
-    code,
-    title: suggestion.title,
-    category: suggestion.category,
-    difficulty: suggestion.difficulty,
-    summary: suggestion.summary,
-    persona: {
-      code: `${code.toLowerCase()}-caller`,
-      gender: suggestion.persona.gender,
-      displayName: suggestion.persona.displayName,
-      ageYears: suggestion.persona.ageYears,
-      condition: suggestion.persona.condition,
-      speechStyle: suggestion.persona.speechStyle,
-      ...(suggestion.persona.backgroundSounds.trim().length === 0
-        ? {}
-        : { backgroundSounds: suggestion.persona.backgroundSounds }),
-      voiceId: suggestion.persona.gender === "male" ? "aiden" : "serena",
-      baselinePanicLevel: suggestion.persona.baselinePanicLevel,
-      baseSpeechRate: suggestion.persona.baseSpeechRate,
-    },
-    version: {
-      panicFloor: 0,
-      panicCeiling: 4,
-      maxInterruptions: 3,
-      initiativeCooldownSeconds: 12,
-      answerNormSeconds: 240,
-      expectedDurationSeconds: 240 + suggestion.difficulty * 60,
-      passThreshold: 75,
-      expectedServices: explicitExpectedServices ?? suggestion.expectedServices,
-      referenceNotes: suggestion.referenceNotes,
-      openingLine: suggestion.openingLine,
-      fallbackLine: suggestion.fallbackLine,
-    },
-    escalation: [
-      {
-        trigger: "operator_silence",
-        direction: "up",
-        cooldownSeconds: 20,
-        params: { seconds: 20 },
-      },
-      {
-        trigger: "calming_phrase",
-        direction: "down",
-        cooldownSeconds: 4,
-        params: {
-          keywords: ["спокойно", "я вас слышу", "помощь выехала"],
-        },
-      },
-    ],
-    facts: suggestion.facts.map((fact) => ({
-      key: fact.key,
-      promptValue: fact.promptValue,
-      displayLabel: fact.displayLabel,
-      severity: fact.severity,
-      cardField: fact.cardField === "none" ? null : fact.cardField,
-      cardValue: fact.cardValue.trim().length === 0 ? null : fact.cardValue,
-      contentKeywords: fact.contentKeywords,
-      disclosure:
-        fact.disclosureType === "on_question"
-          ? { type: "on_question" as const, keywords: fact.questionKeywords }
-          : { type: fact.disclosureType },
-      priority: fact.priority,
-    })),
-    mandatoryQuestions: suggestion.mandatoryQuestions,
-    referenceCard: {
-      fields: referenceFields,
-      notes: suggestion.referenceNotes,
-    },
-  });
+  return ScenarioAssistantDraftSchema.parse(
+    buildIncidentScenario({
+      code,
+      title: suggestion.title,
+      situation: suggestion.situation,
+      opening: suggestion.openingLine,
+      category: suggestion.category,
+      difficulty: suggestion.difficulty,
+      services: explicitExpectedServices ?? suggestion.services,
+      caller: suggestion.caller,
+      victims: suggestion.victims,
+      details: suggestion.details,
+    }),
+  );
 };
 
 /** JSON Schema sent to the provider; Zod remains authoritative after output. */
