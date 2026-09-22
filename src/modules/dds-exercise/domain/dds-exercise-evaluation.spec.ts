@@ -138,12 +138,12 @@ describe(evaluateDdsExercise.name, () => {
         handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
       } as const;
 
-      expect(evaluateDdsExercise({ ...input, passThreshold: 60 })).toMatchObject(
-        { score: 70, passed: true },
-      );
-      expect(evaluateDdsExercise({ ...input, passThreshold: 90 })).toMatchObject(
-        { score: 70, passed: false },
-      );
+      expect(
+        evaluateDdsExercise({ ...input, passThreshold: 60 }),
+      ).toMatchObject({ score: 70, passed: true });
+      expect(
+        evaluateDdsExercise({ ...input, passThreshold: 90 }),
+      ).toMatchObject({ score: 70, passed: false });
     });
   });
 });

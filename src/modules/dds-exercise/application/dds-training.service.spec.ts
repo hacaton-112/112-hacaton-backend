@@ -149,9 +149,12 @@ describe(`${DdsTrainingService.name}.live`, () => {
       acknowledgementDeadlineAt: overdue,
       acknowledgedAt: null,
     };
-    const { service } = createService([[assigned], [fromQueue]], new Map());
+    const { service } = createService([[assigned], [fromQueue], []], new Map());
 
-    const result = await service.live({ id: "instructor-1", role: "instructor" });
+    const result = await service.live({
+      id: "instructor-1",
+      role: "instructor",
+    });
 
     expect(result.attempts).toEqual([
       expect.objectContaining({
@@ -167,6 +170,39 @@ describe(`${DdsTrainingService.name}.live`, () => {
         operatorName: fromQueue.operatorName,
         cardTitle: card.title,
         findings: ["acknowledgement_overdue"],
+      }),
+    ]);
+    expect(result.lessonAttempts).toEqual([]);
+  });
+
+  it("labels active lesson cards with the lesson instead of an attempt number", async () => {
+    const now = new Date();
+    const lessonCard = {
+      id: "lesson-exercise",
+      lessonId: "lesson-1",
+      lessonTitle: "Смена по пожарам",
+      groupId: "group-1",
+      operatorId: "operator-1",
+      operatorName: "Анна Оператор",
+      startedAt: now,
+      status: "pending" as const,
+      addressedService: "dds_01" as const,
+      card: { title: "Пожар" },
+      acknowledgementDeadlineAt: new Date(now.getTime() + 30_000),
+      acknowledgedAt: null,
+    };
+    const { service } = createService([[], [], [lessonCard]], new Map());
+
+    const result = await service.live(
+      { id: "instructor-1", role: "instructor" },
+      { groupId: "group-1", lessonId: "lesson-1" },
+    );
+
+    expect(result.lessonAttempts).toEqual([
+      expect.objectContaining({
+        lessonId: "lesson-1",
+        lessonTitle: "Смена по пожарам",
+        exerciseId: "lesson-exercise",
       }),
     ]);
   });
