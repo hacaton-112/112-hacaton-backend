@@ -14,7 +14,11 @@ export const ROUTE_PATTERNS = {
   debrief: "/debrief",
   debriefSession: "/debrief/:trainingSessionId",
   dds: "/dds",
+  ddsLessonReport: "/dds-lessons/:lessonId/report",
+  ddsResults: "/dds-results",
+  ddsResult: "/dds-results/:exerciseId",
   scenarios: "/scenarios",
+  ddsReferences: "/dds-references",
   assignments: "/assignments",
   monitoring: "/monitoring",
   reports: "/reports",
@@ -41,9 +45,15 @@ export const ROUTES = {
   dds: () => "/dds",
   ddsExercise: (exerciseId: string) =>
     `/dds?exercise=${encodeURIComponent(exerciseId)}`,
+  ddsLessonReport: (lessonId: string) =>
+    `/dds-lessons/${encodeURIComponent(lessonId)}/report`,
+  ddsResults: () => "/dds-results",
+  ddsResult: (exerciseId: string) =>
+    `/dds-results/${encodeURIComponent(exerciseId)}`,
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
+  ddsReferences: () => "/dds-references",
   assignments: () => "/assignments",
   monitoring: () => "/monitoring",
   reports: () => "/reports",
@@ -72,7 +82,7 @@ export const ASSIGNMENT_QUERY_PARAM = "assignment";
 export const WORKPLACE_QUERY_PARAM = "workplace";
 
 /**
- * Окно карты. В Tauri оно уже создано и адресуется меткой из `tauri.conf.json`;
+ * Окно карты адресуется стабильным именем браузерного popup;
  * в браузере его заменяет вкладка по hash-адресу того же маршрута.
  */
 export const MAP_WINDOW_LABEL = "incident-map";

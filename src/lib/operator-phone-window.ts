@@ -1,5 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { Window } from "@tauri-apps/api/window";
 import { z } from "zod";
 
 import {
@@ -72,7 +70,9 @@ const channel = () =>
  * посреди разговора, и оно должно увидеть его целиком, а не с ближайшего
  * изменения.
  */
-export function createPhoneHostChannel(onCommand: (command: PhoneCommand) => void) {
+export function createPhoneHostChannel(
+  onCommand: (command: PhoneCommand) => void,
+) {
   const bus = channel();
   let latest: PhoneCallSnapshot | null = null;
 
@@ -129,31 +129,20 @@ export function createPhoneWindowChannel(
   };
 }
 
-/**
- * Открывает окно телефона: в Tauri оно объявлено в сборке, в браузере это
- * отдельная вкладка того же адреса.
- */
-export async function openOperatorPhoneWindow(): Promise<void> {
-  if (!isTauri()) {
-    const popup = window.open(
-      OPERATOR_PHONE_WINDOW_URL,
-      OPERATOR_PHONE_WINDOW_LABEL,
-      "popup=yes,width=460,height=760,resizable=yes",
+/** Открывает окно телефона: отдельное окно браузера того же приложения. */
+export function openOperatorPhoneWindow(): Promise<void> {
+  const popup = window.open(
+    OPERATOR_PHONE_WINDOW_URL,
+    OPERATOR_PHONE_WINDOW_LABEL,
+    "popup=yes,width=460,height=760,resizable=yes",
+  );
+
+  if (!popup) {
+    throw new Error(
+      "Браузер заблокировал окно телефона. Разрешите всплывающие окна для приложения",
     );
-
-    if (!popup) {
-      throw new Error(
-        "Браузер заблокировал окно телефона. Разрешите всплывающие окна для приложения",
-      );
-    }
-
-    popup.focus();
-    return;
   }
 
-  const phoneWindow = await Window.getByLabel(OPERATOR_PHONE_WINDOW_LABEL);
-  if (!phoneWindow) throw new Error("Окно телефона отсутствует в сборке");
-
-  await phoneWindow.show();
-  await phoneWindow.setFocus();
+  popup.focus();
+  return Promise.resolve();
 }

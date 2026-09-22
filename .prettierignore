@@ -2,4 +2,3 @@ node_modules
 dist
 dist-ssr
 bun.lock
-src-tauri

@@ -15,7 +15,7 @@ export const ddsExerciseService = {
 
   async transition(
     exerciseId: string,
-    status: Exclude<DdsResponseStatus, "pending">,
+    status: Exclude<DdsResponseStatus, "pending" | "lesson_finished">,
     comment?: string,
   ): Promise<DdsExercise> {
     const payload = await api.post<unknown>(

@@ -1,5 +1,3 @@
-import { createTauriStore } from "@tauri-store/zustand";
-import { isTauri } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 import type { AuthSession, AuthUser } from "../contracts/auth";
@@ -45,24 +43,33 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 }));
 
-// Access tokens are short-lived. Persist only the rotating refresh credential;
-// startup exchanges it for a fresh session before protected UI is rendered.
-const authTauriStore = isTauri()
-  ? createTauriStore("auth", useAuthStore, {
-      filterKeys: ["refreshToken"],
-      filterKeysStrategy: "pick",
-      saveOnChange: true,
-    })
-  : null;
+const REFRESH_TOKEN_KEY = "trainer-112-refresh-token";
 
-/**
- * Outside the Tauri runtime (`bun run dev` in a browser) there is no backend to
- * sync with; the store then simply stays in memory for that session.
- */
-export const hydrateAuthStore = (): Promise<void> =>
-  (authTauriStore?.start() ?? Promise.resolve())
-    .catch(() => undefined)
-    .finally(() => useAuthStore.setState({ isHydrated: true }));
+// Access token остаётся только в памяти; на диск попадает лишь вращаемый
+// refresh token, необходимый для восстановления сессии после перезагрузки.
+useAuthStore.subscribe((state) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (state.refreshToken)
+      window.localStorage.setItem(REFRESH_TOKEN_KEY, state.refreshToken);
+    else window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  } catch {
+    // Запрет хранилища не должен мешать работе текущей вкладки.
+  }
+});
+
+export const hydrateAuthStore = async (): Promise<void> => {
+  let refreshToken: string | null = null;
+  try {
+    refreshToken =
+      typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    refreshToken = null;
+  }
+  useAuthStore.setState({ refreshToken, isHydrated: true });
+};
 
 export const getAccessToken = (): string | null =>
   useAuthStore.getState().accessToken;

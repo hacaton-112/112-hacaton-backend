@@ -62,7 +62,3 @@ export const scenarioCountLabel = (count: number): string =>
         count,
         ["сценарий", "сценария", "сценариев"],
       )}`;
-
-/** «Обязательные вопросы (7)» и сколько из них критичны. */
-export const criticalQuestionsLabel = (count: number): string =>
-  `${count} ${pluralForm(count, ["критичный", "критичных", "критичных"])}`;

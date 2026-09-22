@@ -16,7 +16,10 @@ import type {
 } from "../../contracts/dds-exercise";
 import { DDS_STATUS_LABELS, requiresComment } from "./dds-formatters";
 
-type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
+type TransitionStatus = Exclude<
+  DdsResponseStatus,
+  "pending" | "lesson_finished"
+>;
 
 export function DdsStatusActions({
   exercise,
@@ -30,7 +33,8 @@ export function DdsStatusActions({
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
 }) {
   const available = exercise.allowedTransitions.filter(
-    (status): status is TransitionStatus => status !== "pending",
+    (status): status is TransitionStatus =>
+      status !== "pending" && status !== "lesson_finished",
   );
   const [selected, setSelected] = useState<TransitionStatus | undefined>(
     available[0],
@@ -44,6 +48,14 @@ export function DdsStatusActions({
   // карточку, отмечать начало реагирования нечего.
   const waitingForCrew =
     selected === "responding" && exercise.crewHandoff?.notified === false;
+  const textHint =
+    selected === "accepted"
+      ? "Например: подтвердите приём и укажите, какая бригада направлена."
+      : selected === "completed"
+        ? "Кратко зафиксируйте результат работ и существенные сведения."
+        : selected === "refused"
+          ? "Укажите фактическую и обоснованную причину отказа."
+          : null;
 
   const run = async () => {
     await onTransition(selected, comment);
@@ -91,6 +103,11 @@ export function DdsStatusActions({
             placeholder="Введите результат реагирования"
             disabled={pending}
           />
+          {textHint && (
+            <Text as="span" size="1" color="gray">
+              {textHint}
+            </Text>
+          )}
         </label>
 
         <Button
@@ -113,8 +130,8 @@ export function DdsStatusActions({
 
       {waitingForCrew && (
         <Text size="1" color="amber">
-          Сначала передайте карточку наряду по телефону — позвоните по номеру
-          из блока «Передача наряду».
+          Сначала передайте карточку наряду по телефону — позвоните по номеру из
+          блока «Передача наряду».
         </Text>
       )}
 

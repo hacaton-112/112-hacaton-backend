@@ -25,7 +25,7 @@ describe("scenario audio preparation", () => {
       "готовы",
     );
   });
-  test("validates status/progress and accepts prepared replies from native transport", () => {
+  test("validates status/progress and accepts prepared replies from the transport", () => {
     expect(ScenarioAudioStatusSchema.safeParse(status).success).toBe(true);
     expect(
       ScenarioAudioStatusSchema.safeParse({ ...status, completed: -1 }).success,

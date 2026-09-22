@@ -5,7 +5,7 @@
 ## Стек
 
 - **React 19** + **TypeScript** — UI и типы.
-- **Tauri 2** — десктопная обвязка (`src-tauri/`), UI — обычное веб-приложение на Vite.
+- **Web Audio / AudioWorklet** — микрофон, потоковый PCM и воспроизведение TTS.
 - **Vite 8** (`@vitejs/plugin-react`) — сборка и dev-сервер.
 - **Tailwind CSS v4** (`@tailwindcss/vite`) + **@bolid-ui/themes** — стили и компоненты дизайн-системы.
 - **react-router v8** — роутинг.
@@ -23,22 +23,20 @@
 ```bash
 bun install
 bun run dev        # web dev-сервер
-bun run tauri dev  # десктопное окно (Tauri)
 ```
 
 Переменные окружения — см. [.env.example](.env.example), скопировать в `.env`.
 
 ## Скрипты
 
-| Скрипт                 | Назначение                                              |
-| ---------------------- | ------------------------------------------------------- |
-| `bun run dev`          | dev-сервер с HMR                                        |
-| `bun run build`        | тайпчек (`tsc -b`) + прод-сборка                        |
-| `bun run lint`         | oxlint                                                  |
-| `bun run format`       | prettier --write                                        |
-| `bun run format:check` | prettier --check (использовать в CI/перед PR)           |
-| `bun run preview`      | предпросмотр прод-сборки                                |
-| `bun run tauri`        | обёртка над Tauri CLI (`tauri dev`, `tauri build`, ...) |
+| Скрипт                 | Назначение                                    |
+| ---------------------- | --------------------------------------------- |
+| `bun run dev`          | dev-сервер с HMR                              |
+| `bun run build`        | тайпчек (`tsc -b`) + прод-сборка              |
+| `bun run lint`         | oxlint                                        |
+| `bun run format`       | prettier --write                              |
+| `bun run format:check` | prettier --check (использовать в CI/перед PR) |
+| `bun run preview`      | предпросмотр прод-сборки                      |
 
 Перед PR обязательно: `bun run lint`, `bun run format:check`, `bun run build` — все три должны проходить без ошибок.
 
@@ -58,7 +56,7 @@ src/
   stores/       — zustand-сторы
   routing.tsx   — дерево роутов
   main.tsx      — точка входа
-src-tauri/      — Rust-обвязка Tauri (не трогать из фронтенд-кода)
+public/worklets/ — процессоры Web Audio вне основного потока UI
 ```
 
 Часть папок (`contexts`, `contracts`, `hooks`, `stores`) — заготовки под конвенцию, наполняются по мере надобности. Не плодите свою структуру рядом — кладите новый код в подходящую из существующих.

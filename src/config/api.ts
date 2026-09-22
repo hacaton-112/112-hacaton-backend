@@ -46,6 +46,9 @@ export const API_CONFIG = {
   getInstructorReportUrl: () => `/instructor/reports`,
   getInstructorReportExportUrl: () => `/instructor/reports/export`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
+  getScenarioGenerationJobsUrl: () => `/scenarios/assistant/jobs`,
+  getScenarioGenerationJobUrl: (jobId: string) =>
+    `/scenarios/assistant/jobs/${encodeURIComponent(jobId)}`,
   getScenarioPublishUrl: () => `/scenarios`,
   getScenarioGrammarCheckUrl: () => `/scenarios/grammar-check`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,
@@ -70,6 +73,33 @@ export const API_CONFIG = {
     `/dds-training/attempts/${encodeURIComponent(exerciseId)}/reviews`,
   getDdsTrainingStopUrl: (exerciseId: string) =>
     `/dds-training/attempts/${encodeURIComponent(exerciseId)}/stop`,
+  getDdsLessonsUrl: () => `/dds-lessons`,
+  getMyActiveDdsLessonsUrl: () => `/dds-lessons/my/active`,
+  getDdsLessonUrl: (lessonId: string) =>
+    `/dds-lessons/${encodeURIComponent(lessonId)}`,
+  getDdsLessonNextUrl: (lessonId: string) =>
+    `/dds-lessons/${encodeURIComponent(lessonId)}/next`,
+  getDdsLessonFinishUrl: (lessonId: string) =>
+    `/dds-lessons/${encodeURIComponent(lessonId)}/finish`,
+  getDdsLessonReportUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/report`,
+  getDdsLessonReportExportUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/report/export`,
+  getDdsLessonInsightsRetryUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/insights/retry`,
+  getMyDdsResultsUrl: () => `/dds/my/results`,
+  getMyDdsResultUrl: (exerciseId: string) =>
+    `/dds/my/results/${encodeURIComponent(exerciseId)}`,
+  getDdsScenarioReferenceUrl: (versionId: string) =>
+    `/dds/references/scenarios/${encodeURIComponent(versionId)}`,
+  getDdsScenarioReferenceRegenerateUrl: (versionId: string) =>
+    `/dds/references/scenarios/${encodeURIComponent(versionId)}/regenerate`,
+  getDdsReferencesUrl: () => `/dds/references`,
+  getDdsReferencesApproveUrl: () => `/dds/references/approve`,
+  getDdsReferencesRegenerateUrl: () => `/dds/references/regenerate`,
+  getDdsTextEvaluationRetryUrl: (exerciseId: string) =>
+    `/dds-references/exercises/${encodeURIComponent(exerciseId)}/retry`,
+  getAdminQueuesUrl: () => `/admin/queues`,
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,

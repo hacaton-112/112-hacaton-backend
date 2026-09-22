@@ -54,25 +54,30 @@
   backdrop-filter: blur(8px);
 }
 
-body.driver-active [data-slot="window-titlebar"] {
-  pointer-events: auto;
-  z-index: 10001;
+.data-table-row.scenario-row--job {
+  background-color: var(--violet-a2) !important;
 }
 
-body.driver-active [data-slot="window-titlebar"] * {
-  pointer-events: auto;
+/* Неопределённый ход генерации: модель не сообщает процент готовности. */
+.scenario-job-progress > div {
+  animation: scenario-job-progress 1.4s ease-in-out infinite;
 }
 
-.scenario-briefing-panel {
-  container: scenario-briefing / inline-size;
+@keyframes scenario-job-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
 }
 
-.scenario-catalog-page {
-  container: scenario-catalog-page / inline-size;
-}
-
-.scenario-briefing-actions {
-  grid-template-columns: minmax(0, 1fr);
+@media (prefers-reduced-motion: reduce) {
+  .scenario-job-progress > div {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
 }
 
 .debrief-detail-tabs .rt-BaseTabListTrigger:hover .rt-BaseTabListTriggerInner {
@@ -80,62 +85,13 @@ body.driver-active [data-slot="window-titlebar"] * {
 }
 
 /* Scrollbars внутри скруглённых поверхностей не пересекают их углы. */
-:where(.rt-Card, .scenario-briefing-panel) .rt-ScrollAreaRoot {
+:where(.rt-Card) .rt-ScrollAreaRoot {
   --scrollarea-scrollbar-vertical-margin-top: var(--space-3);
   --scrollarea-scrollbar-vertical-margin-bottom: var(--space-3);
   --scrollarea-scrollbar-vertical-margin-right: var(--space-2);
   --scrollarea-scrollbar-horizontal-margin-right: var(--space-3);
   --scrollarea-scrollbar-horizontal-margin-left: var(--space-3);
   --scrollarea-scrollbar-horizontal-margin-bottom: var(--space-2);
-}
-
-@container scenario-briefing (min-width: 520px) {
-  .scenario-briefing-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .scenario-briefing-start {
-    grid-column: 1 / -1;
-  }
-}
-
-@container scenario-catalog-page (max-width: 1099px) {
-  .scenario-catalog-scroll,
-  .scenario-catalog-scroll > .rt-ScrollAreaViewport,
-  .scenario-briefing-scroll,
-  .scenario-briefing-scroll > .rt-ScrollAreaViewport {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  .scenario-catalog-scroll > .rt-ScrollAreaScrollbar,
-  .scenario-briefing-scroll > .rt-ScrollAreaScrollbar {
-    display: none;
-  }
-}
-
-@container scenario-catalog-page (min-width: 760px) and (max-width: 1099px) {
-  .scenario-catalog-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container scenario-catalog-page (min-width: 1100px) {
-  .scenario-catalog-layout {
-    height: 100%;
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(420px, 600px);
-  }
-
-  .scenario-briefing-panel {
-    height: 100%;
-  }
-}
-
-@container scenario-catalog-page (min-width: 1450px) {
-  .scenario-catalog-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 :root {
@@ -706,35 +662,6 @@ body,
 
 .arm-content {
   border-left: 1px solid #20272b;
-}
-
-.arm-titlebar {
-  border-bottom: 2px solid var(--arm-orange);
-  background: var(--arm-graphite);
-  color: #f7f8f8;
-}
-
-.arm-titlebar-mark,
-.arm-titlebar-text {
-  color: #f7f8f8;
-}
-
-.arm-titlebar-mark {
-  color: var(--arm-orange);
-}
-
-.arm-window-control {
-  background: transparent !important;
-  color: #d8dcde !important;
-}
-
-.arm-window-control:hover {
-  background: #4a5358 !important;
-  color: white !important;
-}
-
-.arm-window-control-close:hover {
-  background: var(--arm-danger) !important;
 }
 
 .arm-sidebar [data-slot="sidebar-inner"],

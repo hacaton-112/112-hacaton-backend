@@ -46,12 +46,8 @@ const updateBlurLayer = (layer: HTMLElement, element?: Element) => {
   const panels = Array.from(layer.children) as HTMLElement[];
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const contentTop = Math.max(
-    0,
-    document
-      .querySelector<HTMLElement>('[data-slot="window-titlebar"]')
-      ?.getBoundingClientRect().bottom ?? 0,
-  );
+  // Шапки над содержимым нет: размытие начинается от верхнего края окна.
+  const contentTop = 0;
 
   if (!element) {
     panels[0].style.cssText = `left: 0; top: ${contentTop}px; width: 100%; height: ${viewportHeight - contentTop}px`;
@@ -108,7 +104,7 @@ export function OperatorTour() {
     updateBlurLayer(blurLayer);
 
     // Driver adds its overlay to body. Keep it in the app's root stacking
-    // context so the native titlebar can remain above it and interactive.
+    // context so the application titlebar remains above it and interactive.
     const overlayObserver = new MutationObserver(() => {
       const overlay = Array.from(document.body.children).find((element) =>
         element.classList.contains("driver-overlay"),
