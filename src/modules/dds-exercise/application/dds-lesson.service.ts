@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   and,
   asc,
@@ -48,6 +48,7 @@ import {
   type DdsExerciseStore,
 } from "../ports/dds-exercise.store.port";
 import { DdsExerciseService } from "./dds-exercise.service";
+import { DdsInsightsService } from "./dds-insights.service";
 
 type Database = DrizzleService["db"];
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -75,6 +76,7 @@ export class DdsLessonService {
     @Inject(DDS_EXERCISE_STORE) private readonly store: DdsExerciseStore,
     private readonly exercises: DdsExerciseService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly insights?: DdsInsightsService,
   ) {}
 
   async create(
@@ -301,6 +303,7 @@ export class DdsLessonService {
       );
       return finished!;
     });
+    await this.insights?.enqueue(lesson.id);
     return this.presentOne(lesson);
   }
 
@@ -331,7 +334,10 @@ export class DdsLessonService {
 
   async myActive(operatorId: string): Promise<{ lessons: DdsLessonSummary[] }> {
     const memberships = await this.db
-      .select({ groupId: trainingGroupMembers.groupId })
+      .select({
+        groupId: trainingGroupMembers.groupId,
+        serviceTag: trainingGroupMembers.serviceTag,
+      })
       .from(trainingGroupMembers)
       .innerJoin(
         trainingGroups,
@@ -343,7 +349,9 @@ export class DdsLessonService {
           eq(trainingGroups.status, "active"),
         ),
       );
-    const groupIds = memberships.map(({ groupId }) => groupId);
+    const groupIds = memberships
+      .filter(({ serviceTag }) => normalizeDdsServiceTag(serviceTag) !== null)
+      .map(({ groupId }) => groupId);
     const rows = await this.db
       .select()
       .from(ddsLessons)
@@ -598,19 +606,6 @@ export class DdsLessonService {
       ) {
         this.notFound();
       }
-      const members = await this.db
-        .select({ serviceTag: trainingGroupMembers.serviceTag })
-        .from(trainingGroupMembers)
-        .where(eq(trainingGroupMembers.groupId, groupId));
-      const invalid = members.find(
-        ({ serviceTag }) => normalizeDdsServiceTag(serviceTag) === null,
-      );
-      if (invalid) {
-        throw new AppBadRequestException(
-          ErrorCodes.DDS_LESSON_SERVICE_INVALID,
-          `Тег службы «${invalid.serviceTag}» не распознан`,
-        );
-      }
       return;
     }
     const [operator] = await this.db
@@ -710,13 +705,33 @@ export class DdsLessonService {
     );
     return {
       ...this.summary(lesson),
-      participants: participantRows.map((participant) => ({
-        userId: participant.userId,
-        fullName: participant.fullName,
-        service: participant.serviceTag
+      participants: participantRows.flatMap((participant) => {
+        const service = participant.serviceTag
           ? normalizeDdsServiceTag(participant.serviceTag)
-          : null,
-      })),
+          : null;
+        return service
+          ? [
+              {
+                userId: participant.userId,
+                fullName: participant.fullName,
+                service,
+              },
+            ]
+          : [];
+      }),
+      skippedParticipants: participantRows.flatMap((participant) =>
+        participant.serviceTag &&
+        normalizeDdsServiceTag(participant.serviceTag) !== null
+          ? []
+          : [
+              {
+                userId: participant.userId,
+                fullName: participant.fullName,
+                serviceTag: participant.serviceTag,
+                reason: "Тег участника не соответствует службе ДДС",
+              },
+            ],
+      ),
       cards: cardRows.flatMap(({ id, operatorId, operatorName }) => {
         const exercise = exercises.get(id);
         return exercise ? [{ operatorId, operatorName, exercise }] : [];

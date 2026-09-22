@@ -44,6 +44,15 @@ export const DdsLessonParticipantSchema = z
   })
   .strict();
 
+export const DdsLessonSkippedParticipantSchema = z
+  .object({
+    userId: IdSchema,
+    fullName: z.string(),
+    serviceTag: z.string().nullable(),
+    reason: z.string(),
+  })
+  .strict();
+
 export const DdsLessonCardSchema = z
   .object({
     operatorId: IdSchema,
@@ -72,6 +81,7 @@ export const DdsLessonSummarySchema = z
 
 export const DdsLessonSchema = DdsLessonSummarySchema.extend({
   participants: z.array(DdsLessonParticipantSchema),
+  skippedParticipants: z.array(DdsLessonSkippedParticipantSchema).default([]),
   cards: z.array(DdsLessonCardSchema),
 }).strict();
 

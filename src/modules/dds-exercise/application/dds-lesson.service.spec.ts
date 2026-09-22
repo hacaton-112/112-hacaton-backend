@@ -149,6 +149,45 @@ const createService = (
 
 const membership = [{ groupId: lesson().groupId, serviceTag: "01" }];
 
+describe(`${DdsLessonService.name}.create`, () => {
+  it("starts a group lesson and reports a member with an unknown service tag", async () => {
+    const current = lesson();
+    const { service } = createService([
+      [],
+      [{ id: current.groupId, status: "active", instructorId: current.createdBy }],
+      [current],
+      [
+        {
+          userId: OPERATOR_ID,
+          fullName: "Участник без службы ДДС",
+          serviceTag: "RIZO",
+        },
+      ],
+      [],
+    ]);
+
+    await expect(
+      service.create(
+        { id: current.createdBy, role: "instructor" },
+        {
+          eventId: current.startEventId,
+          groupId: current.groupId!,
+          title: current.title,
+          categories: current.categories,
+          cardSource: current.cardSource,
+          acknowledgementNormSeconds: current.acknowledgementNormSeconds,
+          passThreshold: current.passThreshold,
+        },
+      ),
+    ).resolves.toMatchObject({
+      participants: [],
+      skippedParticipants: [
+        { fullName: "Участник без службы ДДС", serviceTag: "RIZO" },
+      ],
+    });
+  });
+});
+
 describe(`${DdsLessonService.name}.next`, () => {
   it("issues a generated card with the lesson acknowledgement norm", async () => {
     const before = Date.now();
@@ -368,11 +407,18 @@ describe(`${DdsLessonService.name}.finish`, () => {
       [],
       [],
       [finished],
-      [{ userId: OPERATOR_ID, fullName: "Ученик", serviceTag: "01" }],
+      [
+        { userId: OPERATOR_ID, fullName: "Ученик", serviceTag: "01" },
+        {
+          userId: "70dfbf42-ec3b-4f3d-8d98-a415bc90dedd",
+          fullName: "Участник без службы ДДС",
+          serviceTag: "RIZO",
+        },
+      ],
       [{ id: EXERCISE_ID, operatorId: OPERATOR_ID, operatorName: "Ученик" }],
     ]);
 
-    await service.finish(
+    const result = await service.finish(
       { id: lesson().createdBy, role: "instructor" },
       LESSON_ID,
       EVENT_ID,
@@ -393,5 +439,11 @@ describe(`${DdsLessonService.name}.finish`, () => {
       score: null,
       passed: null,
     });
+    expect(result.skippedParticipants).toEqual([
+      expect.objectContaining({
+        fullName: "Участник без службы ДДС",
+        serviceTag: "RIZO",
+      }),
+    ]);
   });
 });
