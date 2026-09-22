@@ -7,7 +7,15 @@ describe("SaveIncidentCardSchema", () => {
       callerLastName: "Максутов",
       callerPhone: "+7 916 204-71-33",
       addressText: "улица Учебная, дом 12, подъезд 2, этаж 5, квартира 34",
+      country: "Россия",
+      federalSubject: "Москва",
+      city: "Москва",
+      administrativeDistrict: "Северо-Западный административный округ",
       district: "СЗАО",
+      street: "Учебная улица",
+      house: "12",
+      corpus: "1",
+      apartment: "34",
       entrance: "2",
       floor: "5",
       intercom: "34К1245",
@@ -26,10 +34,14 @@ describe("SaveIncidentCardSchema", () => {
   });
 
   it("treats an empty box as a field the operator has not filled", () => {
-    const parsed = SaveIncidentCardSchema.parse({ district: "   " });
+    const parsed = SaveIncidentCardSchema.parse({
+      district: "   ",
+      street: "  Учебная улица  ",
+    });
 
     // Пустая строка и «не заполнено» — одно и то же, и в базе это null.
     expect(parsed.district).toBeNull();
+    expect(parsed.street).toBe("Учебная улица");
   });
 
   it("refuses a service that is not on any button", () => {

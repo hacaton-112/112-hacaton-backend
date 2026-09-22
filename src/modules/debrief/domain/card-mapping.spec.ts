@@ -25,7 +25,24 @@ const card = (overrides: Partial<IncidentCard> = {}): IncidentCard =>
   }) as IncidentCard;
 
 describe("cardValuesForReference", () => {
-  it("gives every part of the address the line the operator typed", () => {
+  it("uses structured address fields before the legacy address line", () => {
+    const values = cardValuesForReference(
+      card({
+        city: "Москва",
+        street: "Учебная улица",
+        house: "12",
+        corpus: "1",
+        apartment: "34",
+      }),
+    );
+
+    expect(values.city).toBe("Москва");
+    expect(values.street).toBe("Учебная улица");
+    expect(values.house).toBe("12 1");
+    expect(values.apartment).toBe("34");
+  });
+
+  it("keeps the full address as a fallback for legacy cards", () => {
     const values = cardValuesForReference(card());
 
     expect(values.street).toBe("улица Учебная, дом 12, подъезд 2");
@@ -56,7 +73,9 @@ describe("dispatchedServices", () => {
   });
 
   it("drops a service the scenario vocabulary has no word for", () => {
-    expect(dispatchedServices(card({ services: ["zhkh", "cuks"] }))).toEqual([]);
+    expect(dispatchedServices(card({ services: ["zhkh", "cuks"] }))).toEqual(
+      [],
+    );
   });
 
   it("counts a service once when two buttons mean the same one", () => {
