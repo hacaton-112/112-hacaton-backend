@@ -1,9 +1,19 @@
-import { Button, Callout, Card, Flex, Heading, Skeleton, Tabs, Text } from "@bolid-ui/themes";
+import {
+  Button,
+  Callout,
+  Card,
+  Flex,
+  Heading,
+  Skeleton,
+  Tabs,
+  Text,
+} from "@bolid-ui/themes";
 import { AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ROUTES } from "../../config/routes";
 import { DdsLiveAttempts } from "../../components/dds/dds-live-attempts";
+import { DdsLessonsPanel } from "../../components/dds/dds-lessons-panel";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { VoiceRuntimeStatus } from "../../components/training/voice-runtime-status";
 import { LiveSessionsPanel } from "../../components/training/live-sessions-panel";
@@ -35,6 +45,7 @@ export default function MonitoringPage() {
       <VoiceRuntimeStatus />
       <Tabs.Root defaultValue="live" className="flex min-h-0 flex-1 flex-col">
         <Tabs.List size="2">
+          <Tabs.Trigger value="dds-lessons">Занятия ДДС</Tabs.Trigger>
           <Tabs.Trigger value="live">Активные попытки</Tabs.Trigger>
           <Tabs.Trigger value="results">
             Результаты{calls.data ? ` · ${finishedCalls.length}` : ""}
@@ -47,6 +58,10 @@ export default function MonitoringPage() {
         >
           <LiveSessionsPanel mutations={mutations} />
           <DdsLiveAttempts />
+        </Tabs.Content>
+
+        <Tabs.Content value="dds-lessons" className="overflow-auto pt-4">
+          <DdsLessonsPanel />
         </Tabs.Content>
 
         <Tabs.Content
@@ -67,9 +82,12 @@ export default function MonitoringPage() {
           <Card size="2" variant="surface">
             <Flex align="center" justify="between" gap="3" wrap="wrap">
               <div>
-                <Text as="p" weight="bold">Результаты карточек ДДС</Text>
+                <Text as="p" weight="bold">
+                  Результаты карточек ДДС
+                </Text>
                 <Text as="p" size="2" color="gray">
-                  Назначенные попытки и диагностические карточки вне занятия находятся в рабочем месте ДДС.
+                  Назначенные попытки и диагностические карточки вне занятия
+                  находятся в рабочем месте ДДС.
                 </Text>
               </div>
               <Button variant="soft" onClick={() => navigate(ROUTES.dds())}>

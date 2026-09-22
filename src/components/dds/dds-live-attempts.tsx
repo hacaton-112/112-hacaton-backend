@@ -1,4 +1,12 @@
-import { Badge, Callout, Card, Flex, Heading, Skeleton, Text } from "@bolid-ui/themes";
+import {
+  Badge,
+  Callout,
+  Card,
+  Flex,
+  Heading,
+  Skeleton,
+  Text,
+} from "@bolid-ui/themes";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock3 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -7,6 +15,7 @@ import { QUERY_KEYS } from "../../config/query-keys";
 import {
   DDS_LIVE_FINDING_LABELS,
   type DdsLiveAttempt,
+  type DdsLiveLessonAttempt,
   type DdsLiveStandalone,
 } from "../../contracts/dds-training";
 import { ddsTrainingService } from "../../services/dds-training.service";
@@ -38,6 +47,7 @@ export function DdsLiveAttempts() {
   const watched = [
     ...(attempts.data?.attempts ?? []),
     ...(attempts.data?.standaloneAttempts ?? []),
+    ...(attempts.data?.lessonAttempts ?? []),
   ];
 
   useEffect(() => {
@@ -92,7 +102,7 @@ function LiveAttemptCard({
   attempt,
   now,
 }: {
-  attempt: DdsLiveAttempt | DdsLiveStandalone;
+  attempt: DdsLiveAttempt | DdsLiveStandalone | DdsLiveLessonAttempt;
   now: number;
 }) {
   const waiting = attempt.acknowledgedAt === null;
@@ -109,7 +119,9 @@ function LiveAttemptCard({
           <Text as="p" size="1" color="gray">
             {"assignmentTitle" in attempt
               ? `${attempt.assignmentTitle} · попытка ${attempt.attemptNumber}`
-              : "Очередь смены"}
+              : "lessonTitle" in attempt
+                ? attempt.lessonTitle
+                : "Очередь смены"}
           </Text>
         </div>
         <Flex align="center" gap="2" wrap="wrap">
