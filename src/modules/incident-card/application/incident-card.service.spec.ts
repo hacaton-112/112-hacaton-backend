@@ -101,6 +101,16 @@ describe(IncidentCardService.name, () => {
     await expect(service.get("session-1", "operator-1")).resolves.toMatchObject(
       {
         trainingSessionId: "session-1",
+        country: null,
+        federalSubject: null,
+        city: null,
+        settlement: null,
+        administrativeDistrict: null,
+        street: null,
+        house: null,
+        building: null,
+        corpus: null,
+        apartment: null,
         categories: [],
         services: [],
         victims: [],
@@ -113,11 +123,19 @@ describe(IncidentCardService.name, () => {
 
     await service.save("session-1", "operator-1", {
       addressText: "улица Учебная, дом 12, квартира 34",
+      city: "Москва",
+      street: "Учебная улица",
+      house: "12",
+      apartment: "34",
       services: ["dds_01"],
     });
 
     expect(store.save).toHaveBeenCalledWith("session-1", {
       addressText: "улица Учебная, дом 12, квартира 34",
+      city: "Москва",
+      street: "Учебная улица",
+      house: "12",
+      apartment: "34",
       services: ["dds_01"],
     });
   });

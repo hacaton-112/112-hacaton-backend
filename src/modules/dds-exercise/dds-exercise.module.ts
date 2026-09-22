@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
+import { TrainingModule } from "@/modules/training/training.module";
 import {
   parseTelephonyConfig,
   TELEPHONY_ENVIRONMENT_KEYS,
@@ -30,7 +31,13 @@ import { DdsInsightsService } from "./application/dds-insights.service";
 import { DdsReportController } from "./dds-report.controller";
 
 @Module({
-  imports: [AuthModule, ConfigModule, TextAiAdapterModule, GrammarModule],
+  imports: [
+    AuthModule,
+    ConfigModule,
+    TextAiAdapterModule,
+    GrammarModule,
+    TrainingModule,
+  ],
   controllers: [
     DdsExerciseController,
     DdsTrainingController,

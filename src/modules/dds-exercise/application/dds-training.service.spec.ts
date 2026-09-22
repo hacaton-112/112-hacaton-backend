@@ -1,4 +1,5 @@
 import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import type { TrainingService } from "@/modules/training/training.service";
 
 import type { DdsExerciseService } from "./dds-exercise.service";
 import { DdsTrainingService } from "./dds-training.service";
@@ -48,14 +49,18 @@ const createService = (
   const exercises = {
     presentByIds: jest.fn().mockResolvedValue(exercisesById),
   };
+  const training = {
+    reconcileOperatorAttempts: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new DdsTrainingService(
     db as never,
     {} as never,
     exercises as unknown as DdsExerciseService,
     { log: jest.fn() } as unknown as AuditLogService,
     false,
+    training as unknown as TrainingService,
   );
-  return { service, exercises, calls };
+  return { service, exercises, calls, training };
 };
 
 describe(`${DdsTrainingService.name}.list`, () => {
@@ -205,5 +210,33 @@ describe(`${DdsTrainingService.name}.live`, () => {
         exerciseId: "lesson-exercise",
       }),
     ]);
+  });
+});
+
+describe(`${DdsTrainingService.name}.start`, () => {
+  it("reconciles a voice attempt that already ended before checking DDS conflicts", async () => {
+    const databaseFailure = new Error("stop after reconciliation");
+    const training = {
+      reconcileOperatorAttempts: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new DdsTrainingService(
+      { transaction: jest.fn().mockRejectedValue(databaseFailure) } as never,
+      {} as never,
+      {} as DdsExerciseService,
+      { log: jest.fn() } as unknown as AuditLogService,
+      false,
+      training as unknown as TrainingService,
+    );
+
+    await expect(
+      service.start(
+        "operator-1",
+        "assignment-1",
+        "e29a7c15-c910-4ae9-a778-d9a3d76e0bc7",
+      ),
+    ).rejects.toBe(databaseFailure);
+    expect(training.reconcileOperatorAttempts).toHaveBeenCalledWith(
+      "operator-1",
+    );
   });
 });

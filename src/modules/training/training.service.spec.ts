@@ -261,6 +261,48 @@ describe(TrainingService.name, () => {
   };
   const membership = [{ groupId: "group-1", serviceTag: "FIRE_101" }];
 
+  it("identifies the active attempt that blocks another assignment", async () => {
+    const startedAt = new Date("2026-09-15T11:59:00.000Z");
+    const assignmentRow = {
+      ...assignment(),
+      scenarioCode: "FIRE-01",
+      scenarioTitle: "Пожар в жилом доме",
+      category: "fire" as const,
+      difficulty: 3,
+      groupName: "Смена А",
+    };
+    const { service } = createService([
+      undefined,
+      membership,
+      [assignmentRow],
+      [{ assignmentId: assignmentRow.id, attempts: 1 }],
+      [
+        {
+          trainingSessionId: "session-1",
+          assignmentId: assignmentRow.id,
+          assignmentTitle: assignmentRow.title,
+          scenarioVersionId: assignmentRow.scenarioVersionId,
+          type: "card_action",
+          attemptNumber: 1,
+          startedAt,
+          exerciseId: "session-1",
+        },
+      ],
+    ]);
+
+    await expect(
+      service.myAssignmentsOverview("operator-1"),
+    ).resolves.toMatchObject({
+      activeAttempt: {
+        assignmentId: assignmentRow.id,
+        assignmentTitle: assignmentRow.title,
+        attemptNumber: 1,
+        startedAt: startedAt.toISOString(),
+        exerciseId: "session-1",
+      },
+    });
+  });
+
   it("returns the group and scenario context for live monitoring", async () => {
     const startedAt = new Date("2026-09-15T11:59:00.000Z");
     const getSnapshot = jest.fn().mockResolvedValue({
