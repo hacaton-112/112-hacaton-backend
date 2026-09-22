@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -6,6 +12,7 @@ import { z } from "zod";
 import { generateId } from "@/common/utils/id";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
+import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import {
   ddsLessonInsights,
   type DdsLessonInsightsRecord,
@@ -83,10 +90,15 @@ export class DdsInsightsService implements OnModuleInit {
     private readonly structured: StructuredOutputPort,
     private readonly config: ConfigService,
     private readonly reports: DdsReportService,
+    @Optional() private readonly scheduler?: BackgroundQueueScheduler,
   ) {}
 
   onModuleInit(): void {
-    if (this.enabled()) setTimeout(() => void this.drain(), 1_000).unref();
+    this.scheduler?.register({
+      name: "dds_insights",
+      enabled: () => this.enabled(),
+      run: () => this.drain(),
+    });
   }
 
   async enqueue(lessonId: string): Promise<void> {
@@ -94,7 +106,8 @@ export class DdsInsightsService implements OnModuleInit {
       .insert(ddsLessonInsights)
       .values({ id: generateId(), lessonId })
       .onConflictDoNothing({ target: ddsLessonInsights.lessonId });
-    if (this.enabled()) void this.drain();
+    if (this.scheduler) this.scheduler.wake();
+    else if (this.enabled()) void this.drain();
   }
 
   async retry(lessonId: string): Promise<void> {
@@ -112,7 +125,8 @@ export class DdsInsightsService implements OnModuleInit {
           updatedAt: new Date(),
         },
       });
-    if (this.enabled()) void this.drain();
+    if (this.scheduler) this.scheduler.wake();
+    else if (this.enabled()) void this.drain();
   }
 
   private enabled(): boolean {

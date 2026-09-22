@@ -218,6 +218,13 @@
       "when": 1790438400000,
       "tag": "0028_dds_lesson_insights",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790524800000,
+      "tag": "0029_dds_reference_jobs",
+      "breakpoints": true
     }
   ]
 }

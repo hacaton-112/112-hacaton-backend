@@ -178,12 +178,15 @@ export class DrizzleScenarioGenerationRepository implements ScenarioGenerationRe
     await this.db
       .update(scenarioGenerationJobs)
       .set({
-        status: "failed",
+        status: claimed.job.attempts >= 3 ? "failed" : "queued",
         errorCode: error.code,
-        errorMessage: error.message.slice(0, 1_000),
+        errorMessage:
+          claimed.job.attempts >= 3
+            ? error.message.slice(0, 1_000)
+            : "Повторная попытка после временной ошибки",
         leaseToken: null,
         leaseUntil: null,
-        finishedAt: now,
+        finishedAt: claimed.job.attempts >= 3 ? now : null,
       })
       .where(this.ownedBy(claimed));
   }

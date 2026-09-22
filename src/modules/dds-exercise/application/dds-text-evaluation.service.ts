@@ -1,11 +1,28 @@
-import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import { generateId } from "@/common/utils/id";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
+import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import {
   ddsCardReferences,
   ddsExerciseEvents,
@@ -171,11 +188,15 @@ export class DdsTextEvaluationService implements OnModuleInit {
     private readonly structured: StructuredOutputPort,
     private readonly grammar: GrammarService,
     private readonly config: ConfigService,
+    @Optional() private readonly scheduler?: BackgroundQueueScheduler,
   ) {}
 
   onModuleInit(): void {
-    // Незавершённая задача хранится в БД, поэтому после рестарта её можно безопасно подобрать снова.
-    setTimeout(() => void this.drain(), 1_000).unref();
+    this.scheduler?.register({
+      name: "dds_text_evaluation",
+      enabled: () => true,
+      run: () => this.drain(),
+    });
   }
 
   async enqueue(exerciseId: string): Promise<void> {
@@ -190,7 +211,8 @@ export class DdsTextEvaluationService implements OnModuleInit {
       .insert(ddsTextEvaluations)
       .values({ id: generateId(), exerciseId })
       .onConflictDoNothing({ target: ddsTextEvaluations.exerciseId });
-    void this.drain();
+    if (this.scheduler) this.scheduler.wake();
+    else void this.drain();
   }
 
   async retry(exerciseId: string): Promise<void> {
@@ -198,13 +220,15 @@ export class DdsTextEvaluationService implements OnModuleInit {
       .update(ddsTextEvaluations)
       .set({
         status: "pending",
+        attemptCount: 0,
         error: null,
         leaseOwner: null,
         leaseUntil: null,
         updatedAt: new Date(),
       })
       .where(eq(ddsTextEvaluations.exerciseId, exerciseId));
-    void this.drain();
+    if (this.scheduler) this.scheduler.wake();
+    else void this.drain();
   }
 
   async loadMany(
@@ -237,6 +261,7 @@ export class DdsTextEvaluationService implements OnModuleInit {
         .where(
           and(
             eq(ddsTextEvaluations.status, "pending"),
+            lt(ddsTextEvaluations.attemptCount, 3),
             or(
               isNull(ddsTextEvaluations.leaseUntil),
               lt(ddsTextEvaluations.leaseUntil, now),
@@ -256,7 +281,12 @@ export class DdsTextEvaluationService implements OnModuleInit {
       );
       const [claimed] = await tx
         .update(ddsTextEvaluations)
-        .set({ leaseOwner: this.workerId, leaseUntil, updatedAt: now })
+        .set({
+          attemptCount: sql`${ddsTextEvaluations.attemptCount} + 1`,
+          leaseOwner: this.workerId,
+          leaseUntil,
+          updatedAt: now,
+        })
         .where(eq(ddsTextEvaluations.id, task.id))
         .returning();
       return claimed ?? null;
@@ -410,8 +440,11 @@ export class DdsTextEvaluationService implements OnModuleInit {
     await this.db
       .update(ddsTextEvaluations)
       .set({
-        status: "failed",
-        error: message.slice(0, 2_000),
+        status: task.attemptCount >= 3 ? "failed" : "pending",
+        error:
+          task.attemptCount >= 3
+            ? message.slice(0, 2_000)
+            : "Повторная попытка после временной ошибки",
         leaseOwner: null,
         leaseUntil: null,
         updatedAt: new Date(),

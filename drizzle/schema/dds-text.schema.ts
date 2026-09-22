@@ -48,6 +48,16 @@ export const ddsReferenceStatus = pgEnum(
   "dds_reference_status",
   DDS_REFERENCE_STATUSES,
 );
+export const DDS_REFERENCE_JOB_STATUSES = [
+  "pending",
+  "processing",
+  "done",
+  "failed",
+] as const;
+export const ddsReferenceJobStatus = pgEnum(
+  "dds_reference_job_status",
+  DDS_REFERENCE_JOB_STATUSES,
+);
 export const ddsExpectedOutcome = pgEnum(
   "dds_expected_outcome",
   DDS_EXPECTED_OUTCOMES,
@@ -80,6 +90,7 @@ export const ddsCardReferences = pgTable(
       "expected_crew_service",
     ).$type<DispatchService>(),
     status: ddsReferenceStatus("status").notNull().default("draft"),
+    jobStatus: ddsReferenceJobStatus("job_status").notNull().default("done"),
     version: integer("version").notNull().default(1),
     approvedBy: text("approved_by").references(() => users.id, {
       onDelete: "set null",
@@ -109,6 +120,10 @@ export const ddsCardReferences = pgTable(
       .on(table.exerciseId)
       .where(sql`${table.exerciseId} is not null`),
     index("dds_card_references_status_idx").on(table.status),
+    index("dds_card_references_job_lease_idx").on(
+      table.jobStatus,
+      table.leaseUntil,
+    ),
   ],
 );
 
@@ -134,6 +149,7 @@ export const ddsTextEvaluations = pgTable(
     model: text("model"),
     durationMs: integer("duration_ms"),
     error: text("error"),
+    attemptCount: integer("attempt_count").notNull().default(0),
     leaseOwner: text("lease_owner"),
     leaseUntil: timestamp("lease_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })

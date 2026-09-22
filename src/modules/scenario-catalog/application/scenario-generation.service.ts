@@ -2,7 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
-  type OnModuleDestroy,
+  Optional,
   type OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -14,6 +14,7 @@ import {
 } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
+import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import type { ScenarioGenerationJobRecord } from "@/drizzle/schema";
 import type { TrainingActor } from "@/modules/training/training.service";
 
@@ -36,7 +37,6 @@ export const MAX_ACTIVE_JOBS_PER_AUTHOR = 5;
 export const MAX_JOB_ATTEMPTS = 3;
 /** Две попытки помощника по две минуты тайм-аута модели — с запасом. */
 const LEASE_MS = 6 * 60_000;
-const POLL_MS = 1_500;
 const LIST_LIMIT = 30;
 
 /**
@@ -49,20 +49,17 @@ const LIST_LIMIT = 30;
  * слотов модели — сколько бы преподавателей их ни создали.
  */
 @Injectable()
-export class ScenarioGenerationService
-  implements OnModuleInit, OnModuleDestroy
-{
+export class ScenarioGenerationService implements OnModuleInit {
   private readonly logger = new Logger(ScenarioGenerationService.name);
-  private timer?: ReturnType<typeof setInterval>;
   private running = 0;
   private ticking = false;
-  private stopped = false;
 
   constructor(
     @Inject(SCENARIO_GENERATION_REPOSITORY)
     private readonly jobs: ScenarioGenerationRepository,
     private readonly authoring: ScenarioAuthoringService,
     private readonly config: ConfigService,
+    @Optional() private readonly scheduler?: BackgroundQueueScheduler,
   ) {}
 
   /** Одновременно — столько, сколько слотов у модели для не-диалоговых задач. */
@@ -84,14 +81,11 @@ export class ScenarioGenerationService
   }
 
   onModuleInit(): void {
-    if (!this.workerEnabled) return;
-    this.timer = setInterval(() => void this.tick(), POLL_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy(): void {
-    this.stopped = true;
-    clearInterval(this.timer);
+    this.scheduler?.register({
+      name: "scenario_generation",
+      enabled: () => this.workerEnabled,
+      run: () => this.tick(),
+    });
   }
 
   async enqueue(
@@ -111,7 +105,8 @@ export class ScenarioGenerationService
       now: new Date(),
     });
     // Не ждём таймера: свободный слот начнёт работу сразу.
-    void this.tick();
+    if (this.scheduler) this.scheduler.wake();
+    else void this.tick();
     return this.present(job, await this.jobs.queuePositions([job]), false);
   }
 
@@ -143,11 +138,11 @@ export class ScenarioGenerationService
 
   /** Один проход обработчика: занять свободные слоты заданиями из очереди. */
   async tick(): Promise<void> {
-    if (this.ticking || this.stopped) return;
+    if (this.ticking) return;
     this.ticking = true;
     try {
       await this.jobs.failExhausted(MAX_JOB_ATTEMPTS, new Date());
-      while (this.running < this.concurrency && !this.stopped) {
+      while (this.running < this.concurrency) {
         const now = new Date();
         const claimed = await this.jobs.claimNext({
           leaseToken: generateId(),

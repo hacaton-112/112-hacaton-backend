@@ -28,6 +28,7 @@ import { IS_DEV_ENV } from "./config/app.config";
 import "./config/env.config";
 import { throttlerConfig } from "./config/throttler.config";
 import { DatabaseModule } from "./database/database.module";
+import { BackgroundQueueModule } from "./background-queue/background-queue.module";
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { DatabaseModule } from "./database/database.module";
     }),
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
+    BackgroundQueueModule,
     MetricsModule,
     MethodicalMaterialsModule,
     AuditLogModule,
