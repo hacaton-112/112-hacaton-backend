@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import {
   AppBadRequestException,
@@ -17,7 +17,6 @@ import {
   incidentCards,
   scenarios,
   scenarioVersions,
-  trainingAttempts,
 } from "@/drizzle/schema";
 
 import { ACKNOWLEDGEMENT_NORM_MS } from "../domain/dds-response-status";
@@ -146,14 +145,6 @@ export class DdsDispatchService {
         );
       }
 
-      // Последняя начатая попытка: у сессии их может быть несколько, и без
-      // порядка доставка привязалась бы к чужой попытке занятия.
-      const [attempt] = await tx
-        .select({ id: trainingAttempts.id })
-        .from(trainingAttempts)
-        .where(eq(trainingAttempts.trainingSessionId, trainingSessionId))
-        .orderBy(desc(trainingAttempts.startedAt))
-        .limit(1);
       const now = new Date();
       const acknowledgementDeadlineAt = new Date(
         now.getTime() + ACKNOWLEDGEMENT_NORM_MS,
@@ -171,8 +162,13 @@ export class DdsDispatchService {
         deliveries.map((delivery) => ({
           id: delivery.id,
           scenarioVersionId: call.scenarioVersionId,
+          // Доставка принадлежит будущему диспетчеру, а не занятию оператора
+          // 112: попытка появится, только если карточка пришла назначением.
+          // Раньше сюда попадала попытка отправителя — карточка выпадала из
+          // очереди смены, а её завершение закрывало чужое занятие. Откуда она
+          // пришла, помнит исходная сессия.
           operatorId: null,
-          trainingAttemptId: attempt?.id ?? null,
+          trainingAttemptId: null,
           sourceTrainingSessionId: trainingSessionId,
           addressedService: delivery.addressedService,
           card: built.snapshot,

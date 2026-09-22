@@ -300,14 +300,14 @@ async function main(): Promise<void> {
       throw new Error("повтор старта ДДС создал вторую карточку");
     }
     if (
-      !(await ddsTraining.live(instructor)).some(
+      !(await ddsTraining.live(instructor)).attempts.some(
         ({ exerciseId }) => exerciseId === dds.id,
       )
     ) {
       throw new Error("преподаватель не видит активную карточку ДДС");
     }
     if (
-      (await ddsTraining.live(stranger)).some(
+      (await ddsTraining.live(stranger)).attempts.some(
         ({ exerciseId }) => exerciseId === dds.id,
       )
     ) {

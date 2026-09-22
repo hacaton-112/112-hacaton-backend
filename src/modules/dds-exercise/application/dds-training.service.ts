@@ -18,7 +18,7 @@ import {
   type StoredCrewHandoff,
 } from "../ports/dds-exercise.store.port";
 import { ddsLiveFindings } from "../domain/dds-live-findings";
-import type { DdsLiveAttempt, DdsTrainingList, ReviewDdsDto } from "../dto/dds-training.dto";
+import type { DdsLiveList, DdsTrainingList, ReviewDdsDto } from "../dto/dds-training.dto";
 import {
   DDS_CREW_HANDOFF_REQUIRED,
   DdsExerciseService,
@@ -46,7 +46,7 @@ export class DdsTrainingService {
    * текущее состояние: сколько осталось от норматива и что уже пошло не так.
    * Наблюдения не являются оценкой: её считает завершение попытки.
    */
-  async live(actor: TrainingActor): Promise<DdsLiveAttempt[]> {
+  async live(actor: TrainingActor): Promise<DdsLiveList> {
     const rows = await this.db.select({
       id: ddsExercises.id, assignmentId: trainingAssignments.id,
       assignmentTitle: trainingAssignments.title,
@@ -67,18 +67,46 @@ export class DdsTrainingService {
         this.scope(actor),
       ))
       .orderBy(asc(ddsExercises.acknowledgementDeadlineAt)).limit(50);
+    // Карточка из очереди смены попытки не имеет, но работа по ней такая же
+    // идущая: отсчёт норматива и наблюдения нужны преподавателю и здесь.
+    // Владелец появляется в момент, когда диспетчер её принял.
+    const standaloneRows = await this.db.select({
+      id: ddsExercises.id, operatorId: users.id, operatorName: users.fullName,
+      startedAt: ddsExercises.createdAt, status: ddsExercises.status,
+      addressedService: ddsExercises.addressedService, card: ddsExercises.card,
+      acknowledgementDeadlineAt: ddsExercises.acknowledgementDeadlineAt,
+      acknowledgedAt: ddsExercises.acknowledgedAt,
+    }).from(ddsExercises)
+      .innerJoin(users, eq(users.id, ddsExercises.operatorId))
+      .where(and(
+        isNull(ddsExercises.trainingAttemptId),
+        isNull(ddsExercises.completedAt),
+        this.standaloneScope(actor),
+      ))
+      .orderBy(asc(ddsExercises.acknowledgementDeadlineAt)).limit(50);
     // Звонки наряду подгружаются одним запросом и только когда телефония включена.
-    const handoffs = this.handoffRequired && rows.length
-      ? await this.store.loadCrewHandoffs(
-          await this.store.listByIds(rows.map((row) => row.id)),
-        )
+    const ids = [...rows, ...standaloneRows].map((row) => row.id);
+    const handoffs = this.handoffRequired && ids.length
+      ? await this.store.loadCrewHandoffs(await this.store.listByIds(ids))
       : new Map<string, StoredCrewHandoff>();
     const now = new Date();
-
-    return rows.map((row) => {
+    const observed = (row: {
+      id: string;
+      acknowledgementDeadlineAt: Date;
+      acknowledgedAt: Date | null;
+    }) => {
       const handoff = handoffs.get(row.id);
 
-      return {
+      return ddsLiveFindings({
+        acknowledgementDeadlineAt: row.acknowledgementDeadlineAt,
+        acknowledgedAt: row.acknowledgedAt,
+        ...(handoff ? { handoff: handoffFacts(handoff) } : {}),
+        now,
+      });
+    };
+
+    return {
+      attempts: rows.map((row) => ({
         exerciseId: row.id,
         assignmentId: row.assignmentId,
         assignmentTitle: row.assignmentTitle,
@@ -91,14 +119,21 @@ export class DdsTrainingService {
         status: row.status,
         acknowledgementDeadlineAt: row.acknowledgementDeadlineAt.toISOString(),
         acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
-        findings: ddsLiveFindings({
-          acknowledgementDeadlineAt: row.acknowledgementDeadlineAt,
-          acknowledgedAt: row.acknowledgedAt,
-          ...(handoff ? { handoff: handoffFacts(handoff) } : {}),
-          now,
-        }),
-      };
-    });
+        findings: observed(row),
+      })),
+      standaloneAttempts: standaloneRows.map((row) => ({
+        exerciseId: row.id,
+        operatorId: row.operatorId,
+        operatorName: row.operatorName,
+        startedAt: row.startedAt.toISOString(),
+        addressedService: row.addressedService,
+        cardTitle: row.card.title,
+        status: row.status,
+        acknowledgementDeadlineAt: row.acknowledgementDeadlineAt.toISOString(),
+        acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
+        findings: observed(row),
+      })),
+    };
   }
 
   async start(operatorId: string, assignmentId: string, eventId: string) {
@@ -175,15 +210,6 @@ export class DdsTrainingService {
       .leftJoin(trainingGroups, eq(trainingGroups.id, trainingAssignments.groupId))
       .where(this.scope(actor)).orderBy(desc(ddsExercises.createdAt)).limit(200);
 
-    const standaloneScope = actor.role === "admin" ? undefined : exists(
-      this.db.select({ userId: trainingGroupMembers.userId })
-        .from(trainingGroupMembers)
-        .innerJoin(trainingGroups, eq(trainingGroups.id, trainingGroupMembers.groupId))
-        .where(and(
-          eq(trainingGroupMembers.userId, ddsExercises.operatorId),
-          eq(trainingGroups.instructorId, actor.id),
-        )),
-    );
     const standaloneRows = await this.db.select({
       id: ddsExercises.id, operatorId: users.id,
       operatorName: users.fullName, passThreshold: ddsExercises.passThreshold,
@@ -192,7 +218,7 @@ export class DdsTrainingService {
       .where(and(
         isNull(ddsExercises.trainingAttemptId),
         isNotNull(ddsExercises.completedAt),
-        standaloneScope,
+        this.standaloneScope(actor),
       ))
       .orderBy(desc(ddsExercises.createdAt)).limit(200);
 
@@ -267,6 +293,22 @@ export class DdsTrainingService {
   private scope(actor: TrainingActor) {
     return actor.role === "admin" ? undefined : or(eq(trainingAssignments.createdBy, actor.id), eq(trainingGroups.instructorId, actor.id));
   }
+
+  /** Карточку очереди смены видит тот, кто ведёт группу этого диспетчера. */
+  private standaloneScope(actor: TrainingActor) {
+    if (actor.role === "admin") return undefined;
+
+    return exists(
+      this.db.select({ userId: trainingGroupMembers.userId })
+        .from(trainingGroupMembers)
+        .innerJoin(trainingGroups, eq(trainingGroups.id, trainingGroupMembers.groupId))
+        .where(and(
+          eq(trainingGroupMembers.userId, ddsExercises.operatorId),
+          eq(trainingGroups.instructorId, actor.id),
+        )),
+    );
+  }
+
   private unavailable(): never {
     throw new AppNotFoundException(ErrorCodes.ASSIGNMENT_NOT_AVAILABLE, "There is no DDS assignment available to this learner");
   }

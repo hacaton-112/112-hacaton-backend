@@ -183,6 +183,13 @@
       "when": 1790092800000,
       "tag": "0023_dds_click_to_call",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790179200000,
+      "tag": "0024_dds_queue_ownership",
+      "breakpoints": true
     }
   ]
 }

@@ -24,7 +24,7 @@ export class DdsTrainingController {
   @Get("live")
   @ZodSerializerDto(DdsLiveListDto)
   async live(@Req() request: AuthenticatedRequest) {
-    return { attempts: await this.training.live({ id: request.user.sub, role: request.user.role }) };
+    return this.training.live({ id: request.user.sub, role: request.user.role });
   }
 
   @Get("attempts")
