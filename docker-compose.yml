@@ -79,6 +79,35 @@ services:
     ports:
       - "127.0.0.1:${WHISPER_PORT:-8787}:8787"
 
+  # Карта происшествий работает без интернета: TileServer отдаёт стили, шрифты
+  # и векторные тайлы Москвы с областью из maps/. Наружу порт не публикуется —
+  # клиент ходит через gateway по /maps/, иначе страница по HTTPS не может
+  # загрузить тайлы по HTTP.
+  tileserver:
+    profiles: ["app", "maps"]
+    image: ${MAP_TILESERVER_IMAGE:-maptiler/tileserver-gl:v5.6.0}
+    container_name: system-112-training-tileserver
+    restart: unless-stopped
+    command:
+      - "-c"
+      - ${MAP_TILESERVER_CONFIG:-/data/config.json}
+      - "--public_url"
+      - ${MAP_TILESERVER_PUBLIC_URL:-/maps/}
+    environment:
+      TILESERVER_GL_ALLOWED_HOSTS: ${MAP_TILESERVER_ALLOWED_HOSTS:-*}
+    volumes:
+      - ./maps:/data:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8080/styles/dark-matter/style.json').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # Имена сервиса, образа и файла модели не привязаны к конкретной модели: она
   # меняется от итерации к итерации, а меняются только LLM_MODEL_FILE/URL.
   local-llm:

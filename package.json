@@ -56,7 +56,13 @@
     "db:seed": "bun run db:seed:admin && bun run db:seed:classifier && bun run db:seed:scenarios && bun run db:seed:groups && bun run db:seed:crews && bun run db:seed:workstations",
     "db:reset": "bun run db:clean && bun run db:seed",
     "db:studio": "drizzle-kit studio --config=drizzle/drizzle.config.ts",
-    "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts"
+    "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts",
+    "map:check": "bun scripts/check-map-data.ts",
+    "map:extract": "bun scripts/extract-map-region.ts",
+    "map:image": "bun scripts/build-map-image.ts",
+    "map:prepare": "bun scripts/prepare-russia-map.ts",
+    "map:prepare:fonts": "bun scripts/prepare-map.ts",
+    "map:up": "docker compose --profile maps up -d tileserver"
   },
   "dependencies": {
     "@fastify/helmet": "^13.1.1",
