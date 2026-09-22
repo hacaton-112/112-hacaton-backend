@@ -1,9 +1,19 @@
 import type {
   DdsCrewCall,
+  DdsTextEvaluation,
   DdsExerciseViolation,
   DdsResponseStatus,
   DdsServiceCode,
 } from "../../contracts/dds-exercise";
+
+export type DdsTextEvaluationMode = "preliminary" | "unavailable" | "done";
+
+export function ddsTextEvaluationMode(
+  evaluation: DdsTextEvaluation | null,
+): DdsTextEvaluationMode {
+  if (!evaluation || evaluation.status === "pending") return "preliminary";
+  return evaluation.status === "done" ? "done" : "unavailable";
+}
 
 export const DDS_STATUS_LABELS: Record<DdsResponseStatus, string> = {
   pending: "Добавлена",

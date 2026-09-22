@@ -48,6 +48,14 @@ export function DdsStatusActions({
   // карточку, отмечать начало реагирования нечего.
   const waitingForCrew =
     selected === "responding" && exercise.crewHandoff?.notified === false;
+  const textHint =
+    selected === "accepted"
+      ? "Например: подтвердите приём и укажите, какая бригада направлена."
+      : selected === "completed"
+        ? "Кратко зафиксируйте результат работ и существенные сведения."
+        : selected === "refused"
+          ? "Укажите фактическую и обоснованную причину отказа."
+          : null;
 
   const run = async () => {
     await onTransition(selected, comment);
@@ -95,6 +103,11 @@ export function DdsStatusActions({
             placeholder="Введите результат реагирования"
             disabled={pending}
           />
+          {textHint && (
+            <Text as="span" size="1" color="gray">
+              {textHint}
+            </Text>
+          )}
         </label>
 
         <Button

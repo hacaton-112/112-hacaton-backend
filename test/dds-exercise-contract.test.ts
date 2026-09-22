@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   acknowledgementSecondsLeft,
+  ddsTextEvaluationMode,
   formatCountdown,
   requiresComment,
 } from "../src/components/dds/dds-formatters";
@@ -101,5 +102,39 @@ describe("DDS exercise contract", () => {
     expect(requiresComment("not_accepted")).toBe(true);
     expect(requiresComment("refused")).toBe(true);
     expect(requiresComment("accepted")).toBe(false);
+  });
+
+  it("keeps the result preliminary until asynchronous text evaluation finishes", () => {
+    expect(ddsTextEvaluationMode(null)).toBe("preliminary");
+    expect(
+      ddsTextEvaluationMode({
+        status: "pending",
+        preliminary: true,
+        coverage: [],
+        contradictions: [],
+        summary: null,
+        grammar: null,
+        model: null,
+        durationMs: null,
+        error: null,
+      }),
+    ).toBe("preliminary");
+  });
+
+  it("distinguishes a completed breakdown from a failed fallback", () => {
+    const base = {
+      preliminary: false,
+      coverage: [],
+      contradictions: [],
+      summary: null,
+      grammar: null,
+      model: null,
+      durationMs: null,
+      error: null,
+    } as const;
+    expect(ddsTextEvaluationMode({ ...base, status: "done" })).toBe("done");
+    expect(ddsTextEvaluationMode({ ...base, status: "failed" })).toBe(
+      "unavailable",
+    );
   });
 });

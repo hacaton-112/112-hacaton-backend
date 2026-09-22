@@ -80,6 +80,27 @@ export const DdsExerciseResultSchema = z.object({
   violations: z.array(DdsExerciseViolationSchema),
 });
 
+export const DdsTextEvaluationSchema = z.object({
+  status: z.enum(["pending", "done", "failed", "skipped"]),
+  preliminary: z.boolean(),
+  coverage: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      status: z.enum(["present", "missing"]),
+      quote: z.string().nullable(),
+    }),
+  ),
+  contradictions: z.array(
+    z.object({ description: z.string(), quote: z.string() }),
+  ),
+  summary: z.string().nullable(),
+  grammar: z.record(z.string(), z.unknown()).nullable(),
+  model: z.string().nullable(),
+  durationMs: z.number().int().nonnegative().nullable(),
+  error: z.string().nullable(),
+});
+
 /** Звонок диспетчера ДДС наряду по учебной IP-АТС. */
 export const DdsCrewCallSchema = z.object({
   dialedNumber: z.string(),
@@ -114,6 +135,7 @@ export const DdsExerciseSchema = z.object({
   updatedAt: z.iso.datetime(),
   events: z.array(DdsExerciseEventSchema),
   result: DdsExerciseResultSchema.nullable(),
+  textEvaluation: DdsTextEvaluationSchema.nullable().default(null),
   /**
    * Передача карточки наряду по телефону; `null` — телефония выключена.
    * Необязательно: backend без телефонии поля не присылает вовсе.
@@ -131,6 +153,7 @@ export type DdsExerciseViolation = z.infer<typeof DdsExerciseViolationSchema>;
 export type DdsCardSnapshot = z.infer<typeof DdsCardSnapshotSchema>;
 export type DdsExerciseEvent = z.infer<typeof DdsExerciseEventSchema>;
 export type DdsExerciseResult = z.infer<typeof DdsExerciseResultSchema>;
+export type DdsTextEvaluation = z.infer<typeof DdsTextEvaluationSchema>;
 export type DdsExercise = z.infer<typeof DdsExerciseSchema>;
 export type DdsCrewCall = z.infer<typeof DdsCrewCallSchema>;
 export type DdsCrewHandoff = z.infer<typeof DdsCrewHandoffSchema>;

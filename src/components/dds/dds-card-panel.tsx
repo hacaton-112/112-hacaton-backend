@@ -1,4 +1,4 @@
-import { Badge, Card, Flex, Heading, Text } from "@bolid-ui/themes";
+import { Badge, Button, Card, Flex, Heading, Text } from "@bolid-ui/themes";
 import { ClipboardCheck, Trophy } from "lucide-react";
 import { useState } from "react";
 
@@ -6,10 +6,15 @@ import type {
   DdsExercise,
   DdsResponseStatus,
 } from "../../contracts/dds-exercise";
+import { ddsReferenceService } from "../../services/dds-reference.service";
 import { DdsAcknowledgementTimer } from "./dds-acknowledgement-timer";
 import { DdsCardArmHeader } from "./dds-card-arm-header";
 import { DdsCrewHandoffBlock } from "./dds-crew-handoff";
-import { DDS_STATUS_LABELS, DDS_VIOLATION_LABELS } from "./dds-formatters";
+import {
+  ddsTextEvaluationMode,
+  DDS_STATUS_LABELS,
+  DDS_VIOLATION_LABELS,
+} from "./dds-formatters";
 import { DdsStatusActions } from "./dds-status-actions";
 
 type TransitionStatus = Exclude<
@@ -129,6 +134,14 @@ export function DdsCardPanel({
         </Card>
       )}
 
+      {exercise.result && (
+        <DdsTextResult
+          exerciseId={exercise.id}
+          evaluation={exercise.textEvaluation}
+          instructorView={readOnly}
+        />
+      )}
+
       {/* Журнал статусов службы: в реальном АРМ он раскрывается с плитки. */}
       {journalOpen && (
         <div className="arm-card-journal-panel">
@@ -155,5 +168,92 @@ export function DdsCardPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function DdsTextResult({
+  exerciseId,
+  evaluation,
+  instructorView,
+}: {
+  exerciseId: string;
+  evaluation: DdsExercise["textEvaluation"];
+  instructorView: boolean;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const mode = ddsTextEvaluationMode(evaluation);
+  if (mode === "preliminary") {
+    return (
+      <Card size="2" variant="surface">
+        <Badge color="amber">Предварительный результат</Badge>
+        <Text as="p" size="2" color="gray" mt="2">
+          Текст диспетчера и грамотность ещё оцениваются. Текущий балл рассчитан
+          без текстовой части.
+        </Text>
+      </Card>
+    );
+  }
+  // `mode` вычисляется отдельной чистой функцией, поэтому TypeScript не может
+  // вывести из предыдущей ветки, что значение здесь уже существует.
+  if (!evaluation) return null;
+  if (mode === "unavailable") {
+    return (
+      <Card size="2" variant="surface">
+        <Badge color="gray">Без оценки текста</Badge>
+        <Text as="p" size="2" color="gray" mt="2">
+          {evaluation.error ?? "Подтверждённый эталон недоступен."}
+        </Text>
+        {instructorView && evaluation.status === "failed" && (
+          <Button
+            mt="2"
+            size="1"
+            variant="soft"
+            disabled={retrying}
+            onClick={() => {
+              setRetrying(true);
+              void ddsReferenceService
+                .retry(exerciseId)
+                .finally(() => setRetrying(false));
+            }}
+          >
+            Повторить проверку
+          </Button>
+        )}
+      </Card>
+    );
+  }
+  const grammar = evaluation.grammar as {
+    errorCount?: number;
+    styleCount?: number;
+  } | null;
+  return (
+    <Card size="2" variant="surface" className="grid gap-2">
+      <Heading size="3">Оценка текста</Heading>
+      {evaluation.coverage.map((item) => (
+        <div key={item.id}>
+          <Flex align="center" justify="between" gap="3">
+            <Text size="2">{item.label}</Text>
+            <Badge color={item.status === "present" ? "green" : "red"}>
+              {item.status === "present" ? "Названо" : "Не названо"}
+            </Badge>
+          </Flex>
+          {instructorView && item.quote && (
+            <Text as="p" size="1" color="gray">
+              «{item.quote}»
+            </Text>
+          )}
+        </div>
+      ))}
+      {evaluation.contradictions.map((item, index) => (
+        <Text key={`${item.quote}-${index}`} size="2" color="red">
+          Противоречие: {item.description}
+          {instructorView ? ` — «${item.quote}»` : ""}
+        </Text>
+      ))}
+      <Text size="2" color="gray">
+        Грамматика: ошибок {grammar?.errorCount ?? 0}, замечаний по стилю{" "}
+        {grammar?.styleCount ?? 0}.
+      </Text>
+    </Card>
   );
 }
