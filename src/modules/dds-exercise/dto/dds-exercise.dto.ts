@@ -52,6 +52,29 @@ export const DdsExerciseResultSchema = z
   })
   .strict();
 
+export const DdsTextEvaluationSchema = z
+  .object({
+    status: z.enum(["pending", "done", "failed", "skipped"]),
+    preliminary: z.boolean(),
+    coverage: z.array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        status: z.enum(["present", "missing"]),
+        quote: z.string().nullable(),
+      }),
+    ),
+    contradictions: z.array(
+      z.object({ description: z.string(), quote: z.string() }),
+    ),
+    summary: z.string().nullable(),
+    grammar: z.record(z.string(), z.unknown()).nullable(),
+    model: z.string().nullable(),
+    durationMs: z.number().int().nonnegative().nullable(),
+    error: z.string().nullable(),
+  })
+  .strict();
+
 export const DdsCrewCallSchema = z
   .object({
     dialedNumber: z.string().min(1),
@@ -104,6 +127,7 @@ export const DdsExerciseSchema = z
     updatedAt: z.iso.datetime(),
     events: z.array(DdsExerciseEventSchema),
     result: DdsExerciseResultSchema.nullable(),
+    textEvaluation: DdsTextEvaluationSchema.nullable(),
     crewHandoff: DdsCrewHandoffSchema.nullable(),
   })
   .strict();

@@ -20,6 +20,42 @@ const HANDOFF_REFUSAL_WEIGHT = 15;
 
 const PASS_THRESHOLD = 75;
 
+/** Текст меняет итог только после подтверждённого эталона; до этого сохраняется прежняя шкала. */
+export const DDS_PROCESS_WEIGHT = 70;
+export const DDS_TEXT_WEIGHT = 25;
+export const DDS_GRAMMAR_WEIGHT = 5;
+export const DDS_CONTRADICTION_PENALTY = 5;
+
+export function combineDdsTextScore(input: {
+  readonly baseScore: number;
+  readonly presentItems: number;
+  readonly totalItems: number;
+  readonly contradictions: number;
+  readonly grammarErrors: number;
+  readonly grammarStyleIssues: number;
+  readonly passThreshold?: number;
+}): { score: number; passed: boolean } {
+  const coverage =
+    input.totalItems === 0 ? 0 : input.presentItems / input.totalItems;
+  const text = Math.max(
+    0,
+    Math.round(DDS_TEXT_WEIGHT * coverage) -
+      input.contradictions * DDS_CONTRADICTION_PENALTY,
+  );
+  const grammar = Math.max(
+    0,
+    DDS_GRAMMAR_WEIGHT - input.grammarErrors * 2 - input.grammarStyleIssues,
+  );
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round((input.baseScore * DDS_PROCESS_WEIGHT) / 100) + text + grammar,
+    ),
+  );
+  return { score, passed: score >= (input.passThreshold ?? PASS_THRESHOLD) };
+}
+
 /** Норматив передачи: от первичного статуса до звонка нужному наряду. */
 export const CREW_HANDOFF_NORM_MS = 60_000;
 
