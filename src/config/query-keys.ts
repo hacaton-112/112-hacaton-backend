@@ -9,9 +9,21 @@
 export const QUERY_KEYS = {
   voiceRuntime: () => ["voice-runtime"] as const,
   ddsLiveAttempts: () => ["dds-live-attempts"] as const,
+  ddsLessons: () => ["dds-lessons"] as const,
+  activeDdsLessons: () => ["dds-lessons", "my", "active"] as const,
+  ddsLessonReport: (lessonId?: string) =>
+    ["dds-lessons", lessonId, "report"] as const,
+  ddsReferences: (filters: object = {}) => ["dds-references", filters] as const,
+  adminQueues: () => ["admin-queues"] as const,
+  myDdsResults: () => ["dds-results", "my"] as const,
+  myDdsResult: (exerciseId?: string) =>
+    ["dds-results", "my", exerciseId] as const,
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,
+  scenarioGenerationJobs: () => ["scenario-generation-jobs"] as const,
+  scenarioGenerationJob: (jobId?: string) =>
+    ["scenario-generation-jobs", jobId] as const,
   trainingGroups: () => ["training-groups"] as const,
   trainingGroup: (groupId: string) => ["training-groups", groupId] as const,
   groupStudents: (groupId: string) =>

@@ -17,7 +17,12 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SCALING_OPTIONS } from "../../config/theme";
 import { useMicrophoneTest } from "../../hooks/use-microphone-test";
-import { ipc, type AudioDeviceInfo } from "../../lib/ipc";
+import { pickDevice } from "../../lib/audio-processing";
+import {
+  enumerateAudioDevices,
+  supportsOutputDeviceSelection,
+  type AudioDeviceInfo,
+} from "../../lib/web-audio";
 import {
   MAX_VOLUME,
   settingsService,
@@ -58,7 +63,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     setLoadingDevices(true);
     setDeviceError(null);
     try {
-      setDevices(await ipc.audio.devices());
+      setDevices(await enumerateAudioDevices());
     } catch (error) {
       setDeviceError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -70,7 +75,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     if (!open) return;
 
     const timer = window.setTimeout(() => void refreshDevices(), 0);
-    return () => window.clearTimeout(timer);
+    const onDeviceChange = () => void refreshDevices();
+    navigator.mediaDevices?.addEventListener("devicechange", onDeviceChange);
+    return () => {
+      window.clearTimeout(timer);
+      navigator.mediaDevices?.removeEventListener(
+        "devicechange",
+        onDeviceChange,
+      );
+    };
   }, [open, refreshDevices]);
 
   return (
@@ -273,20 +286,27 @@ function AudioSettings({
           devices={devices.inputs}
           label="Микрофон"
           value={settings.inputDevice}
-          onChange={(inputDevice) => settingsService.update({ inputDevice })}
+          valueLabel={settings.inputDeviceLabel}
+          onChange={(inputDevice, inputDeviceLabel) =>
+            settingsService.update({ inputDevice, inputDeviceLabel })
+          }
         />
-        <DeviceSelect
-          devices={devices.outputs}
-          label="Динамик"
-          value={settings.outputDevice}
-          onChange={(outputDevice) => settingsService.update({ outputDevice })}
-        />
+        {supportsOutputDeviceSelection ? (
+          <DeviceSelect
+            devices={devices.outputs}
+            label="Динамик"
+            value={settings.outputDevice}
+            valueLabel={settings.outputDeviceLabel}
+            onChange={(outputDevice, outputDeviceLabel) =>
+              settingsService.update({ outputDevice, outputDeviceLabel })
+            }
+          />
+        ) : null}
         <VolumeSlider
           label="Громкость микрофона"
           value={settings.inputGain}
           onChange={(inputGain) => {
             settingsService.update({ inputGain });
-            void ipc.audio.setInputGain(inputGain).catch(() => undefined);
           }}
         />
         <VolumeSlider
@@ -294,15 +314,16 @@ function AudioSettings({
           value={settings.outputVolume}
           onChange={(outputVolume) => {
             settingsService.update({ outputVolume });
-            void ipc.audio.setOutputVolume(outputVolume).catch(() => undefined);
           }}
         />
       </Grid>
 
       <MicrophoneTest
         inputDevice={settings.inputDevice}
+        inputDeviceLabel={settings.inputDeviceLabel}
         inputGain={settings.inputGain}
         outputDevice={settings.outputDevice}
+        outputDeviceLabel={settings.outputDeviceLabel}
         outputVolume={settings.outputVolume}
       />
 
@@ -317,23 +338,35 @@ function DeviceSelect({
   devices,
   label,
   value,
+  valueLabel,
   onChange,
 }: {
   devices: AudioDeviceInfo[];
   label: string;
   value: string | null;
-  onChange: (value: string | null) => void;
+  valueLabel: string | null;
+  onChange: (value: string | null, valueLabel: string | null) => void;
 }) {
+  // Сохранённый идентификатор мог устареть: тогда устройство узнаётся по
+  // названию, а не пропавшее значение показывается как системное — так же
+  // его и откроет звонок.
+  const current = pickDevice(
+    devices.map((device) => ({ deviceId: device.id, label: device.label })),
+    value,
+    valueLabel,
+  );
+
   return (
     <Flex direction="column" gap="2" minWidth="0">
       <Text size="2" weight="medium">
         {label}
       </Text>
       <Select.Root
-        value={value ?? SYSTEM_DEFAULT}
-        onValueChange={(next) =>
-          onChange(next === SYSTEM_DEFAULT ? null : next)
-        }
+        value={current ?? SYSTEM_DEFAULT}
+        onValueChange={(next) => {
+          const device = devices.find((item) => item.id === next);
+          onChange(device?.id ?? null, device?.label || null);
+        }}
       >
         <Select.Trigger
           aria-label={label}
@@ -389,19 +422,25 @@ function VolumeSlider({
 
 function MicrophoneTest({
   inputDevice,
+  inputDeviceLabel,
   inputGain,
   outputDevice,
+  outputDeviceLabel,
   outputVolume,
 }: {
   inputDevice: string | null;
+  inputDeviceLabel: string | null;
   inputGain: number;
   outputDevice: string | null;
+  outputDeviceLabel: string | null;
   outputVolume: number;
 }) {
   const { active, error, level, toggle } = useMicrophoneTest({
     inputDevice,
+    inputDeviceLabel,
     inputGain,
     outputDevice,
+    outputDeviceLabel,
     outputVolume,
   });
 

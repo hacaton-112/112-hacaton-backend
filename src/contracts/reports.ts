@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { TrainingAttemptStatusSchema } from "./training";
+import { DDS_PROCESS_ERROR_TYPES } from "./dds-report";
 
 export const ReportScopeSchema = z.enum(["group", "student"]);
 export const ReportFormatSchema = z.enum(["csv", "xlsx", "pdf"]);
@@ -83,6 +84,55 @@ export const InstructorReportSchema = z.object({
     status: z.literal("unavailable"),
     message: z.string(),
   }),
+  dds: z
+    .object({
+      cards: z.number().int().nonnegative(),
+      averageScore: z.number().int().nullable(),
+      finalScore: z.number().int().nullable(),
+      withinNormPercent: z.number().int().nullable(),
+      outcomes: z.array(
+        z.object({ status: z.string(), count: z.number().int() }),
+      ),
+      topErrors: z.array(
+        z.object({
+          type: z.enum(DDS_PROCESS_ERROR_TYPES),
+          count: z.number().int(),
+        }),
+      ),
+      averageCoveragePercent: z.number().int().nullable(),
+      scoreDynamics: z.array(
+        z.object({
+          lessonId: z.uuid(),
+          title: z.string(),
+          occurredAt: z.iso.datetime(),
+          score: z.number().int().nullable(),
+        }),
+      ),
+      weakPoints: z.array(
+        z.object({ label: z.string(), count: z.number().int() }),
+      ),
+      recentAttempts: z.array(
+        z.object({
+          exerciseId: z.uuid(),
+          lessonTitle: z.string().nullable(),
+          occurredAt: z.iso.datetime(),
+          finalStatus: z.string(),
+          finalScore: z.number().int().nullable(),
+        }),
+      ),
+    })
+    .default({
+      cards: 0,
+      averageScore: null,
+      finalScore: null,
+      withinNormPercent: null,
+      outcomes: [],
+      topErrors: [],
+      averageCoveragePercent: null,
+      scoreDynamics: [],
+      weakPoints: [],
+      recentAttempts: [],
+    }),
 });
 
 export type ReportScope = z.infer<typeof ReportScopeSchema>;

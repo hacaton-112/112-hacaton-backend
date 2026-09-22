@@ -14,6 +14,7 @@ import { useParams } from "react-router";
 import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { StudentMethodicalMaterialsTab } from "../../components/training/student-methodical-materials";
+import { InstructorDdsSummary } from "../../components/reports/instructor-dds-summary";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
 import {
   formatDateTime,
@@ -26,11 +27,15 @@ import {
   useStudentProfile,
   useTrainingMutations,
 } from "../../hooks/use-training";
+import { useInstructorReport } from "../../hooks/use-reports";
 
 /** Ученик: успеваемость по всем занятиям и разборы его звонков. */
 export default function StudentPage() {
   const { groupId, userId = "" } = useParams();
   const profile = useStudentProfile(userId);
+  const report = useInstructorReport(
+    userId ? { scope: "student", operatorId: userId } : null,
+  );
 
   const groupInfo = groupId
     ? profile.data?.student.groups.find((g) => g.groupId === groupId)
@@ -65,14 +70,24 @@ export default function StudentPage() {
         </Callout.Root>
       )}
 
-      {profile.isPending && <Skeleton height="360px" className="rounded-(--radius-4)" />}
+      {profile.isPending && (
+        <Skeleton height="360px" className="rounded-(--radius-4)" />
+      )}
 
-      {profile.data && <StudentContent profile={profile.data} />}
+      {profile.data && (
+        <StudentContent profile={profile.data} dds={report.data?.dds} />
+      )}
     </main>
   );
 }
 
-function StudentContent({ profile }: { profile: StudentProfile }) {
+function StudentContent({
+  profile,
+  dds,
+}: {
+  profile: StudentProfile;
+  dds?: import("../../contracts/reports").InstructorReport["dds"];
+}) {
   const { student, stats, calls } = profile;
   const mutations = useTrainingMutations();
 
@@ -151,15 +166,15 @@ function StudentContent({ profile }: { profile: StudentProfile }) {
         ))}
       </div>
 
+      {dds && <InstructorDdsSummary dds={dds} />}
+
       <Tabs.Root defaultValue="calls" className="flex min-h-0 flex-1 flex-col">
         <Tabs.List size="2">
           <Tabs.Trigger value="calls">Разборы</Tabs.Trigger>
           <Tabs.Trigger value="assignments">
             Индивидуальные занятия
           </Tabs.Trigger>
-          <Tabs.Trigger value="materials">
-            Методические материалы
-          </Tabs.Trigger>
+          <Tabs.Trigger value="materials">Методические материалы</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content

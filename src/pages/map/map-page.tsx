@@ -2,7 +2,6 @@ import { Card, Flex, Text } from "@bolid-ui/themes";
 import { Crosshair, MapPin } from "lucide-react";
 
 import { IncidentMap } from "../../components/map/incident-map";
-import { WindowTitlebar } from "../../components/window/window-titlebar";
 import { MOSCOW } from "../../config/map";
 import { useMapWindowStore } from "../../stores/map-window.store";
 
@@ -15,7 +14,6 @@ export default function MapPage() {
 
   return (
     <Flex direction="column" className="h-screen-safe min-h-0 overflow-hidden">
-      <WindowTitlebar title="Карта происшествия" closeBehavior="hide" />
       <div className="relative min-h-0 flex-1">
         <IncidentMap
           city={MOSCOW}

@@ -1,171 +1,199 @@
-import {
-  Button,
-  Callout,
-  Card,
-  ScrollArea,
-  Skeleton,
-  Text,
-  toast,
-} from "@bolid-ui/themes";
-import { AlertTriangle, Plus } from "lucide-react";
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Button, Callout, Flex, Skeleton, Text, toast } from "@bolid-ui/themes";
+import { AlertTriangle, Plus, Sparkles } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useNavigate } from "react-router";
 
-import { ScenarioBriefingPanel } from "../../components/scenario-catalog/scenario-briefing-panel";
-import { ScenarioCatalogCard } from "../../components/scenario-catalog/scenario-catalog-card";
+import { ScenarioAiHelper } from "../../components/scenario-authoring/scenario-ai-helper";
+import { ScenarioCatalogTable } from "../../components/scenario-catalog/scenario-catalog-table";
+import { scenarioCountLabel } from "../../components/scenario-catalog/scenario-catalog-formatters";
 import { ScenarioDeleteDialog } from "../../components/scenario-catalog/scenario-delete-dialog";
+import type { ScenarioSummary } from "../../contracts/call";
+import type { ScenarioGenerationJob } from "../../contracts/scenario-authoring";
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
+import { useScenarioGenerationJobs } from "../../hooks/use-scenario-generation";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
 import { useScenarios } from "../../hooks/use-scenarios";
 import { ROUTES } from "../../config/routes";
 
+const messageFrom = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : "Не удалось поставить черновик в очередь";
+
 /**
- * Учебные сценарии: что опубликовано, брифинг выбранного и правка.
+ * Учебные сценарии: таблица опубликованных и действия по каждому.
  *
- * Выбор живёт в адресе: после публикации правки конструктор возвращает сюда
- * уже на новую версию, и она сразу открыта в брифинге.
+ * Запуск, правка и удаление живут в самой строке — как в остальных таблицах
+ * приложения. Черновики помощника готовятся в фоне и стоят строками сверху.
  */
 export default function ScenarioCatalogPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const scenarios = useScenarios();
   const list = scenarios.data ?? [];
-  const requested = searchParams.get("selected");
-  const selected =
-    list.find((scenario) => scenario.scenarioVersionId === requested) ??
-    list[0];
-  const version = useScenarioVersion(selected?.scenarioVersionId);
   const { archival } = useScenarioAuthoring();
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const generation = useScenarioGenerationJobs();
+  const [removing, setRemoving] = useState<ScenarioSummary>();
+  const [helperOpen, setHelperOpen] = useState(false);
+  const [helperError, setHelperError] = useState<string>();
+  // Идентификатор сценария известен только его версии: в списке его нет.
+  const version = useScenarioVersion(removing?.scenarioVersionId);
 
-  const select = (scenarioVersionId: string) =>
-    setSearchParams({ selected: scenarioVersionId }, { replace: true });
-
-  const openDeleteDialog = () => {
-    archival.reset();
-    setDeleteOpen(true);
+  const enqueue = async (brief: string) => {
+    setHelperError(undefined);
+    try {
+      await generation.enqueue.mutateAsync(brief);
+      setHelperOpen(false);
+      toast.success("Черновик поставлен в очередь", {
+        description:
+          "Он появится в таблице, как только помощник закончит. Страницу можно закрыть.",
+      });
+    } catch (error) {
+      setHelperError(messageFrom(error));
+    }
   };
 
-  const deleteSelected = async () => {
-    if (!selected || !version.data) return;
+  const openDraft = useCallback(
+    (job: ScenarioGenerationJob) =>
+      navigate(`${ROUTES.scenarioNew()}?job=${encodeURIComponent(job.id)}`),
+    [navigate],
+  );
+  const { mutate: enqueueAgain } = generation.enqueue;
+  const { mutate: dismissJob } = generation.dismiss;
+  const retry = useCallback(
+    (job: ScenarioGenerationJob) => {
+      enqueueAgain(job.brief, {
+        onSuccess: () => dismissJob(job.id),
+        onError: (error) => toast.error(messageFrom(error)),
+      });
+    },
+    [dismissJob, enqueueAgain],
+  );
+  const dismiss = useCallback(
+    (job: ScenarioGenerationJob) => dismissJob(job.id),
+    [dismissJob],
+  );
+
+  const start = useCallback(
+    (scenario: ScenarioSummary) =>
+      navigate(ROUTES.operatorWithScenario(scenario.scenarioVersionId)),
+    [navigate],
+  );
+  const edit = useCallback(
+    (scenario: ScenarioSummary) =>
+      navigate(ROUTES.scenarioEdit(scenario.scenarioVersionId)),
+    [navigate],
+  );
+  const remove = useCallback(
+    (scenario: ScenarioSummary) => {
+      archival.reset();
+      setRemoving(scenario);
+    },
+    [archival],
+  );
+
+  const confirmRemoval = async () => {
+    if (!removing || !version.data) return;
 
     try {
       await archival.mutateAsync(version.data.scenarioId);
-      setDeleteOpen(false);
-      // Выбор сбрасывается на первый оставшийся сценарий.
-      setSearchParams({}, { replace: true });
       toast.success("Сценарий удалён", {
-        description: `${selected.code} · ${selected.title}`,
+        description: `${removing.code} · ${removing.title}`,
       });
+      setRemoving(undefined);
     } catch {
       // Причина остаётся в диалоге: преподаватель может повторить или отменить.
     }
   };
 
   return (
-    <div className="scenario-catalog-page h-full min-h-full">
-      <div className="scenario-catalog-layout grid min-h-full gap-4 p-4">
-        <section
-          aria-label="Учебные сценарии"
-          className="flex min-h-0 min-w-0 flex-col"
-        >
-          {/* Упавшее фоновое обновление не прячет уже загруженный список. */}
-          {scenarios.error && !scenarios.data ? (
-            <Callout.Root color="red" role="alert">
-              <Callout.Icon>
-                <AlertTriangle size={16} />
-              </Callout.Icon>
-              <Callout.Text>
-                Не удалось получить список сценариев: {scenarios.error.message}{" "}
-                <Button
-                  size="1"
-                  variant="soft"
-                  color="red"
-                  onClick={() => void scenarios.refetch()}
-                >
-                  Повторить
-                </Button>
-              </Callout.Text>
-            </Callout.Root>
-          ) : (
-            <ScrollArea
-              type="auto"
-              scrollbars="vertical"
-              className="scenario-catalog-scroll -m-1 min-h-0 flex-1"
-            >
-              <div className="scenario-catalog-grid grid gap-4 p-1">
-                {scenarios.isPending
-                  ? [0, 1, 2, 3].map((index) => (
-                      <Skeleton
-                        key={index}
-                        height="220px"
-                        className="rounded-[16px]"
-                      />
-                    ))
-                  : list.map((scenario) => (
-                      <ScenarioCatalogCard
-                        key={scenario.scenarioVersionId}
-                        scenario={scenario}
-                        selected={
-                          scenario.scenarioVersionId ===
-                          selected?.scenarioVersionId
-                        }
-                        onSelect={() => select(scenario.scenarioVersionId)}
-                      />
-                    ))}
-              </div>
-            </ScrollArea>
-          )}
-        </section>
+    <main
+      aria-label="Учебные сценарии"
+      className="flex h-full min-h-full min-w-0 flex-col gap-3 p-4"
+    >
+      <Flex align="center" justify="between" gap="3" wrap="wrap">
+        <Text size="2" color="gray">
+          {scenarios.data
+            ? scenarioCountLabel(list.length)
+            : "Загрузка сценариев…"}
+        </Text>
+        <Flex gap="2">
+          <Button
+            size="2"
+            variant="soft"
+            onClick={() => navigate(ROUTES.scenarioNew())}
+          >
+            <Plus size={16} />
+            Создать вручную
+          </Button>
+          <Button
+            size="2"
+            onClick={() => {
+              setHelperError(undefined);
+              setHelperOpen(true);
+            }}
+          >
+            <Sparkles size={16} />
+            Сгенерировать с ИИ
+          </Button>
+        </Flex>
+      </Flex>
 
-        {selected ? (
-          <ScenarioBriefingPanel
-            summary={selected}
-            version={version.data}
-            isPending={version.isPending}
-            error={version.error}
-            onRetry={() => void version.refetch()}
-            onCreate={() => navigate(ROUTES.scenarioNew())}
-            onStart={() =>
-              navigate(ROUTES.operatorWithScenario(selected.scenarioVersionId))
-            }
-            onEdit={() =>
-              navigate(ROUTES.scenarioEdit(selected.scenarioVersionId))
-            }
-            onDelete={openDeleteDialog}
-          />
-        ) : (
-          !scenarios.isPending &&
-          !(scenarios.error && !scenarios.data) && (
-            <Card size="3" variant="classic" className="grid gap-4 self-start">
-              <Text as="p" size="2" color="gray">
-                Опубликуйте первый сценарий — здесь появится его брифинг: кто
-                звонит, порог оценки и обязательные вопросы.
-              </Text>
-              <Button
-                size="2"
-                radius="full"
-                className="justify-self-start"
-                onClick={() => navigate(ROUTES.scenarioNew())}
-              >
-                <Plus size={16} />
-                Создать сценарий
-              </Button>
-            </Card>
-          )
-        )}
-        {selected && (
-          <ScenarioDeleteDialog
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-            code={selected.code}
-            title={selected.title}
-            pending={archival.isPending}
-            error={archival.error?.message}
-            onConfirm={() => void deleteSelected()}
-          />
-        )}
-      </div>
-    </div>
+      {/* Упавшее фоновое обновление не прячет уже загруженный список. */}
+      {scenarios.error && !scenarios.data ? (
+        <Callout.Root color="red" role="alert">
+          <Callout.Icon>
+            <AlertTriangle size={16} />
+          </Callout.Icon>
+          <Callout.Text>
+            Не удалось получить список сценариев: {scenarios.error.message}{" "}
+            <Button
+              size="1"
+              variant="soft"
+              color="red"
+              onClick={() => void scenarios.refetch()}
+            >
+              Повторить
+            </Button>
+          </Callout.Text>
+        </Callout.Root>
+      ) : (
+        <div className="min-h-0 flex-1">
+          {scenarios.isPending ? (
+            <Skeleton height="100%" className="rounded-(--radius-4)" />
+          ) : (
+            <ScenarioCatalogTable
+              scenarios={list}
+              jobs={generation.jobs.data ?? []}
+              onStart={start}
+              onEdit={edit}
+              onDelete={remove}
+              onOpenDraft={openDraft}
+              onRetry={retry}
+              onDismiss={dismiss}
+            />
+          )}
+        </div>
+      )}
+
+      {removing && (
+        <ScenarioDeleteDialog
+          open
+          onOpenChange={(open) => !open && setRemoving(undefined)}
+          code={removing.code}
+          title={removing.title}
+          pending={archival.isPending || version.isPending}
+          error={archival.error?.message}
+          onConfirm={() => void confirmRemoval()}
+        />
+      )}
+      <ScenarioAiHelper
+        open={helperOpen}
+        onOpenChange={setHelperOpen}
+        pending={generation.enqueue.isPending}
+        error={helperError}
+        onErrorDismiss={() => setHelperError(undefined)}
+        onGenerate={(brief) => void enqueue(brief)}
+      />
+    </main>
   );
 }

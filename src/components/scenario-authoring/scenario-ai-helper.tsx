@@ -75,9 +75,15 @@ export function ScenarioAiHelper({
 }) {
   const [brief, setBrief] = useState("");
   const canSend = !pending && brief.trim().length >= BRIEF_MIN_LENGTH;
+  // Панель закрылась — описание отправлено или отброшено, и следующий вызов
+  // описывают с чистого листа, а не поверх прежнего текста.
+  const change = (next: boolean) => {
+    if (!next) setBrief("");
+    onOpenChange(next);
+  };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={change}>
       <SheetContent side="bottom" className="max-h-[80vh]">
         <Box width="100%" maxWidth="760px" mx="auto" className="min-h-0">
           <SheetHeader className="pr-rx-12">

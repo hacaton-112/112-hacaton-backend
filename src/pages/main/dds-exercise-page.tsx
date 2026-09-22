@@ -19,13 +19,17 @@ import { DdsInstructorPanel } from "../../components/dds/dds-instructor-panel";
 import { DdsCardPanel } from "../../components/dds/dds-card-panel";
 import { DdsExerciseList } from "../../components/dds/dds-exercise-list";
 import { DdsShiftPanel } from "../../components/dds/dds-shift-panel";
+import { DdsActiveLesson } from "../../components/dds/dds-active-lesson";
 import type {
   DdsExercise,
   DdsResponseStatus,
 } from "../../contracts/dds-exercise";
 import { useDdsExercises } from "../../hooks/use-dds-exercises";
 
-type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
+type TransitionStatus = Exclude<
+  DdsResponseStatus,
+  "pending" | "lesson_finished"
+>;
 const EMPTY_EXERCISES: readonly DdsExercise[] = [];
 
 export default function DdsExercisePage() {
@@ -142,6 +146,11 @@ function DdsLearnerPage() {
           />
         </section>
 
+        <DdsActiveLesson
+          current={selectedExercise}
+          onReady={(exercise) => setSelectedExerciseId(exercise.id)}
+        />
+
         {dds.exercises.error && (
           <Callout.Root color="red" role="alert" className="m-2">
             <Callout.Icon>
@@ -160,8 +169,8 @@ function DdsLearnerPage() {
                 В этом окне карточка вручную не создаётся. Откройте назначение
                 преподавателя в режиме «Диспетчер ДДС» — карточка появится при
                 старте попытки. Сюда также поступают карточки, отправленные из
-                рабочего места оператора 112 в службу вашей учебной группы
-                (тег 01, 02, 03 или 04).
+                рабочего места оператора 112 в службу вашей учебной группы (тег
+                01, 02, 03 или 04).
               </Text>
               <div>
                 <Button

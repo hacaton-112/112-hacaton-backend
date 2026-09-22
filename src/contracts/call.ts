@@ -114,7 +114,7 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     sampleRate: z.number().int().positive(),
   }),
   z.object({ type: z.literal("audio.done") }),
-  /** RMS обработанного TTS из Rust; используется только индикатором громкости. */
+  /** RMS обработанного TTS из AudioWorklet; используется только индикатором. */
   z.object({
     type: z.literal("audio.level"),
     level: z.number().min(0).max(1),
@@ -125,7 +125,7 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     code: z.string(),
     message: z.string(),
   }),
-  /** Добавлено нативной стороной: webview больше не владеет сокетом. */
+  /** Локальное событие транспорта при закрытии сокета. */
   z.object({ type: z.literal("socket.closed") }),
   z.object({ type: z.literal("socket.error"), message: z.string() }),
 ]);
@@ -147,7 +147,7 @@ export const ScenarioListSchema = z.object({
   scenarios: z.array(ScenarioSummarySchema),
 });
 
-/** Commands initiated by the webview and sent through the native call transport. */
+/** Команды интерфейса, отправляемые через транспорт звонка. */
 export type CallClientCommand =
   | { type: "accept" | "decline" | "end" }
   | { type: "resume"; sessionId: string; resumeListening: boolean };

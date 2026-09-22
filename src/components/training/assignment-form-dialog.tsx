@@ -258,10 +258,7 @@ function AssignmentForm({
             <Select.Content>
               {CardSourceSchema.options
                 .filter(
-                  (source) =>
-                    mode !== "card_action" ||
-                    source === "generated" ||
-                    source === "ticket",
+                  (source) => mode !== "card_action" || source === "generated",
                 )
                 .map((source) => (
                   <Select.Item key={source} value={source}>

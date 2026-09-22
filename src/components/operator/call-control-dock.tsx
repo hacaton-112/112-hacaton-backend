@@ -247,7 +247,7 @@ function AudioMonitor({ children }: { children: React.ReactNode }) {
 
 const TTS_BAR_COUNT = 96;
 
-/** Волна реального уровня TTS, рассчитанного после телефонного DSP в Rust. */
+/** Волна реального уровня TTS, рассчитанного после телефонного DSP. */
 function TtsLevelWave({ level, active }: { level: number; active: boolean }) {
   const [phase, setPhase] = useState(0);
 
@@ -262,7 +262,7 @@ function TtsLevelWave({ level, active }: { level: number; active: boolean }) {
   }, [active]);
 
   // Заполняем сразу всю ширину: короткая TTS-реплика не должна закончиться
-  // раньше, чем накопится история полос. RMS из Rust задаёт общую амплитуду,
+  // раньше, чем накопится история полос. RMS процессора задаёт общую амплитуду,
   // а минимальный уровень показывает сам факт активного воспроизведения.
   const strength = active ? Math.min(1, Math.max(0.22, level * 2.6)) : 0;
   const bars = Array.from({ length: TTS_BAR_COUNT }, (_, index) => {

@@ -20,7 +20,7 @@ export function useDdsExercises() {
   const transition = useMutation({
     mutationFn: (input: {
       exerciseId: string;
-      status: Exclude<DdsResponseStatus, "pending">;
+      status: Exclude<DdsResponseStatus, "pending" | "lesson_finished">;
       comment?: string;
     }) =>
       ddsExerciseService.transition(

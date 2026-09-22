@@ -26,6 +26,7 @@ import {
 import { useDeferredValue, useMemo, useState } from "react";
 
 import { TelephonyWorkstationsCard } from "../../components/admin/telephony-workstations-card";
+import { BackgroundQueuesCard } from "../../components/admin/background-queues-card";
 import { UserFormDialog } from "../../components/admin/user-form-dialog";
 import { UserStatusDialog } from "../../components/admin/user-status-dialog";
 import { formatDateTime } from "../../components/training/training-labels";
@@ -206,7 +207,11 @@ export default function AdminPage() {
       {allUsers.isPending ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} height="88px" className="rounded-(--radius-3)" />
+            <Skeleton
+              key={index}
+              height="88px"
+              className="rounded-(--radius-3)"
+            />
           ))}
         </div>
       ) : (
@@ -254,14 +259,9 @@ export default function AdminPage() {
         </Select.Root>
         <Select.Root
           value={status}
-          onValueChange={(value) =>
-            setStatus(value as UserStatus | typeof ALL)
-          }
+          onValueChange={(value) => setStatus(value as UserStatus | typeof ALL)}
         >
-          <Select.Trigger
-            className="min-w-44"
-            aria-label="Фильтр по доступу"
-          />
+          <Select.Trigger className="min-w-44" aria-label="Фильтр по доступу" />
           <Select.Content>
             <Select.Item value={ALL}>Любой доступ</Select.Item>
             <Select.Item value="active">Активные</Select.Item>
@@ -295,6 +295,7 @@ export default function AdminPage() {
         )}
       </div>
 
+      <BackgroundQueuesCard />
       <TelephonyWorkstationsCard users={allUsers.data ?? []} />
 
       <UserFormDialog

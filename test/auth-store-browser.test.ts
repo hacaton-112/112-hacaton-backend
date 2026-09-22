@@ -13,7 +13,7 @@ describe("browser auth store", () => {
     });
   });
 
-  it("hydrates without calling a Tauri plugin in a regular browser", async () => {
+  it("hydrates in a regular browser", async () => {
     await hydrateAuthStore();
 
     expect(useAuthStore.getState().isHydrated).toBe(true);

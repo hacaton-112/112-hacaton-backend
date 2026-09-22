@@ -23,6 +23,8 @@ interface ApiErrorPayload {
 }
 
 const API_ERROR_MESSAGES: Record<string, string> = {
+  DDS_REFERENCE_INVALID:
+    "Эталон нельзя подтвердить: проверьте утверждённые пункты и причины отказа",
   AUTH_LOGIN_INVALID_CREDENTIALS: "Неверный email или пароль",
   AUTH_TOKEN_INVALID: "Сессия истекла, войдите заново",
   AUTH_REFRESH_TOKEN_INVALID: "Сессия истекла, войдите заново",
@@ -77,6 +79,9 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   CLASSIFIER_QUALIFIER_INVALID:
     "Дополнительный признак не относится к выбранному типу",
   DDS_EXERCISE_NOT_FOUND: "Учебная карточка ДДС не найдена",
+  DDS_REPORT_NOT_FOUND: "Отчёт занятия ДДС не найден или недоступен",
+  DDS_INSIGHTS_EMPTY_LESSON:
+    "В занятии нет карточек, по которым можно сделать выводы",
   DDS_SCENARIO_NOT_READY:
     "Для сценария не определена служба, которая должна получить карточку",
   DDS_STATUS_COMMENT_REQUIRED: "Для выбранного статуса нужен комментарий",
