@@ -4,6 +4,7 @@ import {
   AiIdentifierSchema,
   CallerReactionActSchema,
   DialogueGenerationResultSchema,
+  DialogueGenerationMetricsSchema,
   GenerateCallerReplyRequestSchema,
   MinimumResponseDelayMsSchema,
 } from "./generation.contracts";
@@ -30,6 +31,18 @@ export const VoicePipelineRequestSchema = z
   .object({
     generation: GenerateCallerReplyRequestSchema,
     voice: VoicePipelineVoiceSchema,
+    /** Internal factory decision, never supplied by a websocket client. */
+    preferPreparedReply: z.boolean().optional(),
+    /** Monotonic process-local deadline set by the trusted scenario factory, not a client field. */
+    exceptionDeadlineAt: z.number().nonnegative().optional(),
+    exceptionReason: z
+      .enum([
+        "prompt-injection",
+        "intent-unavailable",
+        "unknown-question",
+        "deadline",
+      ])
+      .optional(),
   })
   .strict();
 
@@ -99,10 +112,7 @@ export const PrescribedSpeechMetricsSchema = z
   });
 
 export const VoicePipelineGenerationMetricsSchema =
-  DialogueGenerationResultSchema.pick({
-    source: true,
-    attempts: true,
-  }).strict();
+  DialogueGenerationMetricsSchema;
 
 export const VoicePipelineMetricsSchema = z
   .object({

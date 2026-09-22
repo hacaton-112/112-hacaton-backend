@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
@@ -13,8 +13,16 @@ import {
   scenarioLocations,
   scenarios,
   scenarioVersions,
+  scenarioAudioPacks,
+  dialoguePreparations,
 } from "@/drizzle/schema";
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import {
+  preparationHash,
+  preparationRequests,
+  validateEntries,
+} from "@/modules/scenario-audio/domain/dialogue-preparation";
+import { audioFingerprint } from "@/modules/scenario-audio/domain/prepared-dialogue";
 
 import {
   toEditableScenario,
@@ -337,6 +345,59 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
 
     await tx.insert(callerPersonas).values(rows.persona);
     await tx.insert(scenarioVersions).values(rows.version);
+    if (input.preparationId) {
+      const [pack] = await tx
+        .select()
+        .from(dialoguePreparations)
+        .where(eq(dialoguePreparations.id, input.preparationId))
+        .for("update");
+      if (
+        !pack ||
+        pack.ownerId !== input.authorId ||
+        pack.status !== "ready" ||
+        !pack.approvedAt ||
+        pack.scenarioVersionId ||
+        pack.snapshotHash !== preparationHash(input.scenario)
+      ) {
+        throw new ConflictException(
+          "Подготовка не утверждена, не завершена или относится к другому снимку сценария",
+        );
+      }
+      const requests = preparationRequests(pack.id, input.scenario);
+      if (requests.some((request) => !pack.assets[audioFingerprint(request)]))
+        throw new ConflictException("Подготовка аудио не завершена");
+      const entries = validateEntries(input.scenario, pack.entries);
+      await tx
+        .insert(scenarioAudioPacks)
+        .values({
+          scenarioVersionId,
+          status: "ready",
+          assets: pack.assets,
+          entries,
+          completed: requests.length,
+          total: requests.length,
+        });
+      await tx
+        .update(dialoguePreparations)
+        .set({ status: "published", scenarioVersionId, updatedAt: new Date() })
+        .where(eq(dialoguePreparations.id, pack.id));
+      await this.auditLog.log(
+        {
+          actorId: input.authorId,
+          action: "scenario.dialogue.publish",
+          resource: "dialogue_preparation",
+          resourceId: pack.id,
+          details: {
+            scenarioVersionId,
+            snapshotHash: pack.snapshotHash,
+            revision: pack.revision,
+          },
+        },
+        tx,
+      );
+    } else {
+      await tx.insert(scenarioAudioPacks).values({ scenarioVersionId });
+    }
     await tx.insert(scenarioLocations).values(rows.location);
     await tx.insert(scenarioFacts).values([...rows.facts]);
 

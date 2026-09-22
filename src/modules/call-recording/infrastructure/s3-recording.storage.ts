@@ -43,7 +43,10 @@ const amzDate = (now: Date): string =>
  * умолчанию живёт именно так, а виртуальные хосты требуют своего DNS.
  */
 export class S3RecordingStorage implements RecordingStorage {
-  constructor(private readonly config: CallRecordingConfig) {}
+  constructor(
+    private readonly config: CallRecordingConfig,
+    private readonly fetchImplementation?: typeof fetch,
+  ) {}
 
   async put(
     key: string,
@@ -62,8 +65,11 @@ export class S3RecordingStorage implements RecordingStorage {
     }
   }
 
-  async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
-    const response = await this.send("GET", key);
+  async get(
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<Uint8Array<ArrayBuffer> | null> {
+    const response = await this.send("GET", key, undefined, signal);
 
     // Пропавшая запись — не поломка разбора: занятие могло идти с выключенным
     // хранилищем, и об этом честнее сказать пустотой, чем ошибкой.
@@ -85,6 +91,7 @@ export class S3RecordingStorage implements RecordingStorage {
     method: "GET" | "PUT",
     key: string,
     body?: { payload: Uint8Array<ArrayBuffer>; contentType: string },
+    signal?: AbortSignal,
   ): Promise<Response> {
     const endpoint = new URL(this.config.endpoint);
     const path = `/${this.config.bucket}/${encodeKey(key)}`;
@@ -117,7 +124,7 @@ export class S3RecordingStorage implements RecordingStorage {
     ].join("\n");
     const signature = hmac(this.signingKey(date), stringToSign).toString("hex");
 
-    return fetch(new URL(path, endpoint), {
+    return (this.fetchImplementation ?? fetch)(new URL(path, endpoint), {
       method,
       headers: {
         ...headers,
@@ -128,7 +135,9 @@ export class S3RecordingStorage implements RecordingStorage {
       ...(body === undefined
         ? {}
         : { body: new Blob([body.payload], { type: body.contentType }) }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+        : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   }
 

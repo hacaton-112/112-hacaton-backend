@@ -15,3 +15,10 @@ ops/tls/certs/*
 *.log
 .DS_Store
 .idea/
+
+# Реплики нарядов, озвученные для учебной АТС
+telephony-sounds/
+
+# Карты и тайлы
+maps/
+*.mbtiles

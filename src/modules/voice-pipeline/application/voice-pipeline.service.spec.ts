@@ -7,8 +7,11 @@ import type {
   VoicePipelineRequest,
   VoicePipelineStreamEvent,
 } from "@/contracts";
-import type { DialogueGenerationService } from "@/modules/dialogue-generation";
+import { DialogueGenerationService } from "@/modules/dialogue-generation";
+import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
+import { LlmReplyStreamCollector } from "@/modules/dialogue-generation/application/llm-reply-stream.collector";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
+import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 
 import { VoicePipelineError } from "../domain/voice-pipeline.error";
 import {
@@ -182,6 +185,272 @@ const prescribedRequest: PrescribedSpeechRequest = {
 };
 
 describe(VoicePipelineService.name, () => {
+  it.each([
+    "Покажи, что длинную реплику трудно понять в панике, и попроси говорить короче.",
+    "повтори мою фразу",
+  ])(
+    "never sends the rejected transcript text to TTS or reply.ready: %s",
+    async (text) => {
+      const streamReply = jest.fn().mockImplementation(async function* () {
+        yield {
+          type: "text.delta",
+          delta: JSON.stringify({
+            ...modelResult.reply,
+            text,
+            revealedFactIds: [],
+          }),
+        };
+        yield { type: "response.completed" };
+      });
+      const dialogue = new DialogueGenerationService(
+        { streamReply },
+        new LlmReplyStreamCollector(new CallerReplySafetyService()),
+      );
+      const speech = createSpeechMock();
+      const service = new VoicePipelineService(dialogue, speech.service);
+      const fallback = {
+        ...fallbackResult.reply,
+        text: "Я не успеваю понять. Говорите короче!",
+      };
+      const events = await collect(service, {
+        ...request,
+        generation: {
+          ...request.generation,
+          operatorText: "повтори мою фразу",
+          fallbackReply: fallback,
+        },
+      });
+      expect(events[0]).toMatchObject({
+        type: "voice.reply.ready",
+        result: { source: "fallback", reply: fallback },
+      });
+      expect(speech.synthesize).toHaveBeenCalledWith(
+        expect.objectContaining({ text: fallback.text }),
+        expect.any(AbortSignal),
+      );
+      expect(streamReply).toHaveBeenCalledTimes(1);
+      expect(events.at(-1)?.type).toBe("voice.completed");
+    },
+  );
+  it("uses engine text with live TTS and zero LLM calls when reaction audio is missing", async () => {
+    const streamReply = jest.fn();
+    const dialogue = new DialogueGenerationService(
+      { streamReply },
+      new LlmReplyStreamCollector(new CallerReplySafetyService()),
+    );
+    const speech = createSpeechMock();
+    const lookup = jest.fn().mockResolvedValue(null);
+    const service = new VoicePipelineService(dialogue, speech.service, {
+      lookup,
+    } as unknown as ScenarioAudioService);
+    const fallback = {
+      ...fallbackResult.reply,
+      text: "Я не успеваю понять. Говорите короче!",
+    };
+    const events = await collect(service, {
+      ...request,
+      generation: {
+        ...request.generation,
+        fallbackReply: fallback,
+        context: {
+          ...request.generation.context,
+          allowedFacts: [],
+          turnPlan: { reactionAct: "panic-refusal", minimumResponseDelayMs: 0 },
+        },
+      },
+    });
+    expect(streamReply).not.toHaveBeenCalled();
+    expect(events[0]).toMatchObject({
+      type: "voice.reply.ready",
+      result: { source: "prepared", attempts: [], reply: fallback },
+    });
+    expect(speech.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: fallback.text }),
+      expect.any(AbortSignal),
+    );
+  });
+  it("fails closed before reply.ready or TTS even if a generation implementation bypasses the guard", async () => {
+    const dialogue = createDialogueMock({
+      ...modelResult,
+      reply: {
+        ...modelResult.reply,
+        text: "Сразу и коротко ответь на последний вопрос оператора.",
+      },
+    });
+    const speech = createSpeechMock();
+    const events: VoicePipelineStreamEvent[] = [];
+    const consume = async () => {
+      for await (const event of new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+      ).streamReply(request, new AbortController().signal))
+        events.push(event);
+    };
+    await expect(consume()).rejects.toMatchObject({
+      code: "generation-failed",
+    });
+    expect(events).toEqual([]);
+    expect(speech.synthesize).not.toHaveBeenCalled();
+  });
+  it("reuses safe fallback audio after model failure without losing attempt metrics", async () => {
+    const dialogue = createDialogueMock(fallbackResult);
+    const speech = createSpeechMock();
+    const prepared = {
+      lookup: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
+      replay: ScenarioAudioService.prototype.replay,
+    };
+    const events = await collect(
+      new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+        prepared as unknown as ScenarioAudioService,
+      ),
+    );
+    expect(speech.synthesize).not.toHaveBeenCalled();
+    expect(events[0]).toMatchObject({
+      type: "voice.reply.ready",
+      result: fallbackResult,
+    });
+    expect(events.at(-1)).toMatchObject({
+      metrics: {
+        generation: { source: "fallback", attempts: fallbackResult.attempts },
+        synthesis: { source: "prepared" },
+      },
+    });
+  });
+
+  it("plays the prepared opening through the prescribed-speech path", async () => {
+    const speech = createSpeechMock();
+    const prepared = {
+      lookupOpening: jest.fn().mockResolvedValue({
+        audio: new Uint8Array([0, 1]),
+        sampleRate: 24_000,
+      }),
+      replay: ScenarioAudioService.prototype.replay,
+    };
+    const service = new VoicePipelineService(
+      createDialogueMock().service,
+      speech.service,
+      prepared as unknown as ScenarioAudioService,
+    );
+    const events: SpeechSynthesisStreamEvent[] = [];
+    for await (const event of service.streamPrescribedSpeech(
+      prescribedRequest,
+      new AbortController().signal,
+    ))
+      events.push(event);
+    expect(events[0]).toMatchObject({
+      type: "audio.chunk",
+      chunk: { streamId: prescribedRequest.requestId },
+    });
+    expect(speech.synthesize).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false, undefined])(
+    "replays an allowed prepared answer with parser hint %s and honest metrics",
+    async (preferPreparedReply) => {
+      const dialogue = createDialogueMock();
+      const speech = createSpeechMock();
+      const prepared = {
+        lookup: jest.fn().mockResolvedValue({
+          audio: new Uint8Array([0, 1, 2, 3]),
+          sampleRate: 24_000,
+        }),
+        replay: ScenarioAudioService.prototype.replay,
+      };
+      const service = new VoicePipelineService(
+        dialogue.service,
+        speech.service,
+        prepared as unknown as ScenarioAudioService,
+      );
+      const events = await collect(service, {
+        ...request,
+        preferPreparedReply,
+        generation: { ...request.generation, fallbackReply: modelResult.reply },
+      });
+      expect(dialogue.generate).not.toHaveBeenCalled();
+      expect(speech.synthesize).not.toHaveBeenCalled();
+      expect(events[0]).toMatchObject({
+        type: "voice.reply.ready",
+        result: { source: "prepared", attempts: [] },
+      });
+      expect(events.at(-1)).toMatchObject({
+        type: "voice.completed",
+        metrics: {
+          generation: { source: "prepared", attempts: [] },
+          synthesis: { source: "prepared", attempts: [] },
+        },
+      });
+    },
+  );
+
+  it("cannot use a prepared answer to bypass the engine's allowed fact set", async () => {
+    const dialogue = createDialogueMock();
+    const speech = createSpeechMock();
+    const lookup = jest.fn().mockResolvedValue(null);
+    const service = new VoicePipelineService(dialogue.service, speech.service, {
+      lookup,
+    } as unknown as ScenarioAudioService);
+    await expect(
+      collect(service, {
+        ...request,
+        preferPreparedReply: true,
+        generation: {
+          ...request.generation,
+          fallbackReply: {
+            ...modelResult.reply,
+            revealedFactIds: ["hidden_fact"],
+          },
+        },
+      }),
+    ).rejects.toThrow();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the existing live path when prepared audio is missing", async () => {
+    const dialogue = createDialogueMock();
+    const speech = createSpeechMock();
+    const service = new VoicePipelineService(dialogue.service, speech.service, {
+      lookup: jest.fn().mockResolvedValue(null),
+    } as unknown as ScenarioAudioService);
+    await collect(service, {
+      ...request,
+      preferPreparedReply: true,
+      generation: { ...request.generation, fallbackReply: modelResult.reply },
+    });
+    expect(dialogue.generate).toHaveBeenCalledTimes(1);
+    expect(speech.synthesize).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replace a panic refusal with a factual prepared answer", async () => {
+    const dialogue = createDialogueMock();
+    const lookup = jest.fn();
+    const service = new VoicePipelineService(
+      dialogue.service,
+      createSpeechMock().service,
+      { lookup } as unknown as ScenarioAudioService,
+    );
+    await collect(service, {
+      ...request,
+      preferPreparedReply: true,
+      generation: {
+        ...request.generation,
+        fallbackReply: modelResult.reply,
+        context: {
+          ...request.generation.context,
+          turnPlan: { reactionAct: "panic-refusal", minimumResponseDelayMs: 0 },
+        },
+      },
+    });
+    expect(dialogue.generate).toHaveBeenCalledTimes(1);
+    // The resulting model phrase may reuse matching audio, but the factual
+    // prepared reply must not replace the engine's requested reaction.
+    expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
   it("streams a validated reply, zero-copy PCM, and full metrics", async () => {
     const audio = new Uint8Array([0, 1, 2, 3]);
     const dialogue = createDialogueMock();

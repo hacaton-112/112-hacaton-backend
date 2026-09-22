@@ -10,9 +10,13 @@ import { IncidentCardModule } from "@/modules/incident-card";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
 import { TrainingModule } from "@/modules/training/training.module";
+import { ScenarioAudioModule } from "@/modules/scenario-audio/scenario-audio.module";
 
 import { VOICE_PIPELINE_METRICS } from "./application/voice-pipeline.metrics";
 import { VoicePipelineService } from "./application/voice-pipeline.service";
+import { OfflineReplyService } from "./application/offline-reply.service";
+import { VoiceRuntimeService } from "./application/voice-runtime.service";
+import { VoiceRuntimeController } from "./voice-runtime.controller";
 import { DemoVoicePipelineRequestFactory } from "./infrastructure/demo-voice-pipeline-request.factory";
 import { PrometheusVoicePipelineMetrics } from "./infrastructure/prometheus-voice-pipeline.metrics";
 import { ScenarioVoicePipelineRequestFactory } from "./infrastructure/scenario-voice-pipeline-request.factory";
@@ -56,8 +60,9 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
     IncidentCardModule,
     SpeechSynthesisModule,
     TrainingModule,
+    ScenarioAudioModule,
   ],
-  controllers: [InstructorSessionsController],
+  controllers: [InstructorSessionsController, VoiceRuntimeController],
   providers: [
     {
       provide: VOICE_PIPELINE_TRANSPORT_CONFIG,
@@ -82,6 +87,8 @@ const createVoicePipelineTransportConfig = (configService: ConfigService) =>
       ) => (config.demoEnabled ? demo : scenario),
     },
     VoicePipelineService,
+    VoiceRuntimeService,
+    OfflineReplyService,
     PrometheusVoicePipelineMetrics,
     {
       provide: VOICE_PIPELINE_METRICS,

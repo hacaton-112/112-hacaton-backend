@@ -14,6 +14,9 @@ export interface RecordingSegment {
 export interface CallRecorder {
   startCall(sessionId: string): void;
 
+  /** Продолжает запись после рестарта процесса, не сбрасывая живой recorder. */
+  resumeCall(sessionId: string, startedAt: Date): void;
+
   openSegment(input: {
     sessionId: string;
     track: RecordingTrack;

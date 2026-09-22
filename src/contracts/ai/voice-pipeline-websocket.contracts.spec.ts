@@ -49,6 +49,40 @@ describe("voice pipeline WebSocket contracts", () => {
     ).toBe(false);
   });
 
+  it("accepts session recovery commands and snapshots", () => {
+    expect(
+      VoicePipelineClientCommandSchema.parse({
+        type: "resume",
+        sessionId: "session-1",
+        resumeListening: true,
+      }),
+    ).toEqual({
+      type: "resume",
+      sessionId: "session-1",
+      resumeListening: true,
+    });
+
+    expect(
+      VoicePipelineServerEventSchema.safeParse({
+        ...metadata,
+        type: "call.resumed",
+        scenarioCode: "S-015",
+        title: "Пожар в квартире",
+        locator: null,
+        revealedFactKeys: ["address"],
+        dialogue: [{ role: "operator", text: "Назовите адрес" }],
+        offeredAt: "2026-09-07T11:59:00.000Z",
+        answeredAt: "2026-09-07T11:59:05.000Z",
+        recoveryWindowSeconds: 30,
+        stage: "conversation",
+        panicLevel: 2,
+        checklistTotal: 5,
+        checklistSatisfied: 1,
+        answerNormSeconds: 240,
+      }).success,
+    ).toBe(true);
+  });
+
   it("accepts typed reply, audio lifecycle, cancellation, and error events", () => {
     const attempts = [
       {

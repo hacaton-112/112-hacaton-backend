@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 
 import {
   DialogueGenerationResultSchema,
@@ -19,6 +19,10 @@ import {
 } from "@/contracts";
 import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
+import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { OfflineReplyService } from "./offline-reply.service";
+import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
+import { canUsePreparedReply } from "../domain/prepared-reply";
 
 import {
   VoicePipelineError,
@@ -59,7 +63,14 @@ export class VoicePipelineService {
   constructor(
     private readonly dialogueGeneration: DialogueGenerationService,
     private readonly speechSynthesis: SpeechSynthesisService,
+    @Optional() private readonly preparedAudio?: ScenarioAudioService,
+    @Optional() private readonly offline?: OfflineReplyService,
   ) {}
+
+  async assertCanStart(versionId: string): Promise<void> {
+    if (this.offline?.runtime.settings.enabled)
+      await this.preparedAudio?.assertOfflineReady(versionId);
+  }
 
   streamReply(
     input: unknown,
@@ -93,16 +104,25 @@ export class VoicePipelineService {
     await waitForDelay(request.minimumResponseDelayMs, signal);
     signal.throwIfAborted();
 
-    yield* this.speechSynthesis.synthesize(
-      TtsSynthesisRequestSchema.parse({
-        requestId: request.requestId,
-        sessionId: request.sessionId,
-        text: request.text,
-        language: request.language,
-        ...request.voice,
-      }),
+    const synthesisRequest = TtsSynthesisRequestSchema.parse({
+      requestId: request.requestId,
+      sessionId: request.sessionId,
+      text: request.text,
+      language: request.language,
+      ...request.voice,
+    });
+    const lookupStartedAt = performance.now();
+    const prepared = await this.preparedAudio?.lookupOpening(
+      request.sessionId,
+      synthesisRequest,
       signal,
     );
+    const lookupMs = performance.now() - lookupStartedAt;
+    if (this.offline?.runtime.settings.enabled && !prepared)
+      throw new Error("Offline opening audio is unavailable");
+    yield* prepared && this.preparedAudio
+      ? this.preparedAudio.replay(prepared, request.requestId, signal, lookupMs)
+      : this.speechSynthesis.synthesize(synthesisRequest, signal);
   }
 
   private async *streamValidatedReply(
@@ -112,11 +132,62 @@ export class VoicePipelineService {
   ): AsyncIterable<VoicePipelineStreamEvent> {
     const startedAt = performance.now();
     let generationResult: DialogueGenerationResult;
+    let prepared: Awaited<ReturnType<ScenarioAudioService["lookup"]>> = null;
+    // Поиск записи тоже занимает время, и он обязан попасть в метрику
+    // задержки: иначе заготовленный ответ выглядит мгновенным.
+    let preparedLookupMs = 0;
+    let bufferedStream: AsyncIterable<SpeechSynthesisStreamEvent> | undefined;
 
     try {
-      generationResult = DialogueGenerationResultSchema.parse(
-        await this.dialogueGeneration.generate(request.generation, signal),
-      );
+      if (this.offline?.runtime.settings.enabled) {
+        const resolved = await this.offline.resolve(request, signal);
+        generationResult = resolved.result;
+        bufferedStream = resolved.stream;
+      } else {
+        const fallback = request.generation.fallbackReply;
+        if (fallback && this.preparedAudio && canUsePreparedReply(request)) {
+          const candidate: DialogueGenerationResult = {
+            reply: fallback,
+            source: "prepared",
+            attempts: [],
+          };
+          const candidateLookupAt = performance.now();
+          prepared = await this.preparedAudio.lookup(
+            request.generation.scenarioVersionId,
+            this.createSynthesisRequest(request, candidate),
+            signal,
+          );
+          preparedLookupMs += performance.now() - candidateLookupAt;
+          generationResult = prepared
+            ? candidate
+            : await this.dialogueGeneration.generate(
+                request.generation,
+                signal,
+              );
+        } else {
+          generationResult = await this.dialogueGeneration.generate(
+            request.generation,
+            signal,
+          );
+        }
+        generationResult =
+          DialogueGenerationResultSchema.parse(generationResult);
+        assertCallerReplyContent(
+          generationResult.reply,
+          generationResult.source === "model" ? request.generation : undefined,
+        );
+        // A model/fallback may return an already approved phrase too. Reuse its
+        // audio without erasing the real generation attempts from the metrics.
+        if (!prepared && this.preparedAudio) {
+          const replyLookupAt = performance.now();
+          prepared = await this.preparedAudio.lookup(
+            request.generation.scenarioVersionId,
+            this.createSynthesisRequest(request, generationResult),
+            signal,
+          );
+          preparedLookupMs += performance.now() - replyLookupAt;
+        }
+      }
     } catch {
       if (signal.aborted) {
         signal.throwIfAborted();
@@ -154,10 +225,16 @@ export class VoicePipelineService {
     let audioBytes = 0;
 
     try {
-      const synthesisStream = this.speechSynthesis.synthesize(
-        synthesisRequest,
-        signal,
-      );
+      const synthesisStream =
+        bufferedStream ??
+        (prepared && this.preparedAudio
+          ? this.preparedAudio.replay(
+              prepared,
+              synthesisRequest.requestId,
+              signal,
+              preparedLookupMs,
+            )
+          : this.speechSynthesis.synthesize(synthesisRequest, signal));
 
       for await (const rawEvent of synthesisStream) {
         signal.throwIfAborted();
@@ -260,6 +337,9 @@ export class VoicePipelineService {
         generation: {
           source: generationResult.source,
           attempts: generationResult.attempts,
+          ...(generationResult.resolution
+            ? { resolution: generationResult.resolution }
+            : {}),
         },
         synthesis: synthesisMetrics,
         ...(turnPlan === undefined

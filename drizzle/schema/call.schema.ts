@@ -86,6 +86,13 @@ export const callStates = pgTable(
     offeredAt: timestamp("offered_at", { withTimezone: true }).notNull(),
     answeredAt: timestamp("answered_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
+    /**
+     * До какого момента транспорт вправе поднять звонок после потери процесса.
+     * Lease продлевается heartbeat-ом, поэтому остаётся в Postgres после crash.
+     */
+    recoveryExpiresAt: timestamp("recovery_expires_at", {
+      withTimezone: true,
+    }),
     lastSequence: integer("last_sequence").notNull().default(0),
   },
   (table) => [

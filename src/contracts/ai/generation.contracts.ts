@@ -230,13 +230,42 @@ export const GenerationAttemptMetricsSchema = z
   })
   .strict();
 
-export const DialogueGenerationResultSchema = z
+export const DialogueGenerationMetricsSchema = z
   .object({
-    reply: CallerReplySchema,
-    source: z.enum(["model", "fallback"]),
-    attempts: z.array(GenerationAttemptMetricsSchema).min(1).max(2),
+    resolution: z
+      .object({
+        profile: z.literal("offline-hybrid"),
+        path: z.enum(["prepared", "local-generated", "safe-fallback"]),
+        reason: z
+          .enum([
+            "prompt-injection",
+            "intent-unavailable",
+            "unknown-question",
+            "unavailable-fact",
+            "deadline",
+            "generation-failed",
+            "ungrounded-response",
+            "synthesis-failed",
+          ])
+          .optional(),
+      })
+      .strict()
+      .optional(),
+    source: z.enum(["model", "fallback", "prepared"]),
+    attempts: z.array(GenerationAttemptMetricsSchema).max(2),
   })
-  .strict();
+  .strict()
+  .refine(
+    (result) =>
+      (result.source === "prepared") === (result.attempts.length === 0),
+    {
+      path: ["attempts"],
+      message: "Only prepared replies have no model attempts",
+    },
+  );
+
+export const DialogueGenerationResultSchema =
+  DialogueGenerationMetricsSchema.safeExtend({ reply: CallerReplySchema });
 
 export type AiIdentifier = z.infer<typeof AiIdentifierSchema>;
 export type FactId = z.infer<typeof FactIdSchema>;

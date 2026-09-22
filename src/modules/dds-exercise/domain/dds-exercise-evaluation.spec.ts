@@ -56,4 +56,94 @@ describe(evaluateDdsExercise.name, () => {
       }),
     ).toBeNull();
   });
+
+  describe("with a crew handoff over the phone", () => {
+    const acknowledgedAt = new Date("2026-09-15T12:00:20.000Z");
+    const at = (seconds: number) =>
+      new Date(acknowledgedAt.getTime() + seconds * 1_000);
+
+    it("gives full marks for the right crew called in time", () => {
+      expect(
+        evaluateDdsExercise({
+          status: "completed",
+          acknowledgementDeadlineAt: deadline,
+          acknowledgedAt,
+          handoff: { completedCallStartedAt: at(40), wrongCallsBefore: 0 },
+        }),
+      ).toMatchObject({ score: 100, passed: true, violations: [] });
+    });
+
+    it("keeps a late handoff above the threshold but records it", () => {
+      expect(
+        evaluateDdsExercise({
+          status: "completed",
+          acknowledgementDeadlineAt: deadline,
+          acknowledgedAt,
+          handoff: { completedCallStartedAt: at(90), wrongCallsBefore: 0 },
+        }),
+      ).toMatchObject({
+        score: 85,
+        passed: true,
+        violations: ["crew_handoff_late"],
+      });
+    });
+
+    it("takes points for every wrong number dialed first", () => {
+      expect(
+        evaluateDdsExercise({
+          status: "completed",
+          acknowledgementDeadlineAt: deadline,
+          acknowledgedAt,
+          handoff: { completedCallStartedAt: at(40), wrongCallsBefore: 2 },
+        }),
+      ).toMatchObject({ score: 80, violations: ["wrong_crew_dialed"] });
+    });
+
+    it("does not blame a refusal made before any crew was called", () => {
+      // Отказ до звонка законен: наряд не поднимают на непринятую карточку.
+      expect(
+        evaluateDdsExercise({
+          status: "refused",
+          acknowledgementDeadlineAt: deadline,
+          acknowledgedAt,
+          handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
+        }),
+      ).toMatchObject({
+        score: 45,
+        passed: false,
+        violations: ["response_refused"],
+      });
+    });
+
+    it("fails a response completed without ever calling the crew", () => {
+      expect(
+        evaluateDdsExercise({
+          status: "completed",
+          acknowledgementDeadlineAt: deadline,
+          acknowledgedAt,
+          handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
+        }),
+      ).toMatchObject({
+        score: 70,
+        passed: false,
+        violations: ["crew_handoff_missing"],
+      });
+    });
+
+    it("honours the threshold of the assignment that opened the card", () => {
+      const input = {
+        status: "completed",
+        acknowledgementDeadlineAt: deadline,
+        acknowledgedAt,
+        handoff: { completedCallStartedAt: null, wrongCallsBefore: 0 },
+      } as const;
+
+      expect(evaluateDdsExercise({ ...input, passThreshold: 60 })).toMatchObject(
+        { score: 70, passed: true },
+      );
+      expect(evaluateDdsExercise({ ...input, passThreshold: 90 })).toMatchObject(
+        { score: 70, passed: false },
+      );
+    });
+  });
 });

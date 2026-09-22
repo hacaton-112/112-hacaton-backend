@@ -2,7 +2,9 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "@/modules/auth/auth.module";
 import { CallRecordingModule } from "@/modules/call-recording";
+import { GrammarModule } from "@/modules/grammar";
 import { IncidentCardModule } from "@/modules/incident-card";
+import { MethodicalMaterialsModule } from "@/modules/methodical-materials/methodical-materials.module";
 import { TrainingModule } from "@/modules/training/training.module";
 
 import { DebriefService } from "./application/debrief.service";
@@ -15,7 +17,9 @@ import { DEBRIEF_STORE } from "./ports/debrief.store.port";
   imports: [
     AuthModule,
     CallRecordingModule,
+    GrammarModule,
     IncidentCardModule,
+    MethodicalMaterialsModule,
     TrainingModule,
   ],
   controllers: [DebriefController, InstructorCallsController],
@@ -24,5 +28,6 @@ import { DEBRIEF_STORE } from "./ports/debrief.store.port";
     DrizzleDebriefStore,
     { provide: DEBRIEF_STORE, useExisting: DrizzleDebriefStore },
   ],
+  exports: [DebriefService],
 })
 export class DebriefModule {}

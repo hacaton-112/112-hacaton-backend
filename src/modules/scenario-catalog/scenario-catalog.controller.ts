@@ -10,12 +10,15 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
+import type { FastifyReply } from "fastify";
 import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
+import type { GrammarReport } from "@/modules/grammar";
 import {
   type AuthenticatedRequest,
   JwtAuthGuard,
@@ -36,6 +39,10 @@ import {
   PublishScenarioVersionRequestDto,
   PublishedScenarioDto,
 } from "./dto/scenario-authoring.dto";
+import {
+  CheckScenarioGrammarRequestDto,
+  ScenarioGrammarReportDto,
+} from "./dto/scenario-grammar.dto";
 import { type ScenarioList, ScenarioListDto } from "./dto/scenario-summary.dto";
 import type {
   EditableScenarioVersion,
@@ -45,6 +52,27 @@ import {
   SCENARIO_CATALOG,
   type ScenarioCatalog,
 } from "./ports/scenario-catalog.port";
+
+/**
+ * Сигнал, который гаснет вместе с запросом.
+ *
+ * Преподаватель закрывает диалог, не дождавшись ответа: держать после этого
+ * обращение к модели незачем — оно занимает квоту и вернуть уже некуда.
+ *
+ * Слушается ответ, а не запрос: `close` на запросе приходит сразу после
+ * приёма тела, а `aborted` для такого запроса остаётся `false`, и по ним уход
+ * клиента не отличить от нормальной работы. У ответа `close` без
+ * `writableEnded` означает ровно одно — на том конце уже никого нет.
+ */
+const abandonedWith = (reply: FastifyReply): AbortSignal => {
+  const abort = new AbortController();
+
+  reply.raw.once("close", () => {
+    if (!reply.raw.writableEnded) abort.abort();
+  });
+
+  return abort.signal;
+};
 
 @Controller(ApiRoutes.Scenarios)
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -82,6 +110,27 @@ export class ScenarioCatalogController {
     @Body() body: GenerateScenarioDraftRequestDto,
   ): Promise<GenerateScenarioDraftResponse> {
     return this.authoring.generateDraft(body.brief);
+  }
+
+  /**
+   * Принудительная проверка грамотности сценария из ТЗ.
+   *
+   * Ничего не сохраняет: преподаватель просит её после ручной правки и сам
+   * решает, что исправлять.
+   */
+  @Post("grammar-check")
+  @Roles("instructor", "admin")
+  @Throttle({ short: { limit: 20, ttl: 60_000 } })
+  @ZodSerializerDto(ScenarioGrammarReportDto)
+  checkGrammar(
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Body() body: CheckScenarioGrammarRequestDto,
+  ): Promise<GrammarReport> {
+    return this.authoring.checkGrammar(
+      body.scenario,
+      body.deepReview,
+      abandonedWith(reply),
+    );
   }
 
   /** Publishing is an explicit instructor action after the complete review. */

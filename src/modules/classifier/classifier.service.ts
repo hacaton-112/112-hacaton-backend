@@ -42,7 +42,7 @@ import {
   type ClassifierWorkbookReader,
 } from "./ports/classifier-workbook-reader.port";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_CLASSIFIER_FILE_BYTES = 10 * 1024 * 1024;
 const INSERT_BATCH_SIZE = 250;
 
 export interface ClassifierUpload {
@@ -423,7 +423,7 @@ export class ClassifierService {
         "An XLSX classifier file is required",
       );
     }
-    if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
+    if (file.size <= 0 || file.size > MAX_CLASSIFIER_FILE_BYTES) {
       throw new AppBadRequestException(
         ErrorCodes.CLASSIFIER_IMPORT_INVALID,
         "Classifier file must be between 1 byte and 10 MB",

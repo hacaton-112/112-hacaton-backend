@@ -63,7 +63,7 @@ export class PrometheusVoicePipelineMetrics implements VoicePipelineMetrics {
     this.sessions.dec();
   }
 
-  callerReplyGenerated(source: "model" | "fallback"): void {
+  callerReplyGenerated(source: "model" | "fallback" | "prepared"): void {
     this.replies.labels(source).inc();
   }
 

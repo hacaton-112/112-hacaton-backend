@@ -6,6 +6,8 @@ import {
   scenarioLocations,
   scenarios,
   scenarioVersions,
+  scenarioAudioPacks,
+  dialoguePreparations,
 } from "@/drizzle/schema";
 import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import {
@@ -19,6 +21,12 @@ import {
   ScenarioNotFoundError,
 } from "../ports/scenario-authoring.repository";
 import { DrizzleScenarioAuthoringRepository } from "./drizzle-scenario-authoring.repository";
+import {
+  initialEntries,
+  preparationHash,
+  preparationRequests,
+} from "@/modules/scenario-audio/domain/dialogue-preparation";
+import { audioFingerprint } from "@/modules/scenario-audio/domain/prepared-dialogue";
 
 const shippedScenario = (): ScenarioSeed =>
   ScenarioSeedSchema.parse(
@@ -107,6 +115,96 @@ const editInput = (scenario = shippedScenario()) => ({
   authoringSource: "manual" as const,
 });
 
+describe("approved preparation publication", () => {
+  const prepared = (scenario = shippedScenario()) => ({
+    id: "preparation",
+    ownerId: "instructor-1",
+    status: "ready",
+    approvedAt: new Date(),
+    scenarioVersionId: null,
+    snapshotHash: preparationHash(scenario),
+    revision: 3,
+    entries: initialEntries(scenario),
+    assets: Object.fromEntries(
+      preparationRequests("preparation", scenario).map((request) => [
+        audioFingerprint(request),
+        {
+          key: "synthetic.pcm",
+          bytes: 2,
+          sampleRate: 24000,
+          sha256: "a".repeat(64),
+        },
+      ]),
+    ),
+  });
+  it("binds the approved bank and audio to the new immutable version in the publication transaction", async () => {
+    const scenario = shippedScenario();
+    const pack = prepared(scenario);
+    const { repository, inserts, updates, auditLog } = createRepository([
+      [],
+      [],
+      [pack],
+    ]);
+    const published = await repository.publish({
+      scenario,
+      authorId: "instructor-1",
+      authoringSource: "manual",
+      preparationId: pack.id,
+    });
+    expect(inserts).toContainEqual({
+      table: scenarioAudioPacks,
+      values: expect.objectContaining({
+        scenarioVersionId: published.scenarioVersionId,
+        status: "ready",
+        entries: pack.entries,
+        assets: pack.assets,
+      }),
+    });
+    expect(updates).toContainEqual({
+      table: dialoguePreparations,
+      values: expect.objectContaining({
+        status: "published",
+        scenarioVersionId: published.scenarioVersionId,
+      }),
+    });
+    expect(auditLog.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "scenario.dialogue.publish" }),
+      expect.anything(),
+    );
+  });
+  it.each([
+    { ownerId: "another-instructor" },
+    { status: "review" },
+    { approvedAt: null },
+    { scenarioVersionId: "already-published" },
+    { snapshotHash: "old-address" },
+    { assets: {} },
+  ])(
+    "rejects foreign, stale, incomplete or already bound preparation: %o",
+    async (patch) => {
+      const scenario = shippedScenario();
+      const pack = { ...prepared(scenario), ...patch };
+      const { repository, inserts, auditLog } = createRepository([
+        [],
+        [],
+        [pack],
+      ]);
+      await expect(
+        repository.publish({
+          scenario,
+          authorId: "instructor-1",
+          authoringSource: "manual",
+          preparationId: pack.id,
+        }),
+      ).rejects.toThrow();
+      expect(
+        inserts.filter((insert) => insert.table === scenarioAudioPacks),
+      ).toHaveLength(0);
+      expect(auditLog.log).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
   it("publishes the next version with a persona of its own", async () => {
     const scenario = shippedScenario();
@@ -130,6 +228,11 @@ describe(`${DrizzleScenarioAuthoringRepository.name} publishVersion`, () => {
 
     const persona = inserts.find((insert) => insert.table === callerPersonas);
     const version = inserts.find((insert) => insert.table === scenarioVersions);
+    expect(
+      inserts.find((insert) => insert.table === scenarioAudioPacks)?.values,
+    ).toEqual({
+      scenarioVersionId: published.scenarioVersionId,
+    });
 
     // Прошлые версии не трогаются: персонаж пишется новой строкой и
     // привязывается к новой версии.

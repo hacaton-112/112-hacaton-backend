@@ -121,12 +121,44 @@ export interface AbandonedCall {
   readonly lastActivityAt: Date;
 }
 
+export interface RecoveryLease {
+  readonly trainingSessionId: string;
+  readonly expiresAt: Date;
+}
+
 export interface ScenarioStore {
   loadVersion(
     scenarioVersionId: string,
   ): Promise<ScenarioVersionSnapshot | null>;
 
   loadCall(trainingSessionId: string): Promise<CallStateSnapshot | null>;
+
+  /** Продлевает lease живого звонка; terminal-сессии оживить нельзя. */
+  renewRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    expiresAt: Date,
+  ): Promise<boolean>;
+
+  /**
+   * Атомарно проверяет владельца и непросроченный lease, одновременно
+   * продлевая его для нового процесса backend.
+   */
+  claimRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    now: Date,
+    expiresAt: Date,
+  ): Promise<boolean>;
+
+  listRecoveryLeases(limit: number): Promise<readonly RecoveryLease[]>;
+
+  /** Забирает просроченный lease для единственного cleanup-процесса. */
+  claimExpiredRecoveryLease(
+    trainingSessionId: string,
+    now: Date,
+    retryAt: Date,
+  ): Promise<boolean>;
 
   /** Создаёт звонок вместе с первым событием журнала. */
   startCall(

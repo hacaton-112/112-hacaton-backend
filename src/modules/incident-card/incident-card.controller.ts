@@ -2,7 +2,10 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
+  Post,
   Put,
   Req,
   UseGuards,
@@ -14,6 +17,13 @@ import {
   type AuthenticatedRequest,
   JwtAuthGuard,
 } from "@/modules/auth/jwt-auth.guard";
+import { DdsDispatchService } from "@/modules/dds-exercise/application/dds-dispatch.service";
+import {
+  type DdsDispatchReceipt,
+  DdsDispatchReceiptDto,
+  type DispatchIncidentCardRequest,
+  DispatchIncidentCardRequestDto,
+} from "@/modules/dds-exercise/dto/dds-exercise.dto";
 
 import { IncidentCardService } from "./application/incident-card.service";
 import {
@@ -31,7 +41,10 @@ import {
 @Controller(`${ApiRoutes.Calls}/:trainingSessionId/incident-card`)
 @UseGuards(JwtAuthGuard)
 export class IncidentCardController {
-  constructor(private readonly cards: IncidentCardService) {}
+  constructor(
+    private readonly cards: IncidentCardService,
+    private readonly dispatches: DdsDispatchService,
+  ) {}
 
   @Get()
   @ZodSerializerDto(IncidentCardDto)
@@ -54,5 +67,21 @@ export class IncidentCardController {
     @Req() request: AuthenticatedRequest,
   ): Promise<IncidentCard> {
     return this.cards.save(trainingSessionId, request.user.sub, body);
+  }
+
+  /** Явно фиксирует карточку и направляет независимую доставку каждой ДДС. */
+  @Post("dispatch")
+  @HttpCode(HttpStatus.OK)
+  @ZodSerializerDto(DdsDispatchReceiptDto)
+  dispatch(
+    @Param("trainingSessionId") trainingSessionId: string,
+    @Body() body: DispatchIncidentCardRequestDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<DdsDispatchReceipt> {
+    return this.dispatches.dispatch(
+      trainingSessionId,
+      request.user.sub,
+      body as DispatchIncidentCardRequest,
+    );
   }
 }

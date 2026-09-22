@@ -1,4 +1,5 @@
 import {
+  boolean,
   pgEnum,
   pgTable,
   text,
@@ -25,6 +26,8 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     fullName: text("full_name").notNull(),
     role: userRole("role").notNull().default("operator"),
+    /** Deactivation preserves training history while preventing new sessions. */
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

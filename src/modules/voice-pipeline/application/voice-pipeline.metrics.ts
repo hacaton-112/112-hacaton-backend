@@ -11,7 +11,7 @@ export interface VoicePipelineMetrics {
   sessionOpened(): void;
   sessionClosed(): void;
   /** Кто написал реплику: модель или запасной ответ движка. */
-  callerReplyGenerated(source: "model" | "fallback"): void;
+  callerReplyGenerated(source: "model" | "fallback" | "prepared"): void;
   /** Сколько оператор ждал первого звука заявителя. */
   turnCompleted(kind: VoiceTurnKind, timeToFirstAudioMs: number): void;
   turnFailed(kind: VoiceTurnKind): void;

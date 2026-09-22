@@ -34,7 +34,7 @@ import {
 
 @Controller(ApiRoutes.DdsExercises)
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("operator")
+@Roles("operator", "instructor", "admin")
 export class DdsExerciseController {
   constructor(private readonly exercises: DdsExerciseService) {}
 
@@ -45,6 +45,7 @@ export class DdsExerciseController {
   }
 
   @Post()
+  @Roles("instructor", "admin")
   @ZodSerializerDto(DdsExerciseDto)
   start(
     @Body() body: StartDdsExerciseRequestDto,

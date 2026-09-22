@@ -64,6 +64,14 @@ export const VoicePipelineStartCommandSchema = z
   })
   .strict();
 
+export const VoicePipelineResumeCommandSchema = z
+  .object({
+    type: z.literal("resume"),
+    sessionId: AiIdentifierSchema,
+    resumeListening: z.boolean().default(false),
+  })
+  .strict();
+
 export const VoicePipelineAcceptCommandSchema = z
   .object({ type: z.literal("accept") })
   .strict();
@@ -78,6 +86,7 @@ export const VoicePipelineEndCommandSchema = z
 
 export const VoicePipelineClientCommandSchema = z.discriminatedUnion("type", [
   VoicePipelineStartCommandSchema,
+  VoicePipelineResumeCommandSchema,
   VoicePipelineAcceptCommandSchema,
   VoicePipelineDeclineCommandSchema,
   VoicePipelineEndCommandSchema,
@@ -145,6 +154,31 @@ export const VoicePipelineCallStateEventSchema = z
     ...VoicePipelineEventMetadataShape,
     type: z.literal("call.state"),
     revealedFactKeys: z.array(AiIdentifierSchema).max(64),
+    ...CallSnapshotShape,
+  })
+  .strict();
+
+export const VoicePipelineCallResumedEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("call.resumed"),
+    scenarioCode: z.string().trim().min(1).max(32),
+    title: z.string().trim().min(1).max(120),
+    locator: CallLocatorSchema.nullable(),
+    revealedFactKeys: z.array(AiIdentifierSchema).max(64),
+    dialogue: z
+      .array(
+        z
+          .object({
+            role: z.enum(["operator", "caller"]),
+            text: z.string().trim().min(1).max(4_000),
+          })
+          .strict(),
+      )
+      .max(64),
+    offeredAt: z.iso.datetime(),
+    answeredAt: z.iso.datetime().nullable(),
+    recoveryWindowSeconds: z.number().int().positive(),
     ...CallSnapshotShape,
   })
   .strict();
@@ -254,6 +288,7 @@ export const VoicePipelineRequestCancelledEventSchema = z
 export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "invalid-message",
   "context-unavailable",
+  "scenario-audio-not-ready",
   "pipeline-failed",
   // Команда пришла не вовремя: например, speak до приёма вызова.
   "call-state-invalid",
@@ -263,6 +298,7 @@ export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "assignment-unavailable",
   "assignment-attempts-exhausted",
   "assignment-attempt-active",
+  "session-recovery-unavailable",
 ]);
 
 export const VoicePipelineSocketErrorEventSchema = z
@@ -279,6 +315,7 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
   VoicePipelineCallOfferedEventSchema,
   VoicePipelineCallAcceptedEventSchema,
   VoicePipelineCallStateEventSchema,
+  VoicePipelineCallResumedEventSchema,
   VoicePipelineCallEndedEventSchema,
   VoicePipelineListenStartedEventSchema,
   VoicePipelineListenStoppedEventSchema,
@@ -292,6 +329,9 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
 
 export type VoicePipelineStartCommand = z.infer<
   typeof VoicePipelineStartCommandSchema
+>;
+export type VoicePipelineResumeCommand = z.infer<
+  typeof VoicePipelineResumeCommandSchema
 >;
 export type VoicePipelineSpeakCommand = z.infer<
   typeof VoicePipelineSpeakCommandSchema

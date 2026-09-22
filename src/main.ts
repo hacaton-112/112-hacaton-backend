@@ -1,35 +1,42 @@
 import { Logger, VersioningType } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import type { NestExpressApplication } from "@nestjs/platform-express";
 import { WsAdapter } from "@nestjs/platform-ws";
-import helmet from "helmet";
 import { WinstonModule } from "nest-winston";
 
 import { env } from "@/core/config/env.config";
+import {
+  configureFastifyRequestLifecycle,
+  createFastifyAdapter,
+  type FastifyNestApplication,
+  registerFastifyPlugins,
+} from "@/core/http/fastify.adapter";
 import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
+import { HttpMetrics } from "@/modules/metrics/application/http-metrics";
 
 const GLOBAL_API_PREFIX = "api";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("Bootstrap");
-  const app = await NestFactory.create<NestExpressApplication>(CoreModule, {
-    logger: WinstonModule.createLogger({
-      instance: winstonLogger,
-    }),
-  });
+  const adapter = createFastifyAdapter(env.TRUST_PROXY_HOPS);
+  const app = await NestFactory.create<FastifyNestApplication>(
+    CoreModule,
+    adapter,
+    {
+      logger: WinstonModule.createLogger({
+        instance: winstonLogger,
+      }),
+    },
+  );
 
   const host = env.HOST;
   const port = env.PORT;
 
-  if (env.TRUST_PROXY_HOPS > 0) {
-    app.set("trust proxy", env.TRUST_PROXY_HOPS);
-  }
-
+  configureFastifyRequestLifecycle(adapter, app.get(HttpMetrics));
   app.useWebSocketAdapter(new WsAdapter(app));
 
-  // ── Security Headers ─────────────────────────────────────────
-  app.use(helmet());
+  // ── Fastify-native security and multipart plugins ────────────
+  await registerFastifyPlugins(app);
 
   app.setGlobalPrefix(GLOBAL_API_PREFIX);
 
@@ -40,13 +47,20 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── CORS ─────────────────────────────────────────────────────
-  const corsOrigins = env.CORS_ORIGINS.split(",").map((origin) =>
+  const corsOrigins = env.CORS_ORIGINS.split(",").map((origin: string) =>
     origin.trim(),
   );
 
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    // Адаптер Fastify по умолчанию разрешает браузеру только GET, HEAD и POST,
+    // поэтому правка учётной записи, посадка за SIP-телефон и любое удаление
+    // отваливались в браузере ещё до запроса, на preflight.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    // Рабочее место опрашивает очередь постоянно, а каждый запрос с токеном
+    // тянет за собой preflight: без кеша их ровно столько же, сколько GET.
+    maxAge: 600,
   });
 
   app.enableShutdownHooks();
@@ -65,9 +79,8 @@ async function bootstrap(): Promise<void> {
     logger.error(`Unhandled Rejection: ${message}`, stack);
   });
 
-  await app.listen(port, host, () => {
-    logger.log(`Listening at http://${host}:${port}/${GLOBAL_API_PREFIX}`);
-  });
+  await app.listen({ host, port });
+  logger.log(`Listening at http://${host}:${port}/${GLOBAL_API_PREFIX}`);
 }
 
 bootstrap();

@@ -5,8 +5,10 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
+  lte,
   lt,
   notExists,
   or,
@@ -26,6 +28,7 @@ import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   callEvaluations,
   callStates,
+  ddsExercises,
   scenarios,
   scenarioVersions,
   trainingAssignments,
@@ -294,7 +297,7 @@ export class TrainingService {
     return this.db
       .select({ id: users.id, fullName: users.fullName, email: users.email })
       .from(users)
-      .where(eq(users.role, "operator"))
+      .where(and(eq(users.role, "operator"), eq(users.isActive, true)))
       .orderBy(asc(users.fullName));
   }
 
@@ -314,9 +317,39 @@ export class TrainingService {
       );
     }
 
+    let instructorId = actor.id;
+    if (input.instructorId !== undefined) {
+      if (actor.role !== "admin") {
+        throw new AppForbiddenException(
+          ErrorCodes.AUTH_ROLE_FORBIDDEN,
+          "Only an administrator can assign a group to another instructor",
+        );
+      }
+      const [instructor] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, input.instructorId),
+            eq(users.role, "instructor"),
+            eq(users.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!instructor) {
+        throw new AppNotFoundException(
+          ErrorCodes.AUTH_USER_NOT_FOUND,
+          "The instructor does not exist",
+        );
+      }
+      instructorId = instructor.id;
+    }
+
+    const { instructorId: _, ...groupFields } = input;
+
     const [created] = await this.db
       .insert(trainingGroups)
-      .values({ ...input, id: generateId(), instructorId: actor.id })
+      .values({ ...groupFields, id: generateId(), instructorId })
       .returning();
     if (!created)
       throw new Error("The inserted training group was not returned");
@@ -356,7 +389,11 @@ export class TrainingService {
         .select({ id: users.id })
         .from(users)
         .where(
-          and(eq(users.id, input.instructorId), eq(users.role, "instructor")),
+          and(
+            eq(users.id, input.instructorId),
+            eq(users.role, "instructor"),
+            eq(users.isActive, true),
+          ),
         )
         .limit(1);
       if (!instructor) {
@@ -431,7 +468,13 @@ export class TrainingService {
     const [operator] = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.id, input.userId), eq(users.role, "operator")))
+      .where(
+        and(
+          eq(users.id, input.userId),
+          eq(users.role, "operator"),
+          eq(users.isActive, true),
+        ),
+      )
       .limit(1);
     if (!operator) {
       throw new AppNotFoundException(
@@ -792,6 +835,7 @@ export class TrainingService {
           .for("update");
         if (
           !assignment ||
+          assignment.type === "card_action" ||
           assignment.scenarioVersionId !== input.scenarioVersionId ||
           !isAssignedToOperator(assignment, input.operatorId, memberships)
         ) {
@@ -906,6 +950,10 @@ export class TrainingService {
                     ),
                   ),
               ),
+              notExists(
+                this.db.select({ id: ddsExercises.id }).from(ddsExercises)
+                  .where(eq(ddsExercises.trainingAttemptId, trainingAttempts.id)),
+              ),
             ),
           ),
         ),
@@ -986,8 +1034,12 @@ export class TrainingService {
     filter: {
       groupId?: string;
       operatorId?: string;
+      from?: Date;
+      to?: Date;
       /** Статистике нужны все звонки, списку разборов — последние. */
       everyCall?: boolean;
+      /** Отчёты читают на одну строку больше лимита, чтобы не обрезать молча. */
+      limit?: number;
     } = {},
   ): Promise<InstructorCallView[]> {
     const query = this.db
@@ -1007,6 +1059,7 @@ export class TrainingService {
         endedAt: callStates.endedAt,
         attemptNumber: trainingAttempts.attemptNumber,
         attemptStatus: trainingAttempts.status,
+        answerNormSeconds: trainingAssignments.answerNormSeconds,
         passThreshold: trainingAssignments.passThreshold,
         score: callEvaluations.score,
       })
@@ -1045,13 +1098,17 @@ export class TrainingService {
           filter.operatorId
             ? eq(trainingAttempts.operatorId, filter.operatorId)
             : undefined,
+          filter.from ? gte(callStates.offeredAt, filter.from) : undefined,
+          filter.to ? lte(callStates.offeredAt, filter.to) : undefined,
         ),
       )
       .orderBy(desc(callStates.offeredAt))
       .$dynamic();
-    const rows = await (filter.everyCall
-      ? query
-      : query.limit(MAX_INSTRUCTOR_CALLS));
+    const rows = await (filter.limit !== undefined
+      ? query.limit(filter.limit)
+      : filter.everyCall
+        ? query
+        : query.limit(MAX_INSTRUCTOR_CALLS));
 
     return rows.map((row) => ({
       ...row,
@@ -1128,7 +1185,13 @@ export class TrainingService {
     const [student] = await this.db
       .select({ id: users.id, fullName: users.fullName, email: users.email })
       .from(users)
-      .where(and(eq(users.id, userId), eq(users.role, "operator")))
+      .where(
+        and(
+          eq(users.id, userId),
+          eq(users.role, "operator"),
+          eq(users.isActive, true),
+        ),
+      )
       .limit(1);
     if (!student) {
       throw new AppNotFoundException(

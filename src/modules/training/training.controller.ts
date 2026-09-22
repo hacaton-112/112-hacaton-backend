@@ -164,7 +164,7 @@ export class TrainingController {
   }
 
   @Get("assignments/my")
-  @Roles("operator")
+  @Roles("operator", "instructor", "admin")
   @ZodSerializerDto(TrainingAssignmentListDto)
   async myAssignments(@Req() request: AuthenticatedRequest) {
     return {

@@ -12,22 +12,26 @@ Linux-сервере в Docker: вместе с TLS gateway, базой, еже�
 
 ## Что поднимается
 
-| Сервис                  | Назначение                                                 | Порт на хосте | Слушает по умолчанию |
-| ----------------------- | ---------------------------------------------------------- | ------------- | -------------------- |
-| `gateway`               | TLS-вход для REST API и WebSocket                          | 443           | `0.0.0.0`            |
-| `backend`               | REST API и WebSocket за gateway                            | —             | только сеть Compose  |
-| `migrate`               | применяет миграции перед каждым запуском backend и выходит | —             | —                    |
-| `postgres`              | база данных                                                | 54322         | `127.0.0.1`          |
-| `postgres-backup`       | ежедневный dump, проверка и retention                      | —             | только сеть Compose  |
-| `minio`, `minio-bucket` | хранилище записей звонков                                  | 9000, 9001    | `127.0.0.1`          |
-| `prometheus`            | сбор метрик                                                | 9090          | `127.0.0.1`          |
-| `grafana`               | дашборды                                                   | 3001          | `127.0.0.1`          |
-| `pgadmin`               | администрирование базы                                     | 5050          | `127.0.0.1`          |
+| Сервис | Назначение | Порт на хосте | Слушает по умолчанию |
+| --- | --- | --- | --- |
+| `gateway` | TLS-вход для REST API и WebSocket, профиль `app` | 443 | `0.0.0.0` |
+| `backend` | REST API и WebSocket за gateway | — | только сеть Compose |
+| `asr` | распознавание речи на CPU, модели зашиты в образ | 8787 | `127.0.0.1` |
+| `local-llm` | llama-server с локальной моделью | 8080 | `127.0.0.1` |
+| `piper-tts` | синтез речи на CPU | 5000 | `127.0.0.1` |
+| `postgres` | база данных | 54322 | `127.0.0.1` |
+| `postgres-backup` | ежедневный дамп, проверка и срок хранения, профили `app` и `ops` | — | только сеть Compose |
+| `minio` | хранилище записей звонков и подготовленного аудио | 9000, 9001 | `127.0.0.1` |
+| `prometheus` | сбор метрик | 9090 | `127.0.0.1` |
+| `grafana` | дашборды | 3001 | `127.0.0.1` |
+| `pgadmin` | администрирование базы | 5050 | `127.0.0.1` |
+| `asterisk` | учебная АТС, нужна только при `TELEPHONY_ENABLED=true` | 5060, 10000–10099 | `0.0.0.0` |
 
-`gateway`, `backend`, `migrate` и планировщик backup входят в профиль `app`:
-без `--profile app` compose поднимает только зависимости — так работают
-разработчики, у которых backend запущен на хосте. Профиль `ops` позволяет
-запускать только разовые backup/restore-команды и их зависимости.
+Отдельного сервиса миграций нет: backend применяет их сам при старте
+(`drizzle/migrate.ts`). `docker compose up -d` поднимает весь стек, кроме
+сервисов профилей: TLS-вход и планировщик резервных копий добавляет
+`--profile app`, а разовые команды восстановления — `--profile ops`. Сам
+backend наружу не публикуется: снаружи доступен только gateway.
 
 Метрики backend отдаются на порту 9464 только внутри сети compose и наружу не
 публикуются: авторизации у них нет. Записи звонков приложение получает через
@@ -131,32 +135,45 @@ desktop-приложении и не используйте этот ключ в
 ## 3. Первый запуск
 
 ```bash
-docker compose --profile app up -d --build
+docker compose up -d --build
 ```
 
-Первая сборка образа занимает несколько минут. Затем проверьте состояние:
+Первая сборка долгая: образ распознавания собирается из Rust, а llama-server
+скачивает модель в том `llm_models`. Затем проверьте состояние:
 
 ```bash
-docker compose --profile app ps -a
+docker compose ps
 ```
 
-`migrate` должен завершиться с кодом 0, `backend`, `gateway` и
-`postgres-backup` — перейти в состояние `healthy`. Если сервис перезапускается,
-причина будет в его журнале:
+`backend` должен перейти в `healthy`, а с профилем `app` — ещё `gateway` и
+`postgres-backup`. Миграции backend применяет сам при старте. Если сервис
+перезапускается, причина будет в его журнале:
 
 ```bash
 docker compose --profile app logs backend gateway postgres-backup
 ```
 
+Образ распознавания собирается из соседнего репозитория `asr-service`:
+клонируйте его рядом с backend или задайте путь через `ASR_SOURCE_DIR`.
+
 ## 4. Сценарии и первая учётная запись
 
-Разовые команды выполняются в образе `migrate`: в нём есть исходный код и
-инструменты разработки, которых нет в рабочем образе backend.
+Разовые команды требуют исходного кода, которого нет в рабочем образе
+backend, поэтому выполняйте их с хоста: база опубликована на
+`127.0.0.1:54322`, и адрес из `.env` подходит как есть.
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+```bash
+bun install --frozen-lockfile
+```
 
 Опубликуйте демонстрационные сценарии:
 
 ```bash
-docker compose --profile app run --rm migrate bun run db:seed
+bun run db:seed
 ```
 
 Создайте учётную запись администратора. Пароль читается без эха, поэтому не
@@ -168,7 +185,7 @@ read -rs ADMIN_PASSWORD
 ```
 
 ```bash
-docker compose --profile app run --rm migrate bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
+bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
 ```
 
 Роль — `operator`, `instructor` или `admin`. Публичной регистрации нет: всех
@@ -190,11 +207,13 @@ ssh -N -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 user@server
 ```
 
 - `http://localhost:3001` — Grafana. Логин и пароль — `GRAFANA_ADMIN_USER` и
-  `GRAFANA_ADMIN_PASSWORD` из `.env`. Дашборд «Тренажёр 112 — backend» лежит в
-  папке «Тренажёр 112».
+  `GRAFANA_ADMIN_PASSWORD` из `.env`. Dashboard состояния системы, backend и
+  ASR лежат в папке «Тренажёр 112».
 - `http://localhost:9090/targets` — цели Prometheus. `system112-backend` должен
-  быть в состоянии UP. `system112-asr` останется DOWN, пока ASR-сервис не
-  начнёт отдавать `/metrics`.
+  быть в состоянии UP. После развёртывания ветки ASR с `/metrics` цель
+  `system112-asr` также должна быть UP.
+- `http://localhost:9090/alerts` — pending/firing alerts с порогами и ссылками
+  на runbook.
 
 ## Что показывает дашборд
 
@@ -209,9 +228,12 @@ ssh -N -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 user@server
 | Запросы по статусу, p95 по маршруту       | нагрузка и медленные маршруты API                                                                                |
 | Задержка цикла событий, память, процессор | выдерживает ли процесс параллельные звонки: при занятом цикле событий кадры звука стоят в очереди, и речь рвётся |
 
-Дашборд и источник данных заводятся из файлов в `observability/grafana`.
+Dashboard и источник данных заводятся из файлов в `observability/grafana`.
 Правки в интерфейсе Grafana не сохраняются: меняйте JSON в репозитории и
 перезапускайте сервис.
+
+Полный список ASR/system панелей, alert thresholds, команды проверки и runbook
+находятся в [`observability.md`](observability.md).
 
 ## 6. Подключение приложения
 
@@ -228,22 +250,22 @@ VITE_API_URL=https://system112.local
 ## 7. Обновление
 
 ```bash
-git pull && docker compose --profile app up -d --build
+git pull && docker compose up -d --build
 ```
 
 Миграции применяются автоматически: новый backend стартует только после того,
-как `migrate` отработал успешно. Если миграция упала, compose остановится с
+как backend применил миграции. Если миграция упала, контейнер уйдёт в перезапуск, а причина будет в журнале:
 ошибкой, и причина будет в журнале:
 
 ```bash
-docker compose --profile app logs migrate
+docker compose logs backend
 ```
 
 Если изменились файлы сценариев в `drizzle/seed/scenarios`, опубликуйте их
 заново. Сид публикует новую версию только для изменённого сценария:
 
 ```bash
-docker compose --profile app run --rm migrate bun run db:seed
+bun run db:seed
 ```
 
 Старые образы после обновления можно удалить:
@@ -316,14 +338,14 @@ docker compose start minio
 ## 9. Журналы
 
 ```bash
-docker compose --profile app logs -f backend
+docker compose logs -f backend
 ```
 
 В production backend пишет только предупреждения и ошибки, в формате JSON. Те же
 записи и журнал аудита лежат файлами в томе `system112_backend_logs`:
 
 ```bash
-docker compose --profile app exec backend ls /app/logs
+docker compose exec backend ls /app/logs
 ```
 
 ## 10. Внутренний TLS
@@ -375,7 +397,7 @@ TLS-туннель.
 ## 12. Остановка
 
 ```bash
-docker compose --profile app down
+docker compose down
 ```
 
 > Не добавляйте `-v`: эта опция удаляет тома, то есть базу, записи звонков и

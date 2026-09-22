@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
+import { GrammarModule } from "@/modules/grammar";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { TrainingModule } from "@/modules/training/training.module";
 
@@ -21,7 +22,7 @@ import { ScenarioCatalogController } from "./scenario-catalog.controller";
  * и своей защитой.
  */
 @Module({
-  imports: [AuthModule, AliceAiAdapterModule, TrainingModule],
+  imports: [AuthModule, AliceAiAdapterModule, GrammarModule, TrainingModule],
   controllers: [ScenarioCatalogController],
   providers: [
     ScenarioAuthoringService,

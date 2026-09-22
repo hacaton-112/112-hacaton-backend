@@ -29,6 +29,7 @@ export const UpdateUserSchema = z
     password: PasswordSchema.optional(),
     fullName: FullNameSchema.optional(),
     role: UserRoleSchema.optional(),
+    isActive: z.boolean().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {

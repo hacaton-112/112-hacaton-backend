@@ -1,15 +1,8 @@
-import {
-  Global,
-  type MiddlewareConsumer,
-  Module,
-  type NestModule,
-  RequestMethod,
-} from "@nestjs/common";
+import { Global, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { HttpMetrics } from "./application/http-metrics";
 import { MetricsRegistry } from "./application/metrics.registry";
-import { HttpMetricsMiddleware } from "./infrastructure/http-metrics.middleware";
 import {
   type MetricsEnvironment,
   parseMetricsConfig,
@@ -33,7 +26,6 @@ const METRICS_ENVIRONMENT_KEYS = [
   imports: [ConfigModule],
   providers: [
     MetricsRegistry,
-    // Middleware в провайдерах не нужен: его экземпляр Nest создаёт сам.
     HttpMetrics,
     {
       provide: METRICS_CONFIG,
@@ -50,12 +42,6 @@ const METRICS_ENVIRONMENT_KEYS = [
     },
     MetricsServer,
   ],
-  exports: [MetricsRegistry],
+  exports: [HttpMetrics, MetricsRegistry],
 })
-export class MetricsModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(HttpMetricsMiddleware)
-      .forRoutes({ path: "{*path}", method: RequestMethod.ALL });
-  }
-}
+export class MetricsModule {}

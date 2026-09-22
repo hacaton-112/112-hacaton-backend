@@ -3,6 +3,7 @@ import { ErrorCodes } from "@/contracts";
 import { toPcmBytes } from "@/modules/call-recording/domain/mixdown";
 import { encodeWav } from "@/modules/call-recording/domain/wav";
 import type { RecordingStorage } from "@/modules/call-recording/ports/recording-storage.port";
+import { GrammarService } from "@/modules/grammar";
 import type { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 
 import type { DebriefCall, DebriefStore } from "../ports/debrief.store.port";
@@ -117,6 +118,7 @@ const createService = (
       mocks.store as unknown as DebriefStore,
       mocks.storage as unknown as RecordingStorage,
       mocks.cards as unknown as IncidentCardService,
+      new GrammarService(),
     ),
     mocks,
   };
@@ -222,6 +224,50 @@ describe(DebriefService.name, () => {
         recording: [],
       },
     );
+  });
+
+  it("reads the text the operator typed into the card", async () => {
+    const { service, mocks } = createService();
+    mocks.cards.get.mockResolvedValue({
+      trainingSessionId: "session-1",
+      callerAnonymous: false,
+      addressText: "Улицa Учебная, дом 12",
+      description: "Горит крыша , дым в подъезде.",
+      categories: [],
+      nearby: false,
+      services: [],
+      victims: [],
+      submittedAt: null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    // Отчёт о занятии по ТЗ включает грамматику, но на балл она не влияет.
+    expect(debrief.grammar).toMatchObject({
+      errorCount: 1,
+      styleCount: 1,
+      reviewedByModel: false,
+    });
+    expect(
+      debrief.grammar.fields.map((field) => [field.id, field.issues.length]),
+    ).toEqual([
+      ["addressText", 1],
+      ["description", 1],
+    ]);
+  });
+
+  it("keeps the grammar section empty when the card has no text", async () => {
+    const { service } = createService();
+
+    const debrief = await service.get("session-1", "operator-1");
+
+    expect(debrief.grammar).toEqual({
+      fields: [],
+      errorCount: 0,
+      styleCount: 0,
+      reviewedByModel: false,
+    });
   });
 
   it("scores a finished call and keeps the score", async () => {

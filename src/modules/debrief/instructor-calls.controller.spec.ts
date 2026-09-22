@@ -1,4 +1,5 @@
 import type { InstructorCallView } from "@/modules/training/dto/training.dto";
+import type { MethodicalMaterialsService } from "@/modules/methodical-materials/methodical-materials.service";
 import type { TrainingService } from "@/modules/training/training.service";
 
 import type { DebriefService } from "./application/debrief.service";
@@ -27,6 +28,7 @@ const call = (
   durationSeconds: 115,
   attemptNumber: 1,
   attemptStatus: "completed",
+  answerNormSeconds: 30,
   passThreshold: 75,
   score: null,
   ...overrides,
@@ -40,9 +42,11 @@ describe(InstructorCallsController.name, () => {
     const debrief = {
       get: jest.fn().mockResolvedValue({ evaluation: { score: 91 } }),
     };
+    const materials = { list: jest.fn().mockResolvedValue([]) };
     const controller = new InstructorCallsController(
       training as unknown as TrainingService,
       debrief as unknown as DebriefService,
+      materials as unknown as MethodicalMaterialsService,
     );
 
     await expect(
@@ -63,9 +67,11 @@ describe(InstructorCallsController.name, () => {
       }),
     };
     const debrief = { get: jest.fn().mockResolvedValue({ call: {} }) };
+    const materials = { list: jest.fn().mockResolvedValue([]) };
     const controller = new InstructorCallsController(
       training as unknown as TrainingService,
       debrief as unknown as DebriefService,
+      materials as unknown as MethodicalMaterialsService,
     );
 
     await controller.get(request, "session-1");
@@ -75,5 +81,36 @@ describe(InstructorCallsController.name, () => {
       "session-1",
     );
     expect(debrief.get).toHaveBeenCalledWith("session-1", "operator-1");
+  });
+
+  it("returns student profile with methodical materials progress", async () => {
+    const training = {
+      requireManagedStudent: jest
+        .fn()
+        .mockResolvedValue({ id: "operator-1", fullName: "Анна" }),
+      listInstructorCalls: jest.fn().mockResolvedValue([]),
+    };
+    const debrief = { get: jest.fn() };
+    const materials = {
+      list: jest.fn().mockResolvedValue([
+        {
+          id: "operator-112",
+          title: "Работа оператора",
+          completedSections: 2,
+          totalSections: 4,
+          sections: [],
+        },
+      ]),
+    };
+    const controller = new InstructorCallsController(
+      training as unknown as TrainingService,
+      debrief as unknown as DebriefService,
+      materials as unknown as MethodicalMaterialsService,
+    );
+
+    const result = await controller.student(request, "operator-1");
+    expect(materials.list).toHaveBeenCalledWith("operator-1", "operator");
+    expect(result.methodicalMaterials).toHaveLength(1);
+    expect(result.methodicalMaterials?.[0]?.id).toBe("operator-112");
   });
 });

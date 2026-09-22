@@ -1,5 +1,7 @@
 export type CallerReplyValidationReason =
   | "invalid-schema"
+  | "instruction-leak"
+  | "operator-echo"
   /** Реплика пересказывает предыдущую: заявитель ходит по кругу. */
   | "repeats-previous";
 

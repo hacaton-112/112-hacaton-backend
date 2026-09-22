@@ -21,6 +21,12 @@ const createController = () => {
     loadVersion: jest.fn().mockResolvedValue({ scenarioVersionId: "v1" }),
     publishVersion: jest.fn().mockResolvedValue({ version: 2 }),
     archive: jest.fn().mockResolvedValue(undefined),
+    checkGrammar: jest.fn().mockResolvedValue({
+      fields: [],
+      errorCount: 0,
+      styleCount: 0,
+      reviewedByModel: false,
+    }),
   };
   const catalog = { listPublished: jest.fn().mockResolvedValue([]) };
   const training = {
@@ -106,5 +112,70 @@ describe(ScenarioCatalogController.name, () => {
         ScenarioCatalogController.prototype.archive,
       ),
     ).toBe(HttpStatus.NO_CONTENT);
+  });
+
+  const replyStub = () => {
+    let closeListener: (() => void) | undefined;
+    const raw = {
+      writableEnded: false,
+      once: jest.fn((_event: string, listener: () => void) => {
+        closeListener = listener;
+      }),
+    };
+
+    return { reply: { raw }, raw, close: () => closeListener?.() };
+  };
+
+  it("checks the grammar of a draft without saving anything", async () => {
+    const { controller, authoring } = createController();
+    const scenario = { version: { openingLine: "Горит квартира!" } };
+    const { reply, raw } = replyStub();
+
+    await controller.checkGrammar(reply as never, {
+      scenario,
+      deepReview: true,
+    } as never);
+
+    // Проверка идёт с сигналом ответа: ушёл преподаватель — ушла и модель.
+    expect(authoring.checkGrammar).toHaveBeenCalledWith(
+      scenario,
+      true,
+      expect.any(AbortSignal),
+    );
+    expect(raw.once).toHaveBeenCalledWith("close", expect.any(Function));
+    expect(authoring.publishVersion).not.toHaveBeenCalled();
+  });
+
+  it("aborts the grammar check when the client leaves before the answer", async () => {
+    const { controller, authoring } = createController();
+    const { reply, close } = replyStub();
+
+    await controller.checkGrammar(reply as never, {
+      scenario: {},
+      deepReview: true,
+    } as never);
+
+    const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    close();
+
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("keeps the grammar check when the answer has been sent", async () => {
+    const { controller, authoring } = createController();
+    const { reply, raw, close } = replyStub();
+
+    await controller.checkGrammar(reply as never, {
+      scenario: {},
+      deepReview: true,
+    } as never);
+
+    const signal = authoring.checkGrammar.mock.calls[0]?.[2] as AbortSignal;
+    raw.writableEnded = true;
+    close();
+
+    expect(signal.aborted).toBe(false);
   });
 });

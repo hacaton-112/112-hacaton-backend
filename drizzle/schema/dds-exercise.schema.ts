@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -10,11 +11,12 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 import { DDS_RESPONSE_STATUSES } from "@/modules/dds-exercise/domain/dds-response-status";
 
-import { dispatchService } from "./incident-card.schema";
+import { dispatchService, incidentCards } from "./incident-card.schema";
 import { scenarioVersions } from "./scenario.schema";
 import { users } from "./user.schema";
 
@@ -41,6 +43,14 @@ export const ddsExercises = pgTable(
       onDelete: "set null",
     }),
     trainingAttemptId: text("training_attempt_id"),
+    /**
+     * Карточка оператора 112, из которой создана входящая доставка. Старые
+     * автономные упражнения не имеют источника и остаются совместимыми.
+     */
+    sourceTrainingSessionId: text("source_training_session_id").references(
+      () => incidentCards.trainingSessionId,
+      { onDelete: "restrict" },
+    ),
     addressedService: dispatchService("addressed_service").notNull(),
     status: ddsResponseStatus("status").notNull().default("pending"),
     card: jsonb("card").$type<DdsCardSnapshot>().notNull(),
@@ -51,6 +61,7 @@ export const ddsExercises = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     lastSequence: integer("last_sequence").notNull().default(1),
     score: smallint("score"),
+    passThreshold: smallint("pass_threshold").notNull().default(75),
     passed: boolean("passed"),
     /** Makes a retried start command return the exercise it already created. */
     startEventId: text("start_event_id").notNull(),
@@ -72,6 +83,9 @@ export const ddsExercises = pgTable(
     ),
     index("dds_exercises_status_idx").on(table.status),
     index("dds_exercises_training_attempt_idx").on(table.trainingAttemptId),
+    uniqueIndex("dds_exercises_source_service_unique_idx")
+      .on(table.sourceTrainingSessionId, table.addressedService)
+      .where(sql`${table.sourceTrainingSessionId} is not null`),
   ],
 );
 
@@ -109,6 +123,20 @@ export const ddsExerciseEvents = pgTable(
 );
 
 export type DdsExerciseRecord = typeof ddsExercises.$inferSelect;
+
+/** Append-only instructor assessments; they never overwrite the automatic score. */
+export const ddsExerciseReviews = pgTable("dds_exercise_reviews", {
+  id: text("id").primaryKey(),
+  exerciseId: text("exercise_id").notNull().references(() => ddsExercises.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull(),
+  instructorId: text("instructor_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  score: smallint("score").notNull(),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("dds_reviews_exercise_event_idx").on(table.exerciseId, table.eventId),
+  check("dds_exercise_reviews_score_check", sql`${table.score} between 0 and 100`),
+]);
 export type NewDdsExerciseRecord = typeof ddsExercises.$inferInsert;
 export type DdsExerciseEventRecord = typeof ddsExerciseEvents.$inferSelect;
 export type NewDdsExerciseEventRecord = typeof ddsExerciseEvents.$inferInsert;

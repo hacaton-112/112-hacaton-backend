@@ -7,9 +7,11 @@ import {
   AppServiceUnavailableException,
 } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
+import { GrammarService, type GrammarReport } from "@/modules/grammar";
 import { ErrorCodes } from "@/contracts";
 
 import { buildScenarioDraftFromSuggestion } from "../domain/scenario-assistant-suggestion";
+import { scenarioTexts } from "../domain/scenario-texts";
 import type {
   GenerateScenarioDraftResponse,
   PublishScenarioRequest,
@@ -39,7 +41,23 @@ export class ScenarioAuthoringService {
     private readonly assistant: ScenarioDraftAssistantPort,
     @Inject(SCENARIO_AUTHORING_REPOSITORY)
     private readonly repository: ScenarioAuthoringRepository,
+    private readonly grammar: GrammarService,
   ) {}
+
+  /**
+   * Проверяет тексты сценария по просьбе преподавателя.
+   *
+   * Ничего не сохраняет и не мешает публикации: это подсказка автору, а не
+   * новое условие. Черновик читается как есть, даже если он ещё не сходится
+   * со схемой.
+   */
+  checkGrammar(
+    scenario: unknown,
+    deepReview = false,
+    signal?: AbortSignal,
+  ): Promise<GrammarReport> {
+    return this.grammar.check(scenarioTexts(scenario), { deepReview, signal });
+  }
 
   async generateDraft(brief: string): Promise<GenerateScenarioDraftResponse> {
     const code = `S-AI-${generateId().slice(0, 8).toUpperCase()}`;
@@ -84,6 +102,7 @@ export class ScenarioAuthoringService {
   ): Promise<PublishedScenario> {
     try {
       return await this.repository.publish({
+        preparationId: request.preparationId,
         scenario: request.scenario,
         authorId,
         authoringSource: request.authoringSource,
@@ -123,6 +142,7 @@ export class ScenarioAuthoringService {
   ): Promise<PublishedScenario> {
     try {
       return await this.repository.publishVersion({
+        preparationId: request.preparationId,
         scenarioId,
         baseVersionId: request.baseVersionId,
         scenario: request.scenario,

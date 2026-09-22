@@ -1,7 +1,11 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-import { DISPATCH_SERVICES, SCENARIO_CATEGORIES } from "@/drizzle/schema";
+import {
+  CREW_CALL_OUTCOMES,
+  DISPATCH_SERVICES,
+  SCENARIO_CATEGORIES,
+} from "@/drizzle/schema";
 
 import { DDS_EXERCISE_VIOLATIONS } from "../domain/dds-exercise-evaluation";
 import { DDS_RESPONSE_STATUSES } from "../domain/dds-response-status";
@@ -30,6 +34,7 @@ export const DdsExerciseEventSchema = z
   .object({
     sequence: z.number().int().positive(),
     eventId: z.uuid(),
+    actorId: z.uuid().nullable(),
     fromStatus: z.enum(DDS_RESPONSE_STATUSES).nullable(),
     toStatus: z.enum(DDS_RESPONSE_STATUSES),
     comment: nullableText(1_000),
@@ -47,11 +52,46 @@ export const DdsExerciseResultSchema = z
   })
   .strict();
 
+export const DdsCrewCallSchema = z
+  .object({
+    dialedNumber: z.string().min(1),
+    /** Позывной набранного наряда; `null`, если номера нет в справочнике. */
+    callsign: z.string().min(1).nullable(),
+    startedAt: z.iso.datetime(),
+    endedAt: z.iso.datetime().nullable(),
+    outcome: z.enum(CREW_CALL_OUTCOMES).nullable(),
+    correct: z.boolean().nullable(),
+    acknowledgements: z.number().int().nonnegative(),
+  })
+  .strict();
+
+/**
+ * Передача карточки наряду по телефону.
+ *
+ * Есть только при включённой телефонии: тогда без звонка нужному наряду
+ * реагирование не начинается.
+ */
+export const DdsCrewHandoffSchema = z
+  .object({
+    notified: z.boolean(),
+    crews: z.array(
+      z
+        .object({
+          callsign: z.string().min(1),
+          phoneNumber: z.string().min(1),
+        })
+        .strict(),
+    ),
+    calls: z.array(DdsCrewCallSchema),
+  })
+  .strict();
+
 export const DdsExerciseSchema = z
   .object({
     id: z.uuid(),
     scenarioVersionId: z.uuid(),
     trainingAttemptId: z.string().min(1).nullable(),
+    sourceTrainingSessionId: z.string().min(1).nullable(),
     addressedService: z.enum(DISPATCH_SERVICES),
     status: z.enum(DDS_RESPONSE_STATUSES),
     allowedTransitions: z.array(z.enum(DDS_RESPONSE_STATUSES)),
@@ -63,6 +103,7 @@ export const DdsExerciseSchema = z
     updatedAt: z.iso.datetime(),
     events: z.array(DdsExerciseEventSchema),
     result: DdsExerciseResultSchema.nullable(),
+    crewHandoff: DdsCrewHandoffSchema.nullable(),
   })
   .strict();
 
@@ -74,6 +115,27 @@ export const StartDdsExerciseRequestSchema = z
   .object({
     scenarioVersionId: z.uuid(),
     eventId: z.uuid(),
+  })
+  .strict();
+
+export const DispatchIncidentCardRequestSchema = z
+  .object({ eventId: z.uuid() })
+  .strict();
+
+export const DdsDispatchReceiptSchema = z
+  .object({
+    trainingSessionId: z.string().min(1),
+    eventId: z.uuid(),
+    dispatchedAt: z.iso.datetime(),
+    deliveries: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          addressedService: z.enum(DISPATCH_SERVICES),
+          acknowledgementDeadlineAt: z.iso.datetime(),
+        })
+        .strict(),
+    ),
   })
   .strict();
 
@@ -90,6 +152,12 @@ export class DdsExerciseListDto extends createZodDto(DdsExerciseListSchema) {}
 export class StartDdsExerciseRequestDto extends createZodDto(
   StartDdsExerciseRequestSchema,
 ) {}
+export class DispatchIncidentCardRequestDto extends createZodDto(
+  DispatchIncidentCardRequestSchema,
+) {}
+export class DdsDispatchReceiptDto extends createZodDto(
+  DdsDispatchReceiptSchema,
+) {}
 export class TransitionDdsExerciseRequestDto extends createZodDto(
   TransitionDdsExerciseRequestSchema,
 ) {}
@@ -102,6 +170,10 @@ export type DdsExerciseList = z.infer<typeof DdsExerciseListSchema>;
 export type StartDdsExerciseRequest = z.infer<
   typeof StartDdsExerciseRequestSchema
 >;
+export type DispatchIncidentCardRequest = z.infer<
+  typeof DispatchIncidentCardRequestSchema
+>;
+export type DdsDispatchReceipt = z.infer<typeof DdsDispatchReceiptSchema>;
 export type TransitionDdsExerciseRequest = z.infer<
   typeof TransitionDdsExerciseRequestSchema
 >;

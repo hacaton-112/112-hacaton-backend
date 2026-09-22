@@ -12,6 +12,10 @@ import {
 import { LLM_PORT, type LlmPort } from "@/modules/ai-gateway";
 
 import { CallerReplyValidationError } from "../domain/caller-reply-validation.error";
+import {
+  assertCallerReplyContent,
+  canUseEngineReaction,
+} from "../domain/caller-reply-content";
 import { LlmReplyCollectionError } from "../domain/llm-reply-collection.error";
 import {
   isNearRepetition,
@@ -45,6 +49,7 @@ export const DEFAULT_FALLBACK_CALLER_REPLY: CallerReply =
 @Injectable()
 export class DialogueGenerationService {
   private readonly logger = new Logger(DialogueGenerationService.name);
+  private readonly retryNearRepetition = true;
 
   constructor(
     @Inject(LLM_PORT)
@@ -62,6 +67,14 @@ export class DialogueGenerationService {
 
     signal.throwIfAborted();
 
+    if (canUseEngineReaction(request)) {
+      return DialogueGenerationResultSchema.parse({
+        reply: request.fallbackReply,
+        source: "prepared",
+        attempts: [],
+      });
+    }
+
     for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
       const startedAt = performance.now();
 
@@ -74,6 +87,7 @@ export class DialogueGenerationService {
           stream,
           request.context.allowedFacts,
           signal,
+          request,
         );
         // Пересказ предыдущей реплики стоит одной попытки: модель сама себя
         // не слышит, и без этой проверки заявитель по пять ходов подряд
@@ -81,6 +95,7 @@ export class DialogueGenerationService {
         // срезанный до одного «Быстрее!» пересказ проверку прошёл бы, а новая
         // попытка с объяснением даёт ответ лучше обрубка.
         if (
+          this.retryNearRepetition &&
           attempt < MAX_GENERATION_ATTEMPTS &&
           this.repeatsPreviousReply(request, collectedReply.reply.text)
         ) {
@@ -98,6 +113,7 @@ export class DialogueGenerationService {
           request,
           collectedReply.reply,
         );
+        assertCallerReplyContent(reply, request);
 
         attempts.push({
           attempt,
@@ -119,7 +135,7 @@ export class DialogueGenerationService {
         // Без этой строки отбракованный ответ выглядит как молчание модели:
         // заявитель говорит запасную фразу, а причина не видна нигде.
         this.logger.warn(
-          `Rejected a generated caller reply (attempt ${attempt}): ${
+          `Rejected a generated caller reply request=${request.requestId} (attempt ${attempt}, reason=${error instanceof CallerReplyValidationError ? error.reason : "provider-or-protocol"}): ${
             error instanceof Error ? error.message : "unknown error"
           }`,
         );
@@ -131,17 +147,42 @@ export class DialogueGenerationService {
           outcome: this.classifyFailure(error),
         });
 
-        if (isExplicitlyNonRetryableHttpError(error)) {
+        if (
+          isExplicitlyNonRetryableHttpError(error) ||
+          (error instanceof CallerReplyValidationError &&
+            ["instruction-leak", "operator-echo"].includes(error.reason))
+        ) {
           break;
         }
       }
     }
 
     return DialogueGenerationResultSchema.parse({
-      reply: request.fallbackReply ?? DEFAULT_FALLBACK_CALLER_REPLY,
+      reply: this.safeFallback(request),
       source: "fallback",
       attempts,
     });
+  }
+
+  private safeFallback(request: GenerateCallerReplyRequest): CallerReply {
+    if (request.fallbackReply) {
+      try {
+        assertCallerReplyContent(request.fallbackReply, request);
+        return request.fallbackReply;
+      } catch {
+        /* A contaminated scenario must not turn rejection into speech. */
+      }
+    }
+    return {
+      ...DEFAULT_FALLBACK_CALLER_REPLY,
+      ...(request.fallbackReply
+        ? {
+            emotion: request.fallbackReply.emotion,
+            intensity: request.fallbackReply.intensity,
+            speechRate: request.fallbackReply.speechRate,
+          }
+        : {}),
+    };
   }
 
   /**

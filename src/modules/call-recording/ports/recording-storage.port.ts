@@ -11,7 +11,10 @@ export interface RecordingStorage {
    * Нужен разбору занятия: запись отдаётся клиенту через backend, чтобы
    * корзина оставалась закрытой, а клиенту не понадобились ключи от неё.
    */
-  get(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
+  get(
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<Uint8Array<ArrayBuffer> | null>;
 
   /** Тело — собственный буфер вызывающего: разделяемая память сюда не идёт. */
   put(

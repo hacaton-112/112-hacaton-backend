@@ -3,6 +3,7 @@ import type { QuestionUnderstandingPort } from "@/modules/ai-gateway";
 import type { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
+import type { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
 
 const fallbackReply: CallerReply = {
   text: "Улица Учебная, дом 12.",
@@ -33,6 +34,64 @@ const generation: Pick<DialogueGenerationResult, "source" | "attempts"> = {
 };
 
 describe(ScenarioVoicePipelineRequestFactory.name, () => {
+  it.each(["answer", "panic-refusal"] as const)(
+    "uses approved wording only for an engine-permitted answer, not %s guards",
+    async (reactionAct) => {
+      const engine = {
+        buildGenerationContext: jest.fn().mockResolvedValue({
+          scenarioVersionId: "version",
+          context: {
+            persona: {
+              id: "caller",
+              description: "Учебный заявитель",
+              language: "Russian",
+            },
+            allowedFacts: [{ id: "address", value: "Учебная улица, дом 12." }],
+            recentTurns: [],
+            turnPlan: {
+              reactionAct,
+              focusFactIds: ["address"],
+              minimumResponseDelayMs: 0,
+            },
+          },
+          voice: {
+            voiceId: "Vivian",
+            gender: "female",
+            emotion: "panic",
+            intensity: 0.8,
+            speechRate: 1.1,
+          },
+          fallbackReply,
+        }),
+      };
+      const audio = {
+        approvedEntries: jest
+          .fn()
+          .mockResolvedValue([
+            { factKey: "address", questions: ["Где вы?"], acknowledge: true },
+          ]),
+      };
+      const factory = new ScenarioVoicePipelineRequestFactory(
+        engine as unknown as ScenarioEngineService,
+        createQuestions().port,
+        audio as unknown as ScenarioAudioService,
+      );
+      const request = await factory.create({
+        command: { type: "speak", operatorText: "Где вы?" },
+        requestId: "request",
+        sessionId: "session",
+        signal: new AbortController().signal,
+      });
+      expect(request.generation.fallbackReply?.text).toBe(
+        reactionAct === "answer"
+          ? "Хорошо. Учебная улица, дом 12."
+          : fallbackReply.text,
+      );
+      expect(request.generation.fallbackReply?.revealedFactIds).toEqual([
+        "address",
+      ]);
+    },
+  );
   it("passes the focused context and situational fallback to generation", async () => {
     const engine = {
       buildGenerationContext: jest.fn().mockResolvedValue({

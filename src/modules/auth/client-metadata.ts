@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { FastifyRequest } from "fastify";
 
 import type { ClientMetadata } from "./auth-session.service";
 
@@ -21,10 +21,13 @@ const normalise = (
  * Session metadata for incident review only — it is never used to authorise a
  * request, because a desktop client legitimately roams between networks.
  *
- * Production trusts exactly the configured number of proxy hops. Direct
- * development keeps proxy trust disabled so a client cannot spoof this value.
+ * Доверие заголовку с адресом клиента включается только числом шагов прокси
+ * в `TRUST_PROXY_HOPS`. При нуле Fastify читает адрес соединения, поэтому
+ * подменить его заголовком нельзя.
  */
-export const readClientMetadata = (request: Request): ClientMetadata => ({
+export const readClientMetadata = (
+  request: Pick<FastifyRequest, "headers" | "ip">,
+): ClientMetadata => ({
   userAgent: normalise(request.headers["user-agent"], MAX_USER_AGENT_LENGTH),
   ipAddress: normalise(request.ip, MAX_IP_ADDRESS_LENGTH),
 });

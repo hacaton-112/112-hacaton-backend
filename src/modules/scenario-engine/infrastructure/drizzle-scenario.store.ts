@@ -1,5 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, lt, max, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  lte,
+  max,
+  sql,
+} from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
 import type { DialogueTurn } from "@/contracts";
@@ -26,6 +38,7 @@ import type {
   CallStatePatch,
   CallStateSnapshot,
   NewCallEvent,
+  RecoveryLease,
   ScenarioStore,
   ScenarioVersionSnapshot,
 } from "../ports/scenario-store.port";
@@ -178,6 +191,97 @@ export class DrizzleScenarioStore implements ScenarioStore {
       endedAt: row.endedAt,
       lastSequence: row.lastSequence,
     };
+  }
+
+  async renewRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    expiresAt: Date,
+  ): Promise<boolean> {
+    const renewed = await this.db
+      .update(callStates)
+      .set({ recoveryExpiresAt: expiresAt })
+      .where(
+        and(
+          eq(callStates.trainingSessionId, trainingSessionId),
+          eq(callStates.operatorId, operatorId),
+          inArray(callStates.stage, ["offered", "conversation", "wrap_up"]),
+        ),
+      )
+      .returning({ id: callStates.trainingSessionId });
+
+    return renewed.length === 1;
+  }
+
+  async claimRecoveryLease(
+    trainingSessionId: string,
+    operatorId: string,
+    now: Date,
+    expiresAt: Date,
+  ): Promise<boolean> {
+    const claimed = await this.db
+      .update(callStates)
+      .set({ recoveryExpiresAt: expiresAt })
+      .where(
+        and(
+          eq(callStates.trainingSessionId, trainingSessionId),
+          eq(callStates.operatorId, operatorId),
+          inArray(callStates.stage, ["offered", "conversation", "wrap_up"]),
+          gte(callStates.recoveryExpiresAt, now),
+        ),
+      )
+      .returning({ id: callStates.trainingSessionId });
+
+    return claimed.length === 1;
+  }
+
+  async listRecoveryLeases(limit: number): Promise<readonly RecoveryLease[]> {
+    const rows = await this.db
+      .select({
+        trainingSessionId: callStates.trainingSessionId,
+        expiresAt: callStates.recoveryExpiresAt,
+      })
+      .from(callStates)
+      .where(
+        and(
+          inArray(callStates.stage, ["offered", "conversation", "wrap_up"]),
+          isNotNull(callStates.recoveryExpiresAt),
+        ),
+      )
+      .limit(limit);
+
+    return rows.flatMap((row) =>
+      row.expiresAt
+        ? [
+            {
+              trainingSessionId: row.trainingSessionId,
+              expiresAt: row.expiresAt,
+            },
+          ]
+        : [],
+    );
+  }
+
+  async claimExpiredRecoveryLease(
+    trainingSessionId: string,
+    now: Date,
+    retryAt: Date,
+  ): Promise<boolean> {
+    const claimed = await this.db
+      .update(callStates)
+      // Cleanup тоже может оборваться вместе с процессом. Новая короткая
+      // lease позволит следующему backend повторить незавершённую уборку.
+      .set({ recoveryExpiresAt: retryAt })
+      .where(
+        and(
+          eq(callStates.trainingSessionId, trainingSessionId),
+          inArray(callStates.stage, ["offered", "conversation", "wrap_up"]),
+          lte(callStates.recoveryExpiresAt, now),
+        ),
+      )
+      .returning({ id: callStates.trainingSessionId });
+
+    return claimed.length === 1;
   }
 
   async startCall(
