@@ -1552,7 +1552,7 @@ body,
   min-width: 1180px;
   grid-template-columns:
     72px 44px 104px 92px 84px minmax(190px, 1.05fr)
-    minmax(270px, 1.5fr) minmax(160px, 0.7fr);
+    minmax(270px, 1.5fr) minmax(160px, 0.7fr) 44px;
   align-items: stretch;
 }
 
@@ -1642,6 +1642,87 @@ body,
 .arm-dds-cell-main small {
   color: #c6cccf;
   font-size: 9px;
+}
+
+/* Кнопка открытия карточки на правом краю строки, как в АРМ. */
+.arm-dds-row-open {
+  justify-content: center;
+  background: var(--arm-slate-cell);
+  color: #edeff0;
+}
+
+/* Полоса описания под раскрытой строкой. */
+.arm-dds-row-description {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 2px solid var(--arm-slate);
+  background: var(--arm-slate-cell);
+  padding: 5px 10px;
+  color: #eceeef;
+  font-size: 11px;
+}
+
+.arm-dds-row-description em {
+  color: #cdd3d6;
+  font-style: normal;
+}
+
+.arm-dds-row-description strong {
+  font-size: 12px;
+}
+
+/* Лупа в заголовке и строка фильтров под ним. */
+.arm-dds-search-glass {
+  color: #ebecec;
+  flex: none;
+}
+
+.arm-dds-search-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  border-top: 1px solid #ebecec;
+  padding-top: 6px;
+  color: #e3e6e8;
+  font-size: 12px;
+}
+
+.arm-dds-search-filters button {
+  border: 1px solid #b7bdc0;
+  background: #d9dcdd;
+  padding: 3px 14px;
+  color: #3c4348;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.arm-dds-search-filters button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Счётчик страниц под таблицей, справа, как в оригинале. */
+.arm-dds-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 8px 4px 2px;
+  color: #eceeef;
+  font-size: 11px;
+}
+
+.arm-dds-pagination strong {
+  font-size: 12px;
+}
+
+.arm-dds-section-title strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .arm-dds-empty {
