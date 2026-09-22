@@ -138,7 +138,7 @@ async function main(): Promise<void> {
         });
     }
 
-    const [existing] = await db
+    const [foundExisting] = await db
       .select()
       .from(ddsLessons)
       .where(
@@ -149,6 +149,7 @@ async function main(): Promise<void> {
       )
       .orderBy(desc(ddsLessons.startedAt))
       .limit(1);
+    let existing: typeof ddsLessons.$inferSelect | undefined = foundExisting;
     if (existing?.status === "finished") {
       const report = await reports.lessonReport(
         { id: instructor.id, role: "instructor" },
@@ -160,6 +161,14 @@ async function main(): Promise<void> {
         report.insights?.status ?? "pending",
       );
       return;
+    }
+    if (existing) {
+      // Повторный запуск восстанавливает только незавершённый демо-набор и не касается чужих занятий.
+      await db
+        .delete(ddsExercises)
+        .where(eq(ddsExercises.lessonId, existing.id));
+      await db.delete(ddsLessons).where(eq(ddsLessons.id, existing.id));
+      existing = undefined;
     }
 
     const referencePage = await references.list({ page: 1, pageSize: 100 });
@@ -242,24 +251,27 @@ async function main(): Promise<void> {
     }
 
     const evaluationDeadline = Date.now() + 180_000;
+    let evaluationsReady = false;
     while (Date.now() < evaluationDeadline) {
       const details = await Promise.all(
         issued.map(({ exercise, student }) =>
           exercises.get(exercise.id, student.user.id).catch(() => null),
         ),
       );
-      if (
-        details
-          .filter(Boolean)
-          .every(
-            (card) =>
-              card?.textEvaluation?.status === "done" ||
-              card?.textEvaluation?.status === "skipped",
-          )
-      )
-        break;
+      evaluationsReady = details
+        .filter(Boolean)
+        .every(
+          (card) =>
+            card?.textEvaluation?.status === "done" ||
+            card?.textEvaluation?.status === "skipped",
+        );
+      if (evaluationsReady) break;
       await wait(1_000);
     }
+    if (!evaluationsReady)
+      throw new Error(
+        "Текстовая оценка демо-карточек не завершилась за 180 секунд",
+      );
     await lessons.finish(
       { id: instructor.id, role: "instructor" },
       lesson.id,
