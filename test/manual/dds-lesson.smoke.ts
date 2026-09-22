@@ -17,6 +17,7 @@ import {
   users,
 } from "@/drizzle/schema";
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
+import { DdsDispatchService } from "@/modules/dds-exercise/application/dds-dispatch.service";
 import { DdsLessonService } from "@/modules/dds-exercise/application/dds-lesson.service";
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
 
@@ -33,12 +34,14 @@ async function main(): Promise<void> {
   });
   const db = app.get<DrizzleService["db"]>(DRIZZLE);
   const lessons = app.get(DdsLessonService);
+  const dispatches = app.get(DdsDispatchService);
   const exercises = app.get(DdsExerciseService);
   const monitoring = app.get(DdsTrainingService);
   const suffix = generateId().slice(0, 8);
   const ids = {
     instructor: generateId(),
     student: generateId(),
+    operator112: generateId(),
     group: generateId(),
     sourceSession: generateId(),
   };
@@ -70,6 +73,13 @@ async function main(): Promise<void> {
         passwordHash: "smoke",
         fullName: "Преподаватель smoke",
         role: "instructor",
+      },
+      {
+        id: ids.operator112,
+        email: `lesson-operator-${suffix}@training.test`,
+        passwordHash: "smoke",
+        fullName: "Оператор 112 smoke",
+        role: "operator",
       },
       {
         id: ids.student,
@@ -127,6 +137,7 @@ async function main(): Promise<void> {
     await db.insert(callStates).values({
       trainingSessionId: ids.sourceSession,
       scenarioVersionId: version.id,
+      operatorId: ids.operator112,
       stage: "conversation",
       panicLevel: 1,
       rngSeed: suffix,
@@ -135,22 +146,26 @@ async function main(): Promise<void> {
     await db.insert(incidentCards).values({
       trainingSessionId: ids.sourceSession,
       callerAnonymous: true,
+      latitude: "55.752000",
+      longitude: "37.617000",
       addressText: "Учебный адрес",
       incidentType: "Пожар",
       description: "Учебная карточка оператора 112",
+      classifierRouting: {
+        classifierVersionId: "smoke",
+        classifierEntryId: "smoke",
+        sourceCode: "SMOKE",
+        featurePath: ["Пожар"],
+        finalType: "Пожар",
+        ekpType: null,
+        mainServiceCode: "dds_01",
+        qualifierCodes: [],
+        requiredServices: [],
+      },
       services: ["dds_01"],
-      submittedAt: now,
     });
-    await db.insert(ddsExercises).values({
-      id: generateId(),
-      scenarioVersionId: version.id,
-      sourceTrainingSessionId: ids.sourceSession,
-      addressedService: "dds_01",
-      card: firstExercise.card,
-      acknowledgementDeadlineAt: new Date(now.getTime() + 30_000),
-      startEventId: generateId(),
-      createdAt: now,
-      updatedAt: now,
+    await dispatches.dispatch(ids.sourceSession, ids.operator112, {
+      eventId: generateId(),
     });
     step("карточка оператора 112 поступила в очередь службы");
 
@@ -225,7 +240,7 @@ async function main(): Promise<void> {
     await db.delete(trainingGroups).where(eq(trainingGroups.id, ids.group));
     await db
       .delete(users)
-      .where(inArray(users.id, [ids.instructor, ids.student]));
+      .where(inArray(users.id, [ids.instructor, ids.student, ids.operator112]));
     await app.close();
   }
 }
