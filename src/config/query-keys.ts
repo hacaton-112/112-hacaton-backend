@@ -14,6 +14,9 @@ export const QUERY_KEYS = {
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,
+  scenarioGenerationJobs: () => ["scenario-generation-jobs"] as const,
+  scenarioGenerationJob: (jobId?: string) =>
+    ["scenario-generation-jobs", jobId] as const,
   trainingGroups: () => ["training-groups"] as const,
   trainingGroup: (groupId: string) => ["training-groups", groupId] as const,
   groupStudents: (groupId: string) =>

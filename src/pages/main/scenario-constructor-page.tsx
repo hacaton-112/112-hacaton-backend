@@ -18,7 +18,7 @@ import {
   SpellCheck,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
   BRIEF_MIN_LENGTH,
@@ -66,6 +66,11 @@ import {
   type ScenarioSeed,
 } from "../../contracts/scenario-authoring";
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
+import {
+  isScenarioGenerationActive,
+  useScenarioGenerationJob,
+  useScenarioGenerationJobs,
+} from "../../hooks/use-scenario-generation";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
 import { ROUTES } from "../../config/routes";
 import { useScenarios } from "../../hooks/use-scenarios";
@@ -174,13 +179,20 @@ function ScenarioVersionEditor({
 function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const navigate = useNavigate();
   const scenarios = useScenarios();
-  const {
-    draft,
-    grammarCheck,
-    publication,
-    versionPublication,
-    reverseGeocoding,
-  } = useScenarioAuthoring();
+  const { grammarCheck, publication, versionPublication, reverseGeocoding } =
+    useScenarioAuthoring();
+  // Черновик помощника готовится в фоне: задание ставится в очередь, а форма
+  // ждёт его. Готовое задание из каталога приходит сюда ссылкой ?job=.
+  const [searchParams] = useSearchParams();
+  const [ownJobId, setOwnJobId] = useState<string>();
+  const jobId = ownJobId ?? searchParams.get("job") ?? undefined;
+  const { enqueue } = useScenarioGenerationJobs();
+  const job = useScenarioGenerationJob(jobId);
+  const [appliedJobId, setAppliedJobId] = useState<string>();
+  const waitingForDraft =
+    Boolean(jobId) &&
+    (job.isPending ||
+      (job.data !== undefined && isScenarioGenerationActive(job.data)));
   const [grammarOpen, setGrammarOpen] = useState(false);
   const initialScenario = () =>
     base ? scenarioForEditing(base.scenario) : createEmptyScenario();
@@ -361,7 +373,24 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
     setHelperOpen(false);
 
     try {
-      const result = await draft.mutateAsync(normalizedBrief);
+      const created = await enqueue.mutateAsync(normalizedBrief);
+      setOwnJobId(created.id);
+    } catch (error) {
+      setHelperError(messageFrom(error, REQUEST_ERROR));
+      setHelperOpen(true);
+    }
+  };
+
+  // Готовое задание подставляется в форму один раз; неудачное открывает
+  // панель помощника с причиной, чтобы описание можно было поправить.
+  // Состояние подстраивается прямо при отрисовке, как советует React для
+  // данных, пришедших извне, — без лишнего прохода через эффект.
+  const settledJob =
+    job.data && !isScenarioGenerationActive(job.data) ? job.data : undefined;
+  if (settledJob && appliedJobId !== settledJob.id) {
+    setAppliedJobId(settledJob.id);
+    if (settledJob.status === "done" && settledJob.result) {
+      const result = settledJob.result;
       setScenario((current) =>
         mergeScenarioAssistantDraft(current, result.scenario, {
           keepIdentity: Boolean(base),
@@ -369,15 +398,19 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       );
       setAuthoringSource("assistant");
       setAuthoringPrompt(result.authoringPrompt);
-      toast.success("Черновик заполнен", {
-        description:
-          "Проверьте факты, условия раскрытия и эталон перед публикацией.",
-      });
-    } catch (error) {
-      setHelperError(messageFrom(error, REQUEST_ERROR));
+    } else {
+      setHelperError(settledJob.error?.message ?? REQUEST_ERROR);
       setHelperOpen(true);
     }
-  };
+  }
+  // Уведомление — побочный эффект, поэтому живёт в эффекте, но без setState.
+  useEffect(() => {
+    if (job.data?.status !== "done" || job.data.id !== appliedJobId) return;
+    toast.success("Черновик заполнен", {
+      description:
+        "Проверьте факты, условия раскрытия и эталон, отметьте место на карте и опубликуйте.",
+    });
+  }, [appliedJobId, job.data?.id, job.data?.status]);
 
   const publish = async () => {
     if (!preparationCanPublish(preparation, scenario)) {
@@ -460,7 +493,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   };
 
   const publishing = publication.isPending || versionPublication.isPending;
-  const busy = draft.isPending || publishing;
+  const busy = waitingForDraft || enqueue.isPending || publishing;
 
   return (
     <Box p="4" className="min-h-full">
@@ -625,7 +658,19 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
             }}
           />
         )}
-        <ScenarioFormLoadingContext value={draft.isPending}>
+        {waitingForDraft && (
+          <Callout.Root color="violet" mb="4">
+            <Callout.Text>
+              Помощник пишет черновик
+              {job.data?.queuePosition
+                ? ` — в очереди № ${job.data.queuePosition}`
+                : ""}
+              . Страницу можно закрыть: готовый черновик появится в каталоге
+              сценариев.
+            </Callout.Text>
+          </Callout.Root>
+        )}
+        <ScenarioFormLoadingContext value={waitingForDraft}>
           <ScenarioFormErrorsContext value={errorsContext}>
             <ScenarioBasicsSection
               scenario={scenario}
@@ -755,7 +800,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
       <ScenarioAiHelper
         open={helperOpen}
         onOpenChange={setHelperOpen}
-        pending={draft.isPending}
+        pending={enqueue.isPending || waitingForDraft}
         error={helperError}
         onErrorDismiss={() => setHelperError(undefined)}
         onGenerate={(brief) => void generate(brief)}

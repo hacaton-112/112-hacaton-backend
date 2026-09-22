@@ -4,10 +4,13 @@ import {
   GenerateScenarioDraftResponseSchema,
   PublishedScenarioSchema,
   ReverseGeocodedAddressSchema,
+  ScenarioGenerationJobListSchema,
+  ScenarioGenerationJobSchema,
   type EditableScenarioVersion,
   type GenerateScenarioDraftResponse,
   type PublishedScenario,
   type ReverseGeocodedAddress,
+  type ScenarioGenerationJob,
   type ScenarioSeed,
 } from "../contracts/scenario-authoring";
 import { type GrammarReport, GrammarReportSchema } from "../contracts/grammar";
@@ -63,6 +66,36 @@ export const scenarioAuthoringService = {
     );
 
     return GenerateScenarioDraftResponseSchema.parse(payload);
+  },
+
+  /** Ставит черновик в фоновую очередь; ответ приходит сразу. */
+  async enqueueDraft(brief: string): Promise<ScenarioGenerationJob> {
+    const payload = await api.post<unknown>(
+      API_CONFIG.getScenarioGenerationJobsUrl(),
+      { brief },
+    );
+
+    return ScenarioGenerationJobSchema.parse(payload);
+  },
+
+  async listDraftJobs(): Promise<ScenarioGenerationJob[]> {
+    const payload = await api.get<unknown>(
+      API_CONFIG.getScenarioGenerationJobsUrl(),
+    );
+
+    return ScenarioGenerationJobListSchema.parse(payload).jobs;
+  },
+
+  async getDraftJob(jobId: string): Promise<ScenarioGenerationJob> {
+    const payload = await api.get<unknown>(
+      API_CONFIG.getScenarioGenerationJobUrl(jobId),
+    );
+
+    return ScenarioGenerationJobSchema.parse(payload);
+  },
+
+  async dismissDraftJob(jobId: string): Promise<void> {
+    await api.delete(API_CONFIG.getScenarioGenerationJobUrl(jobId));
   },
 
   /**

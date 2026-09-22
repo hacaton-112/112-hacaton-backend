@@ -24,7 +24,7 @@ import type { ReactNode } from "react";
 import type { ScenarioSummary } from "../../contracts/call";
 import type { EditableScenarioVersion } from "../../contracts/scenario-authoring";
 import { criticalQuestionsLabel } from "./scenario-catalog-formatters";
-import { CategoryChip, CodeChip } from "./scenario-catalog-card";
+import { CategoryChip, CodeChip } from "./scenario-catalog-chips";
 
 interface ScenarioBriefingPanelProps {
   /** Что уже известно из каталога: заголовок виден, пока грузится версия. */
