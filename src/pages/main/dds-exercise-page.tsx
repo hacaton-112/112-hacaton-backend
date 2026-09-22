@@ -40,10 +40,15 @@ function DdsLearnerPage() {
   >(requestedExerciseId);
 
   // Ссылка из списка назначений может смениться, пока рабочее место открыто:
-  // диспетчер начал вторую попытку и должен увидеть новую карточку.
-  useEffect(() => {
+  // диспетчер начал вторую попытку и должен увидеть новую карточку. Правка
+  // состояния во время отрисовки — штатный приём React для такой синхронизации,
+  // эффект здесь дал бы лишний проход отрисовки.
+  const [appliedExerciseId, setAppliedExerciseId] = useState(requestedExerciseId);
+
+  if (requestedExerciseId !== appliedExerciseId) {
+    setAppliedExerciseId(requestedExerciseId);
     if (requestedExerciseId) setSelectedExerciseId(requestedExerciseId);
-  }, [requestedExerciseId]);
+  }
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ru-RU");

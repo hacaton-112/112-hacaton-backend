@@ -1,3 +1,5 @@
+import { ChevronUp, Pencil } from "lucide-react";
+
 import type { DdsExercise } from "../../contracts/dds-exercise";
 import {
   DDS_CATEGORY_LABELS,
@@ -29,7 +31,19 @@ const dateTime = (value: string) =>
  * системе: диспетчеру важно узнавать своё рабочее место, а не видеть
  * подставленные значения.
  */
-export function DdsCardArmHeader({ exercise }: { exercise: DdsExercise }) {
+export function DdsCardArmHeader({
+  exercise,
+  journalOpen,
+  onToggleJournal,
+  canEdit,
+  onEdit,
+}: {
+  exercise: DdsExercise;
+  journalOpen: boolean;
+  onToggleJournal: () => void;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
   const { card } = exercise;
   const number = exercise.id.slice(-8).toUpperCase();
 
@@ -116,6 +130,7 @@ export function DdsCardArmHeader({ exercise }: { exercise: DdsExercise }) {
         </div>
       </div>
 
+      {/* Плитки переносятся строкой выше, как в АРМ: wrap-reverse в стилях. */}
       <div className="arm-card-services" aria-label="Оповещённые службы">
         <span className="arm-card-services-label">Службы:</span>
         {card.services.map((service) => {
@@ -124,6 +139,30 @@ export function DdsCardArmHeader({ exercise }: { exercise: DdsExercise }) {
 
           return (
             <div key={service} data-active={addressed || undefined}>
+              <div className="arm-card-service-tools">
+                <button
+                  type="button"
+                  aria-label={
+                    journalOpen
+                      ? `Скрыть журнал службы «${DDS_SERVICE_LABELS[service]}»`
+                      : `Показать журнал службы «${DDS_SERVICE_LABELS[service]}»`
+                  }
+                  aria-expanded={addressed ? journalOpen : undefined}
+                  disabled={!addressed}
+                  onClick={onToggleJournal}
+                >
+                  <ChevronUp size={13} />
+                </button>
+                {addressed && canEdit && (
+                  <button
+                    type="button"
+                    aria-label="Изменить статус службы"
+                    onClick={onEdit}
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
               <strong>{DDS_SERVICE_LABELS[service]}</strong>
               <span>
                 {addressed && last

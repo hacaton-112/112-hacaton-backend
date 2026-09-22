@@ -2053,8 +2053,9 @@ body,
 .arm-card-services {
   display: flex;
   align-items: stretch;
+  /* Плитки, которым не хватило места, уходят строкой выше — как в АРМ. */
+  flex-wrap: wrap-reverse;
   gap: 2px;
-  overflow-x: auto;
   background: #2f353a;
   padding: 6px;
 }
@@ -2068,12 +2069,42 @@ body,
 
 .arm-card-services > div {
   display: grid;
-  min-width: 116px;
+  min-width: 132px;
   gap: 2px;
   background: #3c444a;
-  padding: 6px 10px;
+  padding: 4px 10px 6px;
   color: #eceeef;
   text-align: center;
+}
+
+.arm-card-service-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+}
+
+.arm-card-service-tools button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+  padding: 1px 4px;
+}
+
+.arm-card-service-tools button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.arm-card-service-tools button:not(:disabled):hover {
+  color: white;
+}
+
+/* Карандаш стоит у края своей плитки, как в оригинале. */
+.arm-card-service-tools button + button {
+  margin-left: auto;
 }
 
 .arm-card-services > div[data-active="true"] {
