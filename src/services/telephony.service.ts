@@ -1,5 +1,7 @@
 import { API_CONFIG } from "../config/api";
 import {
+  BrowserPhoneConfigSchema,
+  type BrowserPhoneConfig,
   CrewCallCommandSchema,
   type CrewCallCommand,
   type TelephonyWorkstation,
@@ -8,6 +10,13 @@ import {
 import { api } from "../lib/api";
 
 export const telephonyService = {
+  async getBrowserPhoneConfig(): Promise<BrowserPhoneConfig> {
+    const payload = await api.get<unknown>(
+      API_CONFIG.getBrowserPhoneConfigUrl(),
+    );
+    return BrowserPhoneConfigSchema.parse(payload);
+  },
+
   async startCrewCall(
     exerciseId: string,
     input: { eventId: string; dialedNumber: string },

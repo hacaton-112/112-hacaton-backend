@@ -24,3 +24,18 @@ export const CrewCallCommandSchema = z
   .strict();
 
 export type CrewCallCommand = z.infer<typeof CrewCallCommandSchema>;
+
+export const BrowserPhoneConfigSchema = z
+  .object({
+    extension: z.string().regex(/^\d{2,6}$/u),
+    aor: z.string().startsWith("sip:"),
+    websocketUrl: z
+      .url()
+      .refine((value) => ["ws:", "wss:"].includes(new URL(value).protocol)),
+    authorizationUsername: z.string().regex(/^\d{2,6}$/u),
+    authorizationPassword: z.string().min(32),
+    displayName: z.string().min(1),
+  })
+  .strict();
+
+export type BrowserPhoneConfig = z.infer<typeof BrowserPhoneConfigSchema>;

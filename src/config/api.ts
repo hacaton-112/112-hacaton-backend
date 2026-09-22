@@ -71,6 +71,7 @@ export const API_CONFIG = {
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,
+  getBrowserPhoneConfigUrl: () => `/telephony/browser-phone/config`,
   getDdsCrewCallUrl: (exerciseId: string) =>
     `/telephony/exercises/${encodeURIComponent(exerciseId)}/crew-calls`,
   getDdsExerciseUrl: (exerciseId: string) => `/dds-exercises/${exerciseId}`,

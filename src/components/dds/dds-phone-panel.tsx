@@ -12,6 +12,10 @@ import { Delete, PhoneCall, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { DdsCrewHandoff } from "../../contracts/dds-exercise";
+import {
+  prepareBrowserPhoneWindow,
+  type BrowserPhoneWindowSession,
+} from "../../lib/browser-phone-window";
 import { telephonyService } from "../../services/telephony.service";
 import { isOfferedCrewNumber, normalizeDialedNumber } from "./dds-phone";
 
@@ -28,18 +32,25 @@ export function DdsPhonePanel({
 }) {
   const client = useQueryClient();
   const [number, setNumber] = useState(handoff.crews[0]?.phoneNumber ?? "");
+  const [windowError, setWindowError] = useState<string>();
   const command = useRef<{ number: string; eventId: string } | null>(null);
   const callsBeforeCommand = useRef<number | null>(null);
   const call = useMutation({
-    mutationFn: () => {
-      callsBeforeCommand.current ??= handoff.calls.length;
-      if (command.current?.number !== number) {
-        command.current = { number, eventId: crypto.randomUUID() };
+    mutationFn: async (phoneWindow: BrowserPhoneWindowSession) => {
+      try {
+        const phoneConfig = await telephonyService.getBrowserPhoneConfig();
+        await phoneWindow.connect(phoneConfig);
+        callsBeforeCommand.current ??= handoff.calls.length;
+        if (command.current?.number !== number) {
+          command.current = { number, eventId: crypto.randomUUID() };
+        }
+        return await telephonyService.startCrewCall(exerciseId, {
+          eventId: command.current.eventId,
+          dialedNumber: number,
+        });
+      } finally {
+        phoneWindow.dispose();
       }
-      return telephonyService.startCrewCall(exerciseId, {
-        eventId: command.current.eventId,
-        dialedNumber: number,
-      });
     },
     retry: false,
     onSuccess: async () => {
@@ -90,6 +101,7 @@ export function DdsPhonePanel({
           value={number}
           onChange={(event) => {
             setNumber(normalizeDialedNumber(event.currentTarget.value));
+            setWindowError(undefined);
             call.reset();
           }}
           className="mt-1 font-mono text-lg tabular-nums"
@@ -107,6 +119,7 @@ export function DdsPhonePanel({
             color="gray"
             onClick={() => {
               setNumber((current) => normalizeDialedNumber(`${current}${key}`));
+              setWindowError(undefined);
               call.reset();
             }}
           >
@@ -119,6 +132,7 @@ export function DdsPhonePanel({
           color="gray"
           onClick={() => {
             setNumber("");
+            setWindowError(undefined);
             call.reset();
           }}
         >
@@ -129,6 +143,7 @@ export function DdsPhonePanel({
           color="gray"
           onClick={() => {
             setNumber((current) => normalizeDialedNumber(`${current}0`));
+            setWindowError(undefined);
             call.reset();
           }}
         >
@@ -140,6 +155,7 @@ export function DdsPhonePanel({
           color="gray"
           onClick={() => {
             setNumber((current) => current.slice(0, -1));
+            setWindowError(undefined);
             call.reset();
           }}
         >
@@ -155,6 +171,7 @@ export function DdsPhonePanel({
             variant={number === crew.phoneNumber ? "solid" : "soft"}
             onClick={() => {
               setNumber(crew.phoneNumber);
+              setWindowError(undefined);
               call.reset();
             }}
           >
@@ -177,7 +194,18 @@ export function DdsPhonePanel({
         color="green"
         disabled={!canCall || !offered || call.isPending || call.isSuccess}
         loading={call.isPending}
-        onClick={() => call.mutate()}
+        onClick={() => {
+          setWindowError(undefined);
+          try {
+            call.mutate(prepareBrowserPhoneWindow());
+          } catch (error) {
+            setWindowError(
+              error instanceof Error
+                ? error.message
+                : "Не удалось открыть окно телефона",
+            );
+          }
+        }}
       >
         <PhoneCall size={16} /> Позвонить
       </Button>
@@ -185,8 +213,8 @@ export function DdsPhonePanel({
       {call.data && (
         <Callout.Root color="green">
           <Callout.Text>
-            Asterisk вызывает телефон рабочего места{" "}
-            {call.data.workstationExtension}. Снимите трубку и передайте
+            Asterisk вызывает окно телефона рабочего места{" "}
+            {call.data.workstationExtension}. Нажмите «Ответить» и передайте
             карточку наряду.
           </Callout.Text>
         </Callout.Root>
@@ -194,6 +222,11 @@ export function DdsPhonePanel({
       {call.error && (
         <Callout.Root color="red" role="alert">
           <Callout.Text>{call.error.message}</Callout.Text>
+        </Callout.Root>
+      )}
+      {windowError && (
+        <Callout.Root color="red" role="alert">
+          <Callout.Text>{windowError}</Callout.Text>
         </Callout.Root>
       )}
     </Card>
