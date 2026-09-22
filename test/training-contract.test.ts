@@ -12,6 +12,7 @@ import {
   isAssignmentForTarget,
   InstructorCallListSchema,
   LiveTrainingSessionListSchema,
+  MyTrainingAssignmentListSchema,
   TrainingAssignmentSchema,
 } from "../src/contracts/training";
 
@@ -46,6 +47,35 @@ describe("training contract", () => {
 
     expect(parsed.cardSource).toBe("ticket");
     expect(parsed.serviceTag).toBe("FIRE_101");
+  });
+
+  it("identifies the exact attempt that blocks a new training", () => {
+    const overview = MyTrainingAssignmentListSchema.parse({
+      assignments: [assignment],
+      activeAttempt: {
+        trainingSessionId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f04",
+        assignmentId: assignment.id,
+        assignmentTitle: assignment.title,
+        scenarioVersionId: assignment.scenarioVersionId,
+        type: "card_action",
+        attemptNumber: 2,
+        startedAt: "2026-09-15T10:00:00.000Z",
+        exerciseId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f04",
+      },
+    });
+
+    expect(overview.activeAttempt).toMatchObject({
+      assignmentTitle: assignment.title,
+      attemptNumber: 2,
+      type: "card_action",
+    });
+  });
+
+  it("opens assignments from a backend that does not report an active attempt yet", () => {
+    expect(
+      MyTrainingAssignmentListSchema.parse({ assignments: [assignment] })
+        .activeAttempt,
+    ).toBeNull();
   });
 
   it("offers the same lifecycle actions the backend allows", () => {

@@ -33,8 +33,10 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
     () => searchParams.get(SCENARIO_QUERY_PARAM) ?? undefined,
   );
   const { data, isPending } = useScenarios();
-  const { data: assignments, isPending: assignmentsPending } =
+  const { data: assignmentOverview, isPending: assignmentsPending } =
     useMyAssignments(isOperator);
+  const assignments = assignmentOverview?.assignments;
+  const activeAttempt = assignmentOverview?.activeAttempt;
 
   const scenarios = data ?? [];
   const current = scenarios.some(
@@ -56,11 +58,13 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
     ? undefined
     : assignmentsPending
       ? "Загружаем назначения"
-      : !assignment
-        ? "Сценарий не назначен"
-        : attemptsLeft(assignment) === 0
-          ? "Попытки по назначению исчерпаны"
-          : undefined;
+      : activeAttempt
+        ? `Уже выполняется «${activeAttempt.assignmentTitle}»`
+        : !assignment
+          ? "Сценарий не назначен"
+          : attemptsLeft(assignment) === 0
+            ? "Попытки по назначению исчерпаны"
+            : undefined;
 
   return (
     <div className="flex min-w-0 items-center gap-2">

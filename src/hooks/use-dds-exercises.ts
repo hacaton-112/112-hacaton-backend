@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { QUERY_KEYS } from "../config/query-keys";
 import type { DdsResponseStatus } from "../contracts/dds-exercise";
 import { ddsExerciseService } from "../services/dds-exercise.service";
 
@@ -29,7 +30,15 @@ export function useDdsExercises() {
       ),
     scope: { id: "dds-status-transition" },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        // «Выполнено» и «Отказ» закрывают попытку на backend. Даже если
+        // оператор сразу вернулся к назначениям, там не должна оставаться
+        // устаревшая плашка «Выполняется».
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.myAssignments(),
+        }),
+      ]);
     },
   });
 
