@@ -2254,3 +2254,595 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Рабочее место 112: раскладка снята со скриншотов реального АРМ ─── */
+
+.arm112-strip {
+  display: grid;
+  min-height: 76px;
+  flex: none;
+  grid-template-columns: 210px repeat(3, minmax(190px, 1fr)) minmax(230px, 0.9fr) 112px;
+  gap: 6px;
+  border-bottom: 1px solid var(--arm-line-dark);
+  background: #dfe2e3;
+  padding: 6px;
+}
+
+.arm112-hangup,
+.arm112-phone,
+.arm112-identity {
+  min-width: 0;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+}
+
+.arm112-hangup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+}
+
+.arm112-hangup svg {
+  color: #4a555c;
+}
+
+.arm112-hangup strong {
+  display: block;
+  color: var(--arm-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.arm112-hangup-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.arm112-hangup-actions span {
+  border: 1px solid #c4c9cb;
+  background: #f3f4f4;
+  padding: 2px 6px;
+  color: #5d686e;
+  font-size: 10px;
+}
+
+.arm112-phone {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.arm112-phone-icon {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  border-right: 1px solid #d5d9da;
+  color: #5d686e;
+}
+
+.arm112-phone-value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 5px 9px;
+}
+
+.arm112-phone-value > span {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+/* Номер набирается крупно и синим: в АРМ это самая читаемая строка полосы. */
+.arm112-phone-value strong {
+  overflow: hidden;
+  color: #2f4257;
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm112-phone[data-primary] .arm112-phone-value strong {
+  border-bottom: 2px solid var(--arm-blue);
+}
+
+.arm112-phone-badge {
+  margin-right: 8px;
+  border: 1px solid #c4c9cb;
+  background: #f3f4f4;
+  padding: 3px 9px;
+  color: #5d686e;
+  font-size: 11px;
+}
+
+.arm112-identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+}
+
+.arm112-identity strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm112-identity span {
+  color: #6d787e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.arm112-timer {
+  display: grid;
+  background: var(--arm-graphite);
+  color: #fff;
+  place-content: center;
+  text-align: center;
+}
+
+.arm112-timer[data-overdue="true"] {
+  background: #e51f27;
+}
+
+.arm112-timer strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm112-timer span {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 9px;
+}
+
+.arm112-timer span i {
+  font-style: normal;
+}
+
+.arm112-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: #e6e8e8;
+  padding: 6px;
+  gap: 6px;
+}
+
+.arm112-card {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1.08fr);
+  gap: 6px;
+}
+
+.arm112-column {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.arm112-block {
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.arm112-address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #5d686e;
+  font-size: 12px;
+}
+
+.arm112-address-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arm112-icon-button,
+.arm112-flat-button {
+  border: 1px solid transparent;
+  background: none;
+  color: #5d686e;
+  cursor: pointer;
+}
+
+.arm112-flat-button {
+  border-color: #c4c9cb;
+  background: #f3f4f4;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.arm112-icon-button:disabled,
+.arm112-flat-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Адрес одной строкой: в реальной системе это самое крупное поле карточки. */
+.arm112-address-value {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #c4c9cb;
+  background: none;
+  padding: 4px 0 6px;
+  color: var(--arm-ink);
+  font-size: 19px;
+  outline: none;
+}
+
+.arm112-address-value:focus {
+  border-bottom-color: var(--arm-blue);
+}
+
+.arm112-grid {
+  display: grid;
+  margin-top: 10px;
+  gap: 10px 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.arm112-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.arm112-field[data-wide] {
+  margin-top: 10px;
+  grid-column: 1 / -1;
+}
+
+.arm112-field span {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-field input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #c4c9cb;
+  background: none;
+  padding: 3px 0 4px;
+  color: var(--arm-ink);
+  font-size: 13px;
+  outline: none;
+}
+
+.arm112-field input:focus {
+  border-bottom-color: var(--arm-blue);
+}
+
+.arm112-nearby {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  padding-bottom: 4px;
+  color: #5d686e;
+  font-size: 12px;
+}
+
+.arm112-address-actions {
+  display: flex;
+  justify-content: end;
+  margin-top: 10px;
+}
+
+.arm112-description {
+  display: flex;
+  min-height: 150px;
+  flex: 1;
+  flex-direction: column;
+}
+
+.arm112-block-label {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-description textarea {
+  width: 100%;
+  min-height: 110px;
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 6px 0;
+  color: var(--arm-ink);
+  font-size: 14px;
+  outline: none;
+  resize: none;
+}
+
+.arm112-counter {
+  align-self: end;
+  color: #8a959a;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.arm112-facts {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 8px 12px;
+  gap: 8px 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.arm112-classifier {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.arm112-type-search {
+  display: flex;
+  flex-direction: column;
+}
+
+.arm112-type-search span {
+  color: var(--arm-blue);
+  font-size: 12px;
+}
+
+.arm112-type-search input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--arm-blue);
+  background: none;
+  padding: 4px 0 6px;
+  color: var(--arm-ink);
+  font-size: 20px;
+  outline: none;
+}
+
+.arm112-type-search input::placeholder {
+  color: #9aa4a9;
+}
+
+.arm112-type-matches {
+  max-height: 230px;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  overflow: auto;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+}
+
+.arm112-type-matches button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  border-bottom: 1px solid #edefef;
+  background: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.arm112-type-matches button:hover {
+  background: #eef6fb;
+}
+
+.arm112-type-matches strong {
+  color: var(--arm-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.arm112-type-matches span {
+  color: #8a959a;
+  font-size: 11px;
+}
+
+/* Тёмная шапка выбранного происшествия — как в реальном опроснике АРМ. */
+.arm112-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #3b4247;
+  padding: 7px 12px;
+  color: #fff;
+}
+
+.arm112-q-head strong {
+  border-bottom: 1px solid #8e9ba2;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.arm112-q-head button {
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.arm112-q-row {
+  display: grid;
+  align-items: start;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 210px) minmax(0, 1fr);
+}
+
+.arm112-q-label {
+  padding-top: 5px;
+  color: #5d686e;
+  font-size: 13px;
+}
+
+.arm112-q-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Плитка признака: невыбранная — контур, выбранная — заливка. */
+.arm112-chip {
+  border: 1px solid var(--arm-blue);
+  background: #fff;
+  padding: 5px 12px;
+  color: var(--arm-blue);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.arm112-chip[aria-pressed="true"] {
+  background: var(--arm-blue);
+  color: #fff;
+}
+
+.arm112-chip:disabled {
+  border-color: #c4c9cb;
+  color: #9aa4a9;
+  cursor: not-allowed;
+}
+
+@media (width <= 1280px) {
+  .arm112-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm112-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .arm112-q-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Полоса служб внизу карточки: вкладка на каждую выбранную службу. */
+.arm112-dock-row {
+  display: grid;
+  align-items: center;
+  padding: 0 10px;
+  gap: 10px;
+  grid-template-columns: 7rem minmax(0, 1fr) minmax(6rem, 12rem) auto;
+}
+
+.arm112-services {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.arm112-services-label,
+.arm112-services-empty {
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  color: #ffd9cc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.arm112-service-tab {
+  display: grid;
+  align-items: center;
+  border-left: 1px solid rgb(255 255 255 / 35%);
+  padding: 4px 10px 6px;
+  gap: 0 6px;
+  grid-template-areas:
+    "icon close"
+    "name name";
+}
+
+.arm112-service-tab:last-of-type {
+  border-right: 1px solid rgb(255 255 255 / 35%);
+}
+
+.arm112-service-tab > svg {
+  grid-area: icon;
+  color: #fff;
+}
+
+.arm112-service-tab strong {
+  border-bottom: 1px solid #fff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  grid-area: name;
+  white-space: nowrap;
+}
+
+.arm112-service-close {
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  grid-area: close;
+  justify-self: end;
+}
+
+.arm112-service-close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-add {
+  align-self: center;
+  margin-left: 10px;
+  border: 1px solid rgb(255 255 255 / 55%);
+  background: none;
+  padding: 4px 10px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.arm112-service-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-menu {
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  gap: 2px;
+}
+
+.arm112-service-menu button {
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  color: var(--arm-ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.arm112-service-menu button:hover {
+  background: var(--arm-blue-soft);
+}
+
+@media (width <= 1280px) {
+  .arm112-dock-row {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+  }
+
+  .arm112-dock-row > :nth-child(3) {
+    display: none;
+  }
+}

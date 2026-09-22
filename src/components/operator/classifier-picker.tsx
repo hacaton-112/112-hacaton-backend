@@ -2,7 +2,6 @@ import {
   Badge,
   Button,
   Callout,
-  Checkbox,
   Flex,
   Select,
   Spinner,
@@ -26,6 +25,7 @@ import {
 import {
   classifierNodeAtPath,
   findClassifierPath,
+  searchClassifierLeaves,
 } from "../../services/classifier-tree";
 import { FormField } from "../auth/form-field";
 
@@ -51,6 +51,7 @@ export function ClassifierPicker({
 }: ClassifierPickerProps) {
   const treeQuery = useActiveClassifierTree();
   const [pathKeys, setPathKeys] = useState<readonly string[]>([]);
+  const [search, setSearch] = useState("");
   const syncedEntryId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -69,6 +70,10 @@ export function ClassifierPicker({
   const levels = useMemo(
     () => buildLevels(treeQuery.data?.tree ?? [], pathKeys),
     [pathKeys, treeQuery.data?.tree],
+  );
+  const matches = useMemo(
+    () => searchClassifierLeaves(treeQuery.data?.tree ?? [], search),
+    [search, treeQuery.data?.tree],
   );
   const selectedNode = treeQuery.data
     ? classifierNodeAtPath(treeQuery.data.tree, pathKeys)
@@ -162,82 +167,103 @@ export function ClassifierPicker({
     );
   }
 
+  const reset = () => {
+    syncedEntryId.current = null;
+    setPathKeys([]);
+    setSearch("");
+    onChange?.({
+      classifierEntryId: null,
+      classifierQualifierCodes: [],
+      incidentType: null,
+    });
+  };
+  const choose = (node: ClassifierTreeNode, nextPath: readonly string[]) => {
+    setPathKeys(nextPath);
+
+    if (node.level === "leaf" && node.entryId) {
+      syncedEntryId.current = node.entryId;
+      setSearch("");
+      onChange?.({
+        classifierEntryId: node.entryId,
+        classifierQualifierCodes: [],
+        incidentType: node.label,
+      });
+    }
+  };
+
   return (
-    <div className="arm-classifier mt-3 grid gap-3">
-      <Flex align="center" justify="between" gap="2">
-        <div>
-          <Text size="1" color="gray">
-            Классификатор происшествий
-          </Text>
-          {treeQuery.data && (
-            <Text as="div" size="1" color="gray">
-              Версия {treeQuery.data.version.version}
-            </Text>
-          )}
-        </div>
-        {entryId && (
-          <Button
+    <div className="arm112-classifier">
+      <label className="arm112-type-search" htmlFor="classifier-search">
+        <span>Введите тип происшествия</span>
+        <input
+          id="classifier-search"
+          type="search"
+          autoComplete="off"
+          placeholder="что случилось?"
+          value={search}
+          disabled={disabled}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+
+      {matches.length > 0 && (
+        <ul className="arm112-type-matches">
+          {matches.map(({ node, path }) => (
+            <li key={node.key}>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  choose(
+                    node,
+                    path.map((step) => step.key),
+                  )
+                }
+              >
+                <strong>{node.label}</strong>
+                <span>{path.map(({ label }) => label).join(" · ")}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Заголовок выбранного происшествия: в АРМ он тёмный и закрывается
+          крестиком, который снимает и тип, и все его признаки. */}
+      {selectedNode && (
+        <div className="arm112-q-head">
+          <strong>{resolvedRouting?.finalType ?? selectedNode.label}</strong>
+          <button
             type="button"
-            size="1"
-            variant="ghost"
-            color="gray"
+            aria-label="Снять тип происшествия"
             disabled={disabled}
-            onClick={() => {
-              syncedEntryId.current = null;
-              setPathKeys([]);
-              onChange?.({
-                classifierEntryId: null,
-                classifierQualifierCodes: [],
-                incidentType: null,
-              });
-            }}
+            onClick={reset}
           >
-            <RotateCcw size={13} /> Сбросить
-          </Button>
-        )}
-      </Flex>
+            <RotateCcw size={15} aria-hidden />
+          </button>
+        </div>
+      )}
 
       {levels.map((level, index) => (
-        <FormField
-          key={`${index}:${level.options[0]?.key ?? "empty"}`}
-          label={levelLabel(index, level.options)}
-          htmlFor={`classifier-level-${index}`}
-        >
-          <Select.Root
-            size="1"
-            value={pathKeys[index] ?? ""}
-            disabled={disabled}
-            onValueChange={(key) => {
-              const node = level.options.find((option) => option.key === key);
-              if (!node) return;
-
-              const nextPath = [...pathKeys.slice(0, index), key];
-              setPathKeys(nextPath);
-
-              if (node.level === "leaf" && node.entryId) {
-                syncedEntryId.current = node.entryId;
-                onChange?.({
-                  classifierEntryId: node.entryId,
-                  classifierQualifierCodes: [],
-                  incidentType: node.label,
-                });
-              }
-            }}
-          >
-            <Select.Trigger
-              id={`classifier-level-${index}`}
-              className="w-full"
-              placeholder="Выберите значение"
-            />
-            <Select.Content>
-              {level.options.map((node) => (
-                <Select.Item key={node.key} value={node.key}>
-                  {node.label}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        </FormField>
+        <div className="arm112-q-row" key={`${index}:${level.options[0]?.key ?? "empty"}`}>
+          <span className="arm112-q-label">
+            {levelLabel(index, level.options)}
+          </span>
+          <div className="arm112-q-chips">
+            {level.options.map((node) => (
+              <button
+                key={node.key}
+                type="button"
+                className="arm112-chip"
+                aria-pressed={pathKeys[index] === node.key}
+                disabled={disabled}
+                onClick={() => choose(node, [...pathKeys.slice(0, index), node.key])}
+              >
+                {node.label}
+              </button>
+            ))}
+          </div>
+        </div>
       ))}
 
       {routeQuery.isFetching && selectedEntryId && (
@@ -262,34 +288,35 @@ export function ClassifierPicker({
       )}
 
       {routeQuery.data && routeQuery.data.availableQualifiers.length > 0 && (
-        <div className="grid gap-1.5">
-          <Text size="1" color="gray">
-            Дополнительные признаки
-          </Text>
-          {routeQuery.data.availableQualifiers.map((qualifier) => (
-            <Text as="label" size="1" key={qualifier.code}>
-              <Flex align="center" gap="2">
-                <Checkbox
-                  size="1"
-                  checked={qualifierCodes.includes(qualifier.code)}
+        <div className="arm112-q-row">
+          <span className="arm112-q-label">Дополнительные признаки</span>
+          <div className="arm112-q-chips">
+            {routeQuery.data.availableQualifiers.map((qualifier) => {
+              const picked = qualifierCodes.includes(qualifier.code);
+
+              return (
+                <button
+                  key={qualifier.code}
+                  type="button"
+                  className="arm112-chip"
+                  aria-pressed={picked}
                   disabled={disabled}
-                  onCheckedChange={(checked) => {
-                    const next =
-                      checked === true
-                        ? [...qualifierCodes, qualifier.code]
-                        : qualifierCodes.filter(
-                            (code) => code !== qualifier.code,
-                          );
+                  onClick={() =>
                     onChange?.({
                       classifierEntryId: selectedEntryId,
-                      classifierQualifierCodes: next,
-                    });
-                  }}
-                />
-                {qualifier.label}
-              </Flex>
-            </Text>
-          ))}
+                      classifierQualifierCodes: picked
+                        ? qualifierCodes.filter(
+                            (code) => code !== qualifier.code,
+                          )
+                        : [...qualifierCodes, qualifier.code],
+                    })
+                  }
+                >
+                  {qualifier.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

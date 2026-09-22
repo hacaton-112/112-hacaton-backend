@@ -10,7 +10,9 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
+import type { DispatchService } from "../../contracts/incident";
 import type { CallControls, CallSnapshot } from "../../hooks/use-call";
+import { ServiceBar } from "./service-bar";
 import { OperatorTour } from "./operator-tour";
 import { ScenarioPicker } from "./scenario-picker";
 import { VoiceVisualizerPanel } from "./voice-visualizer-panel";
@@ -18,6 +20,10 @@ import { ROUTES } from "../../config/routes";
 
 type CallControlDockProps = Omit<CallSnapshot & CallControls, "end"> & {
   missingCardFields: readonly string[];
+  /** Службы карточки: в АРМ они живут в этой же нижней полосе. */
+  services: readonly DispatchService[];
+  classifierServices: readonly DispatchService[];
+  onToggleService: (service: DispatchService) => void;
   dispatchError?: string;
   isCardSubmitted: boolean;
   isDispatching: boolean;
@@ -66,13 +72,20 @@ export function CallControlDock(props: CallControlDockProps) {
       data-tour="call-controls"
       aria-label="Управление звонком"
     >
-      <div className="grid grid-cols-[7rem_minmax(10rem,1fr)_auto] items-center gap-3 px-3 py-2">
+      <div className="arm112-dock-row">
         <div className="flex min-w-0 items-center gap-2">
           <span className="arm-dock-label">Вызов</span>
           <Text size="3" weight="bold" className="text-white! tabular-nums">
             {formatDuration(props.elapsedSeconds)}
           </Text>
         </div>
+
+        <ServiceBar
+          services={props.services}
+          classifierServices={props.classifierServices}
+          disabled={props.state !== "active" || props.isRecovering}
+          onToggle={props.onToggleService}
+        />
 
         <AudioMonitor>
           <div className="relative h-full">

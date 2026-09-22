@@ -1,16 +1,13 @@
 import {
   Button,
-  Card,
   Checkbox,
   DatePicker,
-  Flex,
   NumberField,
   Text,
-  TextArea,
-  TextField,
 } from "@bolid-ui/themes";
+import { MapPin, X } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   Controller,
   useForm,
@@ -47,6 +44,8 @@ interface IncidentFormProps {
   locationFill?: IncidentLocationFill;
   /** Обязательные для отправки поля, которые оператор ещё не заполнил. */
   missingRequirements?: readonly IncidentCardRequirement[];
+  /** Строка заявителя: в АРМ она стоит над адресом, в том же столбце. */
+  callerSlot?: ReactNode;
 }
 
 export function IncidentForm({
@@ -56,6 +55,7 @@ export function IncidentForm({
   onChange,
   locationFill,
   missingRequirements = [],
+  callerSlot,
 }: IncidentFormProps) {
   const { control, register, reset, getValues, setValue } = useForm<
     IncidentCardInput,
@@ -121,96 +121,100 @@ export function IncidentForm({
     }
   }, [values, getValues, onChange, sessionId]);
 
-  return (
-    <form
-      className="arm-incident-form grid content-start gap-2"
-      data-tour="incident"
-      noValidate
-    >
-      <Card
-        size="2"
-        variant="classic"
-        aria-labelledby="location-title"
-        className="arm-location-card isolate [--card-background-color:var(--color-panel-solid)]"
-      >
-        <Text id="location-title" size="2" weight="bold">
-          Место происшествия
-        </Text>
+  const clearAddress = () => {
+    const options = { shouldDirty: true, shouldTouch: true } as const;
+    setValue("addressText", "", options);
+    setValue("district", "", options);
+    setValue("objectType", "", options);
+    setValue("entrance", "", options);
+    setValue("floor", "", options);
+    setValue("intercom", "", options);
+    setValue("placeNotes", "", options);
+    setValue("latitude", null, options);
+    setValue("longitude", null, options);
+  };
+  const descriptionLength = values.description?.length ?? 0;
 
-        <RequiredField
-          missing={missingRequirements.includes("address")}
-          message="Укажите адрес происшествия"
-        >
-          <FormField
-            label="Адрес (улица, дом, корпус, строение, владение, дорога, километр, метр, адресный участок, объект)"
-            htmlFor="addressText"
+  return (
+    <form className="arm112-card" data-tour="incident" noValidate>
+      <div className="arm112-column">
+        {callerSlot}
+
+        <section className="arm112-block" aria-labelledby="location-title">
+          <header className="arm112-address-head">
+            <span id="location-title">
+              <MapPin size={14} aria-hidden /> Адрес:
+            </span>
+            <button
+              type="button"
+              className="arm112-icon-button"
+              aria-label="Очистить адрес"
+              disabled={disabled}
+              onClick={clearAddress}
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </header>
+
+          <RequiredField
+            missing={missingRequirements.includes("address")}
+            message="Укажите адрес происшествия"
           >
-            <TextField.Root
+            <input
               id="addressText"
-              size="1"
+              className="arm112-address-value"
               placeholder="Введите адрес"
+              autoComplete="off"
               disabled={disabled}
               aria-invalid={missingRequirements.includes("address")}
               {...register("addressText")}
             />
-          </FormField>
-        </RequiredField>
+          </RequiredField>
 
-        <div className="incident-pair-grid mt-3 grid gap-2">
-          <TextInput
-            name="district"
-            label="Район"
-            placeholder="Введите район"
-            register={register}
-            disabled={disabled}
-          />
-          <TextInput
-            name="objectType"
-            label="Объект"
-            placeholder="Введите объект"
-            register={register}
-            disabled={disabled}
-          />
-        </div>
-
-        <div className="location-details-grid mt-3 grid gap-3">
-          <TextInput
-            name="entrance"
-            label="Подъезд"
-            placeholder="Введите подъезд"
-            register={register}
-            disabled={disabled}
-          />
-          <TextInput
-            name="floor"
-            label="Этаж"
-            placeholder="Введите этаж"
-            register={register}
-            disabled={disabled}
-          />
-          <TextInput
-            name="intercom"
-            label="Домофон"
-            placeholder="Введите домофон"
-            register={register}
-            disabled={disabled}
-          />
-          <TextInput
-            name="latitude"
-            label="Широта"
-            placeholder="Введите широту"
-            register={register}
-            disabled={disabled}
-          />
-          <TextInput
-            name="longitude"
-            label="Долгота"
-            placeholder="Введите долготу"
-            register={register}
-            disabled={disabled}
-          />
-          <Text as="label" size="1" color="gray" className="self-end pb-1">
-            <Flex align="center" gap="1">
+          <div className="arm112-grid">
+            <LineField
+              name="district"
+              label="Округ, район"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="objectType"
+              label="Объект"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="entrance"
+              label="Подъезд"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="floor"
+              label="Этаж"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="intercom"
+              label="Код, домофон"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="latitude"
+              label="Широта"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="longitude"
+              label="Долгота"
+              register={register}
+              disabled={disabled}
+            />
+            <label className="arm112-nearby">
               <Controller
                 control={control}
                 name="nearby"
@@ -218,110 +222,58 @@ export function IncidentForm({
                   <Checkbox
                     size="1"
                     checked={field.value}
-                    onCheckedChange={(checked) =>
-                      field.onChange(checked === true)
-                    }
                     disabled={disabled}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
                   />
                 )}
               />
               Рядом
-            </Flex>
-          </Text>
-        </div>
-
-        <FormField label="Доп. информация" htmlFor="placeNotes">
-          <TextArea
-            id="placeNotes"
-            size="1"
-            rows={2}
-            placeholder="Напишите…"
-            disabled={disabled}
-            {...register("placeNotes")}
-          />
-        </FormField>
-      </Card>
-
-      <Card
-        size="2"
-        variant="classic"
-        aria-labelledby="incident-title"
-        className="arm-incident-card"
-      >
-        <Text id="incident-title" size="2" weight="bold">
-          О происшествии
-        </Text>
-
-        <RequiredField
-          missing={
-            missingRequirements.includes("incidentType") ||
-            missingRequirements.includes("classifierRouting")
-          }
-          message="Выберите тип и классификацию происшествия"
-        >
-          <ClassifierPicker
-            entryId={card?.classifierEntryId ?? null}
-            qualifierCodes={card?.classifierQualifierCodes ?? []}
-            routing={card?.classifierRouting ?? null}
-            incidentType={card?.incidentType ?? null}
-            disabled={disabled}
-            onChange={onChange}
-          />
-        </RequiredField>
-
-        <div className="incident-meta-grid mt-3 grid items-end gap-2">
-          <div className="min-w-0">
-            <Text size="1" color="gray">
-              Категория
-            </Text>
-            <Controller
-              control={control}
-              name="categories"
-              render={({ field }) => (
-                <Flex gap="1" mt="1" wrap="wrap">
-                  {INCIDENT_CATEGORIES.map((category) => {
-                    const active = field.value.includes(category);
-
-                    return (
-                      <Tag
-                        key={category}
-                        active={active}
-                        disabled={disabled}
-                        onClick={() =>
-                          field.onChange(
-                            active
-                              ? field.value.filter((item) => item !== category)
-                              : [...field.value, category],
-                          )
-                        }
-                      >
-                        {INCIDENT_CATEGORY_LABELS[category]}
-                      </Tag>
-                    );
-                  })}
-                </Flex>
-              )}
-            />
+            </label>
           </div>
-          <FormField label="Дата происшествия" htmlFor="startedAt">
-            <Controller
-              control={control}
-              name="startedAt"
-              render={({ field }) => (
-                <DatePicker
-                  id="startedAt"
-                  size="1"
-                  placeholder="дд.мм.гггг"
-                  value={field.value ? new Date(field.value) : null}
-                  disabled={disabled}
-                  onChange={(value) => field.onChange(toIsoDate(value))}
-                />
-              )}
-            />
-          </FormField>
-        </div>
 
-        <div className="incident-counts-grid mt-3 grid gap-3">
+          <LineField
+            name="placeNotes"
+            label="Описательный адрес"
+            register={register}
+            disabled={disabled}
+            wide
+          />
+
+          <div className="arm112-address-actions">
+            <button
+              type="button"
+              className="arm112-flat-button"
+              disabled={disabled}
+              onClick={clearAddress}
+            >
+              очистить адрес
+            </button>
+          </div>
+        </section>
+
+        <section className="arm112-block arm112-description">
+          <span className="arm112-block-label">Описание со слов заявителя</span>
+          <RequiredField
+            missing={missingRequirements.includes("description")}
+            message="Запишите краткое описание со слов заявителя"
+          >
+            <textarea
+              id="description"
+              placeholder="введите"
+              maxLength={1999}
+              disabled={disabled}
+              aria-invalid={missingRequirements.includes("description")}
+              {...register("description")}
+            />
+          </RequiredField>
+          <span className="arm112-counter">{descriptionLength} / 1999</span>
+        </section>
+      </div>
+
+      <div className="arm112-column">
+        {/* Строка сведений о происшествии: в АРМ она стоит над типом, потому
+            что пострадавших и дату оператор уточняет по ходу разговора. */}
+        <div className="arm112-facts">
           <CountField
             name="victimsTotal"
             label="Пострадавшие"
@@ -346,25 +298,73 @@ export function IncidentForm({
             control={control}
             disabled={disabled}
           />
-        </div>
-
-        <RequiredField
-          missing={missingRequirements.includes("description")}
-          message="Запишите краткое описание со слов заявителя"
-        >
-          <FormField label="Описание со слов заявителя" htmlFor="description">
-            <TextArea
-              id="description"
-              size="1"
-              rows={2}
-              placeholder="Напишите…"
-              disabled={disabled}
-              aria-invalid={missingRequirements.includes("description")}
-              {...register("description")}
+          <FormField label="Дата происшествия" htmlFor="startedAt">
+            <Controller
+              control={control}
+              name="startedAt"
+              render={({ field }) => (
+                <DatePicker
+                  id="startedAt"
+                  size="1"
+                  placeholder="дд.мм.гггг"
+                  value={field.value ? new Date(field.value) : null}
+                  disabled={disabled}
+                  onChange={(value) => field.onChange(toIsoDate(value))}
+                />
+              )}
             />
           </FormField>
+        </div>
+
+        <Controller
+          control={control}
+          name="categories"
+          render={({ field }) => (
+            <div className="arm112-q-row">
+              <span className="arm112-q-label">Метки происшествия</span>
+              <div className="arm112-q-chips">
+                {INCIDENT_CATEGORIES.map((category) => {
+                  const active = field.value.includes(category);
+
+                  return (
+                    <Tag
+                      key={category}
+                      active={active}
+                      disabled={disabled}
+                      onClick={() =>
+                        field.onChange(
+                          active
+                            ? field.value.filter((item) => item !== category)
+                            : [...field.value, category],
+                        )
+                      }
+                    >
+                      {INCIDENT_CATEGORY_LABELS[category]}
+                    </Tag>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        />
+
+        <RequiredField
+          missing={
+            missingRequirements.includes("incidentType") ||
+            missingRequirements.includes("classifierRouting")
+          }
+          message="Выберите тип и классификацию происшествия"
+        >
+          <ClassifierPicker
+            entryId={card?.classifierEntryId ?? null}
+            qualifierCodes={card?.classifierQualifierCodes ?? []}
+            routing={card?.classifierRouting ?? null}
+            incidentType={card?.incidentType ?? null}
+            disabled={disabled}
+            onChange={onChange}
+          />
         </RequiredField>
-      </Card>
+      </div>
     </form>
   );
 }
@@ -433,31 +433,33 @@ type TextFieldName =
   | "floor"
   | "intercom"
   | "latitude"
-  | "longitude";
+  | "longitude"
+  | "placeNotes";
 
-function TextInput({
+/**
+ * Поле АРМ: подпись сверху, значение на подчёркнутой строке.
+ *
+ * Рамок у полей в реальной системе нет — их роль играет линия под текстом,
+ * и за счёт этого в столбец помещается весь адрес целиком.
+ */
+function LineField({
   name,
   label,
-  placeholder,
   register,
   disabled,
+  wide = false,
 }: {
   name: TextFieldName;
   label: string;
-  placeholder: string;
   register: UseFormRegister<IncidentCardInput>;
   disabled: boolean;
+  wide?: boolean;
 }) {
   return (
-    <FormField label={label} htmlFor={name}>
-      <TextField.Root
-        id={name}
-        size="1"
-        placeholder={placeholder}
-        disabled={disabled}
-        {...register(name)}
-      />
-    </FormField>
+    <label className="arm112-field" data-wide={wide || undefined} htmlFor={name}>
+      <span>{label}</span>
+      <input id={name} autoComplete="off" disabled={disabled} {...register(name)} />
+    </label>
   );
 }
 
