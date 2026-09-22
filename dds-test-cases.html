@@ -1,0 +1,331 @@
+<title>Тест-кейсы тренажёра ДДС</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F3F5F7; --surface:#FFFFFF; --ink:#16202B; --muted:#5A6878; --line:#D9E0E7;
+  --accent:#1D4F91; --accent-soft:#E3ECF7;
+  --pass:#1E7A46; --pass-soft:#E1F2E7; --fail:#B42318; --fail-soft:#FBE6E3; --block:#9A6200; --block-soft:#FBF0D9;
+  --p1:#B42318; --p2:#9A6200; --p3:#5A6878;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0F151C; --surface:#17202A; --ink:#E5EBF1; --muted:#95A3B3; --line:#2A3643;
+  --accent:#7FB0F0; --accent-soft:#1B2C42;
+  --pass:#5CC98A; --pass-soft:#15301F; --fail:#F2877A; --fail-soft:#3A1C19; --block:#E9B55B; --block-soft:#352A14;
+  --p1:#F2877A; --p2:#E9B55B; --p3:#95A3B3; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#0F151C; --surface:#17202A; --ink:#E5EBF1; --muted:#95A3B3; --line:#2A3643;
+  --accent:#7FB0F0; --accent-soft:#1B2C42;
+  --pass:#5CC98A; --pass-soft:#15301F; --fail:#F2877A; --fail-soft:#3A1C19; --block:#E9B55B; --block-soft:#352A14;
+  --p1:#F2877A; --p2:#E9B55B; --p3:#95A3B3; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.55 var(--sans);padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:980px;margin:0 auto}
+header.top{padding-block:32px 20px;display:grid;gap:10px}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font:600 clamp(26px,4vw,34px)/1.15 var(--cond);margin:0;text-wrap:balance}
+.lede{color:var(--muted);max-width:68ch;margin:0}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:8px}
+.meta div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.meta dt{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.meta dd{margin:2px 0 0;font:500 14px/1.4 var(--mono);word-break:break-word}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:10px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.progress{display:flex;gap:8px;flex-wrap:wrap;font:500 13px/1 var(--mono);font-variant-numeric:tabular-nums}
+.pill{padding:6px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.pill.pass{color:var(--pass)} .pill.fail{color:var(--fail)} .pill.block{color:var(--block)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+button{font:inherit;cursor:pointer}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 10px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.chip:focus-visible,.st:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;padding-block:14px;font-size:13px}
+nav.toc a{color:var(--accent);text-decoration:none} nav.toc a:hover{text-decoration:underline}
+section.group{margin-top:28px}
+section.group>h2{font:600 21px/1.2 var(--cond);margin:0 0 4px;display:flex;gap:10px;align-items:baseline}
+section.group>h2 .code{font:500 13px var(--mono);color:var(--muted)}
+section.group>p{margin:0 0 12px;color:var(--muted);max-width:72ch}
+.case{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:10px;display:grid;gap:8px}
+.case[data-status="pass"]{border-left:4px solid var(--pass)}
+.case[data-status="fail"]{border-left:4px solid var(--fail)}
+.case[data-status="block"]{border-left:4px solid var(--block)}
+.case-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.cid{font:500 13px var(--mono);color:var(--accent)}
+.case h3{font:600 16px/1.35 var(--sans);margin:0;flex:1 1 280px}
+.prio{font:500 11px/1 var(--mono);padding:4px 6px;border-radius:4px;border:1px solid currentColor;letter-spacing:.04em}
+.prio.P1{color:var(--p1)} .prio.P2{color:var(--p2)} .prio.P3{color:var(--p3)}
+.role{font-size:12px;color:var(--muted)}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0}
+.case ol,.case ul{margin:2px 0 0;padding-left:22px}
+.case li{margin:2px 0}
+.pre{margin:0;color:var(--muted);font-size:14px}
+.exp{background:var(--accent-soft);border-radius:6px;padding:8px 10px}
+.exp ul{padding-left:18px}
+code,.m{font:13px var(--mono);background:var(--ground);padding:1px 5px;border-radius:4px}
+.actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.st{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 10px;font-size:13px}
+.st[data-v="pass"][aria-pressed="true"]{background:var(--pass-soft);border-color:var(--pass);color:var(--pass)}
+.st[data-v="fail"][aria-pressed="true"]{background:var(--fail-soft);border-color:var(--fail);color:var(--fail)}
+.st[data-v="block"][aria-pressed="true"]{background:var(--block-soft);border-color:var(--block);color:var(--block)}
+textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:6px;padding:8px;font:14px/1.4 var(--sans);background:var(--ground);color:var(--ink);resize:vertical}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:16px}
+.note h2{font:600 17px var(--cond);margin:0 0 6px}
+.note ul{margin:0;padding-left:20px}
+.export{margin-top:28px;display:grid;gap:8px}
+.export textarea{min-height:160px;font:13px/1.45 var(--mono)}
+.primary{background:var(--accent);color:var(--surface);border:0;border-radius:6px;padding:8px 14px;font-weight:500;justify-self:start}
+.guide{display:grid;gap:14px;margin-top:6px}
+.guide h2{font:600 21px/1.2 var(--cond);margin:8px 0 0}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;padding:0;margin:0;list-style:none}
+.flow li{flex:1 1 150px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;position:relative}
+.flow b{display:block;font:600 14px var(--sans);margin-bottom:2px}
+.flow .who{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.roles{width:100%;border-collapse:collapse;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.roles th,.roles td{text-align:left;padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+.roles th{background:var(--accent-soft);font-weight:600;border-top:0}
+.tbl{overflow-x:auto}
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 18px;margin:0}
+.gloss div{padding:6px 0;border-bottom:1px solid var(--line)}
+.gloss dt{font-weight:600}
+.gloss dd{margin:2px 0 0;color:var(--muted);font-size:14px}
+.statuses{font-size:14px;margin:0}
+@media (max-width:600px){.filters{margin-left:0}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Тренажёр «Система-112» · регрессия этапов 1–4</span>
+  <h1>Тест-кейсы тренажёра ДДС</h1>
+  <p class="lede">Ручная проверка стенда перед показом. Главное по бизнес-кейсу — тренажёр диспетчера ДДС (разделы&nbsp;B–G), звонки в 112 — дополнительный балл (раздел&nbsp;H). Сначала прочитайте «Как устроена система» — пять минут, и дальше кейсы читаются без вопросов. Отмечайте результат у каждого кейса: отметки хранятся в этом браузере, а внизу страницы собирается текст отчёта для разработчиков.</p>
+  <dl class="meta">
+    <div><dt>Стенд</dt><dd>https://185.137.232.158</dd></div>
+    <div><dt>Сборка</dt><dd>backend b87d6f9 · клиент c6034f2</dd></div>
+    <div><dt>Роли</dt><dd>преподаватель, 2 оператора, админ</dd></div>
+    <div><dt>Браузер</dt><dd>Chrome / Edge, микрофон</dd></div>
+  </dl>
+
+  <section class="guide" aria-labelledby="how-h">
+    <h2 id="how-h">Как устроена система</h2>
+    <p class="lede">Тренажёр учит две профессии. <b>Оператор 112</b> принимает звонок, заполняет карточку происшествия и отправляет её в службу. <b>Диспетчер ДДС</b> (дежурно-диспетчерская служба: пожарные, скорая, полиция, газ…) получает готовую карточку, принимает её, ведёт по статусам и пишет короткие рабочие комментарии. Проверяем прежде всего диспетчера ДДС — это основа бизнес-кейса.</p>
+    <ol class="flow" aria-label="Путь карточки">
+      <li><span class="who">Преподаватель</span><b>Готовит сценарии</b>вручную или просит ИИ набросать черновик</li>
+      <li><span class="who">Преподаватель</span><b>Запускает занятие</b>на группу: категории, норматив приёма, порог</li>
+      <li><span class="who">Диспетчер</span><b>Ведёт карточки</b>по очереди, от «Принята» до «Работы завершены» или «Отказ»</li>
+      <li><span class="who">Система</span><b>Оценивает</b>процесс, время и текст комментариев по эталону</li>
+      <li><span class="who">Преподаватель</span><b>Смотрит отчёт</b>выгружает его и читает выводы ИИ по группе</li>
+    </ol>
+    <p class="statuses"><b>Статусы карточки ДДС:</b> Добавлена → Принята (или сначала «Не принята» с причиной) → Начало реагирования → Прибытие → Проведение работ → Работы завершены. С любого шага после «Принята» — «Отказ от выполнения работ» с причиной. Перескочить шаг интерфейс не даёт.</p>
+    <div class="tbl"><table class="roles">
+      <thead><tr><th>Роль</th><th>Где работает</th><th>Что делает в тестах</th></tr></thead>
+      <tbody>
+        <tr><td>Преподаватель</td><td>«Учебные сценарии», «Мониторинг» → вкладки «Занятия ДДС», «Активные попытки»</td><td>сценарии, эталоны, занятия, отчёты</td></tr>
+        <tr><td>Оператор (как диспетчер ДДС)</td><td>«Карточки ДДС», «Мои результаты ДДС»</td><td>проходит карточки занятия, смотрит свои баллы</td></tr>
+        <tr><td>Оператор (как оператор 112)</td><td>«Рабочее место»</td><td>голосовой звонок и отправка карточки в службу</td></tr>
+        <tr><td>Администратор</td><td>«Администрирование»</td><td>пользователи и группы, если нужно подготовить данные</td></tr>
+      </tbody>
+    </table></div>
+    <dl class="gloss">
+      <div><dt>Сценарий</dt><dd>учебное происшествие: кто звонит, что случилось, какие службы нужны. Коды T01-1…T32-3 — вызовы из экзаменационных билетов ТЗ.</dd></div>
+      <div><dt>Эталон</dt><dd>что диспетчер должен упомянуть в комментариях по карточке и чем она должна закончиться. Готовит ИИ, утверждает преподаватель.</dd></div>
+      <div><dt>Норматив приёма</dt><dd>сколько секунд есть у диспетчера, чтобы перевести карточку в «Принята».</dd></div>
+      <div><dt>Тег службы</dt><dd>к какой службе ДДС относится участник группы (например, 01 — пожарная). С нераспознанным тегом участник в занятие не попадает.</dd></div>
+      <div><dt>Балл</dt><dd>процесс 70 % + полнота текста 25 % + грамотность 5 %, минус штраф за противоречия. Преподаватель может выставить свою оценку.</dd></div>
+      <div><dt>Gemma</dt><dd>локальная модель ИИ для сценариев, эталонов, проверки текста и выводов. Работает медленно — это нормально.</dd></div>
+    </dl>
+  </section>
+  <div class="note">
+    <h2>Перед началом</h2>
+    <ul>
+      <li>Сертификат самоподписанный: при первом входе браузер предупредит, это ожидаемо — «Дополнительно → Перейти на сайт».</li>
+      <li>Логины: <span class="m">petrov.instructor@system112.local</span> (преподаватель), <span class="m">smirnov.operator@system112.local</span> и <span class="m">ivanova.operator@system112.local</span> (операторы), <span class="m">admin@system112.local</span>. Пароли выдаёт Rizo.</li>
+      <li>Модель Gemma отвечает медленно: генерация сценария ≈ 15–30&nbsp;с, эталон ≈ 20&nbsp;с, выводы по группе — до минуты. Если что-то «висит» дольше 3&nbsp;минут — это дефект.</li>
+      <li>Много неудачных входов подряд даёт блокировку на минуту (HTTP 429) — это защита, а не ошибка.</li>
+      <li>Для разделов C–G нужна учебная группа, где у одного оператора тег службы ДДС (например, <span class="m">01</span>), а у другого — нераспознанный тег (например, <span class="m">RIZO</span>).</li>
+    </ul>
+  </div>
+</header>
+
+<div class="bar" role="region" aria-label="Итоги проверки">
+  <div class="progress" id="progress" aria-live="polite"></div>
+  <div class="filters" role="group" aria-label="Фильтр">
+    <button class="chip" data-filter="all" aria-pressed="true">Все</button>
+    <button class="chip" data-filter="P1" aria-pressed="false">Только P1</button>
+    <button class="chip" data-filter="open" aria-pressed="false">Не проверены</button>
+    <button class="chip" data-filter="fail" aria-pressed="false">Дефекты</button>
+  </div>
+</div>
+
+<nav class="toc" id="toc" aria-label="Разделы"></nav>
+<main id="cases"></main>
+
+<section class="export" aria-labelledby="exp-h">
+  <h2 id="exp-h" style="font:600 21px var(--cond);margin:0">Отчёт о прогоне</h2>
+  <p class="pre">Собирается из отметок и комментариев. Скопируйте и отправьте разработчикам.</p>
+  <textarea id="report" readonly aria-label="Текст отчёта"></textarea>
+  <button class="primary" id="copy">Скопировать отчёт</button>
+</section>
+</div>
+
+<script>
+const G = [
+{ id:"A", title:"Вход и рабочее окружение", intro:"Клиент работает в обычном браузере; шапки нет, боковое меню всегда развёрнуто.", cases:[
+ {id:"A-01",p:"P1",role:"все роли",t:"Вход, меню и обновление страницы",pre:"Открыт стенд.",
+  s:["Войдите по очереди преподавателем, оператором и администратором.","У каждого пройдите по 2–3 пунктам меню и нажмите F5."],
+  e:["Каждая роль видит своё меню: у оператора «Карточки ДДС» и «Мои результаты ДДС», у преподавателя «Мониторинг», «Учебные сценарии», «Отчёты».","Шапки с заголовком нет, меню не сворачивается.","После F5 пользователь остаётся на той же странице."]},
+ {id:"A-02",p:"P2",role:"оператор",t:"Выбор микрофона",pre:"Подключено два микрофона (например, гарнитура и встроенный).",
+  s:["В настройках выберите второй микрофон, начните звонок на «Рабочем месте», скажите фразу.","Переподключите гарнитуру и повторите."],
+  e:["Звук идёт с выбранного микрофона, в том числе после переподключения."]}
+]},
+{ id:"B", title:"Учебные сценарии и генерация ИИ", intro:"Каталог — таблица, брифинг выбранного сценария справа. Черновики ИИ готовятся на сервере в фоне и видны строками таблицы.", cases:[
+ {id:"B-01",p:"P1",role:"преподаватель",t:"Каталог и сценарии из ТЗ",pre:"«Учебные сценарии».",
+  s:["Кликните по строке, затем по другой; обновите страницу.","Найдите T01-1, T15-2, T32-3 и откройте брифинг T05-1."],
+  e:["Колонки: Код, Сценарий, Категория, Сложность. Выбранная строка обведена, справа её брифинг; выбор переживает обновление.","Все 94 вызова T01-1…T32-3 на месте: у заявителя полное ФИО, адрес разбит на части."]},
+ {id:"B-02",p:"P1",role:"преподаватель",t:"Черновик сценария от ИИ",pre:"Каталог открыт.",
+  s:["«Сгенерировать с ИИ», опишите вызов в 1–2 предложениях, отправьте.","Сразу уйдите в другой раздел, через минуту вернитесь.","У готового черновика — «Открыть черновик»."],
+  e:["Окно закрывается сразу; сверху таблицы фиолетовая строка «В очереди» → «Помощник пишет черновик · 00:12» с идущим таймером.","Уход со страницы задание не прерывает; готово за ≈ 15–30 с.","Конструктор открывается с заполненными полями на русском. Кнопка «×» убирает готовую строку, «Повторить» перезапускает неудавшуюся."]},
+ {id:"B-03",p:"P2",role:"2 преподавателя",t:"Несколько черновиков одновременно",pre:"Два браузера (обычное окно и инкогнито) с разными преподавателями.",
+  s:["Каждый ставит по 2 черновика почти одновременно.","Один из них пробует поставить ещё 4 (всего 6 активных)."],
+  e:["Задания идут по очереди, у ожидающих виден номер; каждый видит только свои.","Все доходят до «готов». Шестой активный черновик не ставится — понятное сообщение об ограничении в 5."]},
+ {id:"B-04",p:"P2",role:"преподаватель",t:"Сценарий вручную и правка",pre:"Каталог открыт.",
+  s:["«Создать вручную», заполните обязательные поля, опубликуйте.","«Редактировать», смените название, опубликуйте."],
+  e:["Сценарий в таблице и сразу выбран; после правки открыта новая версия с новым названием."]}
+]},
+{ id:"C", title:"Эталоны карточек", intro:"Для всех 98 сценариев эталоны уже подготовлены черновиками. Редактор эталона появляется в деталях активного занятия, когда диспетчер получил карточку, — проверяйте вместе с D-02.", cases:[
+ {id:"C-01",p:"P1",role:"преподаватель",t:"Проверка и утверждение эталона",pre:"Диспетчер получил карточку (D-02). «Мониторинг» → «Занятия ДДС» → это занятие, блок эталона.",
+  s:["Прочитайте пункты.","Поправьте подсказку одного пункта, снимите галочку с другого, удалите третий.","«Сохранить пункты», затем «Подтвердить всё», обновите страницу."],
+  e:["4–5 пунктов по-русски про работу диспетчера («Принято», «Бригада направлена», «Ориентир», «Итог работ»); нет пунктов про улицу и дом — это работа оператора 112.","Правки сохранились, бейдж «Черновик» сменился на «Подтверждён»."]},
+ {id:"C-02",p:"P2",role:"преподаватель",t:"Перегенерация по комментарию",pre:"Блок эталона открыт.",
+  s:["Убедитесь, что «Перегенерировать» неактивна без комментария.","Впишите «добавь пункт про эвакуацию жильцов», нажмите «Перегенерировать», подождите ≈ 30 с."],
+  e:["Появился новый черновик по-русски с учётом комментария."]}
+]},
+{ id:"D", title:"Занятие ДДС", intro:"Главный сценарий продукта: преподаватель запускает поток карточек, диспетчеры работают, преподаватель наблюдает.", cases:[
+ {id:"D-01",p:"P1",role:"преподаватель",t:"Запуск занятия на группу",pre:"Группа из «Перед началом» (участник с тегом 01 и участник с тегом RIZO).",
+  s:["«Мониторинг» → «Занятия ДДС» → создайте занятие: группа, категории «Пожар» и «Медицина», источник «Сгенерированные системой», норматив 45 с, порог 75."],
+  e:["Занятие активно, участники показаны со своей службой.","Жёлтое предупреждение: участник с тегом RIZO не включён — служба ДДС не распознана. Занятие при этом создано."]},
+ {id:"D-02",p:"P1",role:"оператор",t:"Карточка от начала до конца",pre:"Идёт занятие D-01, вход оператором с тегом 01.",
+  s:["«Карточки ДДС» → получите карточку.","«Принята» с комментарием «Принято, бригада 12 направлена».","Пройдите «Начало реагирования» → «Прибытие» → «Проведение работ» → «Работы завершены» с комментарием об итоге.","Возьмите следующую карточку."],
+  e:["Карточка — из выбранных категорий, идёт таймер норматива.","Кнопками доступны только допустимые следующие статусы.","После завершения выдаётся следующая карточка."]},
+ {id:"D-03",p:"P1",role:"оператор",t:"Отказ, «Не принята» и просрочка",pre:"Новая карточка в том же занятии.",
+  s:["Не трогайте карточку дольше 45 с, затем выберите «Не принята» без комментария, потом с причиной.","Примите карточку и выберите «Отказ от выполнения работ» с причиной."],
+  e:["Таймер показывает просрочку.","Без комментария «Не принята» и «Отказ» не проходят — понятное сообщение; с комментарием — проходят.","Эти действия потом видны в отчёте как ошибки (F-03)."]},
+ {id:"D-04",p:"P2",role:"преподаватель + 2 оператора",t:"Карточка от оператора 112",pre:"Занятие с источником «Смешанные». Второй оператор на «Рабочем месте».",
+  s:["Оператор 112 принимает звонок, заполняет карточку, отправляет в службу 01.","Диспетчер берёт следующую карточку, затем ещё одну."],
+  e:["Диспетчер получает карточку из очереди 112, затем снова сгенерированную."]},
+ {id:"D-05",p:"P1",role:"преподаватель",t:"Наблюдение и завершение занятия",pre:"У диспетчера открыта карточка.",
+  s:["«Мониторинг» → «Активные попытки»: диспетчер меняет статус.","«Занятия ДДС» → «Завершить занятие»."],
+  e:["Статус в мониторинге обновляется без перезагрузки.","Занятие завершено и пропало у диспетчера; открытая карточка закрыта как «Занятие завершено преподавателем» без штрафа.","На месте «Завершить занятие» появилась кнопка «Отчёт»."]}
+]},
+{ id:"E", title:"Оценка текста диспетчера", intro:"После того как карточка закрыта, система в фоне сверяет комментарии с утверждённым эталоном.", cases:[
+ {id:"E-01",p:"P1",role:"оператор",t:"Оценка по утверждённому эталону",pre:"Эталон сценария подтверждён (C-01), карточка закрыта (D-02).",
+  s:["Откройте результат карточки и подождите до минуты."],
+  e:["Сначала «предварительно», затем готовая оценка: какие пункты прозвучали (с цитатой), какие пропущены, замечания по грамотности.","Итоговый балл учитывает текст."]},
+ {id:"E-02",p:"P2",role:"оператор",t:"Противоречие и карточка без эталона",pre:"Две новые карточки: с подтверждённым эталоном и с черновиком эталона.",
+  s:["В первой закончите «Работы завершены» с комментарием «вызов ложный, выезд не требуется».","Вторую просто доведите до конца."],
+  e:["В первой — противоречие с цитатой, балл снижен.","Во второй оценка текста пропущена, балл только за процесс, «вечной загрузки» нет."]}
+]},
+{ id:"F", title:"Отчёт по занятию", intro:"Отчёт есть только у завершённого занятия и виден только его преподавателю и администратору.", cases:[
+ {id:"F-01",p:"P1",role:"преподаватель",t:"Сводка и разбор карточки",pre:"Занятие завершено (D-05).",
+  s:["«Отчёт».","Выберите обучающегося в таблице, затем его карточку."],
+  e:["Сверху: карточек, средний, минимум, максимум, % в нормативе.","В разборе: итоговый статус, совпал ли исход с эталоном, реакция и завершение против норматива, хронология с комментариями, полнота текста, грамотность, автооценка и оценка преподавателя. Технических идентификаторов нет."]},
+ {id:"F-02",p:"P1",role:"преподаватель",t:"Выводы ИИ по группе",pre:"Занятие только что завершено.",
+  s:["Откройте отчёт и подождите 1–2 минуты, не обновляя страницу."],
+  e:["«Выводы формируются…» сменяются блоками «Сильные стороны», «Зоны роста», «Рекомендации» — по-русски, без ФИО; коды в «Повторить сценарии» — из этого занятия.","При статусе «не удалось» кнопка «Повторить» запускает формирование заново."]},
+ {id:"F-03",p:"P1",role:"преподаватель",t:"Ошибки процесса",pre:"В занятии были действия из D-03 и незакрытая карточка из D-05.",
+  s:["Посмотрите ошибки по этим карточкам."],
+  e:["«Карточка принята позже норматива», «Отказ по карточке, которую нужно было отработать», «Карточка не закрыта к концу занятия».","Если попался T02-2 (ложный вызов) и его отработали — «Карточка отработана, хотя ожидался отказ».","У карточки, отработанной вовремя и правильно, ошибок нет."]},
+ {id:"F-04",p:"P1",role:"преподаватель",t:"Выгрузка PDF, XLSX, CSV",pre:"Отчёт открыт.",
+  s:["Скачайте три формата и откройте (CSV — в Excel)."],
+  e:["Сообщение «Отчёт сохранён». Кириллица читается везде, статусы и ошибки подписаны словами, а не кодами.","В XLSX листы «Сводка», «Стажёры», «Карточки», «Ошибки»; в PDF есть выводы ИИ, если они готовы."]},
+ {id:"F-05",p:"P1",role:"преподаватель",t:"Чужой отчёт закрыт",pre:"Ссылка на отчёт из F-01.",
+  s:["Откройте её под другим преподавателем, затем под оператором."],
+  e:["Отчёт не показывается: «не найден или недоступен» или нет доступа к разделу."]}
+]},
+{ id:"G", title:"Мои результаты ДДС", intro:"Раздел диспетчера со своими попытками.", cases:[
+ {id:"G-01",p:"P1",role:"оператор",t:"Свои результаты",pre:"Оператор участвовал в занятии.",
+  s:["«Мои результаты ДДС» → «Подробнее» у попытки → «К списку»."],
+  e:["Занятия с датой, числом карточек и средним баллом; разбор попытки такой же, как у преподавателя, с его комментарием, если он есть."]},
+ {id:"G-02",p:"P1",role:"2 оператора",t:"Чужая попытка закрыта",pre:"Адрес разбора попытки первого оператора.",
+  s:["Откройте его под вторым оператором."],
+  e:["«Результат не найден», чужие данные не видны."]}
+]},
+{ id:"H", title:"Звонки в 112 (бонус)", intro:"Одна сквозная проверка, что голосовой тренажёр не сломан.", cases:[
+ {id:"H-01",p:"P2",role:"оператор",t:"Звонок, карточка, разбор",pre:"Микрофон разрешён.",
+  s:["Брифинг сценария → «Начать»; задайте заявителю 2–3 вопроса.","Заполните карточку, выберите тип происшествия, отправьте в службу, завершите звонок.","«Разбор звонков» → последний звонок."],
+  e:["Заявитель отвечает голосом по-русски за несколько секунд, речь распознаётся.","Карточка уходит без ошибок и появляется в очереди службы (связь с D-04).","В разборе есть расшифровка и оценка."]}
+]}
+];
+
+const KEY="dds-test-cases-v2";
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch{state={}}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}};
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=s=>esc(s).replace(/«([A-ZТ]\d{2}-\d)»|\b(T\d{2}-\d)\b/g,(m,a,b)=>`<span class="m">${a||b}</span>`);
+const LABELS={pass:"Пройден",fail:"Дефект",block:"Блокер"};
+
+const toc=document.getElementById("toc"), main=document.getElementById("cases");
+toc.innerHTML=G.map(g=>`<a href="#g-${g.id}">${g.id}. ${esc(g.title)}</a>`).join("");
+main.innerHTML=G.map(g=>`<section class="group" id="g-${g.id}"><h2><span class="code">${g.id}</span>${esc(g.title)}</h2><p>${esc(g.intro)}</p>${g.cases.map(c=>`
+<article class="case" data-id="${c.id}" data-p="${c.p}">
+ <div class="case-head"><span class="cid">${c.id}</span><h3>${esc(c.t)}</h3><span class="prio ${c.p}">${c.p}</span></div>
+ <span class="role">Роль: ${esc(c.role)}</span>
+ <p class="pre"><b>Предусловие:</b> ${fmt(c.pre)}</p>
+ <div><p class="lbl">Шаги</p><ol>${c.s.map(x=>`<li>${fmt(x)}</li>`).join("")}</ol></div>
+ <div class="exp"><p class="lbl">Ожидаемый результат</p><ul>${c.e.map(x=>`<li>${fmt(x)}</li>`).join("")}</ul></div>
+ <div class="actions" role="group" aria-label="Результат ${c.id}">
+  ${["pass","fail","block"].map(v=>`<button class="st" data-v="${v}" aria-pressed="false">${LABELS[v]}</button>`).join("")}
+ </div>
+ <textarea id="note-${c.id}" placeholder="Что наблюдали: шаг, фактический результат, скриншот…" aria-label="Комментарий ${c.id}"></textarea>
+</article>`).join("")}</section>`).join("");
+
+const all=[...document.querySelectorAll(".case")];
+let filter="all";
+function paint(){
+  const n={pass:0,fail:0,block:0};
+  for(const el of all){
+    const st=state[el.dataset.id]||{};
+    el.dataset.status=st.v||"";
+    el.querySelectorAll(".st").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===st.v)));
+    const ta=el.querySelector("textarea"); if(document.activeElement!==ta) ta.value=st.note||"";
+    if(st.v) n[st.v]++;
+    const show= filter==="all" || (filter==="P1"&&el.dataset.p==="P1") || (filter==="open"&&!st.v) || (filter==="fail"&&(st.v==="fail"||st.v==="block"));
+    el.hidden=!show;
+  }
+  document.querySelectorAll("section.group").forEach(s=>s.hidden=![...s.querySelectorAll(".case")].some(c=>!c.hidden));
+  const done=n.pass+n.fail+n.block;
+  document.getElementById("progress").innerHTML=
+   `<span class="pill">${done} / ${all.length} проверено</span><span class="pill pass">✓ ${n.pass}</span><span class="pill fail">✗ ${n.fail}</span><span class="pill block">⏸ ${n.block}</span>`;
+  const lines=[`Прогон тест-кейсов ДДС — ${new Date().toLocaleDateString("ru-RU")}`,`Сборка: backend b87d6f9, клиент c6034f2`,`Проверено ${done} из ${all.length}: пройдено ${n.pass}, дефектов ${n.fail}, блокеров ${n.block}`,""];
+  for(const g of G) for(const c of g.cases){
+    const st=state[c.id]; if(!st||(!st.v&&!st.note)) continue;
+    if(st.v==="pass"&&!st.note) continue;
+    lines.push(`${c.id} [${c.p}] ${c.t} — ${st.v?LABELS[st.v]:"не отмечен"}${st.note?`\n   ${st.note.replace(/\n/g,"\n   ")}`:""}`);
+  }
+  document.getElementById("report").value=lines.join("\n");
+}
+main.addEventListener("click",e=>{
+  const b=e.target.closest(".st"); if(!b) return;
+  const id=b.closest(".case").dataset.id; const st=state[id]||(state[id]={});
+  st.v= st.v===b.dataset.v ? undefined : b.dataset.v; save(); paint();
+});
+main.addEventListener("input",e=>{
+  if(e.target.tagName!=="TEXTAREA") return;
+  const id=e.target.closest(".case").dataset.id; (state[id]||(state[id]={})).note=e.target.value; save(); paint();
+});
+document.querySelector(".filters").addEventListener("click",e=>{
+  const b=e.target.closest(".chip"); if(!b) return; filter=b.dataset.filter;
+  document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); paint();
+});
+document.getElementById("copy").addEventListener("click",async e=>{
+  const ta=document.getElementById("report");
+  try{await navigator.clipboard.writeText(ta.value)}catch{ta.focus();ta.select();try{document.execCommand("copy")}catch{}}
+  e.target.textContent="Скопировано"; setTimeout(()=>e.target.textContent="Скопировать отчёт",1500);
+});
+paint();
+</script>
