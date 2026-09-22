@@ -34,6 +34,7 @@
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
     "smoke:training": "bun --env-file=.env test/manual/training.smoke.ts",
     "smoke:dds-queue": "bun --env-file=.env test/manual/dds-queue.smoke.ts",
+    "smoke:dds-lesson": "bun --env-file=.env test/manual/dds-lesson.smoke.ts",
     "audit:dialogue": "bun --env-file=.env test/manual/dialogue-audit.ts",
     "audit:repetition": "bun --env-file=.env test/manual/dialogue-repetition.runner.ts",
     "smoke:auth-refresh": "bun --env-file=.env test/manual/refresh-rotation.smoke.ts",
