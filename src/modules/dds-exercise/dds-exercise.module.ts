@@ -13,12 +13,14 @@ import {
   DdsExerciseService,
 } from "./application/dds-exercise.service";
 import { DdsExerciseController } from "./dds-exercise.controller";
+import { DdsTrainingController } from "./dds-training.controller";
+import { DdsTrainingService } from "./application/dds-training.service";
 import { DrizzleDdsExerciseStore } from "./infrastructure/drizzle-dds-exercise.store";
 import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
 
 @Module({
   imports: [AuthModule, ConfigModule],
-  controllers: [DdsExerciseController],
+  controllers: [DdsExerciseController, DdsTrainingController],
   providers: [
     {
       provide: DDS_CREW_HANDOFF_REQUIRED,
@@ -31,6 +33,7 @@ import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
         ).enabled,
     },
     DdsExerciseService,
+    DdsTrainingService,
     DdsDispatchService,
     DrizzleDdsExerciseStore,
     { provide: DDS_EXERCISE_STORE, useExisting: DrizzleDdsExerciseStore },

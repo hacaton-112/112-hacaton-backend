@@ -54,6 +54,13 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    // Адаптер Fastify по умолчанию разрешает браузеру только GET, HEAD и POST,
+    // поэтому правка учётной записи, посадка за SIP-телефон и любое удаление
+    // отваливались в браузере ещё до запроса, на preflight.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    // Рабочее место опрашивает очередь постоянно, а каждый запрос с токеном
+    // тянет за собой preflight: без кеша их ровно столько же, сколько GET.
+    maxAge: 600,
   });
 
   app.enableShutdownHooks();
