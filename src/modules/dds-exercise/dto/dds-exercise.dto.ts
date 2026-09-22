@@ -91,6 +91,7 @@ export const DdsExerciseSchema = z
     id: z.uuid(),
     scenarioVersionId: z.uuid(),
     trainingAttemptId: z.string().min(1).nullable(),
+    lessonId: z.uuid().nullable(),
     sourceTrainingSessionId: z.string().min(1).nullable(),
     addressedService: z.enum(DISPATCH_SERVICES),
     status: z.enum(DDS_RESPONSE_STATUSES),
@@ -142,7 +143,9 @@ export const DdsDispatchReceiptSchema = z
 export const TransitionDdsExerciseRequestSchema = z
   .object({
     eventId: z.uuid(),
-    status: z.enum(DDS_RESPONSE_STATUSES).exclude(["pending"]),
+    status: z
+      .enum(DDS_RESPONSE_STATUSES)
+      .exclude(["pending", "lesson_finished"]),
     comment: z.string().trim().max(1_000).optional(),
   })
   .strict();

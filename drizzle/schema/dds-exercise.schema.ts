@@ -18,7 +18,86 @@ import { DDS_RESPONSE_STATUSES } from "@/modules/dds-exercise/domain/dds-respons
 
 import { dispatchService, incidentCards } from "./incident-card.schema";
 import { scenarioVersions } from "./scenario.schema";
+import { scenarioCategory, type ScenarioCategory } from "./scenario.schema";
+import { trainingGroups } from "./training.schema";
 import { users } from "./user.schema";
+
+export const DDS_LESSON_STATUSES = ["active", "finished"] as const;
+export const DDS_LESSON_CARD_SOURCES = [
+  "generated",
+  "operator_call",
+  "mixed",
+] as const;
+export type DdsLessonStatus = (typeof DDS_LESSON_STATUSES)[number];
+export type DdsLessonCardSource = (typeof DDS_LESSON_CARD_SOURCES)[number];
+
+export const ddsLessonStatus = pgEnum("dds_lesson_status", DDS_LESSON_STATUSES);
+export const ddsLessonCardSource = pgEnum(
+  "dds_lesson_card_source",
+  DDS_LESSON_CARD_SOURCES,
+);
+
+/** Поток карточек преподавателя, независимый от одиночных назначений. */
+export const ddsLessons = pgTable(
+  "dds_lessons",
+  {
+    id: text("id").primaryKey(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    groupId: text("group_id").references(() => trainingGroups.id, {
+      onDelete: "restrict",
+    }),
+    targetUserId: text("target_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    title: text("title").notNull(),
+    categories: scenarioCategory("categories")
+      .array()
+      .$type<ScenarioCategory[]>()
+      .notNull(),
+    cardSource: ddsLessonCardSource("card_source").notNull(),
+    acknowledgementNormSeconds: integer("acknowledgement_norm_seconds")
+      .notNull()
+      .default(30),
+    passThreshold: smallint("pass_threshold").notNull().default(75),
+    status: ddsLessonStatus("status").notNull().default("active"),
+    startEventId: text("start_event_id").notNull(),
+    finishEventId: text("finish_event_id"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    finishedBy: text("finished_by").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+  },
+  (table) => [
+    check(
+      "dds_lessons_one_target_check",
+      sql`(${table.groupId} is not null) <> (${table.targetUserId} is not null)`,
+    ),
+    check(
+      "dds_lessons_categories_nonempty_check",
+      sql`cardinality(${table.categories}) > 0`,
+    ),
+    check(
+      "dds_lessons_acknowledgement_norm_check",
+      sql`${table.acknowledgementNormSeconds} between 10 and 300`,
+    ),
+    check(
+      "dds_lessons_pass_threshold_check",
+      sql`${table.passThreshold} between 50 and 100`,
+    ),
+    uniqueIndex("dds_lessons_creator_start_event_unique_idx").on(
+      table.createdBy,
+      table.startEventId,
+    ),
+    index("dds_lessons_group_idx").on(table.groupId),
+    index("dds_lessons_target_user_idx").on(table.targetUserId),
+    index("dds_lessons_status_idx").on(table.status),
+  ],
+);
 
 export const ddsResponseStatus = pgEnum(
   "dds_response_status",
@@ -43,6 +122,9 @@ export const ddsExercises = pgTable(
       onDelete: "set null",
     }),
     trainingAttemptId: text("training_attempt_id"),
+    lessonId: text("lesson_id").references(() => ddsLessons.id, {
+      onDelete: "restrict",
+    }),
     /**
      * Карточка оператора 112, из которой создана входящая доставка. Старые
      * автономные упражнения не имеют источника и остаются совместимыми.
@@ -90,6 +172,12 @@ export const ddsExercises = pgTable(
     ),
     index("dds_exercises_status_idx").on(table.status),
     index("dds_exercises_training_attempt_idx").on(table.trainingAttemptId),
+    index("dds_exercises_lesson_idx").on(table.lessonId),
+    uniqueIndex("dds_exercises_lesson_operator_active_unique_idx")
+      .on(table.lessonId, table.operatorId)
+      .where(
+        sql`${table.lessonId} is not null and ${table.completedAt} is null`,
+      ),
     uniqueIndex("dds_exercises_source_service_unique_idx")
       .on(table.sourceTrainingSessionId, table.addressedService)
       .where(sql`${table.sourceTrainingSessionId} is not null`),
@@ -130,20 +218,37 @@ export const ddsExerciseEvents = pgTable(
 );
 
 export type DdsExerciseRecord = typeof ddsExercises.$inferSelect;
+export type DdsLessonRecord = typeof ddsLessons.$inferSelect;
 
 /** Append-only instructor assessments; they never overwrite the automatic score. */
-export const ddsExerciseReviews = pgTable("dds_exercise_reviews", {
-  id: text("id").primaryKey(),
-  exerciseId: text("exercise_id").notNull().references(() => ddsExercises.id, { onDelete: "cascade" }),
-  eventId: text("event_id").notNull(),
-  instructorId: text("instructor_id").notNull().references(() => users.id, { onDelete: "restrict" }),
-  score: smallint("score").notNull(),
-  comment: text("comment").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  uniqueIndex("dds_reviews_exercise_event_idx").on(table.exerciseId, table.eventId),
-  check("dds_exercise_reviews_score_check", sql`${table.score} between 0 and 100`),
-]);
+export const ddsExerciseReviews = pgTable(
+  "dds_exercise_reviews",
+  {
+    id: text("id").primaryKey(),
+    exerciseId: text("exercise_id")
+      .notNull()
+      .references(() => ddsExercises.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull(),
+    instructorId: text("instructor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    score: smallint("score").notNull(),
+    comment: text("comment").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dds_reviews_exercise_event_idx").on(
+      table.exerciseId,
+      table.eventId,
+    ),
+    check(
+      "dds_exercise_reviews_score_check",
+      sql`${table.score} between 0 and 100`,
+    ),
+  ],
+);
 export type NewDdsExerciseRecord = typeof ddsExercises.$inferInsert;
 export type DdsExerciseEventRecord = typeof ddsExerciseEvents.$inferSelect;
 export type NewDdsExerciseEventRecord = typeof ddsExerciseEvents.$inferInsert;

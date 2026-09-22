@@ -39,6 +39,7 @@ const stored = (
   scenarioVersionId: VERSION_ID,
   operatorId: "operator-1",
   trainingAttemptId: null,
+  lessonId: null,
   sourceTrainingSessionId: null,
   addressedService: "dds_01",
   status: "pending",
@@ -507,17 +508,15 @@ describe(DdsExerciseService.name, () => {
 
     it("shows crew handoff for an assigned card attempt", async () => {
       const assigned = stored({ trainingAttemptId: "attempt-1" });
-      const assignedCrews = [
-        { callsign: "ПСЧ-12", phoneNumber: "1012" },
-      ];
+      const assignedCrews = [{ callsign: "ПСЧ-12", phoneNumber: "1012" }];
       const { service, store } = createService(
         {
           listByIds: jest.fn().mockResolvedValue([assigned]),
-          loadCrewHandoffs: jest.fn().mockResolvedValue(
-            new Map([
-              [EXERCISE_ID, { crews: assignedCrews, calls: [] }],
-            ]),
-          ),
+          loadCrewHandoffs: jest
+            .fn()
+            .mockResolvedValue(
+              new Map([[EXERCISE_ID, { crews: assignedCrews, calls: [] }]]),
+            ),
         },
         true,
       );

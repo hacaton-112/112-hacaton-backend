@@ -32,6 +32,12 @@ describe("DDS exercise DTO", () => {
         status: "pending",
       }).success,
     ).toBe(false);
+    expect(
+      TransitionDdsExerciseRequestSchema.safeParse({
+        eventId,
+        status: "lesson_finished",
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts a refusal comment but leaves its requirement to the domain", () => {

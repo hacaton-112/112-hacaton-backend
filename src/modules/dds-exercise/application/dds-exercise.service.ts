@@ -287,6 +287,7 @@ export class DdsExerciseService {
       id: exercise.id,
       scenarioVersionId: exercise.scenarioVersionId,
       trainingAttemptId: exercise.trainingAttemptId,
+      lessonId: exercise.lessonId,
       sourceTrainingSessionId: exercise.sourceTrainingSessionId,
       addressedService: exercise.addressedService,
       status: exercise.status,
