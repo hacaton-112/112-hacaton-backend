@@ -26,6 +26,7 @@ import {
   DDS_STATUS_LABELS,
 } from "./dds-formatters";
 import { DdsReferenceEditor } from "./dds-reference-editor";
+import { DdsTextResult } from "./dds-card-panel";
 
 const SOURCE_LABELS: Record<DdsLessonCardSource, string> = {
   generated: "Сгенерированные системой",
@@ -307,24 +308,33 @@ function LessonDetails({
         {lesson.cards
           .filter(({ exercise }) => exercise.completedAt !== null)
           .map(({ exercise, operatorName }) => (
-            <Flex key={exercise.id} justify="between" gap="3" mt="2">
-              <Text size="2">
-                {operatorName} · {exercise.card.title}
-              </Text>
-              <Badge
-                color={
-                  exercise.result?.passed
-                    ? "green"
-                    : exercise.status === "lesson_finished"
-                      ? "gray"
-                      : "red"
-                }
-              >
-                {exercise.status === "lesson_finished"
-                  ? "Без оценки"
-                  : `${exercise.result?.score ?? "—"} баллов`}
-              </Badge>
-            </Flex>
+            <div key={exercise.id} className="mt-3 grid gap-2">
+              <Flex justify="between" gap="3">
+                <Text size="2">
+                  {operatorName} · {exercise.card.title}
+                </Text>
+                <Badge
+                  color={
+                    exercise.result?.passed
+                      ? "green"
+                      : exercise.status === "lesson_finished"
+                        ? "gray"
+                        : "red"
+                  }
+                >
+                  {exercise.status === "lesson_finished"
+                    ? "Без оценки"
+                    : `${exercise.result?.score ?? "—"} баллов`}
+                </Badge>
+              </Flex>
+              {exercise.result && (
+                <DdsTextResult
+                  exerciseId={exercise.id}
+                  evaluation={exercise.textEvaluation}
+                  instructorView
+                />
+              )}
+            </div>
           ))}
       </div>
     </Card>

@@ -171,7 +171,7 @@ export function DdsCardPanel({
   );
 }
 
-function DdsTextResult({
+export function DdsTextResult({
   exerciseId,
   evaluation,
   instructorView,
