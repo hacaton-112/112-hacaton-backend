@@ -136,6 +136,27 @@ const stems = (text: string, limit: number): string[] =>
     ),
   ].slice(0, limit);
 
+/**
+ * Части адреса с подписями: карточка ДДС склеивает их через запятую, и без
+ * подписей «корпус 6, 9, 45» не прочитать. Эталон сравнивает голые номера.
+ */
+const labelledAddress = (
+  parts: Readonly<Record<string, string>>,
+): Record<string, string> => {
+  const label: Record<string, (value: string) => string> = {
+    building: (value) => (/^\d+$/u.test(value) ? `строение ${value}` : value),
+    entrance: (value) => `подъезд ${value}`,
+    floor: (value) => `этаж ${value}`,
+    apartment: (value) => `кв. ${value}`,
+  };
+  return Object.fromEntries(
+    Object.entries(parts).map(([key, value]) => [
+      key,
+      label[key]?.(value) ?? value,
+    ]),
+  );
+};
+
 const houseNumber = (house: string): string =>
   house.replace(/^(вл\.|владение)\s*/iu, "");
 
@@ -328,8 +349,11 @@ export function ticketToScenario(ticket: Ticket): unknown {
       ? []
       : [
           {
+            // Полное имя — его показывает карточка ДДС; фамилии оператору
+            // достаточно, поэтому она принимается как вариант.
             field: "caller_name",
-            expectedValue: caller.name.split(/[ ,]/u)[0],
+            expectedValue: caller.name,
+            acceptableValues: [caller.name.split(/[ ,]/u)[0]],
             comparison: "contains",
             isRequired: false,
             sourceFactKey: "caller_name",
@@ -393,7 +417,7 @@ export function ticketToScenario(ticket: Ticket): unknown {
     },
     location: {
       terrain: ticket.terrain,
-      exactAddress: address.parts,
+      exactAddress: labelledAddress(address.parts),
       exactPoint: ticket.point,
       locatorCenter: [ticket.point[0] + shift, ticket.point[1]],
       locatorRadiusMeters: radius,
