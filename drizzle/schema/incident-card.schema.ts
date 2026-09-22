@@ -81,14 +81,20 @@ export const incidentCards = pgTable(
     callerPhone: text("caller_phone"),
 
     // ── Место происшествия ───────────────────────────────────────
-    /**
-     * Адрес одной строкой, как его набрал оператор: в АРМ это одно поле —
-     * «улица, дом, корпус, строение, владение, дорога, километр, метр,
-     * адресный участок, объект». Эталон сверяет его части вхождением.
-     */
+    /** Полная строка остаётся для быстрого ввода и старых карточек. */
     addressText: text("address_text"),
+    country: text("country"),
+    federalSubject: text("federal_subject"),
+    city: text("city"),
+    settlement: text("settlement"),
+    administrativeDistrict: text("administrative_district"),
     district: text("district"),
     objectType: text("object_type"),
+    street: text("street"),
+    house: text("house"),
+    building: text("building"),
+    corpus: text("corpus"),
+    apartment: text("apartment"),
     entrance: text("entrance"),
     floor: text("floor"),
     intercom: text("intercom"),

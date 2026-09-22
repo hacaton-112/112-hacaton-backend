@@ -12,20 +12,16 @@ import type {
  * в карточке ему не место, иначе оператор и разбор заговорили бы на разных
  * языках.
  */
-const SERVICE_BY_DISPATCH: Partial<Record<DispatchService, EmergencyService>> = {
-  dds_01: "fire",
-  dds_02: "police",
-  dds_03: "ambulance",
-  dds_04: "gas",
-  rosgvardia: "police",
-};
+const SERVICE_BY_DISPATCH: Partial<Record<DispatchService, EmergencyService>> =
+  {
+    dds_01: "fire",
+    dds_02: "police",
+    dds_03: "ambulance",
+    dds_04: "gas",
+    rosgvardia: "police",
+  };
 
-/**
- * Адрес оператор пишет одной строкой — так просит настоящее АРМ. Поэтому улица,
- * дом, подъезд, этаж и квартира ищутся в ней вхождением, а не сравниваются
- * целиком: разбирать строку на части значило бы придумывать разметку, которой
- * в окне нет.
- */
+/** Поля адреса, которые эталонная анкета проверяет независимо. */
 export const ADDRESS_FIELDS: readonly IncidentCardField[] = [
   "city",
   "street",
@@ -35,7 +31,9 @@ export const ADDRESS_FIELDS: readonly IncidentCardField[] = [
   "floor",
 ];
 
-const joined = (...values: readonly (string | null | undefined)[]): string | null => {
+const joined = (
+  ...values: readonly (string | null | undefined)[]
+): string | null => {
   const present = values.filter(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
@@ -52,12 +50,13 @@ export const cardValuesForReference = (
   }
 
   const address = card.addressText ?? null;
+  const structuredHouse = joined(card.house, card.building, card.corpus);
 
   return {
-    city: address,
-    street: address,
-    house: address,
-    apartment: address,
+    city: card.city ?? card.settlement ?? address,
+    street: card.street ?? address,
+    house: structuredHouse ?? address,
+    apartment: card.apartment ?? address,
     entrance: joined(card.entrance, address),
     floor: joined(card.floor, address),
     object_type: card.objectType ?? null,
@@ -73,7 +72,8 @@ export const cardValuesForReference = (
     category: joined(card.incidentType, card.categories.join(" ")),
     clarification: joined(card.incidentType, card.description),
     started_at: card.startedAt ?? null,
-    victims_total: card.victimsTotal === null ? null : String(card.victimsTotal),
+    victims_total:
+      card.victimsTotal === null ? null : String(card.victimsTotal),
     children_count:
       card.victimsChildren === null ? null : String(card.victimsChildren),
     victims_condition: joined(card.description, card.placeNotes),

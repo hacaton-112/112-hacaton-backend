@@ -48,7 +48,8 @@
     "db:seed:scenarios": "bun --env-file=.env drizzle/seed/seed-scenarios.ts",
     "db:seed:groups": "bun --env-file=.env drizzle/seed/seed-groups.ts",
     "db:seed:crews": "bun --env-file=.env drizzle/seed/seed-crews.ts",
-    "db:seed": "bun run db:seed:admin && bun run db:seed:classifier && bun run db:seed:scenarios && bun run db:seed:groups && bun run db:seed:crews",
+    "db:seed:workstations": "bun --env-file=.env drizzle/seed/seed-workstations.ts",
+    "db:seed": "bun run db:seed:admin && bun run db:seed:classifier && bun run db:seed:scenarios && bun run db:seed:groups && bun run db:seed:crews && bun run db:seed:workstations",
     "db:reset": "bun run db:clean && bun run db:seed",
     "db:studio": "drizzle-kit studio --config=drizzle/drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle/drizzle.config.ts"
