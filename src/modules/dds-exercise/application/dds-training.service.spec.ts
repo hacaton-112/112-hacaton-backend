@@ -118,3 +118,56 @@ describe(`${DdsTrainingService.name}.list`, () => {
     expect(calls.some(({ method }) => method === "innerJoin")).toBe(true);
   });
 });
+
+describe(`${DdsTrainingService.name}.live`, () => {
+  const card = { title: "Пожар в жилом доме" };
+
+  it("watches the cards taken from the shift queue next to assigned attempts", async () => {
+    const overdue = new Date(Date.now() - 60_000);
+    const assigned = {
+      id: "assigned-exercise",
+      assignmentId: "assignment-1",
+      assignmentTitle: "Назначенная карточка",
+      operatorId: "operator-1",
+      operatorName: "Анна Оператор",
+      attemptNumber: 1,
+      startedAt: overdue,
+      status: "accepted" as const,
+      addressedService: "dds_01" as const,
+      card,
+      acknowledgementDeadlineAt: overdue,
+      acknowledgedAt: overdue,
+    };
+    const fromQueue = {
+      id: "queue-exercise",
+      operatorId: "operator-2",
+      operatorName: "Иван Диспетчер",
+      startedAt: overdue,
+      status: "pending" as const,
+      addressedService: "dds_03" as const,
+      card,
+      acknowledgementDeadlineAt: overdue,
+      acknowledgedAt: null,
+    };
+    const { service } = createService([[assigned], [fromQueue]], new Map());
+
+    const result = await service.live({ id: "instructor-1", role: "instructor" });
+
+    expect(result.attempts).toEqual([
+      expect.objectContaining({
+        exerciseId: assigned.id,
+        assignmentId: assigned.assignmentId,
+        findings: [],
+      }),
+    ]);
+    // У карточки очереди нет назначения, но норматив за ней считается тот же.
+    expect(result.standaloneAttempts).toEqual([
+      expect.objectContaining({
+        exerciseId: fromQueue.id,
+        operatorName: fromQueue.operatorName,
+        cardTitle: card.title,
+        findings: ["acknowledgement_overdue"],
+      }),
+    ]);
+  });
+});

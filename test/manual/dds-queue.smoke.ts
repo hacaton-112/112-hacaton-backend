@@ -208,6 +208,17 @@ async function main(): Promise<void> {
     }
     step("обе доставки одной отправки закрепились за принявшим их диспетчером");
 
+    const watching = await ddsTraining.live(instructor);
+    const watched = watching.standaloneAttempts.filter(({ exerciseId }) =>
+      delivered.has(exerciseId),
+    );
+    if (watched.length !== 2) {
+      throw new Error(
+        `мониторинг показывает ${watched.length} идущих карточек очереди вместо 2`,
+      );
+    }
+    step("преподаватель видит работу по карточкам очереди в мониторинге");
+
     const [operatorAttempt] = await db
       .select({ status: trainingAttempts.status })
       .from(trainingAttempts)

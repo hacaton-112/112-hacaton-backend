@@ -60,6 +60,24 @@ export const DdsLiveAttemptSchema = z.object({
   acknowledgedAt: z.iso.datetime().nullable(),
   findings: z.array(z.enum(DDS_LIVE_FINDINGS)),
 }).strict();
-export const DdsLiveListSchema = z.object({ attempts: z.array(DdsLiveAttemptSchema) }).strict();
+/** Идущая карточка очереди смены: назначения и попытки у неё нет. */
+export const DdsLiveStandaloneSchema = z.object({
+  exerciseId: z.uuid(),
+  operatorId: z.uuid(),
+  operatorName: z.string(),
+  startedAt: z.iso.datetime(),
+  addressedService: z.enum(DISPATCH_SERVICES),
+  cardTitle: z.string(),
+  status: z.enum(DDS_RESPONSE_STATUSES),
+  acknowledgementDeadlineAt: z.iso.datetime(),
+  acknowledgedAt: z.iso.datetime().nullable(),
+  findings: z.array(z.enum(DDS_LIVE_FINDINGS)),
+}).strict();
+export const DdsLiveListSchema = z.object({
+  attempts: z.array(DdsLiveAttemptSchema),
+  standaloneAttempts: z.array(DdsLiveStandaloneSchema),
+}).strict();
 export class DdsLiveListDto extends createZodDto(DdsLiveListSchema) {}
 export type DdsLiveAttempt = z.infer<typeof DdsLiveAttemptSchema>;
+export type DdsLiveStandalone = z.infer<typeof DdsLiveStandaloneSchema>;
+export type DdsLiveList = z.infer<typeof DdsLiveListSchema>;
