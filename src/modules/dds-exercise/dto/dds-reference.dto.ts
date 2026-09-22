@@ -18,6 +18,7 @@ export const DdsCardReferenceSchema = z.object({
   requiredItems: z.array(DdsReferenceItemSchema),
   expectedCrewService: z.enum(DISPATCH_SERVICES).nullable(),
   status: z.enum(["draft", "approved"]),
+  jobStatus: z.enum(["pending", "processing", "done", "failed"]),
   version: z.number().int().positive(),
   approvedBy: z.uuid().nullable(),
   approvedAt: z.iso.datetime().nullable(),
@@ -35,6 +36,38 @@ export const RegenerateDdsReferenceSchema = z.object({
   eventId: z.uuid(),
   comment: z.string().trim().min(2).max(2_000),
 });
+export const DdsReferenceListQuerySchema = z.object({
+  status: z.enum(["draft", "approved", "missing"]).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+export const DdsReferenceListItemSchema = z.object({
+  scenarioVersionId: z.uuid(),
+  code: z.string(),
+  title: z.string(),
+  category: z.string(),
+  status: z.enum(["draft", "approved", "missing"]),
+  jobStatus: z.enum(["pending", "processing", "done", "failed"]).nullable(),
+  approvedItems: z.number().int().nonnegative(),
+  totalItems: z.number().int().nonnegative(),
+  expectedCrewService: z.enum(DISPATCH_SERVICES).nullable(),
+  error: z.string().nullable(),
+});
+export const DdsReferenceListSchema = z.object({
+  items: z.array(DdsReferenceListItemSchema),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+});
+export const DdsReferenceBulkSchema = z.object({
+  scenarioVersionIds: z.array(z.uuid()).min(1).max(100),
+});
+export const DdsReferenceBulkResultSchema = z.object({
+  accepted: z.array(z.uuid()),
+  rejected: z.array(
+    z.object({ scenarioVersionId: z.uuid(), reason: z.string() }),
+  ),
+});
 export class DdsCardReferenceDto extends createZodDto(DdsCardReferenceSchema) {}
 export class UpdateDdsReferenceDto extends createZodDto(
   UpdateDdsReferenceSchema,
@@ -42,4 +75,13 @@ export class UpdateDdsReferenceDto extends createZodDto(
 export class RegenerateDdsReferenceDto extends createZodDto(
   RegenerateDdsReferenceSchema,
 ) {}
+export class DdsReferenceListQueryDto extends createZodDto(
+  DdsReferenceListQuerySchema,
+) {}
+export class DdsReferenceListDto extends createZodDto(DdsReferenceListSchema) {}
+export class DdsReferenceBulkDto extends createZodDto(DdsReferenceBulkSchema) {}
+export class DdsReferenceBulkResultDto extends createZodDto(
+  DdsReferenceBulkResultSchema,
+) {}
 export type UpdateDdsReference = z.infer<typeof UpdateDdsReferenceSchema>;
+export type DdsReferenceListQuery = z.infer<typeof DdsReferenceListQuerySchema>;

@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -23,12 +24,16 @@ import { DdsReferenceService } from "./application/dds-reference.service";
 import { DdsTextEvaluationService } from "./application/dds-text-evaluation.service";
 import {
   DdsCardReferenceDto,
+  DdsReferenceBulkDto,
+  DdsReferenceBulkResultDto,
+  DdsReferenceListDto,
+  DdsReferenceListQueryDto,
   RegenerateDdsReferenceDto,
   UpdateDdsReferenceDto,
   type UpdateDdsReference,
 } from "./dto/dds-reference.dto";
 
-@Controller("dds-references")
+@Controller(["dds-references", "dds/references"])
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("instructor", "admin")
 export class DdsReferenceController {
@@ -36,6 +41,31 @@ export class DdsReferenceController {
     private readonly references: DdsReferenceService,
     private readonly evaluations: DdsTextEvaluationService,
   ) {}
+
+  @Get()
+  @ZodSerializerDto(DdsReferenceListDto)
+  list(@Query() query: DdsReferenceListQueryDto) {
+    return this.references.list(query);
+  }
+
+  @Post("approve")
+  @ZodSerializerDto(DdsReferenceBulkResultDto)
+  approveMany(
+    @Body() body: DdsReferenceBulkDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.references.approveMany(
+      { id: request.user.sub, role: request.user.role },
+      body.scenarioVersionIds,
+    );
+  }
+
+  @Post("regenerate")
+  @HttpCode(202)
+  @ZodSerializerDto(DdsReferenceBulkResultDto)
+  regenerateMany(@Body() body: DdsReferenceBulkDto) {
+    return this.references.regenerateMany(body.scenarioVersionIds);
+  }
 
   @Get("scenarios/:versionId")
   @ZodSerializerDto(DdsCardReferenceDto)

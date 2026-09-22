@@ -1,11 +1,33 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 
-import { AppNotFoundException } from "@/common/exceptions/app.exception";
+import {
+  AppBadRequestException,
+  AppNotFoundException,
+} from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
+import { ErrorCodes } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
+import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import {
   ddsCardReferences,
   scenarioFacts,
@@ -19,7 +41,28 @@ import {
 } from "@/modules/ai-gateway/ports/structured-output.port";
 import type { TrainingActor } from "@/modules/training/training.service";
 
-import type { UpdateDdsReference } from "../dto/dds-reference.dto";
+import type {
+  DdsReferenceListQuery,
+  UpdateDdsReference,
+} from "../dto/dds-reference.dto";
+
+const SERVICE_BY_SCENARIO_SERVICE = {
+  fire: "dds_01",
+  police: "dds_02",
+  ambulance: "dds_03",
+  gas: "dds_04",
+} as const;
+
+export function expectedCrewServiceFromScenario(services: readonly string[]) {
+  for (const service of services) {
+    const mapped =
+      SERVICE_BY_SCENARIO_SERVICE[
+        service as keyof typeof SERVICE_BY_SCENARIO_SERVICE
+      ];
+    if (mapped) return mapped;
+  }
+  return null;
+}
 
 /** Подписи видит преподаватель при утверждении: только по-русски. */
 const RussianText = z
@@ -88,12 +131,209 @@ const REFERENCE_PROMPT = [
 ].join(" ");
 
 @Injectable()
-export class DdsReferenceService {
+export class DdsReferenceService implements OnModuleInit {
+  private readonly logger = new Logger(DdsReferenceService.name);
+  private running = false;
+
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
     @Inject(STRUCTURED_OUTPUT_PORT)
     private readonly structured: StructuredOutputPort,
+    private readonly config: ConfigService,
+    @Optional() private readonly scheduler?: BackgroundQueueScheduler,
   ) {}
+
+  onModuleInit(): void {
+    this.scheduler?.register({
+      name: "dds_reference_generation",
+      enabled: () => true,
+      run: () => this.drain(),
+    });
+  }
+
+  async list(query: DdsReferenceListQuery) {
+    const versions = await this.db
+      .select({
+        id: scenarioVersions.id,
+        scenarioId: scenarioVersions.scenarioId,
+        version: scenarioVersions.version,
+        services: scenarioVersions.expectedServices,
+        code: scenarios.code,
+        title: scenarios.title,
+        category: scenarios.category,
+      })
+      .from(scenarioVersions)
+      .innerJoin(scenarios, eq(scenarios.id, scenarioVersions.scenarioId))
+      .where(
+        and(
+          eq(scenarios.status, "published"),
+          isNotNull(scenarioVersions.publishedAt),
+        ),
+      )
+      .orderBy(desc(scenarioVersions.version));
+    const current = [
+      ...new Map(versions.map((row) => [row.scenarioId, row])).values(),
+    ];
+    const ids = current.map(({ id }) => id);
+    const references = ids.length
+      ? await this.db
+          .select()
+          .from(ddsCardReferences)
+          .where(inArray(ddsCardReferences.scenarioVersionId, ids))
+      : [];
+    const byVersion = new Map(
+      references.map((row) => [row.scenarioVersionId, row]),
+    );
+    const items = current
+      .map((version) => {
+        const reference = byVersion.get(version.id);
+        return {
+          scenarioVersionId: version.id,
+          code: version.code,
+          title: version.title,
+          category: version.category,
+          status: reference?.status ?? ("missing" as const),
+          jobStatus: reference?.jobStatus ?? null,
+          approvedItems:
+            reference?.requiredItems.filter(({ approved }) => approved)
+              .length ?? 0,
+          totalItems: reference?.requiredItems.length ?? 0,
+          expectedCrewService:
+            reference?.expectedCrewService ??
+            expectedCrewServiceFromScenario(version.services),
+          error: reference?.error ?? null,
+        };
+      })
+      .filter(({ status }) => !query.status || status === query.status)
+      .sort((left, right) => left.code.localeCompare(right.code, "ru"));
+    const offset = (query.page - 1) * query.pageSize;
+    return {
+      items: items.slice(offset, offset + query.pageSize),
+      page: query.page,
+      pageSize: query.pageSize,
+      total: items.length,
+    };
+  }
+
+  async approveMany(actor: TrainingActor, versionIds: string[]) {
+    const rows = await this.db
+      .select()
+      .from(ddsCardReferences)
+      .where(inArray(ddsCardReferences.scenarioVersionId, versionIds));
+    const accepted: string[] = [];
+    const rejected: { scenarioVersionId: string; reason: string }[] = [];
+    for (const versionId of versionIds) {
+      const row = rows.find(
+        ({ scenarioVersionId }) => scenarioVersionId === versionId,
+      );
+      const reason = !row
+        ? "Эталон ещё не сформирован"
+        : row.requiredItems.length === 0
+          ? "В эталоне нет ни одного пункта"
+          : row.expectedOutcome === "refuse" && row.refusalReasons.length === 0
+            ? "Для отказа нужна хотя бы одна допустимая причина"
+            : null;
+      if (reason) {
+        rejected.push({ scenarioVersionId: versionId, reason });
+        continue;
+      }
+      await this.db
+        .update(ddsCardReferences)
+        .set({
+          requiredItems: row!.requiredItems.map((item) => ({
+            ...item,
+            approved: true,
+          })),
+          status: "approved",
+          approvedBy: actor.id,
+          approvedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(ddsCardReferences.id, row!.id));
+      accepted.push(versionId);
+    }
+    return { accepted, rejected };
+  }
+
+  async regenerateMany(versionIds: string[]) {
+    const versions = await this.db
+      .select({
+        id: scenarioVersions.id,
+        services: scenarioVersions.expectedServices,
+      })
+      .from(scenarioVersions)
+      .where(inArray(scenarioVersions.id, versionIds));
+    const accepted: string[] = [];
+    const rejected: { scenarioVersionId: string; reason: string }[] = [];
+    for (const versionId of versionIds) {
+      const version = versions.find(({ id }) => id === versionId);
+      if (!version) {
+        rejected.push({
+          scenarioVersionId: versionId,
+          reason: "Версия сценария не найдена",
+        });
+        continue;
+      }
+      await this.db
+        .insert(ddsCardReferences)
+        .values({
+          id: generateId(),
+          scenarioVersionId: versionId,
+          expectedOutcome: "accept",
+          requiredItems: [],
+          expectedCrewService: expectedCrewServiceFromScenario(
+            version.services,
+          ),
+          status: "draft",
+          jobStatus: "pending",
+        })
+        .onConflictDoUpdate({
+          target: ddsCardReferences.scenarioVersionId,
+          targetWhere: isNotNull(ddsCardReferences.scenarioVersionId),
+          set: {
+            jobStatus: "pending",
+            attemptCount: 0,
+            leaseOwner: null,
+            leaseUntil: null,
+            error: null,
+            updatedAt: new Date(),
+          },
+        });
+      accepted.push(versionId);
+    }
+    if (this.scheduler) this.scheduler.wake();
+    else void this.drain();
+    return { accepted, rejected };
+  }
+
+  async backfillServices(): Promise<{ updated: number; unresolved: number }> {
+    const rows = await this.db
+      .select({
+        referenceId: ddsCardReferences.id,
+        services: scenarioVersions.expectedServices,
+      })
+      .from(ddsCardReferences)
+      .innerJoin(
+        scenarioVersions,
+        eq(scenarioVersions.id, ddsCardReferences.scenarioVersionId),
+      )
+      .where(isNull(ddsCardReferences.expectedCrewService));
+    let updated = 0;
+    let unresolved = 0;
+    for (const row of rows) {
+      const service = expectedCrewServiceFromScenario(row.services);
+      if (!service) {
+        unresolved += 1;
+        continue;
+      }
+      await this.db
+        .update(ddsCardReferences)
+        .set({ expectedCrewService: service, updatedAt: new Date() })
+        .where(eq(ddsCardReferences.id, row.referenceId));
+      updated += 1;
+    }
+    return { updated, unresolved };
+  }
 
   async getScenario(versionId: string) {
     const [existing] = await this.db
@@ -105,7 +345,45 @@ export class DdsReferenceService {
   }
 
   async regenerate(versionId: string, comment: string) {
-    return this.present(await this.generate(versionId, comment));
+    const [version] = await this.db
+      .select({ services: scenarioVersions.expectedServices })
+      .from(scenarioVersions)
+      .where(eq(scenarioVersions.id, versionId))
+      .limit(1);
+    if (!version)
+      throw new AppNotFoundException(
+        "SCENARIO_VERSION_NOT_FOUND",
+        "Версия сценария не найдена",
+      );
+    const [queued] = await this.db
+      .insert(ddsCardReferences)
+      .values({
+        id: generateId(),
+        scenarioVersionId: versionId,
+        expectedOutcome: "accept",
+        requiredItems: [],
+        expectedCrewService: expectedCrewServiceFromScenario(version.services),
+        status: "draft",
+        jobStatus: "pending",
+        generationComment: comment,
+      })
+      .onConflictDoUpdate({
+        target: ddsCardReferences.scenarioVersionId,
+        targetWhere: isNotNull(ddsCardReferences.scenarioVersionId),
+        set: {
+          jobStatus: "pending",
+          generationComment: comment,
+          attemptCount: 0,
+          leaseOwner: null,
+          leaseUntil: null,
+          error: null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    if (this.scheduler) this.scheduler.wake();
+    else void this.drain();
+    return this.present(queued!);
   }
 
   async update(
@@ -113,6 +391,25 @@ export class DdsReferenceService {
     versionId: string,
     input: UpdateDdsReference,
   ) {
+    const approving =
+      input.approveAll || input.requiredItems.some((item) => item.approved);
+    const approvedItems = input.requiredItems.filter(
+      (item) => item.approved || input.approveAll,
+    );
+    if (approving && approvedItems.length === 0)
+      throw new AppBadRequestException(
+        ErrorCodes.DDS_REFERENCE_INVALID,
+        "Для подтверждения нужен хотя бы один утверждённый пункт",
+      );
+    if (
+      approving &&
+      input.expectedOutcome === "refuse" &&
+      input.refusalReasons.length === 0
+    )
+      throw new AppBadRequestException(
+        ErrorCodes.DDS_REFERENCE_INVALID,
+        "Для исхода «отказ» нужна хотя бы одна допустимая причина",
+      );
     const now = new Date();
     const [updated] = await this.db
       .update(ddsCardReferences)
@@ -124,18 +421,9 @@ export class DdsReferenceService {
           ? input.requiredItems.map((item) => ({ ...item, approved: true }))
           : input.requiredItems,
         expectedCrewService: input.expectedCrewService,
-        status:
-          input.approveAll || input.requiredItems.some((item) => item.approved)
-            ? "approved"
-            : "draft",
-        approvedBy:
-          input.approveAll || input.requiredItems.some((item) => item.approved)
-            ? actor.id
-            : null,
-        approvedAt:
-          input.approveAll || input.requiredItems.some((item) => item.approved)
-            ? now
-            : null,
+        status: approving ? "approved" : "draft",
+        approvedBy: approving ? actor.id : null,
+        approvedAt: approving ? now : null,
         version: sql`${ddsCardReferences.version} + 1`,
         updatedAt: now,
       })
@@ -206,9 +494,103 @@ export class DdsReferenceService {
     return { prepared, failed };
   }
 
+  private async drain(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    try {
+      for (;;) {
+        const task = await this.claim();
+        if (!task) return;
+        const started = Date.now();
+        try {
+          await this.generate(task.scenarioVersionId!, task.generationComment, {
+            id: task.id,
+            token: task.leaseOwner!,
+          });
+          this.logger.log(
+            `Эталон ${task.id} сформирован за ${Date.now() - started} мс`,
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Неизвестная ошибка генерации";
+          await this.db
+            .update(ddsCardReferences)
+            .set({
+              jobStatus: task.attemptCount >= 3 ? "failed" : "pending",
+              error: message.slice(0, 2_000),
+              leaseOwner: null,
+              leaseUntil: null,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(ddsCardReferences.id, task.id),
+                eq(ddsCardReferences.leaseOwner, task.leaseOwner!),
+              ),
+            );
+          this.logger.warn(
+            `Эталон ${task.id} не сформирован за ${Date.now() - started} мс: ${message}`,
+          );
+        }
+      }
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private claim(): Promise<DdsCardReferenceRecord | null> {
+    return this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [task] = await tx
+        .select()
+        .from(ddsCardReferences)
+        .where(
+          and(
+            isNotNull(ddsCardReferences.scenarioVersionId),
+            lt(ddsCardReferences.attemptCount, 3),
+            or(
+              eq(ddsCardReferences.jobStatus, "pending"),
+              and(
+                eq(ddsCardReferences.jobStatus, "processing"),
+                or(
+                  isNull(ddsCardReferences.leaseUntil),
+                  lt(ddsCardReferences.leaseUntil, now),
+                ),
+              ),
+            ),
+          ),
+        )
+        .orderBy(ddsCardReferences.updatedAt)
+        .limit(1)
+        .for("update", { skipLocked: true });
+      if (!task) return null;
+      const token = generateId();
+      const configured = Number(
+        this.config.get("TOOLS_LLM_TIMEOUT_MS") ?? 120_000,
+      );
+      const timeout =
+        Number.isFinite(configured) && configured > 0 ? configured : 120_000;
+      const [claimed] = await tx
+        .update(ddsCardReferences)
+        .set({
+          jobStatus: "processing",
+          attemptCount: sql`${ddsCardReferences.attemptCount} + 1`,
+          leaseOwner: token,
+          leaseUntil: new Date(now.getTime() + timeout + 10_000),
+          updatedAt: now,
+        })
+        .where(eq(ddsCardReferences.id, task.id))
+        .returning();
+      return claimed ?? null;
+    });
+  }
+
   private async generate(
     versionId: string,
     comment: string | null,
+    lease?: { id: string; token: string },
   ): Promise<DdsCardReferenceRecord> {
     const [source] = await this.db
       .select({ version: scenarioVersions, scenario: scenarios })
@@ -247,7 +629,7 @@ export class DdsReferenceService {
               services: source.version.expectedServices,
               instructorComment: comment,
             }),
-            maxTokens: 2_048,
+            maxTokens: 700,
             signal: AbortSignal.timeout(
               Number(process.env.TOOLS_LLM_TIMEOUT_MS ?? 120_000),
             ),
@@ -266,14 +648,33 @@ export class DdsReferenceService {
         ...item,
         approved: false,
       })),
-      expectedCrewService: this.service(parsed.expectedCrewService),
+      expectedCrewService:
+        expectedCrewServiceFromScenario(source.version.expectedServices) ??
+        this.service(parsed.expectedCrewService),
       status: "draft" as const,
+      jobStatus: "done" as const,
       generationComment: comment,
       approvedBy: null,
       approvedAt: null,
       error: null,
+      leaseOwner: null,
+      leaseUntil: null,
       updatedAt: new Date(),
     };
+    if (lease) {
+      const [saved] = await this.db
+        .update(ddsCardReferences)
+        .set({ ...values, attemptCount: 0 })
+        .where(
+          and(
+            eq(ddsCardReferences.id, lease.id),
+            eq(ddsCardReferences.leaseOwner, lease.token),
+          ),
+        )
+        .returning();
+      if (!saved) throw new Error("Аренда задания эталона уже потеряна");
+      return saved;
+    }
     const [saved] = await this.db
       .insert(ddsCardReferences)
       .values({ id: generateId(), scenarioVersionId: versionId, ...values })
@@ -315,6 +716,7 @@ export class DdsReferenceService {
       requiredItems: row.requiredItems,
       expectedCrewService: row.expectedCrewService,
       status: row.status,
+      jobStatus: row.jobStatus,
       version: row.version,
       approvedBy: row.approvedBy,
       approvedAt: row.approvedAt?.toISOString() ?? null,
