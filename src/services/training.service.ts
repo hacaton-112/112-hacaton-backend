@@ -3,6 +3,7 @@ import {
   GroupStudentListSchema,
   InstructorCallListSchema,
   LiveTrainingSessionListSchema,
+  MyTrainingAssignmentListSchema,
   OperatorOptionListSchema,
   StudentListSchema,
   StudentProfileSchema,
@@ -72,9 +73,9 @@ export const trainingService = {
     ).assignments;
   },
   async listMyAssignments() {
-    return TrainingAssignmentListSchema.parse(
+    return MyTrainingAssignmentListSchema.parse(
       await api.get<unknown>(API_CONFIG.getMyTrainingAssignmentsUrl()),
-    ).assignments;
+    );
   },
   async createAssignment(input: CreateTrainingAssignment) {
     return TrainingAssignmentSchema.parse(

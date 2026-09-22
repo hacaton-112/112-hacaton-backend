@@ -14,6 +14,7 @@ import type { BrowserPhoneConfig } from "../../contracts/telephony";
 import {
   PHONE_CHANNEL_NAME,
   PhoneHostMessageSchema,
+  type PhoneCrewEntry,
   type PhoneWindowMessage,
 } from "../../lib/browser-phone-window";
 import { BrowserPhoneClient } from "../../services/browser-phone.service";
@@ -22,6 +23,7 @@ type PhoneState =
   | "waiting"
   | "connecting"
   | "registered"
+  | "dialing"
   | "ringing"
   | "answering"
   | "connected"
@@ -34,6 +36,7 @@ const STATE_LABELS: Record<PhoneState, string> = {
   waiting: "Ожидание рабочего места",
   connecting: "Подключение к АТС",
   registered: "Готов к звонку",
+  dialing: "Вызов наряда",
   ringing: "Входящий звонок",
   answering: "Подключение микрофона",
   connected: "Разговор",
@@ -50,6 +53,14 @@ export default function BrowserPhonePage() {
   // Окно живёт рядом с рабочим местом, поэтому номер набирают здесь, а звонок
   // ставит карточка: у неё есть упражнение, к которому относится вызов.
   const [number, setNumber] = useState("");
+  // Наряды приходят из карточки: телефон сам не знает, по какому она
+  // происшествию, и справочник у него всегда от текущей карточки.
+  const [crews, setCrews] = useState<readonly PhoneCrewEntry[]>([]);
+  const [canCall, setCanCall] = useState(false);
+  const [hostStatus, setHostStatus] = useState<{
+    kind: "sent" | "error";
+    message: string;
+  }>();
   const channelRef = useRef<BroadcastChannel | null>(null);
   const requestIdRef = useRef<string | undefined>(undefined);
 
@@ -85,6 +96,7 @@ export default function BrowserPhonePage() {
       await phoneRef.current?.dispose();
       const phone = new BrowserPhoneClient(config, audioRef.current, {
         onRegistered: () => {
+          if (requestIdRef.current !== requestId) return;
           setState("registered");
           publish({
             type: "registered",
@@ -92,10 +104,17 @@ export default function BrowserPhonePage() {
             extension: config.extension,
           });
         },
-        onIncomingCall: () => setState("ringing"),
-        onCallAnswered: () => setState("connected"),
-        onCallEnded: () => setState("ended"),
+        onIncomingCall: () => {
+          if (requestIdRef.current === requestId) setState("ringing");
+        },
+        onCallAnswered: () => {
+          if (requestIdRef.current === requestId) setState("connected");
+        },
+        onCallEnded: () => {
+          if (requestIdRef.current === requestId) setState("ended");
+        },
         onDisconnected: (reason) => {
+          if (requestIdRef.current !== requestId) return;
           setState("error");
           setError(reason?.message ?? "Соединение с Asterisk потеряно");
         },
@@ -121,7 +140,43 @@ export default function BrowserPhonePage() {
         publish({ type: "ready", requestId: parsed.data.requestId });
         return;
       }
-      void configure(parsed.data.requestId, parsed.data.config);
+      if (parsed.data.type === "configure") {
+        void configure(parsed.data.requestId, parsed.data.config);
+        return;
+      }
+      if (parsed.data.requestId !== requestIdRef.current) return;
+      if (parsed.data.type === "context") {
+        const nextCrews = parsed.data.crews;
+        setCrews(nextCrews);
+        setCanCall(parsed.data.canCall);
+        setNumber((current) =>
+          nextCrews.some(({ phoneNumber }) => phoneNumber === current)
+            ? current
+            : "",
+        );
+        return;
+      }
+      if (parsed.data.type === "status") {
+        setHostStatus({
+          kind: parsed.data.kind,
+          message: parsed.data.message,
+        });
+        if (parsed.data.kind === "error") {
+          setState((current) =>
+            current === "dialing" ? "registered" : current,
+          );
+        }
+        return;
+      }
+      requestIdRef.current = undefined;
+      setCrews([]);
+      setCanCall(false);
+      setHostStatus(undefined);
+      setNumber("");
+      setExtension(undefined);
+      setState("waiting");
+      void phoneRef.current?.dispose();
+      phoneRef.current = null;
     };
     channel.addEventListener("message", onMessage);
 
@@ -157,6 +212,13 @@ export default function BrowserPhonePage() {
     }
   };
 
+  const offeredNumber = crews.some(({ phoneNumber }) => phoneNumber === number);
+  const canDial =
+    canCall &&
+    offeredNumber &&
+    extension !== undefined &&
+    (state === "registered" || state === "ended");
+
   return (
     <main className="bg-gray-2 min-h-screen p-4">
       <audio ref={audioRef} autoPlay />
@@ -187,7 +249,30 @@ export default function BrowserPhonePage() {
           </Text>
         )}
 
-        {extension && (
+        {crews.length > 0 && (
+          <div className="grid gap-1" aria-label="Наряды по карточке">
+            <Text size="1" color="gray">
+              Наряды по карточке
+            </Text>
+            {crews.map((crew) => (
+              <Button
+                key={crew.phoneNumber}
+                size="2"
+                variant={number === crew.phoneNumber ? "solid" : "soft"}
+                onClick={() => {
+                  setNumber(crew.phoneNumber);
+                  setHostStatus(undefined);
+                }}
+              >
+                {crew.callsign} · {crew.phoneNumber}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {/* Клавиатура появляется вместе со справочником карточки: ждать
+            регистрации в АТС незачем, она видна по состоянию выше. */}
+        {(extension || crews.length > 0) && (
           <div className="grid gap-2" aria-label="Набор номера наряда">
             <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
               <Text as="p" size="1" color="gray">
@@ -231,10 +316,12 @@ export default function BrowserPhonePage() {
             <Button
               color="green"
               size="3"
-              disabled={number === "" || state === "connecting"}
+              disabled={!canDial}
               onClick={() => {
                 const requestId = requestIdRef.current;
                 if (!requestId || !channelRef.current) return;
+                setHostStatus(undefined);
+                setState("dialing");
                 // Звонок ставит рабочее место: только оно знает карточку.
                 channelRef.current.postMessage({
                   type: "dial",
@@ -245,6 +332,33 @@ export default function BrowserPhonePage() {
             >
               <PhoneCall size={18} /> Позвонить
             </Button>
+
+            {number && !offeredNumber && (
+              <Text size="1" color="amber">
+                Для этой карточки можно вызвать только наряд из списка выше.
+              </Text>
+            )}
+
+            {!canCall && (
+              <Text size="1" color="gray">
+                Сначала примите карточку в рабочем месте: до этого звонок наряду
+                не засчитывается.
+              </Text>
+            )}
+            {canCall && !extension && (
+              <Text size="1" color="gray">
+                Аппарат ещё не зарегистрирован в АТС: звонок станет доступен
+                после подключения.
+              </Text>
+            )}
+            {hostStatus && (
+              <Callout.Root
+                color={hostStatus.kind === "error" ? "red" : "green"}
+                role={hostStatus.kind === "error" ? "alert" : undefined}
+              >
+                <Callout.Text>{hostStatus.message}</Callout.Text>
+              </Callout.Root>
+            )}
           </div>
         )}
 

@@ -9,7 +9,7 @@
 
 /** Шаблоны для `<Route path>`: только здесь встречаются `:параметры`. */
 export const ROUTE_PATTERNS = {
-  operator: "/",
+  operator: "/operator",
   auth: "/auth",
   debrief: "/debrief",
   debriefSession: "/debrief/:trainingSessionId",
@@ -34,11 +34,12 @@ export const ROUTE_PATTERNS = {
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
   phone: "/phone",
+  operatorPhone: "/operator-phone",
 } as const;
 
 export const ROUTES = {
-  operator: () => "/",
-  operatorWorkplace: () => "/?workplace=1",
+  operator: () => "/operator",
+  operatorWorkplace: () => "/operator",
   auth: () => "/auth",
   debrief: () => "/debrief",
   dds: () => "/dds",
@@ -70,9 +71,9 @@ export const ROUTES = {
     `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,
   /** Рабочее место с уже выбранным сценарием: брифинг открывает звонок так. */
   operatorWithScenario: (scenarioVersionId: string) =>
-    `/?scenario=${encodeURIComponent(scenarioVersionId)}`,
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}`,
   operatorWithAssignment: (scenarioVersionId: string, assignmentId: string) =>
-    `/?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
 } as const;
 
 /** Имя параметра, которым брифинг передаёт сценарий на рабочее место. */
@@ -89,3 +90,7 @@ export const MAP_WINDOW_URL = `/#${ROUTE_PATTERNS.map}`;
 
 export const PHONE_WINDOW_LABEL = "dds-phone";
 export const PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.phone}`;
+
+/** Телефон оператора 112: тот же звонок, но в отдельном окне рабочего места. */
+export const OPERATOR_PHONE_WINDOW_LABEL = "operator-phone";
+export const OPERATOR_PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.operatorPhone}`;

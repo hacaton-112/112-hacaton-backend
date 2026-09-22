@@ -305,6 +305,11 @@ class WebCallStream implements CallStream {
 }
 
 export const callService = {
+  /**
+   * Голос идёт по WebSocket прямо из браузера: клиент больше не в Tauri, и
+   * отдельной проверки оболочки не нужно — нужен только сам транспорт.
+   */
+  isAvailable: typeof WebSocket !== "undefined",
   createStream(callbacks: CallStreamCallbacks): CallStream {
     return new WebCallStream(callbacks);
   },

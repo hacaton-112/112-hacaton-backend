@@ -86,6 +86,9 @@ export function useIncidentPoint(
               revision: revision * 2 + 1,
               ...coordinates,
               addressText: formatIncidentAddress(address),
+              city: address.city,
+              street: address.street,
+              house: address.house,
             },
           });
         })

@@ -99,6 +99,23 @@ export const TrainingAssignmentListSchema = z.object({
   assignments: z.array(TrainingAssignmentSchema),
 });
 
+export const ActiveTrainingAttemptSchema = z.object({
+  trainingSessionId: z.uuid(),
+  assignmentId: z.uuid(),
+  assignmentTitle: z.string(),
+  scenarioVersionId: z.uuid(),
+  type: TrainingAssignmentTypeSchema,
+  attemptNumber: z.number().int().positive(),
+  startedAt: z.iso.datetime(),
+  exerciseId: z.uuid().nullable(),
+});
+
+export const MyTrainingAssignmentListSchema = z.object({
+  assignments: z.array(TrainingAssignmentSchema),
+  // Старый backend не присылает контекст блокирующей попытки.
+  activeAttempt: ActiveTrainingAttemptSchema.nullable().default(null),
+});
+
 export const LiveTrainingSessionSchema = z.object({
   trainingSessionId: z.uuid(),
   assignmentId: z.uuid(),
@@ -210,6 +227,7 @@ export type StudentListItem = z.infer<typeof StudentListItemSchema>;
 export type TrainingGroupStatus = z.infer<typeof TrainingGroupStatusSchema>;
 export type OperatorOption = z.infer<typeof OperatorOptionSchema>;
 export type TrainingAssignment = z.infer<typeof TrainingAssignmentSchema>;
+export type ActiveTrainingAttempt = z.infer<typeof ActiveTrainingAttemptSchema>;
 export type TrainingAssignmentStatus = z.infer<
   typeof TrainingAssignmentStatusSchema
 >;

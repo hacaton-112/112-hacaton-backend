@@ -30,6 +30,8 @@ export interface CallSnapshot {
   trainingSessionId?: string;
   /** Готовность соединения: до неё звонок начать нельзя. */
   isConnected: boolean;
+  /** Нативный голосовой транспорт есть только в Tauri до web-миграции. */
+  voiceTransportAvailable: boolean;
   isRecovering: boolean;
   recoverySecondsRemaining: number;
   callerNumber?: string;
@@ -287,7 +289,7 @@ export function useCall(): CallSnapshot & CallControls {
   // Соединение живёт столько же, сколько рабочее место оператора: звонки
   // сменяют друг друга внутри него.
   useEffect(() => {
-    if (!token) return;
+    if (!token || !callService.isAvailable) return;
 
     const storedSessionId = readActiveTrainingSession(operatorId);
     if (storedSessionId && recoveryDeadlineRef.current === null) {
@@ -539,6 +541,7 @@ export function useCall(): CallSnapshot & CallControls {
     endedByInstructor,
     trainingSessionId,
     isConnected,
+    voiceTransportAvailable: callService.isAvailable,
     isRecovering,
     recoverySecondsRemaining,
     callerNumber: locator?.callerNumber,

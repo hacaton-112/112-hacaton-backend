@@ -1,6 +1,5 @@
 import { Navigate, useSearchParams } from "react-router";
 
-import OperatorPage from "./operator-page";
 import {
   ROUTES,
   ASSIGNMENT_QUERY_PARAM,
@@ -10,9 +9,8 @@ import {
 import { useAuthStore } from "../../stores/auth.store";
 
 /**
- * Прямые ссылки на голосовой сценарий остаются рабочим местом оператора.
- * Обычный вход обучающегося ведёт в назначения, где тип занятия уже определён
- * преподавателем и не требует знания внутренней структуры программы.
+ * Корень остаётся совместимым со старыми ссылками, но рабочее место имеет
+ * собственный понятный URL. Обычный вход обучающегося ведёт в назначения.
  */
 export default function HomePage() {
   const role = useAuthStore((state) => state.user?.role);
@@ -26,5 +24,8 @@ export default function HomePage() {
     return <Navigate to={ROUTES.assignments()} replace />;
   }
 
-  return <OperatorPage />;
+  const query = search.toString();
+  return (
+    <Navigate to={`${ROUTES.operator()}${query ? `?${query}` : ""}`} replace />
+  );
 }
