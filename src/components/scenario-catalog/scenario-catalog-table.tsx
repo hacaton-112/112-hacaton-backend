@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ScenarioSummary } from "../../contracts/call";
 import type { ScenarioGenerationJob } from "../../contracts/scenario-authoring";
-import { ACTION_COLUMN, DATA_TABLE_DEFAULTS } from "../../lib/data-table";
+import { DATA_TABLE_DEFAULTS } from "../../lib/data-table";
 import {
   CategoryChip,
   CodeChip,
@@ -76,7 +76,7 @@ export function ScenarioCatalogTable({
         colId: "code",
         headerName: "Код",
         flex: 0,
-        width: 120,
+        width: 100,
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.code : "",
         cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
@@ -93,14 +93,22 @@ export function ScenarioCatalogTable({
         colId: "title",
         headerName: "Сценарий",
         flex: 3,
-        minWidth: 280,
+        minWidth: 260,
+        // Черновику остальные колонки не нужны: его описание, статус и кнопки
+        // занимают всю ширину, и таблица не уезжает вбок рядом с брифингом.
+        colSpan: ({ data }) => (data?.kind === "job" ? 3 : 1),
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.title : "",
         tooltipValueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.summary : data?.job.brief,
         cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
           data?.kind === "job" ? (
-            <JobTitle job={data.job} />
+            <JobTitle
+              job={data.job}
+              onOpen={onOpenDraft}
+              onRetry={onRetry}
+              onDismiss={onDismiss}
+            />
           ) : data ? (
             <Text weight="medium" className="truncate">
               {data.scenario.title}
@@ -110,7 +118,7 @@ export function ScenarioCatalogTable({
       {
         colId: "category",
         headerName: "Категория",
-        minWidth: 170,
+        minWidth: 150,
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.category : "",
         cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
@@ -121,7 +129,8 @@ export function ScenarioCatalogTable({
       {
         colId: "difficulty",
         headerName: "Сложность",
-        minWidth: 120,
+        flex: 0,
+        width: 110,
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.difficulty : null,
         cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
@@ -129,35 +138,6 @@ export function ScenarioCatalogTable({
             <Flex align="center" height="100%">
               <DifficultyDots level={data.scenario.difficulty} />
             </Flex>
-          ) : null,
-      },
-      {
-        colId: "norm",
-        headerName: "Норматив",
-        minWidth: 110,
-        valueGetter: ({ data }) =>
-          data?.kind === "scenario" ? data.scenario.answerNormSeconds : null,
-        valueFormatter: ({ value }) =>
-          typeof value === "number" ? formatClock(value) : "",
-      },
-      {
-        colId: "version",
-        headerName: "Версия",
-        minWidth: 90,
-        valueGetter: ({ data }) =>
-          data?.kind === "scenario" ? data.scenario.version : null,
-      },
-      {
-        ...ACTION_COLUMN,
-        width: 230,
-        cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>
-          data?.kind === "job" ? (
-            <JobActions
-              job={data.job}
-              onOpen={onOpenDraft}
-              onRetry={onRetry}
-              onDismiss={onDismiss}
-            />
           ) : null,
       },
     ],
@@ -203,7 +183,17 @@ function useElapsed(since: string | null): string | null {
   return since ? formatClock((now - new Date(since).getTime()) / 1_000) : null;
 }
 
-function JobTitle({ job }: { job: ScenarioGenerationJob }) {
+function JobTitle({
+  job,
+  onOpen,
+  onRetry,
+  onDismiss,
+}: {
+  job: ScenarioGenerationJob;
+  onOpen: (job: ScenarioGenerationJob) => void;
+  onRetry: (job: ScenarioGenerationJob) => void;
+  onDismiss: (job: ScenarioGenerationJob) => void;
+}) {
   const elapsed = useElapsed(job.status === "running" ? job.startedAt : null);
   const status =
     job.status === "queued"
@@ -235,12 +225,21 @@ function JobTitle({ job }: { job: ScenarioGenerationJob }) {
           {status}
         </Text>
       </div>
-      {(job.status === "queued" || job.status === "running") && (
+      {job.status === "queued" || job.status === "running" ? (
         <div
           className="scenario-job-progress ml-auto h-1 w-24 shrink-0 overflow-hidden rounded-full bg-(--gray-a4)"
           aria-hidden
         >
           <div className="h-full w-1/3 rounded-full bg-(--violet-9)" />
+        </div>
+      ) : (
+        <div className="ml-auto shrink-0">
+          <JobActions
+            job={job}
+            onOpen={onOpen}
+            onRetry={onRetry}
+            onDismiss={onDismiss}
+          />
         </div>
       )}
     </Flex>
