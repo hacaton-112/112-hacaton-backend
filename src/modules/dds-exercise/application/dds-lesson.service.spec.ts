@@ -158,7 +158,7 @@ describe(`${DdsLessonService.name}.next`, () => {
       [],
       [],
       [],
-      [{ id: VERSION_ID }],
+      [{ id: VERSION_ID, scenarioId: "scenario-1" }],
       [],
       [],
     ]);
@@ -183,6 +183,57 @@ describe(`${DdsLessonService.name}.next`, () => {
     expect(inserted.acknowledgementDeadlineAt.getTime()).toBeGreaterThanOrEqual(
       before + 45_000,
     );
+  });
+
+  it("issues only the current version of a republished scenario", async () => {
+    const current = "70dfbf42-ec3b-4f3d-8d98-a415bc90dee0";
+    const { service, store, calls } = createService([
+      [lesson()],
+      membership,
+      [],
+      [],
+      [],
+      // Версии приходят от новой к старой, как в запросе.
+      [
+        { id: current, scenarioId: "scenario-1" },
+        { id: VERSION_ID, scenarioId: "scenario-1" },
+      ],
+      [],
+      [],
+    ]);
+
+    await service.next(OPERATOR_ID, LESSON_ID, EVENT_ID);
+
+    expect(store.loadScenarioSource).toHaveBeenCalledTimes(1);
+    expect(store.loadScenarioSource).toHaveBeenCalledWith(current);
+    const inserted = calls
+      .filter(({ method }) => method === "values")
+      .map(({ args }) => args[0])
+      .find(
+        (value) =>
+          typeof value === "object" &&
+          value !== null &&
+          "scenarioVersionId" in value,
+      ) as { scenarioVersionId: string };
+    expect(inserted.scenarioVersionId).toBe(current);
+  });
+
+  it("does not hand a service an incident of another service", async () => {
+    // Сценарий пожарный, а ученик — газовая служба: такой карточки в его
+    // ленте быть не должно, даже если других сценариев нет.
+    const { service, calls } = createService([
+      [lesson()],
+      [{ groupId: lesson().groupId, serviceTag: "04" }],
+      [],
+      [],
+      [],
+      [{ id: VERSION_ID, scenarioId: "scenario-1" }],
+    ]);
+
+    await expect(
+      service.next(OPERATOR_ID, LESSON_ID, EVENT_ID),
+    ).resolves.toMatchObject({ status: "empty" });
+    expect(calls.some(({ method }) => method === "insert")).toBe(false);
   });
 
   it("claims a queued operator card", async () => {

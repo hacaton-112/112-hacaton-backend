@@ -58,6 +58,15 @@ const sourceOf = (card: {
 }): LessonSource =>
   card.sourceTrainingSessionId === null ? "generated" : "operator_call";
 
+/** Случайный порядок без ORDER BY random(): версии уже отобраны в памяти. */
+const shuffle = <T>(items: T[]): T[] => {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [items[index], items[other]] = [items[other], items[index]];
+  }
+  return items;
+};
+
 /** Поток карточек одного практического занятия ДДС. */
 @Injectable()
 export class DdsLessonService {
@@ -391,8 +400,11 @@ export class DdsLessonService {
         ),
       );
     const usedIds = new Set(used.map(({ id }) => id));
-    const candidates = await tx
-      .select({ id: scenarioVersions.id })
+    const versions = await tx
+      .select({
+        id: scenarioVersions.id,
+        scenarioId: scenarioVersions.scenarioId,
+      })
       .from(scenarioVersions)
       .innerJoin(scenarios, eq(scenarios.id, scenarioVersions.scenarioId))
       .where(
@@ -402,28 +414,36 @@ export class DdsLessonService {
           inArray(scenarios.category, lesson.categories),
         ),
       )
-      .orderBy(sql`random()`);
+      .orderBy(desc(scenarioVersions.version));
+    // Только действующая версия сценария, как в каталоге: прошлые версии
+    // остаются за проведёнными звонками и в новое занятие не попадают.
+    const current = new Map<string, string>();
+    for (const version of versions) {
+      if (!current.has(version.scenarioId)) {
+        current.set(version.scenarioId, version.id);
+      }
+    }
+    const candidates = shuffle([...current.values()]);
     const ordered = [
-      ...candidates.filter(({ id }) => !usedIds.has(id)),
-      ...candidates.filter(({ id }) => usedIds.has(id)),
+      ...candidates.filter((id) => !usedIds.has(id)),
+      ...candidates.filter((id) => usedIds.has(id)),
     ];
-    for (const candidate of ordered) {
-      const source = await this.store.loadScenarioSource(candidate.id);
+    for (const candidateId of ordered) {
+      const source = await this.store.loadScenarioSource(candidateId);
       if (!source) continue;
       const built = buildDdsCardSnapshot(source);
-      if (!built) continue;
+      // В ленту службы попадают только её происшествия: газовой службе не
+      // выдаётся приступ астмы только потому, что так выпал случай.
+      if (!built?.snapshot.services.includes(service)) continue;
       const now = new Date();
       const id = generateId();
       await tx.insert(ddsExercises).values({
         id,
-        scenarioVersionId: candidate.id,
+        scenarioVersionId: candidateId,
         operatorId,
         lessonId: lesson.id,
         addressedService: service,
-        card: {
-          ...built.snapshot,
-          services: [...new Set([...built.snapshot.services, service])],
-        },
+        card: built.snapshot,
         startEventId: eventId,
         acknowledgementDeadlineAt: new Date(
           now.getTime() + lesson.acknowledgementNormSeconds * 1_000,
