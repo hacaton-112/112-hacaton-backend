@@ -44,6 +44,9 @@ export const API_CONFIG = {
   getInstructorReportUrl: () => `/instructor/reports`,
   getInstructorReportExportUrl: () => `/instructor/reports/export`,
   getScenarioAssistantDraftUrl: () => `/scenarios/assistant/draft`,
+  getScenarioGenerationJobsUrl: () => `/scenarios/assistant/jobs`,
+  getScenarioGenerationJobUrl: (jobId: string) =>
+    `/scenarios/assistant/jobs/${encodeURIComponent(jobId)}`,
   getScenarioPublishUrl: () => `/scenarios`,
   getScenarioGrammarCheckUrl: () => `/scenarios/grammar-check`,
   getScenarioUrl: (scenarioId: string) => `/scenarios/${scenarioId}`,

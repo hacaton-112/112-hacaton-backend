@@ -511,6 +511,32 @@ export const GenerateScenarioDraftResponseSchema = z
   })
   .strict();
 
+export const SCENARIO_GENERATION_STATUSES = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+] as const;
+
+/** Задание на черновик помощника: генерация идёт в фоне, таблица ждёт статус. */
+export const ScenarioGenerationJobSchema = z
+  .object({
+    id: z.string().min(1),
+    brief: z.string(),
+    status: z.enum(SCENARIO_GENERATION_STATUSES),
+    queuePosition: z.number().int().min(1).nullable(),
+    createdAt: z.iso.datetime(),
+    startedAt: z.iso.datetime().nullable(),
+    finishedAt: z.iso.datetime().nullable(),
+    error: z.object({ code: z.string(), message: z.string() }).nullable(),
+    result: GenerateScenarioDraftResponseSchema.nullable(),
+  })
+  .strict();
+
+export const ScenarioGenerationJobListSchema = z
+  .object({ jobs: z.array(ScenarioGenerationJobSchema) })
+  .strict();
+
 export const PublishedScenarioSchema = z
   .object({
     scenarioId: z.string().min(1),
@@ -576,6 +602,7 @@ export type GenerateScenarioDraftResponse = z.infer<
   typeof GenerateScenarioDraftResponseSchema
 >;
 export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
+export type ScenarioGenerationJob = z.infer<typeof ScenarioGenerationJobSchema>;
 export type EditableScenarioVersion = z.infer<
   typeof EditableScenarioVersionSchema
 >;
