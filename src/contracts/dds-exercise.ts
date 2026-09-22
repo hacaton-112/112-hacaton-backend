@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { GrammarReportSchema } from "./grammar";
+
 export const DDS_RESPONSE_STATUSES = [
   "pending",
   "accepted",
@@ -95,7 +97,7 @@ export const DdsTextEvaluationSchema = z.object({
     z.object({ description: z.string(), quote: z.string() }),
   ),
   summary: z.string().nullable(),
-  grammar: z.record(z.string(), z.unknown()).nullable(),
+  grammar: GrammarReportSchema.nullable(),
   model: z.string().nullable(),
   durationMs: z.number().int().nonnegative().nullable(),
   error: z.string().nullable(),

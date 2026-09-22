@@ -222,10 +222,7 @@ export function DdsTextResult({
       </Card>
     );
   }
-  const grammar = evaluation.grammar as {
-    errorCount?: number;
-    styleCount?: number;
-  } | null;
+  const grammar = evaluation.grammar;
   return (
     <Card size="2" variant="surface" className="grid gap-2">
       <Heading size="3">Оценка текста</Heading>
@@ -254,6 +251,18 @@ export function DdsTextResult({
         Грамматика: ошибок {grammar?.errorCount ?? 0}, замечаний по стилю{" "}
         {grammar?.styleCount ?? 0}.
       </Text>
+      {grammar?.fields.flatMap((field) =>
+        field.issues.map((issue, index) => (
+          <Text
+            key={`${field.id}:${issue.kind}:${issue.offset}:${index}`}
+            size="1"
+            color={issue.severity === "error" ? "red" : "orange"}
+          >
+            {field.label}: {issue.message}
+            {issue.suggestion ? ` — ${issue.suggestion}` : ""}
+          </Text>
+        )),
+      )}
     </Card>
   );
 }
