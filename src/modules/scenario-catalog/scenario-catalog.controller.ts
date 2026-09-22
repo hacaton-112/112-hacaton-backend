@@ -28,6 +28,13 @@ import { RolesGuard } from "@/modules/auth/roles.guard";
 import { TrainingService } from "@/modules/training/training.service";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
+import { ScenarioGenerationService } from "./application/scenario-generation.service";
+import {
+  CreateScenarioGenerationJobDto,
+  ScenarioGenerationJobDto,
+  ScenarioGenerationJobListDto,
+  type ScenarioGenerationJob,
+} from "./dto/scenario-generation.dto";
 import {
   EditableScenarioVersionDto,
   GenerateScenarioDraftRequestDto,
@@ -81,6 +88,7 @@ export class ScenarioCatalogController {
     @Inject(SCENARIO_CATALOG)
     private readonly catalog: ScenarioCatalog,
     private readonly authoring: ScenarioAuthoringService,
+    private readonly generation: ScenarioGenerationService,
     private readonly training: TrainingService,
   ) {}
 
@@ -110,6 +118,52 @@ export class ScenarioCatalogController {
     @Body() body: GenerateScenarioDraftRequestDto,
   ): Promise<GenerateScenarioDraftResponse> {
     return this.authoring.generateDraft(body.brief);
+  }
+
+  /**
+   * Черновик в фоне: запрос ставит задание и сразу отвечает, генерация идёт
+   * в очереди. Каталог показывает задание строкой со статусом.
+   */
+  @Post("assistant/jobs")
+  @Roles("instructor", "admin")
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ZodSerializerDto(ScenarioGenerationJobDto)
+  enqueueDraft(
+    @Body() body: CreateScenarioGenerationJobDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ScenarioGenerationJob> {
+    return this.generation.enqueue(this.actor(request), body.brief);
+  }
+
+  @Get("assistant/jobs")
+  @Roles("instructor", "admin")
+  @ZodSerializerDto(ScenarioGenerationJobListDto)
+  listDraftJobs(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ jobs: ScenarioGenerationJob[] }> {
+    return this.generation.list(this.actor(request));
+  }
+
+  @Get("assistant/jobs/:jobId")
+  @Roles("instructor", "admin")
+  @ZodSerializerDto(ScenarioGenerationJobDto)
+  getDraftJob(
+    @Param("jobId") jobId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ScenarioGenerationJob> {
+    return this.generation.get(this.actor(request), jobId);
+  }
+
+  /** Убирает законченное задание из списка; черновик в нём остаётся в базе. */
+  @Delete("assistant/jobs/:jobId")
+  @Roles("instructor", "admin")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async dismissDraftJob(
+    @Param("jobId") jobId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.generation.dismiss(this.actor(request), jobId);
   }
 
   /**
@@ -195,5 +249,9 @@ export class ScenarioCatalogController {
     @Req() request: AuthenticatedRequest,
   ): Promise<void> {
     return this.authoring.archive(scenarioId, request.user.sub);
+  }
+
+  private actor(request: AuthenticatedRequest) {
+    return { id: request.user.sub, role: request.user.role };
   }
 }

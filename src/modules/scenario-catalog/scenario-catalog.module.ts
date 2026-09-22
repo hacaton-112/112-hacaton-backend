@@ -6,12 +6,15 @@ import { AuthModule } from "@/modules/auth/auth.module";
 import { TrainingModule } from "@/modules/training/training.module";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
+import { ScenarioGenerationService } from "./application/scenario-generation.service";
 import { AliceAiScenarioDraftAssistant } from "./infrastructure/alice-ai-scenario-draft.assistant";
 import { DrizzleScenarioAuthoringRepository } from "./infrastructure/drizzle-scenario-authoring.repository";
 import { DrizzleScenarioCatalog } from "./infrastructure/drizzle-scenario.catalog";
+import { DrizzleScenarioGenerationRepository } from "./infrastructure/drizzle-scenario-generation.repository";
 import { SCENARIO_AUTHORING_REPOSITORY } from "./ports/scenario-authoring.repository";
 import { SCENARIO_CATALOG } from "./ports/scenario-catalog.port";
 import { SCENARIO_DRAFT_ASSISTANT } from "./ports/scenario-draft-assistant.port";
+import { SCENARIO_GENERATION_REPOSITORY } from "./ports/scenario-generation.repository";
 import { ScenarioCatalogController } from "./scenario-catalog.controller";
 
 /**
@@ -26,6 +29,12 @@ import { ScenarioCatalogController } from "./scenario-catalog.controller";
   controllers: [ScenarioCatalogController],
   providers: [
     ScenarioAuthoringService,
+    ScenarioGenerationService,
+    DrizzleScenarioGenerationRepository,
+    {
+      provide: SCENARIO_GENERATION_REPOSITORY,
+      useExisting: DrizzleScenarioGenerationRepository,
+    },
     AliceAiScenarioDraftAssistant,
     DrizzleScenarioAuthoringRepository,
     DrizzleScenarioCatalog,

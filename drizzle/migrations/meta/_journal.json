@@ -204,6 +204,13 @@
       "when": 1790070000000,
       "tag": "0026_dds_text_evaluation",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790352000000,
+      "tag": "0027_scenario_generation_jobs",
+      "breakpoints": true
     }
   ]
 }
