@@ -350,6 +350,16 @@ export class ReportExporter {
       csvRow(["Показатель", "Значение"]),
       ...statsRows(report.stats).map((row) => csvRow(row)),
       "",
+      csvRow(["ДДС"]),
+      csvRow(["Карточек", report.dds.cards]),
+      csvRow(["Средний автоматический балл", report.dds.averageScore]),
+      csvRow(["Итоговый балл", report.dds.finalScore]),
+      csvRow(["В нормативе", percent(report.dds.withinNormPercent)]),
+      csvRow(["Полнота текста", percent(report.dds.averageCoveragePercent)]),
+      ...report.dds.topErrors.map((error) =>
+        csvRow([DDS_PROCESS_ERROR_LABELS[error.type], error.count]),
+      ),
+      "",
       csvRow(ATTEMPT_HEADERS),
       ...report.attempts.map((attempt) => csvRow(attemptRow(attempt))),
     ];
@@ -428,6 +438,33 @@ export class ReportExporter {
       to: { row: 1, column: ATTEMPT_HEADERS.length },
     };
 
+    const dds = workbook.addWorksheet("ДДС");
+    dds.addRows([
+      ["Показатель", "Значение"],
+      ["Карточек", report.dds.cards],
+      ["Средний автоматический балл", report.dds.averageScore ?? "—"],
+      ["Итоговый балл", report.dds.finalScore ?? "—"],
+      ["В нормативе, %", report.dds.withinNormPercent ?? "—"],
+      ["Полнота текста, %", report.dds.averageCoveragePercent ?? "—"],
+      [],
+      ["Частая ошибка", "Количество"],
+      ...report.dds.topErrors.map(({ type, count }) => [
+        DDS_PROCESS_ERROR_LABELS[type],
+        count,
+      ]),
+      [],
+      ["Занятие", "Дата", "Средний балл"],
+      ...report.dds.scoreDynamics.map(({ title, occurredAt, score }) => [
+        title,
+        occurredAt,
+        score ?? "—",
+      ]),
+    ]);
+    dds.getColumn(1).width = 42;
+    dds.getColumn(2).width = 24;
+    dds.getColumn(3).width = 18;
+    this.styleTableHeader(dds.getRow(1));
+
     const output = await workbook.xlsx.writeBuffer();
     return Buffer.from(output);
   }
@@ -470,6 +507,21 @@ export class ReportExporter {
       for (const [label, value] of statsRows(report.stats)) {
         document.text(`${label}: ${text(value)}`);
       }
+
+      document.moveDown().fontSize(13).text("ДДС");
+      document
+        .fontSize(9)
+        .text(`Карточек: ${report.dds.cards}`)
+        .text(`Средний автоматический балл: ${text(report.dds.averageScore)}`)
+        .text(`Итоговый балл: ${text(report.dds.finalScore)}`)
+        .text(`В нормативе: ${percent(report.dds.withinNormPercent)}`)
+        .text(`Полнота текста: ${percent(report.dds.averageCoveragePercent)}`);
+      if (report.dds.cards === 0)
+        document.text("За выбранный период карточек ДДС нет.");
+      for (const error of report.dds.topErrors)
+        document.text(
+          `${DDS_PROCESS_ERROR_LABELS[error.type]}: ${error.count}`,
+        );
 
       if (report.students.length > 0) {
         document.moveDown().fontSize(13).text("Ученики");

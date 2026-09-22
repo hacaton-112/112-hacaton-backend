@@ -2,6 +2,7 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import { ATTEMPT_STATUSES } from "@/drizzle/schema";
+import { DDS_PROCESS_ERROR_TYPES } from "@/modules/dds-exercise/domain/dds-report-aggregation";
 
 const IdSchema = z.uuid();
 const DateTimeSchema = z.iso.datetime();
@@ -163,6 +164,55 @@ export const InstructorReportSchema = z
         message: z.string(),
       })
       .strict(),
+    dds: z
+      .object({
+        cards: z.number().int().nonnegative(),
+        averageScore: z.number().int().nullable(),
+        finalScore: z.number().int().nullable(),
+        withinNormPercent: z.number().int().nullable(),
+        outcomes: z.array(
+          z.object({ status: z.string(), count: z.number().int() }),
+        ),
+        topErrors: z.array(
+          z.object({
+            type: z.enum(DDS_PROCESS_ERROR_TYPES),
+            count: z.number().int(),
+          }),
+        ),
+        averageCoveragePercent: z.number().int().nullable(),
+        scoreDynamics: z.array(
+          z.object({
+            lessonId: IdSchema,
+            title: z.string(),
+            occurredAt: DateTimeSchema,
+            score: z.number().int().nullable(),
+          }),
+        ),
+        weakPoints: z.array(
+          z.object({ label: z.string(), count: z.number().int() }),
+        ),
+        recentAttempts: z.array(
+          z.object({
+            exerciseId: IdSchema,
+            lessonTitle: z.string().nullable(),
+            occurredAt: DateTimeSchema,
+            finalStatus: z.string(),
+            finalScore: z.number().int().nullable(),
+          }),
+        ),
+      })
+      .default({
+        cards: 0,
+        averageScore: null,
+        finalScore: null,
+        withinNormPercent: null,
+        outcomes: [],
+        topErrors: [],
+        averageCoveragePercent: null,
+        scoreDynamics: [],
+        weakPoints: [],
+        recentAttempts: [],
+      }),
   })
   .strict();
 

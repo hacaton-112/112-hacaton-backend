@@ -1,10 +1,24 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { and, asc, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 
 import {
   AppBadRequestException,
   AppNotFoundException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
+import type { DrizzleService } from "@/core/database/drizzle.service";
+import { DRIZZLE } from "@/core/database/drizzle.token";
+import {
+  ddsCardReferences,
+  ddsExerciseReviews,
+  ddsExercises,
+  ddsLessons,
+  ddsTextEvaluations,
+} from "@/drizzle/schema";
+import {
+  buildDdsReportTiming,
+  detectDdsProcessErrors,
+} from "@/modules/dds-exercise/domain/dds-report-aggregation";
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import { DebriefService } from "@/modules/debrief/application/debrief.service";
 import type { Debrief } from "@/modules/debrief/dto/debrief.dto";
@@ -25,6 +39,7 @@ import {
   summarizeReportStudents,
   type ReportStudentIdentity,
 } from "../domain/report-aggregation";
+import { summarizeInstructorDds } from "../domain/dds-instructor-report-aggregation";
 import {
   type ReportArtifact,
   ReportExporter,
@@ -51,6 +66,7 @@ export class InstructorReportService {
     private readonly debrief: DebriefService,
     private readonly exporter: ReportExporter,
     private readonly audit: AuditLogService,
+    @Optional() @Inject(DRIZZLE) private readonly db?: DrizzleService["db"],
   ) {}
 
   async getReport(
@@ -89,6 +105,7 @@ export class InstructorReportService {
     }
 
     const attempts = await this.attempts(calls);
+    const dds = await this.dds(target, period);
     return {
       generatedAt: new Date().toISOString(),
       scope: query.scope,
@@ -101,6 +118,7 @@ export class InstructorReportService {
       students: summarizeReportStudents(target.students, attempts),
       attempts,
       grammar: GRAMMAR_UNAVAILABLE,
+      dds,
     };
   }
 
@@ -216,6 +234,105 @@ export class InstructorReportService {
       );
     }
     return result;
+  }
+
+  private async dds(
+    target: ReportTarget,
+    period: { from: Date | null; to: Date | null },
+  ) {
+    if (!this.db || target.students.length === 0)
+      return summarizeInstructorDds([]);
+    const operatorIds = target.students.map(({ id }) => id);
+    const rows = await this.db
+      .select({
+        exercise: ddsExercises,
+        lessonTitle: ddsLessons.title,
+        evaluation: ddsTextEvaluations,
+      })
+      .from(ddsExercises)
+      .leftJoin(ddsLessons, eq(ddsLessons.id, ddsExercises.lessonId))
+      .leftJoin(
+        ddsTextEvaluations,
+        eq(ddsTextEvaluations.exerciseId, ddsExercises.id),
+      )
+      .where(
+        and(
+          inArray(ddsExercises.operatorId, operatorIds),
+          period.from ? gte(ddsExercises.createdAt, period.from) : undefined,
+          period.to ? lte(ddsExercises.createdAt, period.to) : undefined,
+        ),
+      )
+      .orderBy(asc(ddsExercises.createdAt));
+    const ids = rows.map(({ exercise }) => exercise.id);
+    const scenarioVersionIds = rows.map(
+      ({ exercise }) => exercise.scenarioVersionId,
+    );
+    if (ids.length === 0) return summarizeInstructorDds([]);
+    const [references, reviews] = await Promise.all([
+      this.db
+        .select()
+        .from(ddsCardReferences)
+        .where(
+          or(
+            inArray(ddsCardReferences.exerciseId, ids),
+            inArray(ddsCardReferences.scenarioVersionId, scenarioVersionIds),
+          ),
+        ),
+      this.db
+        .select()
+        .from(ddsExerciseReviews)
+        .where(inArray(ddsExerciseReviews.exerciseId, ids))
+        .orderBy(desc(ddsExerciseReviews.createdAt)),
+    ]);
+    const names = new Map(
+      target.students.map((student) => [student.id, student.fullName]),
+    );
+    return summarizeInstructorDds(
+      rows.map(({ exercise, lessonTitle, evaluation }) => {
+        const reference =
+          references.find(({ exerciseId }) => exerciseId === exercise.id) ??
+          references.find(
+            ({ scenarioVersionId }) =>
+              scenarioVersionId === exercise.scenarioVersionId,
+          );
+        const review = reviews.find(
+          ({ exerciseId }) => exerciseId === exercise.id,
+        );
+        return {
+          exerciseId: exercise.id,
+          operatorId: exercise.operatorId!,
+          operatorName: names.get(exercise.operatorId!) ?? "Обучающийся",
+          lessonId: exercise.lessonId,
+          lessonTitle,
+          occurredAt: exercise.createdAt.toISOString(),
+          finalStatus: exercise.status,
+          automaticScore: exercise.score,
+          finalScore: review?.score ?? exercise.score,
+          withinNorm:
+            exercise.acknowledgedAt === null
+              ? null
+              : exercise.acknowledgedAt <= exercise.acknowledgementDeadlineAt,
+          processErrors: detectDdsProcessErrors({
+            terminalStatus: exercise.status,
+            expectedOutcome: reference?.expectedOutcome ?? null,
+            timing: buildDdsReportTiming({
+              createdAt: exercise.createdAt,
+              acceptedAt: exercise.acknowledgedAt,
+              completedAt: exercise.completedAt,
+              reactionNormSeconds: Math.max(
+                0,
+                Math.round(
+                  (exercise.acknowledgementDeadlineAt.getTime() -
+                    exercise.createdAt.getTime()) /
+                    1_000,
+                ),
+              ),
+            }),
+          }),
+          coverage: evaluation?.coverage ?? [],
+        };
+      }),
+    );
   }
 
   private async attempt(
