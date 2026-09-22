@@ -1,6 +1,6 @@
-import { ScrollArea, Text, toast } from "@bolid-ui/themes";
+import { toast } from "@bolid-ui/themes";
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleHelp, MapPin, MessageSquare, Phone } from "lucide-react";
+import { Phone, PhoneOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { QUERY_KEYS } from "../../config/query-keys";
@@ -179,62 +179,56 @@ export default function OperatorPage() {
         elapsedSeconds={call.elapsedSeconds}
         operatorName={operatorName}
         sessionId={call.trainingSessionId}
+        startedAt={call.startedAt}
         state={call.state}
       />
-      <ScrollArea
-        className="operator-page-scroll min-h-0 flex-1 pb-24"
-        scrollbars="vertical"
-        type="auto"
-      >
-        <div className="operator-workspace grid min-h-full min-w-0 gap-2 p-2">
-          <div className="min-w-0" data-tour="caller">
-            <CallerPanel
-              trainingSessionId={call.trainingSessionId}
-              callerNumber={call.callerNumber}
-              startedAt={call.startedAt}
-              operatorName={operatorName}
-              card={incidentCard.card}
-              disabled={!isCardEditable}
-              onChange={incidentCard.update}
-            />
-          </div>
-          <main
-            className="operator-incident-column min-w-0"
-            aria-label="Карточка происшествия"
-          >
-            <IncidentForm
-              sessionId={call.trainingSessionId}
-              card={incidentCard.card}
-              // До приёма вызова заполнять нечего, после завершения карточку
-              // закрывает backend: дописанное после разговора не оценивается.
-              disabled={!isCardEditable}
-              onChange={incidentCard.update}
-              locationFill={incidentPoint.fill}
-              missingRequirements={
-                call.state === "active" ? missingCardRequirements : []
-              }
-            />
-          </main>
-          <DispatchCallPanel
-            {...call}
-            selectedPoint={incidentPoint.point}
-            pointStatus={incidentPoint.status}
-            onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
-            services={incidentCard.services}
-            requiredServices={
-              incidentCard.card?.classifierRouting?.requiredServices ?? []
-            }
-            classifierServices={classifierServices}
-            onToggleService={incidentCard.toggleService}
-            callerName={callerName}
-            isCardReady={isCardEditable}
-            isEnding={isEnding}
-            missingRequirements={
-              call.state === "active" ? missingCardRequirements : []
-            }
-          />
-        </div>
-      </ScrollArea>
+      {/* Карточка занимает экран целиком и не прокручивается страницей: в АРМ
+          оператор не ищет поле колесом мыши, всё лежит на своих местах. */}
+      <main className="arm112-workspace" aria-label="Карточка происшествия">
+        <IncidentForm
+          sessionId={call.trainingSessionId}
+          card={incidentCard.card}
+          // До приёма вызова заполнять нечего, после завершения карточку
+          // закрывает backend: дописанное после разговора не оценивается.
+          disabled={!isCardEditable}
+          onChange={incidentCard.update}
+          locationFill={incidentPoint.fill}
+          missingRequirements={
+            call.state === "active" ? missingCardRequirements : []
+          }
+          callerSlot={
+            <div className="min-w-0" data-tour="caller">
+              <CallerPanel
+                trainingSessionId={call.trainingSessionId}
+                callerNumber={call.callerNumber}
+                startedAt={call.startedAt}
+                operatorName={operatorName}
+                card={incidentCard.card}
+                disabled={!isCardEditable}
+                onChange={incidentCard.update}
+              />
+            </div>
+          }
+        />
+        <DispatchCallPanel
+          {...call}
+          selectedPoint={incidentPoint.point}
+          pointStatus={incidentPoint.status}
+          onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
+          services={incidentCard.services}
+          requiredServices={
+            incidentCard.card?.classifierRouting?.requiredServices ?? []
+          }
+          classifierServices={classifierServices}
+          onToggleService={incidentCard.toggleService}
+          callerName={callerName}
+          isCardReady={isCardEditable}
+          isEnding={isEnding}
+          missingRequirements={
+            call.state === "active" ? missingCardRequirements : []
+          }
+        />
+      </main>
       <CallControlDock
         {...call}
         missingCardFields={missingCardFields}
@@ -258,78 +252,88 @@ function OperatorTelephoneStrip({
   elapsedSeconds,
   operatorName,
   sessionId,
+  startedAt,
   state,
 }: {
   callerNumber?: string;
   elapsedSeconds: number;
   operatorName: string;
   sessionId?: string;
+  startedAt?: Date;
   state: "idle" | "ringing" | "active" | "ended";
 }) {
   const incidentNumber = sessionId?.slice(-8).toUpperCase() ?? "--------";
-  const duration = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
+  const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
+  const seconds = String(elapsedSeconds % 60).padStart(2, "0");
 
   return (
-    <header className="arm-telephone-strip">
-      <div className="arm-phone-state">
-        <Phone size={22} aria-hidden />
-        <span>
-          {state === "active"
-            ? "Соединение"
-            : state === "ringing"
-              ? "Подключение"
-              : "Отключение"}
-        </span>
+    <header className="arm112-strip">
+      <div className="arm112-hangup">
+        <PhoneOff size={22} aria-hidden />
+        <div>
+          <strong>
+            {state === "active"
+              ? "Соединение"
+              : state === "ringing"
+                ? "Подключение"
+                : "Отключение"}
+          </strong>
+          <div className="arm112-hangup-actions">
+            <span>записи звонков</span>
+            <span>список SMS</span>
+          </div>
+        </div>
       </div>
-      <TelephoneField
-        icon={<Phone size={17} />}
-        label="АОН"
-        value={callerNumber ?? "+7 (   )  --- -- --"}
-      />
-      <TelephoneField
-        icon={<MessageSquare size={17} />}
-        label="предоставленный"
-        value="+7 (   )  --- -- --"
-      />
-      <TelephoneField
-        icon={<MapPin size={17} />}
-        label="телефон на месте"
-        value="+7 (   )  --- -- --"
-      />
-      <div className="arm-incident-identity">
+
+      <TelephoneField label="АОН" value={callerNumber} primary />
+      <TelephoneField label="предоставленный" />
+      <TelephoneField label="телефон на место" />
+
+      <div className="arm112-identity">
         <strong>Происшествие {incidentNumber}</strong>
-        <span>{operatorName} · АРМ учебный</span>
+        <span>
+          {startedAt
+            ? `Открыто ${startedAt.toLocaleString("ru-RU")}`
+            : "Вызов не начат"}
+        </span>
+        <span>Опер. {operatorName}, АРМ учебный</span>
       </div>
+
       <div
-        className="arm-incident-timer"
+        className="arm112-timer"
         data-overdue={elapsedSeconds >= 240 || undefined}
       >
-        <strong>{duration}</strong>
-        <span>МИНУТ · СЕКУНД</span>
+        <strong>
+          {minutes}:{seconds}
+        </strong>
+        <span>
+          минут<i>секунд</i>
+        </span>
       </div>
     </header>
   );
 }
 
+/** Номер в полосе АРМ: пустой показывается маской, как в реальной системе. */
 function TelephoneField({
-  icon,
   label,
   value,
+  primary = false,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: string;
+  value?: string;
+  primary?: boolean;
 }) {
   return (
-    <div className="arm-telephone-field">
-      <span className="arm-telephone-icon">{icon}</span>
-      <span className="arm-telephone-value">
-        <Text as="span" size="1">
-          {label}
-        </Text>
-        <strong>{value}</strong>
+    <div className="arm112-phone" data-primary={primary || undefined}>
+      <span className="arm112-phone-icon">
+        <Phone size={17} aria-hidden />
       </span>
-      <CircleHelp size={14} aria-hidden />
+      <span className="arm112-phone-value">
+        <span>{label}</span>
+        <strong>{value ?? "+7 (   )   -   -"}</strong>
+      </span>
+      {!primary && <span className="arm112-phone-badge">АОН</span>}
     </div>
   );
 }
