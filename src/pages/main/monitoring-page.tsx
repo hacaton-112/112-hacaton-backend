@@ -33,8 +33,8 @@ export default function MonitoringPage() {
     ) ?? [];
 
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">
-      <div>
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4 md:p-6">
+      <div className="shrink-0">
         <Heading size="6">Мониторинг занятий</Heading>
         <Text as="p" size="2" color="gray" mt="1">
           Следите за текущими попытками и открывайте результаты и записи
@@ -42,9 +42,11 @@ export default function MonitoringPage() {
         </Text>
       </div>
 
-      <VoiceRuntimeStatus />
+      <div className="shrink-0">
+        <VoiceRuntimeStatus />
+      </div>
       <Tabs.Root defaultValue="live" className="flex min-h-0 flex-1 flex-col">
-        <Tabs.List size="2">
+        <Tabs.List size="2" className="shrink-0">
           <Tabs.Trigger value="dds-lessons">Занятия ДДС</Tabs.Trigger>
           <Tabs.Trigger value="live">Активные попытки</Tabs.Trigger>
           <Tabs.Trigger value="results">
@@ -54,13 +56,16 @@ export default function MonitoringPage() {
 
         <Tabs.Content
           value="live"
-          className="flex flex-col gap-6 overflow-auto pt-4"
+          className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto pt-4"
         >
           <LiveSessionsPanel mutations={mutations} />
           <DdsLiveAttempts />
         </Tabs.Content>
 
-        <Tabs.Content value="dds-lessons" className="overflow-auto pt-4">
+        <Tabs.Content
+          value="dds-lessons"
+          className="min-h-0 flex-1 overflow-auto pt-4"
+        >
           <DdsLessonsPanel />
         </Tabs.Content>
 
