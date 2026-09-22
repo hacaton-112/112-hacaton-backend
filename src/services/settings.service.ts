@@ -24,9 +24,16 @@ export interface AppSettings {
   radius: AppRadius;
   scaling: AppScaling;
   inputDevice: string | null;
+  /**
+   * Название выбранного микрофона. Браузер меняет идентификаторы устройств
+   * (очистка данных сайта, сайт с непостоянным разрешением), а название
+   * остаётся: по нему выбранное устройство находится снова.
+   */
+  inputDeviceLabel: string | null;
   /** Громкость микрофона: 1 — 100 %, максимум 2. */
   inputGain: number;
   outputDevice: string | null;
+  outputDeviceLabel: string | null;
   /** Громкость воспроизведения заявителя: 1 — 100 %, максимум 2. */
   outputVolume: number;
 }
@@ -40,8 +47,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   radius: "none",
   scaling: "100%",
   inputDevice: null,
+  inputDeviceLabel: null,
   inputGain: 1,
   outputDevice: null,
+  outputDeviceLabel: null,
   outputVolume: 1,
 };
 
@@ -84,9 +93,17 @@ function loadSettings(): AppSettings {
           : DEFAULT_SETTINGS.scaling,
       inputDevice:
         typeof stored?.inputDevice === "string" ? stored.inputDevice : null,
+      inputDeviceLabel:
+        typeof stored?.inputDeviceLabel === "string"
+          ? stored.inputDeviceLabel
+          : null,
       inputGain: readVolume(stored?.inputGain, DEFAULT_SETTINGS.inputGain),
       outputDevice:
         typeof stored?.outputDevice === "string" ? stored.outputDevice : null,
+      outputDeviceLabel:
+        typeof stored?.outputDeviceLabel === "string"
+          ? stored.outputDeviceLabel
+          : null,
       outputVolume: readVolume(
         stored?.outputVolume,
         DEFAULT_SETTINGS.outputVolume,

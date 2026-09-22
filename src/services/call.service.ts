@@ -167,6 +167,7 @@ class WebCallStream implements CallStream {
       try {
         await this.microphone.start({
           inputDevice: settings.inputDevice,
+          inputDeviceLabel: settings.inputDeviceLabel,
           inputGain: settings.inputGain,
           processing: false,
           onChunk: (chunk) => {
@@ -265,6 +266,7 @@ class WebCallStream implements CallStream {
       this.generation = await this.player.start(
         audio.sampleRate,
         settingsService.get().outputDevice,
+        settingsService.get().outputDeviceLabel,
       );
     } else if (type === "audio.done") {
       if (this.player.active) {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
   DeferredEvent,
+  describeMediaError,
   PendingPcmBuffer,
   levelFromSamples,
   packPcm16,
+  pickDevice,
   resampleLinear,
 } from "../src/lib/audio-processing";
 
@@ -41,5 +43,46 @@ describe("browser audio processing", () => {
     expect(deferred.take(1)).toBeNull();
     expect(deferred.take(2)).toBe("audio.done");
     expect(deferred.take(2)).toBeNull();
+  });
+});
+
+describe("saved audio device", () => {
+  const devices = [
+    { deviceId: "default", label: "По умолчанию - Микрофон (USB)" },
+    { deviceId: "new-id", label: "Микрофон (USB)" },
+  ];
+
+  it("keeps a device whose id is still valid", () => {
+    expect(pickDevice(devices, "new-id", "Микрофон (USB)")).toBe("new-id");
+  });
+
+  it("finds the device by name after the browser changed its id", () => {
+    expect(pickDevice(devices, "stale-id", "Микрофон (USB)")).toBe("new-id");
+  });
+
+  it("falls back to the system device when the device is gone", () => {
+    expect(pickDevice(devices, "stale-id", "Гарнитура")).toBeNull();
+    expect(pickDevice(devices, "stale-id", null)).toBeNull();
+    expect(pickDevice(devices, null, "Микрофон (USB)")).toBeNull();
+  });
+});
+
+describe(describeMediaError.name, () => {
+  const domError = (name: string) =>
+    Object.assign(new Error(""), { name }) as Error;
+
+  it("explains the errors that Chrome reports without a message", () => {
+    expect(describeMediaError(domError("OverconstrainedError"))).toContain(
+      "не найдено",
+    );
+    expect(describeMediaError(domError("NotAllowedError"))).toContain(
+      "доступ",
+    );
+    expect(describeMediaError(domError("NotReadableError"))).toContain(
+      "занят",
+    );
+    expect(describeMediaError(domError("UnknownError"))).toBe(
+      "Не удалось открыть аудиоустройство",
+    );
   });
 });

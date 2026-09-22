@@ -3,8 +3,10 @@ import { WebMicrophoneCapture } from "../lib/web-audio";
 
 interface MicrophoneTestOptions {
   inputDevice: string | null;
+  inputDeviceLabel?: string | null;
   inputGain: number;
   outputDevice: string | null;
+  outputDeviceLabel?: string | null;
   outputVolume: number;
 }
 
@@ -14,8 +16,10 @@ interface MicrophoneTestOptions {
  */
 export function useMicrophoneTest({
   inputDevice,
+  inputDeviceLabel = null,
   inputGain,
   outputDevice,
+  outputDeviceLabel = null,
   outputVolume,
 }: MicrophoneTestOptions) {
   const [active, setActive] = useState(false);
@@ -51,6 +55,7 @@ export function useMicrophoneTest({
     try {
       await captureRef.current.start({
         inputDevice,
+        inputDeviceLabel,
         inputGain: gainRef.current,
         processing: false,
         onLevel: (next) =>
@@ -59,14 +64,18 @@ export function useMicrophoneTest({
           setError(message);
           void stop();
         },
-        monitor: { outputDevice, outputVolume: volumeRef.current },
+        monitor: {
+          outputDevice,
+          outputDeviceLabel,
+          outputVolume: volumeRef.current,
+        },
       });
       setActive(true);
     } catch (reason) {
       setActive(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [inputDevice, outputDevice, stop]);
+  }, [inputDevice, inputDeviceLabel, outputDevice, outputDeviceLabel, stop]);
 
   const toggle = useCallback(
     () => (active ? stop() : start()),

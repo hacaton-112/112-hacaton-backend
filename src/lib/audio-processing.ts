@@ -58,6 +58,43 @@ export function levelFromSamples(samples: Float32Array): number {
   return Math.max(0, Math.min(1, (db + LEVEL_FLOOR_DB) / LEVEL_FLOOR_DB));
 }
 
+/**
+ * Находит сохранённое устройство среди текущих.
+ *
+ * Идентификатор устройства браузер может выдать новый, название же остаётся
+ * прежним. `null` — выбранного устройства нет, берётся системное.
+ */
+export function pickDevice(
+  devices: readonly { deviceId: string; label: string }[],
+  id: string | null,
+  label: string | null,
+): string | null {
+  if (id === null) return null;
+  if (devices.some((device) => device.deviceId === id)) return id;
+  if (!label) return null;
+  return devices.find((device) => device.label === label)?.deviceId ?? null;
+}
+
+/** Ошибки getUserMedia/setSinkId по-русски: у части из них сообщение пустое. */
+export function describeMediaError(reason: unknown): string {
+  const name = reason instanceof Error ? reason.name : "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Браузер не дал доступ к микрофону. Разрешите его в настройках сайта (значок слева от адреса)";
+    case "NotReadableError":
+    case "AbortError":
+      return "Микрофон занят другой программой или отключён";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "Выбранное устройство не найдено. Выберите его заново в настройках";
+    default:
+      return reason instanceof Error && reason.message
+        ? reason.message
+        : "Не удалось открыть аудиоустройство";
+  }
+}
+
 export class PendingPcmBuffer {
   private chunks: ArrayBuffer[] = [];
 

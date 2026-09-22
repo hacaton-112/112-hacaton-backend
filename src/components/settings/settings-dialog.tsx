@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SCALING_OPTIONS } from "../../config/theme";
 import { useMicrophoneTest } from "../../hooks/use-microphone-test";
+import { pickDevice } from "../../lib/audio-processing";
 import {
   enumerateAudioDevices,
   supportsOutputDeviceSelection,
@@ -285,15 +286,19 @@ function AudioSettings({
           devices={devices.inputs}
           label="Микрофон"
           value={settings.inputDevice}
-          onChange={(inputDevice) => settingsService.update({ inputDevice })}
+          valueLabel={settings.inputDeviceLabel}
+          onChange={(inputDevice, inputDeviceLabel) =>
+            settingsService.update({ inputDevice, inputDeviceLabel })
+          }
         />
         {supportsOutputDeviceSelection ? (
           <DeviceSelect
             devices={devices.outputs}
             label="Динамик"
             value={settings.outputDevice}
-            onChange={(outputDevice) =>
-              settingsService.update({ outputDevice })
+            valueLabel={settings.outputDeviceLabel}
+            onChange={(outputDevice, outputDeviceLabel) =>
+              settingsService.update({ outputDevice, outputDeviceLabel })
             }
           />
         ) : null}
@@ -315,8 +320,10 @@ function AudioSettings({
 
       <MicrophoneTest
         inputDevice={settings.inputDevice}
+        inputDeviceLabel={settings.inputDeviceLabel}
         inputGain={settings.inputGain}
         outputDevice={settings.outputDevice}
+        outputDeviceLabel={settings.outputDeviceLabel}
         outputVolume={settings.outputVolume}
       />
 
@@ -331,23 +338,35 @@ function DeviceSelect({
   devices,
   label,
   value,
+  valueLabel,
   onChange,
 }: {
   devices: AudioDeviceInfo[];
   label: string;
   value: string | null;
-  onChange: (value: string | null) => void;
+  valueLabel: string | null;
+  onChange: (value: string | null, valueLabel: string | null) => void;
 }) {
+  // Сохранённый идентификатор мог устареть: тогда устройство узнаётся по
+  // названию, а не пропавшее значение показывается как системное — так же
+  // его и откроет звонок.
+  const current = pickDevice(
+    devices.map((device) => ({ deviceId: device.id, label: device.label })),
+    value,
+    valueLabel,
+  );
+
   return (
     <Flex direction="column" gap="2" minWidth="0">
       <Text size="2" weight="medium">
         {label}
       </Text>
       <Select.Root
-        value={value ?? SYSTEM_DEFAULT}
-        onValueChange={(next) =>
-          onChange(next === SYSTEM_DEFAULT ? null : next)
-        }
+        value={current ?? SYSTEM_DEFAULT}
+        onValueChange={(next) => {
+          const device = devices.find((item) => item.id === next);
+          onChange(device?.id ?? null, device?.label || null);
+        }}
       >
         <Select.Trigger
           aria-label={label}
@@ -403,19 +422,25 @@ function VolumeSlider({
 
 function MicrophoneTest({
   inputDevice,
+  inputDeviceLabel,
   inputGain,
   outputDevice,
+  outputDeviceLabel,
   outputVolume,
 }: {
   inputDevice: string | null;
+  inputDeviceLabel: string | null;
   inputGain: number;
   outputDevice: string | null;
+  outputDeviceLabel: string | null;
   outputVolume: number;
 }) {
   const { active, error, level, toggle } = useMicrophoneTest({
     inputDevice,
+    inputDeviceLabel,
     inputGain,
     outputDevice,
+    outputDeviceLabel,
     outputVolume,
   });
 

@@ -1,8 +1,14 @@
-import { BASE_INPUT_GAIN } from "./audio-processing";
+import {
+  BASE_INPUT_GAIN,
+  describeMediaError,
+  pickDevice,
+} from "./audio-processing";
 
 export interface AudioDeviceInfo {
   id: string;
   name: string;
+  /** Название от браузера; пустое, пока нет разрешения на микрофон. */
+  label: string;
   isDefault: boolean;
 }
 
@@ -41,6 +47,7 @@ export async function enumerateAudioDevices(
   const convert = (device: MediaDeviceInfo): AudioDeviceInfo => ({
     id: device.deviceId,
     name: device.label || "Аудиоустройство",
+    label: device.label,
     isDefault: device.deviceId === "default",
   });
   return {
@@ -53,14 +60,68 @@ export async function enumerateAudioDevices(
   };
 }
 
+async function resolveDevice(
+  kind: MediaDeviceKind,
+  id: string | null,
+  label: string | null,
+): Promise<string | null> {
+  if (id === null) return null;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return pickDevice(
+    devices.filter((device) => device.kind === kind),
+    id,
+    label,
+  );
+}
+
+/**
+ * Открывает выбранный микрофон, а если его больше нет — системный.
+ *
+ * Без запасного пути устаревший идентификатор давал OverconstrainedError с
+ * пустым сообщением: звонок шёл без микрофона и без видимой ошибки.
+ */
+async function openMicrophone(
+  id: string | null,
+  label: string | null,
+  processing: boolean,
+): Promise<MediaStream> {
+  const audio = {
+    echoCancellation: processing,
+    noiseSuppression: processing,
+    autoGainControl: processing,
+  };
+  try {
+    const deviceId = await resolveDevice("audioinput", id, label);
+    if (deviceId !== null) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: { ...audio, deviceId: { exact: deviceId } },
+        });
+      } catch (reason) {
+        const name = reason instanceof Error ? reason.name : "";
+        if (name !== "OverconstrainedError" && name !== "NotFoundError")
+          throw reason;
+      }
+    }
+    return await navigator.mediaDevices.getUserMedia({ audio });
+  } catch (reason) {
+    throw new Error(describeMediaError(reason), { cause: reason });
+  }
+}
+
 interface CaptureOptions {
   inputDevice: string | null;
+  inputDeviceLabel?: string | null;
   inputGain: number;
   processing?: boolean;
   onChunk?: (chunk: ArrayBuffer) => void;
   onLevel: (level: number) => void;
   onFailure: (message: string) => void;
-  monitor?: { outputDevice: string | null; outputVolume: number };
+  monitor?: {
+    outputDevice: string | null;
+    outputDeviceLabel?: string | null;
+    outputVolume: number;
+  };
 }
 
 export class WebMicrophoneCapture {
@@ -72,16 +133,11 @@ export class WebMicrophoneCapture {
 
   async start(options: CaptureOptions): Promise<void> {
     await this.stop();
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        deviceId: options.inputDevice
-          ? { exact: options.inputDevice }
-          : undefined,
-        echoCancellation: options.processing ?? false,
-        noiseSuppression: options.processing ?? false,
-        autoGainControl: options.processing ?? false,
-      },
-    });
+    const stream = await openMicrophone(
+      options.inputDevice,
+      options.inputDeviceLabel ?? null,
+      options.processing ?? false,
+    );
     const context = new AudioContext();
     await context.audioWorklet.addModule("/worklets/microphone-processor.js");
     const source = context.createMediaStreamSource(stream);
@@ -117,8 +173,13 @@ export class WebMicrophoneCapture {
       const sinkAudio = audio as HTMLAudioElement & {
         setSinkId?: (sinkId: string) => Promise<void>;
       };
-      if (options.monitor.outputDevice && sinkAudio.setSinkId) {
-        await sinkAudio.setSinkId(options.monitor.outputDevice);
+      const monitorDevice = await resolveDevice(
+        "audiooutput",
+        options.monitor.outputDevice,
+        options.monitor.outputDeviceLabel ?? null,
+      );
+      if (monitorDevice && sinkAudio.setSinkId) {
+        await sinkAudio.setSinkId(monitorDevice);
       }
       await audio.play();
       this.monitorAudio = audio;
@@ -176,9 +237,16 @@ export class TelephonePlayer {
 
   async start(
     sampleRate: number,
-    outputDevice: string | null,
+    savedOutputDevice: string | null,
+    savedOutputLabel: string | null = null,
   ): Promise<number> {
     await this.cancel();
+    // Пропавший динамик не должен срывать реплику: звук идёт в системный.
+    const outputDevice = await resolveDevice(
+      "audiooutput",
+      savedOutputDevice,
+      savedOutputLabel,
+    ).catch(() => null);
     const generation = ++this.generation;
     const context = new AudioContext();
     await context.audioWorklet.addModule("/worklets/telephone-processor.js");
