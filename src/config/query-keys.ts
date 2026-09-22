@@ -11,6 +11,11 @@ export const QUERY_KEYS = {
   ddsLiveAttempts: () => ["dds-live-attempts"] as const,
   ddsLessons: () => ["dds-lessons"] as const,
   activeDdsLessons: () => ["dds-lessons", "my", "active"] as const,
+  ddsLessonReport: (lessonId?: string) =>
+    ["dds-lessons", lessonId, "report"] as const,
+  myDdsResults: () => ["dds-results", "my"] as const,
+  myDdsResult: (exerciseId?: string) =>
+    ["dds-results", "my", exerciseId] as const,
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,

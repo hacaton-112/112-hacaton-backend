@@ -79,6 +79,15 @@ export const API_CONFIG = {
     `/dds-lessons/${encodeURIComponent(lessonId)}/next`,
   getDdsLessonFinishUrl: (lessonId: string) =>
     `/dds-lessons/${encodeURIComponent(lessonId)}/finish`,
+  getDdsLessonReportUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/report`,
+  getDdsLessonReportExportUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/report/export`,
+  getDdsLessonInsightsRetryUrl: (lessonId: string) =>
+    `/dds/lessons/${encodeURIComponent(lessonId)}/insights/retry`,
+  getMyDdsResultsUrl: () => `/dds/my/results`,
+  getMyDdsResultUrl: (exerciseId: string) =>
+    `/dds/my/results/${encodeURIComponent(exerciseId)}`,
   getDdsScenarioReferenceUrl: (versionId: string) =>
     `/dds-references/scenarios/${encodeURIComponent(versionId)}`,
   getDdsScenarioReferenceRegenerateUrl: (versionId: string) =>

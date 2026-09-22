@@ -138,6 +138,16 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Карточки ДДС
                 </SidebarNavItem>
               )}
+              {user?.role === "operator" && (
+                <SidebarNavItem
+                  active={location.pathname.startsWith(ROUTES.ddsResults())}
+                  icon={FileChartColumn}
+                  label="Мои результаты ДДС"
+                  onClick={() => goTo(ROUTES.ddsResults())}
+                >
+                  Мои результаты ДДС
+                </SidebarNavItem>
+              )}
               <SidebarNavItem
                 active={location.pathname === ROUTES.operator()}
                 icon={Headphones}

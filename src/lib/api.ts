@@ -77,6 +77,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   CLASSIFIER_QUALIFIER_INVALID:
     "Дополнительный признак не относится к выбранному типу",
   DDS_EXERCISE_NOT_FOUND: "Учебная карточка ДДС не найдена",
+  DDS_REPORT_NOT_FOUND: "Отчёт занятия ДДС не найден или недоступен",
   DDS_SCENARIO_NOT_READY:
     "Для сценария не определена служба, которая должна получить карточку",
   DDS_STATUS_COMMENT_REQUIRED: "Для выбранного статуса нужен комментарий",

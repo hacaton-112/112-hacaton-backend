@@ -34,6 +34,10 @@ const ScenarioCatalogPage = lazy(
 const AssignmentsPage = lazy(() => import("./pages/main/assignments-page"));
 const MonitoringPage = lazy(() => import("./pages/main/monitoring-page"));
 const ReportsPage = lazy(() => import("./pages/main/reports-page"));
+const DdsLessonReportPage = lazy(
+  () => import("./pages/main/dds-lesson-report-page"),
+);
+const DdsMyResultsPage = lazy(() => import("./pages/main/dds-my-results-page"));
 const GroupsPage = lazy(() => import("./pages/main/groups-page"));
 const GroupPage = lazy(() => import("./pages/main/group-page"));
 const StudentPage = lazy(() => import("./pages/main/student-page"));
@@ -91,6 +95,10 @@ export function Routing() {
             </Route>
             <Route element={<RoleLayout allowed={TRAINING_MANAGER_ROLES} />}>
               <Route
+                path={ROUTE_PATTERNS.ddsLessonReport}
+                element={lazyPage(<DdsLessonReportPage />)}
+              />
+              <Route
                 path={ROUTE_PATTERNS.monitoring}
                 element={lazyPage(<MonitoringPage />)}
               />
@@ -121,6 +129,14 @@ export function Routing() {
             </Route>
             <Route element={<RoleLayout allowed={DDS_TRAINEE_ROLES} />}>
               <Route path={ROUTE_PATTERNS.dds} element={<DdsExercisePage />} />
+              <Route
+                path={ROUTE_PATTERNS.ddsResults}
+                element={lazyPage(<DdsMyResultsPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.ddsResult}
+                element={lazyPage(<DdsMyResultsPage />)}
+              />
             </Route>
             <Route element={<RoleLayout allowed={CLASSIFIER_VIEWER_ROLES} />}>
               <Route
