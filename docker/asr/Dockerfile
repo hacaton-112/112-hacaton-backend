@@ -33,8 +33,10 @@ RUN for attempt in $(seq 1 10); do \
         sleep 5; \
     done \
     && rm -rf /var/lib/apt/lists/*
+# Версия sherpa-onnx взята с работающего сервера: API пакета меняется, и
+# собранный позже образ мог бы разойтись с настроенным голосовым конвейером.
 RUN pip install --no-cache-dir \
-    sherpa-onnx==1.12.14 \
+    sherpa-onnx==1.13.8 \
     soundfile==0.13.1 \
     aiohttp==3.12.15 \
     numpy==2.3.3
