@@ -1,8 +1,9 @@
+import { openSync } from "fontkit";
 import { Workbook } from "exceljs";
 
 import type { DdsLessonReport } from "@/modules/dds-exercise/dto/dds-report.dto";
 
-import { ReportExporter } from "./report-exporter";
+import { ReportExporter, REPORT_FONT_PATH } from "./report-exporter";
 
 const id = (suffix: string) =>
   `00000000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -95,5 +96,16 @@ describe("DDS report export", () => {
     const artifact = await exporter.exportDdsLesson(report, "pdf");
     expect(artifact.buffer.subarray(0, 4).toString()).toBe("%PDF");
     expect(artifact.buffer.length).toBeGreaterThan(1_000);
+  });
+
+  it("uses a font that has both Cyrillic letters and digits", () => {
+    // Кириллический субсет рисовал вместо баллов и секунд пустые квадраты.
+    const font = openSync(REPORT_FONT_PATH);
+    const missing = [..."Принято 1234567890 %"].filter(
+      (symbol) =>
+        symbol !== " " &&
+        font.glyphForCodePoint(symbol.codePointAt(0)!).id === 0,
+    );
+    expect(missing).toEqual([]);
   });
 });

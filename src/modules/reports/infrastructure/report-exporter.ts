@@ -17,13 +17,18 @@ import type { DdsLessonReport } from "@/modules/dds-exercise/dto/dds-report.dto"
 
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const FONT_PATH = join(
+/**
+ * Шрифт отчётов: кириллица, латиница и цифры в одном файле.
+ *
+ * Кириллический субсет Noto Sans, который стоял здесь раньше, рисовал вместо
+ * цифр и латиницы пустые квадраты — в субсете этих глифов нет.
+ */
+export const REPORT_FONT_PATH = join(
   process.cwd(),
   "node_modules",
-  "@fontsource",
-  "noto-sans",
-  "files",
-  "noto-sans-cyrillic-400-normal.woff",
+  "dejavu-fonts-ttf",
+  "ttf",
+  "DejaVuSans.ttf",
 );
 
 export interface ReportArtifact {
@@ -293,7 +298,7 @@ export class ReportExporter {
       document.on("data", (chunk: Buffer) => chunks.push(chunk));
       document.on("end", () => resolve(Buffer.concat(chunks)));
       document.on("error", reject);
-      document.registerFont("NotoSans", FONT_PATH).font("NotoSans");
+      document.registerFont("ReportSans", REPORT_FONT_PATH).font("ReportSans");
       document.fontSize(18).text(`Отчёт по занятию ДДС`);
       document.fontSize(12).text(report.lesson.title).moveDown();
       document
@@ -490,7 +495,7 @@ export class ReportExporter {
       document.on("data", (chunk: Buffer) => chunks.push(chunk));
       document.on("end", () => resolve(Buffer.concat(chunks)));
       document.on("error", reject);
-      document.registerFont("NotoSans", FONT_PATH).font("NotoSans");
+      document.registerFont("ReportSans", REPORT_FONT_PATH).font("ReportSans");
 
       document.fontSize(18).text("Отчёт преподавателя");
       document.moveDown(0.4).fontSize(10);
