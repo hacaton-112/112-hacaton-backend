@@ -17,7 +17,11 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SCALING_OPTIONS } from "../../config/theme";
 import { useMicrophoneTest } from "../../hooks/use-microphone-test";
-import { ipc, type AudioDeviceInfo } from "../../lib/ipc";
+import {
+  enumerateAudioDevices,
+  supportsOutputDeviceSelection,
+  type AudioDeviceInfo,
+} from "../../lib/web-audio";
 import {
   MAX_VOLUME,
   settingsService,
@@ -58,7 +62,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     setLoadingDevices(true);
     setDeviceError(null);
     try {
-      setDevices(await ipc.audio.devices());
+      setDevices(await enumerateAudioDevices());
     } catch (error) {
       setDeviceError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -70,7 +74,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     if (!open) return;
 
     const timer = window.setTimeout(() => void refreshDevices(), 0);
-    return () => window.clearTimeout(timer);
+    const onDeviceChange = () => void refreshDevices();
+    navigator.mediaDevices?.addEventListener("devicechange", onDeviceChange);
+    return () => {
+      window.clearTimeout(timer);
+      navigator.mediaDevices?.removeEventListener(
+        "devicechange",
+        onDeviceChange,
+      );
+    };
   }, [open, refreshDevices]);
 
   return (
@@ -275,18 +287,21 @@ function AudioSettings({
           value={settings.inputDevice}
           onChange={(inputDevice) => settingsService.update({ inputDevice })}
         />
-        <DeviceSelect
-          devices={devices.outputs}
-          label="Динамик"
-          value={settings.outputDevice}
-          onChange={(outputDevice) => settingsService.update({ outputDevice })}
-        />
+        {supportsOutputDeviceSelection ? (
+          <DeviceSelect
+            devices={devices.outputs}
+            label="Динамик"
+            value={settings.outputDevice}
+            onChange={(outputDevice) =>
+              settingsService.update({ outputDevice })
+            }
+          />
+        ) : null}
         <VolumeSlider
           label="Громкость микрофона"
           value={settings.inputGain}
           onChange={(inputGain) => {
             settingsService.update({ inputGain });
-            void ipc.audio.setInputGain(inputGain).catch(() => undefined);
           }}
         />
         <VolumeSlider
@@ -294,7 +309,6 @@ function AudioSettings({
           value={settings.outputVolume}
           onChange={(outputVolume) => {
             settingsService.update({ outputVolume });
-            void ipc.audio.setOutputVolume(outputVolume).catch(() => undefined);
           }}
         />
       </Grid>

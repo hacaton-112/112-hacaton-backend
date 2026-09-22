@@ -40,7 +40,7 @@ export interface CallSnapshot {
   isListening: boolean;
   /** Заявитель отвечает: реплика уже сгенерирована или звучит. */
   isCallerSpeaking: boolean;
-  /** Уровень уже обработанного и воспроизводимого Rust TTS, от 0 до 1. */
+  /** Уровень уже обработанного и воспроизводимого TTS, от 0 до 1. */
   callerAudioLevel: number;
   scenarioTitle?: string;
   scenarioDifficulty?: number;

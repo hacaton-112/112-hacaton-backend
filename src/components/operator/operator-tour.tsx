@@ -108,7 +108,7 @@ export function OperatorTour() {
     updateBlurLayer(blurLayer);
 
     // Driver adds its overlay to body. Keep it in the app's root stacking
-    // context so the native titlebar can remain above it and interactive.
+    // context so the application titlebar remains above it and interactive.
     const overlayObserver = new MutationObserver(() => {
       const overlay = Array.from(document.body.children).find((element) =>
         element.classList.contains("driver-overlay"),

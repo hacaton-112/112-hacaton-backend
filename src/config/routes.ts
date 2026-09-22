@@ -71,7 +71,7 @@ export const ASSIGNMENT_QUERY_PARAM = "assignment";
 export const WORKPLACE_QUERY_PARAM = "workplace";
 
 /**
- * Окно карты. В Tauri оно уже создано и адресуется меткой из `tauri.conf.json`;
+ * Окно карты адресуется стабильным именем браузерного popup;
  * в браузере его заменяет вкладка по hash-адресу того же маршрута.
  */
 export const MAP_WINDOW_LABEL = "incident-map";

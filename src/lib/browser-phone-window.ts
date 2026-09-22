@@ -1,5 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { Window } from "@tauri-apps/api/window";
 import { z } from "zod";
 
 import { PHONE_WINDOW_LABEL, PHONE_WINDOW_URL } from "../config/routes";
@@ -156,24 +154,15 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
 }
 
 function showPhoneWindow(): Promise<void> {
-  if (!isTauri()) {
-    const popup = window.open(
-      PHONE_WINDOW_URL,
-      PHONE_WINDOW_LABEL,
-      "popup=yes,width=420,height=680,resizable=yes",
+  const popup = window.open(
+    PHONE_WINDOW_URL,
+    PHONE_WINDOW_LABEL,
+    "popup=yes,width=420,height=680,resizable=yes",
+  );
+  if (!popup)
+    throw new Error(
+      "Браузер заблокировал окно телефона. Разрешите всплывающие окна для приложения",
     );
-    if (!popup) {
-      throw new Error(
-        "Браузер заблокировал окно телефона. Разрешите всплывающие окна для приложения",
-      );
-    }
-    popup.focus();
-    return Promise.resolve();
-  }
-
-  return Window.getByLabel(PHONE_WINDOW_LABEL).then(async (phoneWindow) => {
-    if (!phoneWindow) throw new Error("Окно телефона отсутствует в сборке");
-    await phoneWindow.show();
-    await phoneWindow.setFocus();
-  });
+  popup.focus();
+  return Promise.resolve();
 }

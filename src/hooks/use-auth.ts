@@ -63,7 +63,7 @@ export function useAuthSession(): void {
   useEffect(() => {
     if (!user || !refreshToken || !accessTokenExpiresAt) return;
 
-    // Rotate one minute before access expiry so a reconnecting Rust WebSocket
+    // Rotate one minute before access expiry so a reconnecting WebSocket
     // never starts with a stale Bearer token.
     const delay = Math.max(accessTokenExpiresAt - Date.now() - 60_000, 0);
     const timeout = window.setTimeout(() => {

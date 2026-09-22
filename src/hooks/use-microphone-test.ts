@@ -1,19 +1,11 @@
-import { Channel } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import { ipc } from "../lib/ipc";
+import { WebMicrophoneCapture } from "../lib/web-audio";
 
 interface MicrophoneTestOptions {
   inputDevice: string | null;
   inputGain: number;
   outputDevice: string | null;
   outputVolume: number;
-}
-
-interface MicrophoneTestEvent {
-  kind?: string;
-  level?: number;
-  message?: string;
 }
 
 /**
@@ -32,6 +24,7 @@ export function useMicrophoneTest({
   const gainRef = useRef(inputGain);
   const volumeRef = useRef(outputVolume);
   const activeRef = useRef(active);
+  const captureRef = useRef(new WebMicrophoneCapture());
 
   useEffect(() => {
     gainRef.current = inputGain;
@@ -39,33 +32,34 @@ export function useMicrophoneTest({
     activeRef.current = active;
   }, [inputGain, outputVolume, active]);
 
+  useEffect(() => {
+    captureRef.current.setInputGain(inputGain);
+  }, [inputGain]);
+
+  useEffect(() => {
+    captureRef.current.setOutputVolume(outputVolume);
+  }, [outputVolume]);
+
   const stop = useCallback(async () => {
     setActive(false);
     setLevel(0);
-    await ipc.audio.stopTest().catch(() => undefined);
+    await captureRef.current.stop().catch(() => undefined);
   }, []);
 
   const start = useCallback(async () => {
-    const channel = new Channel<unknown>();
-    channel.onmessage = (payload) => {
-      const event = payload as MicrophoneTestEvent;
-      if (event.kind === "level" && typeof event.level === "number") {
-        // Быстрый подъём и плавный спад, чтобы индикатор не мерцал.
-        const next = event.level;
-        setLevel((previous) => (next >= previous ? next : previous * 0.8));
-      } else if (event.kind === "failure") {
-        setError(event.message ?? "Микрофон перестал отвечать");
-        void stop();
-      }
-    };
-
     setError(null);
     try {
-      await ipc.audio.startTest(channel, {
+      await captureRef.current.start({
         inputDevice,
         inputGain: gainRef.current,
-        outputDevice,
-        outputVolume: volumeRef.current,
+        processing: false,
+        onLevel: (next) =>
+          setLevel((previous) => (next >= previous ? next : previous * 0.8)),
+        onFailure: (message) => {
+          setError(message);
+          void stop();
+        },
+        monitor: { outputDevice, outputVolume: volumeRef.current },
       });
       setActive(true);
     } catch (reason) {
@@ -86,7 +80,7 @@ export function useMicrophoneTest({
 
   useEffect(
     () => () => {
-      void ipc.audio.stopTest().catch(() => undefined);
+      void captureRef.current.stop().catch(() => undefined);
     },
     [],
   );
