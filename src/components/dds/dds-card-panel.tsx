@@ -203,7 +203,7 @@ export function DdsTextResult({
         <Text as="p" size="2" color="gray" mt="2">
           {evaluation.error ?? "Подтверждённый эталон недоступен."}
         </Text>
-        {instructorView && evaluation.status === "failed" && (
+        {instructorView && (
           <Button
             mt="2"
             size="1"
@@ -216,7 +216,7 @@ export function DdsTextResult({
                 .finally(() => setRetrying(false));
             }}
           >
-            Повторить проверку
+            Пересчитать
           </Button>
         )}
       </Card>
