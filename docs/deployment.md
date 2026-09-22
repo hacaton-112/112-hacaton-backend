@@ -158,6 +158,9 @@ docker compose --profile app logs backend gateway postgres-backup
 
 Образ распознавания собирается из соседнего репозитория `asr-service`:
 клонируйте его рядом с backend или задайте путь через `ASR_SOURCE_DIR`.
+Распознаёт Sherpa-ONNX — русский Zipformer в int8 и Silero VAD; обе модели
+зашиты в образ, скачивать их на сервер не нужно. Число потоков задаёт
+`ASR_THREADS` (по умолчанию 6, по ядру на поток).
 
 ### Обновление модели инструментальных задач
 

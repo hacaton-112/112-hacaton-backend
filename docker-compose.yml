@@ -56,6 +56,8 @@ services:
   # Потоки рассчитаны на 6 ядер / 12 потоков (Ryzen 5 5600): распознавание,
   # модель и синтез работают по очереди в пределах хода, поэтому квоты cpus
   # не ставятся — квота ниже числа потоков только душит обработку промпта.
+  #
+  # Распознавание — Sherpa-ONNX (русский Zipformer int8), как на боевом сервере.
   asr:
     build:
       context: ./docker/asr
@@ -67,15 +69,13 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      WHISPER_HOST: 0.0.0.0
-      WHISPER_PORT: "8787"
-      WHISPER_DEVICE: cpu
-      WHISPER_THREADS: ${WHISPER_THREADS:-2}
-      WHISPER_PARTIALS_ENABLED: "false"
+      SHERPA_PORT: "8787"
+      # Потоки распознавания: на 6-ядерном сервере ровно по ядру на поток.
+      SHERPA_THREADS: ${ASR_THREADS:-6}
+      SHERPA_MODEL_DIR: /models/sherpa-onnx-zipformer-ru-int8-2025-04-20
+      SHERPA_VAD_MODEL: /models/silero_vad.onnx
+      # Адрес, который сервис сообщает браузеру для голосового сокета.
       WHISPER_PUBLIC_WS_URL: ${WHISPER_PUBLIC_WS_URL:-ws://127.0.0.1:8787}
-      WHISPER_PARTIAL_INTERVAL_MS: ${WHISPER_PARTIAL_INTERVAL_MS:-2000}
-      WHISPER_SILENCE_TIMEOUT_MS: ${WHISPER_SILENCE_TIMEOUT_MS:-300}
-      RUST_LOG: ${ASR_RUST_LOG:-asr_service=info,tower_http=warn,whisper_rs=warn}
     ports:
       - "127.0.0.1:${WHISPER_PORT:-8787}:8787"
 
