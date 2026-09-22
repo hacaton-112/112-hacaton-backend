@@ -35,9 +35,9 @@ const RussianText = z
   );
 
 const InsightsSchema = z.object({
-  strengths: z.array(RussianText).min(2).max(5),
-  weaknesses: z.array(RussianText).min(2).max(5),
-  recommendations: z.array(RussianText).min(2).max(5),
+  strengths: z.array(RussianText).min(1).max(5),
+  weaknesses: z.array(RussianText).min(1).max(5),
+  recommendations: z.array(RussianText).min(1).max(5),
   focusScenarios: z.array(z.string().min(1)).max(10),
 });
 
@@ -68,14 +68,49 @@ const INSIGHTS_JSON_SCHEMA = {
   },
 } as const;
 
+const RawInsights = z.object({
+  strengths: z.array(z.unknown()).default([]),
+  weaknesses: z.array(z.unknown()).default([]),
+  recommendations: z.array(z.unknown()).default([]),
+  focusScenarios: z.array(z.unknown()).default([]),
+});
+
+/** Годные строки модели: остальное она добирает пустыми пунктами до длины списка. */
+const usable = (values: readonly unknown[]) => [
+  ...new Set(
+    values.flatMap((value) => {
+      const parsed = RussianText.safeParse(value);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  ),
+];
+
+/**
+ * Разбор ответа модели.
+ *
+ * Gemma заполняет списки до нужной длины пустыми строками и иногда называет
+ * сценарий, которого в занятии не было. Такой ответ не выбрасывается целиком:
+ * мусор отсеивается, а ошибкой считается только пустой результат — иначе
+ * занятие остаётся вовсе без выводов из-за одного лишнего пункта.
+ */
 export function parseDdsInsights(
   value: unknown,
   allowedScenarioCodes: ReadonlySet<string>,
 ) {
-  const parsed = InsightsSchema.parse(value);
-  if (parsed.focusScenarios.some((code) => !allowedScenarioCodes.has(code))) {
-    throw new Error("Модель вернула код сценария, которого не было в занятии");
-  }
+  const raw = RawInsights.parse(value);
+  const parsed = InsightsSchema.parse({
+    strengths: usable(raw.strengths).slice(0, 5),
+    weaknesses: usable(raw.weaknesses).slice(0, 5),
+    recommendations: usable(raw.recommendations).slice(0, 5),
+    focusScenarios: [
+      ...new Set(
+        raw.focusScenarios.filter(
+          (code): code is string =>
+            typeof code === "string" && allowedScenarioCodes.has(code),
+        ),
+      ),
+    ].slice(0, 10),
+  });
   return parsed;
 }
 

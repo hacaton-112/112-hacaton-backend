@@ -15,21 +15,38 @@ describe("DDS group insights validation", () => {
     expect(parseDdsInsights(valid, new Set(["FIRE-01"]))).toEqual(valid);
   });
 
-  it("rejects conclusions without Cyrillic text", () => {
+  it("drops the padding the model adds to fill a list", () => {
+    expect(
+      parseDdsInsights(
+        {
+          ...valid,
+          weaknesses: [
+            "Пропускает детали адреса",
+            "",
+            "-",
+            "Пропускает детали адреса",
+          ],
+        },
+        new Set(["FIRE-01"]),
+      ).weaknesses,
+    ).toEqual(["Пропускает детали адреса"]);
+  });
+
+  it("keeps only the lesson's own scenario codes", () => {
+    expect(
+      parseDdsInsights(
+        { ...valid, focusScenarios: ["UNKNOWN", "FIRE-01"] },
+        new Set(["FIRE-01"]),
+      ).focusScenarios,
+    ).toEqual(["FIRE-01"]);
+  });
+
+  it("rejects conclusions without any Russian text", () => {
     expect(() =>
       parseDdsInsights(
         { ...valid, strengths: ["Good work", "Fast response"] },
         new Set(["FIRE-01"]),
       ),
     ).toThrow();
-  });
-
-  it("rejects a scenario absent from the lesson", () => {
-    expect(() =>
-      parseDdsInsights(
-        { ...valid, focusScenarios: ["UNKNOWN"] },
-        new Set(["FIRE-01"]),
-      ),
-    ).toThrow("которого не было в занятии");
   });
 });
