@@ -17,6 +17,7 @@ import { useState, type FormEvent } from "react";
 import { ReportAttemptsTable } from "../../components/reports/report-attempts-table";
 import { ReportStudentsTable } from "../../components/reports/report-students-table";
 import { ReportSummary } from "../../components/reports/report-summary";
+import { InstructorDdsSummary } from "../../components/reports/instructor-dds-summary";
 import { TrainingField } from "../../components/training/training-field";
 import type {
   InstructorReportFilters,
@@ -260,6 +261,7 @@ export default function ReportsPage() {
           </Callout.Root>
 
           <ReportSummary report={report.data} />
+          <InstructorDdsSummary dds={report.data.dds} />
 
           <Tabs.Root defaultValue="attempts">
             <Tabs.List>
