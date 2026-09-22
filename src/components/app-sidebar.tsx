@@ -126,14 +126,8 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Мои назначения
                 </SidebarNavItem>
               )}
-              <SidebarNavItem
-                active={location.pathname === ROUTES.operator()}
-                icon={Headphones}
-                label="Рабочее место"
-                onClick={() => goTo(ROUTES.operatorWorkplace())}
-              >
-                Рабочее место
-              </SidebarNavItem>
+              {/* Рабочее место ДДС идёт первым: это основной тренажёр, а приём
+                  вызова 112 — дополнительный режим. */}
               {showDds && (
                 <SidebarNavItem
                   active={location.pathname.startsWith(ROUTES.dds())}
@@ -144,6 +138,14 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Карточки ДДС
                 </SidebarNavItem>
               )}
+              <SidebarNavItem
+                active={location.pathname === ROUTES.operator()}
+                icon={Headphones}
+                label="Рабочее место"
+                onClick={() => goTo(ROUTES.operatorWorkplace())}
+              >
+                Рабочее место
+              </SidebarNavItem>
               <SidebarNavItem
                 active={location.pathname.startsWith(ROUTES.debrief())}
                 icon={ClipboardList}
