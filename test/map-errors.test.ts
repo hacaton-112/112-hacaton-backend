@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { isMissingTileError } from "../src/lib/map-errors";
+import { isMissingTileError, mapFailureText } from "../src/lib/map-errors";
 
 describe("ошибки карты", () => {
   it("не считает сбоем пустой квадрат за границей детализации", () => {
@@ -14,5 +14,17 @@ describe("ошибки карты", () => {
       false,
     );
     expect(isMissingTileError(undefined)).toBe(false);
+  });
+});
+
+describe("сообщение о сбое карты", () => {
+  it("называет причину, когда она известна", () => {
+    expect(mapFailureText(new Error("Failed to fetch"))).toBe(
+      "Карта не загрузилась: Failed to fetch",
+    );
+  });
+
+  it("обходится без причины, когда её нет", () => {
+    expect(mapFailureText(undefined)).toBe("Карта не загрузилась");
   });
 });
