@@ -10,6 +10,7 @@ import {
   isNull,
   not,
   or,
+  sql,
 } from "drizzle-orm";
 
 import { generateId } from "@/common/utils/id";
@@ -202,6 +203,8 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
         })
         .onConflictDoNothing({
           target: [ddsExercises.operatorId, ddsExercises.startEventId],
+          // Индекс частичный, и предикат нужен, чтобы Postgres его распознал.
+          where: isNull(ddsExercises.sourceTrainingSessionId),
         })
         .returning();
 
@@ -318,6 +321,11 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           status: input.nextStatus,
           lastSequence: input.expectedSequence + 1,
           updatedAt: input.occurredAt,
+          // Карточка очереди приходит без владельца. Первый переход закрепляет
+          // её за диспетчером и владельца больше не меняет: иначе о том, кто её
+          // вёл, знал бы только журнал событий, и преподаватель не нашёл бы
+          // результат.
+          operatorId: sql`coalesce(${ddsExercises.operatorId}, ${input.operatorId})`,
           ...(input.acknowledgedAt
             ? { acknowledgedAt: input.acknowledgedAt }
             : {}),
@@ -496,6 +504,13 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
     );
   }
 
+  /**
+   * Что видит диспетчер: свои карточки и свободную очередь своей службы.
+   *
+   * Свободна та карточка, которую ещё никто не взял. Раньше признаком очереди
+   * было отсутствие попытки занятия, и карточка, отправленная оператором 112
+   * во время его собственного занятия, не доходила ни до кого.
+   */
   private async accessCondition(operatorId: string) {
     const services = await this.servicesForOperator(operatorId);
     return services.length === 0
@@ -503,7 +518,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       : or(
           eq(ddsExercises.operatorId, operatorId),
           and(
-            isNull(ddsExercises.trainingAttemptId),
+            isNull(ddsExercises.operatorId),
             isNotNull(ddsExercises.sourceTrainingSessionId),
             inArray(ddsExercises.addressedService, services),
           ),

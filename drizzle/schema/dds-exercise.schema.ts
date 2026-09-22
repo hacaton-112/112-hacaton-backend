@@ -73,10 +73,17 @@ export const ddsExercises = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("dds_exercises_operator_start_event_unique_idx").on(
-      table.operatorId,
-      table.startEventId,
-    ),
+    /**
+     * Повтор команды запуска не создаёт второе упражнение.
+     *
+     * Только для самостоятельно начатых: у доставок из 112 общий идентификатор
+     * команды на все службы, и диспетчер, ведущий две службы сразу, законно
+     * владеет двумя карточками одной отправки. Их неповторимость обеспечивает
+     * индекс по исходной сессии и службе.
+     */
+    uniqueIndex("dds_exercises_operator_start_event_unique_idx")
+      .on(table.operatorId, table.startEventId)
+      .where(sql`${table.sourceTrainingSessionId} is null`),
     index("dds_exercises_operator_created_idx").on(
       table.operatorId,
       table.createdAt,
