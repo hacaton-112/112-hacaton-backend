@@ -38,6 +38,34 @@ describe("live DDS attempts", () => {
     ).toBe(false);
   });
 
+  test("keeps the cards taken from the shift queue, without an assignment", () => {
+    const parsed = DdsLiveListSchema.parse({
+      attempts: [],
+      standaloneAttempts: [
+        {
+          exerciseId: attempt.exerciseId,
+          operatorId: attempt.operatorId,
+          operatorName: attempt.operatorName,
+          startedAt: attempt.startedAt,
+          addressedService: "dds_03",
+          cardTitle: attempt.cardTitle,
+          status: "accepted",
+          acknowledgementDeadlineAt: attempt.acknowledgementDeadlineAt,
+          acknowledgedAt: "2026-09-15T12:00:20.000Z",
+          findings: [],
+        },
+      ],
+    });
+
+    expect(parsed.standaloneAttempts[0]!.operatorName).toBe("Анна Максутова");
+  });
+
+  test("survives a backend that does not report queue cards yet", () => {
+    expect(
+      DdsLiveListSchema.parse({ attempts: [attempt] }).standaloneAttempts,
+    ).toEqual([]);
+  });
+
   test("explains every finding the backend can send", () => {
     for (const finding of DDS_LIVE_FINDINGS) {
       expect(DDS_LIVE_FINDING_LABELS[finding]).toBeTruthy();
