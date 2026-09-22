@@ -60,12 +60,24 @@ export class AbandonedCallJanitor implements OnModuleInit {
           // Звонок закончился тогда, когда оператор пропал, а не когда уборка
           // это заметила: иначе брошенный вчера вызов получает в разборе
           // длительность в сутки.
-          await this.engine.endCall({
-            trainingSessionId: call.trainingSessionId,
-            eventId: generateId(),
-            reason: "abandoned",
-            now: call.lastActivityAt,
-          });
+          //
+          // Предложенный вызов завершить нельзя: у него своё окончание —
+          // отказ. Раньше уборка звала завершение для всех и на каждом проходе
+          // спотыкалась об одни и те же непринятые предложения.
+          if (call.stage === "offered") {
+            await this.engine.declineCall({
+              trainingSessionId: call.trainingSessionId,
+              eventId: generateId(),
+              now: call.lastActivityAt,
+            });
+          } else {
+            await this.engine.endCall({
+              trainingSessionId: call.trainingSessionId,
+              eventId: generateId(),
+              reason: "abandoned",
+              now: call.lastActivityAt,
+            });
+          }
           closed += 1;
         } catch (error) {
           // Один непослушный звонок не должен останавливать уборку.
