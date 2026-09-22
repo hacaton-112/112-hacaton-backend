@@ -1,7 +1,5 @@
 import {
-  Button,
   Card,
-  Flex,
   ScrollArea,
   Separator,
   Spinner,
@@ -14,11 +12,7 @@ import { IncidentMap } from "../map/incident-map";
 import { MapWindowButton } from "../window/map-window-button";
 import { MOSCOW } from "../../config/map";
 
-import {
-  DISPATCH_SERVICE_LABELS,
-  DISPATCH_SERVICES,
-  type DispatchService,
-} from "../../contracts/incident";
+import type { DispatchService } from "../../contracts/incident";
 import type { CallSnapshot } from "../../hooks/use-call";
 import type { IncidentPointStatus } from "../../hooks/use-incident-point";
 import type { GeoPoint } from "../../contracts/geo";
@@ -55,101 +49,6 @@ type DispatchCallPanelProps = CallSnapshot &
 export function DispatchCallPanel(props: DispatchCallPanelProps) {
   return (
     <aside className="arm-dispatch-panel dispatch-panel grid min-w-0 content-start gap-2">
-      <Card
-        size="2"
-        variant="classic"
-        aria-labelledby="services-title"
-        aria-invalid={
-          props.missingRequirements.includes("services") || undefined
-        }
-        data-tour="dispatch-services"
-        data-missing={
-          props.missingRequirements.includes("services") || undefined
-        }
-        className="dispatch-services-card isolate min-h-64 overflow-x-hidden overflow-y-auto [--card-background-color:var(--color-panel-solid)]"
-      >
-        <Text id="services-title" size="2" weight="bold">
-          ДДС / Службы
-        </Text>
-
-        {props.requiredServices.length > 0 && (
-          <div className="mt-2 grid gap-1.5">
-            <Text size="1" color="gray">
-              Автоматически назначены классификатором
-            </Text>
-            {props.requiredServices.map((service) => (
-              <div
-                key={service.code}
-                className="rounded-rx-2 border border-(--blue-a5) bg-(--blue-a2) px-2 py-1.5"
-              >
-                <Text as="div" size="1" weight="bold">
-                  {service.name}
-                </Text>
-                <Text as="div" size="1" color="gray">
-                  {service.routeLabel}
-                </Text>
-              </div>
-            ))}
-            <Separator className="my-1" size="4" />
-          </div>
-        )}
-
-        <Text as="div" size="1" color="gray" mt="2">
-          Выбор служб для отправки
-        </Text>
-        {props.missingRequirements.includes("services") && (
-          <Text as="div" size="1" color="red" weight="bold" mt="1">
-            Выберите хотя бы одну службу ДДС
-          </Text>
-        )}
-
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {DISPATCH_SERVICES.map((service) => {
-            const required = props.classifierServices.includes(service);
-            const chosen = props.services.includes(service) || required;
-
-            return (
-              <Button
-                key={service}
-                type="button"
-                size="1"
-                color={chosen ? "blue" : "gray"}
-                variant={chosen ? "solid" : "soft"}
-                // Службы выбираются только пока идёт разговор: закончившийся
-                // звонок карточку уже не принимает.
-                disabled={
-                  props.state !== "active" ||
-                  !props.isCardReady ||
-                  props.isEnding ||
-                  required
-                }
-                onClick={() => props.onToggleService(service)}
-                title={
-                  required
-                    ? "Служба назначена классификатором и не может быть снята"
-                    : undefined
-                }
-              >
-                {DISPATCH_SERVICE_LABELS[service]}
-              </Button>
-            );
-          })}
-        </div>
-
-        <Separator className="my-3" size="4" />
-        <div className="grid gap-2">
-          {props.services.length > 0 ? (
-            props.services.map((service) => (
-              <Unit key={service} name={DISPATCH_SERVICE_LABELS[service]} />
-            ))
-          ) : (
-            <Text size="1" color="gray">
-              Службы ещё не выбраны.
-            </Text>
-          )}
-        </div>
-      </Card>
-
       <Card
         size="1"
         variant="classic"
@@ -353,16 +252,3 @@ function DialogueList({
   );
 }
 
-function Unit({ name }: { name: string }) {
-  return (
-    <Flex align="center" gap="2">
-      <span className="bg-green-9 size-2 shrink-0 rounded-full" />
-      <Text size="2" weight="medium" className="min-w-0 flex-1">
-        {name}
-      </Text>
-      <Text size="1" color="gray">
-        Выбрано оператором
-      </Text>
-    </Flex>
-  );
-}

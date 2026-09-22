@@ -2730,3 +2730,119 @@ body,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Полоса служб внизу карточки: вкладка на каждую выбранную службу. */
+.arm112-dock-row {
+  display: grid;
+  align-items: center;
+  padding: 0 10px;
+  gap: 10px;
+  grid-template-columns: 7rem minmax(0, 1fr) minmax(6rem, 12rem) auto;
+}
+
+.arm112-services {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.arm112-services-label,
+.arm112-services-empty {
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  color: #ffd9cc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.arm112-service-tab {
+  display: grid;
+  align-items: center;
+  border-left: 1px solid rgb(255 255 255 / 35%);
+  padding: 4px 10px 6px;
+  gap: 0 6px;
+  grid-template-areas:
+    "icon close"
+    "name name";
+}
+
+.arm112-service-tab:last-of-type {
+  border-right: 1px solid rgb(255 255 255 / 35%);
+}
+
+.arm112-service-tab > svg {
+  grid-area: icon;
+  color: #fff;
+}
+
+.arm112-service-tab strong {
+  border-bottom: 1px solid #fff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  grid-area: name;
+  white-space: nowrap;
+}
+
+.arm112-service-close {
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  grid-area: close;
+  justify-self: end;
+}
+
+.arm112-service-close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-add {
+  align-self: center;
+  margin-left: 10px;
+  border: 1px solid rgb(255 255 255 / 55%);
+  background: none;
+  padding: 4px 10px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.arm112-service-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-menu {
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  gap: 2px;
+}
+
+.arm112-service-menu button {
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  color: var(--arm-ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.arm112-service-menu button:hover {
+  background: var(--arm-blue-soft);
+}
+
+@media (width <= 1280px) {
+  .arm112-dock-row {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+  }
+
+  .arm112-dock-row > :nth-child(3) {
+    display: none;
+  }
+}

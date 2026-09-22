@@ -232,6 +232,9 @@ export default function OperatorPage() {
       <CallControlDock
         {...call}
         missingCardFields={missingCardFields}
+        services={incidentCard.services}
+        classifierServices={classifierServices}
+        onToggleService={incidentCard.toggleService}
         dispatchError={
           incidentCard.errorOperation === "dispatch"
             ? incidentCard.error
