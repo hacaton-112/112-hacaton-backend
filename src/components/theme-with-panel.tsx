@@ -1,6 +1,7 @@
 import { I18nProvider, Theme, Toaster } from "@bolid-ui/themes";
-import { type ReactNode, useEffect } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 
+import { scalingFactor } from "../config/theme";
 import { useSettings } from "../services/settings.service";
 
 export function ThemeWithPanel({ children }: { children: ReactNode }) {
@@ -25,7 +26,12 @@ export function ThemeWithPanel({ children }: { children: ReactNode }) {
         className="reference-theme"
         grayColor="gray"
         radius="none"
-        scaling={settings.scaling}
+        // Тема знает только свои шаги масштаба, а рабочие места бывают и на
+        // маленьких мониторах: множитель ставится переменной напрямую.
+        scaling="100%"
+        style={
+          { "--scaling": scalingFactor(settings.scaling) } as CSSProperties
+        }
       >
         <Toaster position="top-center" duration={6_000} />
         {children}

@@ -25,6 +25,10 @@ export default function OperatorPage() {
   const operatorName =
     useAuthStore((state) => state.user?.fullName) ?? "Оператор";
   const [isEnding, setEnding] = useState(false);
+  // Пока оператор не нажал «Отправить», карточка считается заполняемой, а не
+  // ошибочной. Помним звонок, в котором была попытка: следующий начинается с
+  // чистого листа без сброса в эффекте.
+  const [attemptedSession, setAttemptedSession] = useState<string | null>(null);
   const incidentCard = useIncidentCard({
     trainingSessionId: call.trainingSessionId,
     isCallOver: call.state === "ended",
@@ -40,6 +44,8 @@ export default function OperatorPage() {
   const missingCardRequirements = getMissingIncidentCardRequirements(
     incidentCard.card,
   ).map(({ field }) => field);
+  const dispatchAttempted =
+    attemptedSession !== null && attemptedSession === call.trainingSessionId;
   const classifierServices = getClassifierDispatchServices(
     incidentCard.card?.classifierRouting,
   );
@@ -61,6 +67,10 @@ export default function OperatorPage() {
   };
 
   const handleDispatch = async () => {
+    // Незаполненные поля подсвечиваются только после попытки отправки: в
+    // начале разговора карточка пуста по определению, и красные поля тогда
+    // не подсказка, а помеха.
+    setAttemptedSession(call.trainingSessionId ?? null);
     if (missingCardFields.length > 0) {
       toast.warning("Карточка ещё не готова к отправке", {
         id: "incident-card-not-ready",
@@ -194,12 +204,16 @@ export default function OperatorPage() {
               incident={call.incident}
               selectedPoint={incidentPoint.point}
               status={incidentPoint.status}
-              required={missingCardRequirements.includes("point")}
+              required={
+                dispatchAttempted && missingCardRequirements.includes("point")
+              }
               onSelectPoint={isCardEditable ? incidentPoint.select : undefined}
             />
           }
           missingRequirements={
-            call.state === "active" ? missingCardRequirements : []
+            call.state === "active" && dispatchAttempted
+              ? missingCardRequirements
+              : []
           }
           callerSlot={
             <div className="min-w-0" data-tour="caller">

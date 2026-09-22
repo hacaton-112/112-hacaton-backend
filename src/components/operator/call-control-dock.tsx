@@ -43,10 +43,15 @@ export function CallControlDock(props: CallControlDockProps) {
   // Отдельная переменная, чтобы сузить тип: внутри обработчика TypeScript уже
   // не помнит проверку `props.trainingSessionId`.
   const debriefSessionId = props.trainingSessionId;
+  // Подсказка на самой кнопке: её видно только при наведении, поэтому список
+  // незаполненного здесь помогает, а не мешает.
   const dispatchHint =
     props.missingCardFields.length === 0
       ? "Отправить заполненную карточку в ДДС"
       : `Нужно заполнить: ${props.missingCardFields.join(", ")}`;
+  // Пока карточка заполняется, строка молчит: перечислять незаполненные поля
+  // в начале разговора — значит ругаться на оператора за работу, которую он
+  // как раз делает. Что не хватает, он узнаёт при попытке отправки.
   const dispatchStatus = (() => {
     if (props.isCardSubmitted) return "Карточка уже отправлена в ДДС";
     if (props.isDispatching) return "Карточка отправляется в ДДС…";
@@ -56,9 +61,7 @@ export function CallControlDock(props: CallControlDockProps) {
     if (props.isRecovering) {
       return "Отправка недоступна: восстанавливается соединение с сервером";
     }
-    if (props.missingCardFields.length > 0) {
-      return `Карточка не отправляется — заполните: ${props.missingCardFields.join(", ")}`;
-    }
+    if (props.missingCardFields.length > 0) return null;
     return "Карточка заполнена и готова к отправке";
   })();
   const dispatchStatusPositive =
@@ -110,7 +113,7 @@ export function CallControlDock(props: CallControlDockProps) {
         </AudioMonitor>
 
         <div className="flex min-w-fit flex-col items-end gap-1">
-          {props.state === "active" && (
+          {props.state === "active" && dispatchStatus && (
             <Text
               as="div"
               size="1"
@@ -153,7 +156,7 @@ export function CallControlDock(props: CallControlDockProps) {
               />
             )}
 
-            {props.state === "active" && (
+            {props.state === "active" && dispatchStatus && (
               <>
                 <Button
                   type="button"

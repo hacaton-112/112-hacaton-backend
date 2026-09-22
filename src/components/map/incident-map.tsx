@@ -6,6 +6,16 @@ import {
   ScaleControl,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../lib/map-worker";
+
+import {
+  hasWebGl,
+  isMissingTileError,
+  mapFailureText,
+} from "../../lib/map-errors";
+
+const WEBGL_MISSING =
+  "Браузер не даёт WebGL — карта не рисуется. Включите аппаратное ускорение в настройках браузера или откройте тренажёр на этой машине.";
 import { useEffect, useRef, useState } from "react";
 
 import { env } from "../../config/env";
@@ -42,7 +52,11 @@ export function IncidentMap({
   const mapRef = useRef<MapLibreMap>(null);
   const markerRef = useRef<Marker>(null);
   const onSelectPointRef = useRef(onSelectPoint);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Поддержку WebGL спрашивают один раз при создании состояния: меняться за
+  // жизнь страницы ей неоткуда, а в эффекте это была бы лишняя перерисовка.
+  const [webGl] = useState(hasWebGl);
+  const failure = webGl ? error : WEBGL_MISSING;
   const selectable = Boolean(onSelectPoint);
 
   useEffect(() => {
@@ -51,6 +65,7 @@ export function IncidentMap({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!webGl) return;
 
     const map = new MapLibreMap({
       container: containerRef.current,
@@ -77,8 +92,12 @@ export function IncidentMap({
         "bottom-left",
       );
     }
-    // Подложка живёт по сети; без неё карта остаётся серой, поэтому говорим об этом прямо.
-    map.on("error", () => setFailed(true));
+    // Без подложки карта остаётся серой, поэтому о сбое говорим прямо. Но
+    // отсутствующий тайл за пределами детализации — не сбой (см. isMissingTileError).
+    map.on("error", (event) => {
+      if (!isMissingTileError(event.error))
+        setError(mapFailureText(event.error));
+    });
     // Обработчик один на всю жизнь карты: отмечать ли точку, решает текущий
     // колбэк, а не пересоздание карты.
     map.on("click", (event) =>
@@ -99,7 +118,7 @@ export function IncidentMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [city, controls]);
+  }, [city, controls, webGl]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -192,9 +211,9 @@ export function IncidentMap({
   return (
     <div className={className} style={{ position: "relative" }}>
       <div ref={containerRef} className="h-full w-full" />
-      {failed && (
+      {failure && (
         <div className="text-1 bg-grayA-3 text-gray-11 pointer-events-none absolute inset-x-0 bottom-0 px-3 py-2 text-center">
-          Подложка карты недоступна — проверьте соединение
+          {failure}
         </div>
       )}
     </div>

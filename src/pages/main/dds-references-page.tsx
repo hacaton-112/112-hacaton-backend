@@ -1,25 +1,25 @@
 import { DataTableReact } from "@bolid-ui/data-table";
 import type {
   ColDef,
+  GridApi,
   ICellRendererParams,
+  IDatasource,
 } from "@bolid-ui/data-table/community";
 import {
   Badge,
   Button,
   Callout,
-  Card,
   Dialog,
   Flex,
   Heading,
   Select,
   Text,
 } from "@bolid-ui/themes";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCheck, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { DdsReferenceEditor } from "../../components/dds/dds-reference-editor";
-import { QUERY_KEYS } from "../../config/query-keys";
 import type {
   DdsReferenceListItem,
   DdsReferenceStatus,
@@ -36,26 +36,16 @@ const STATUS_LABELS = {
 export default function DdsReferencesPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<DdsReferenceStatus | "all">("all");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [opened, setOpened] = useState<string | null>(null);
   const [rejected, setRejected] = useState<string[]>([]);
-  const filters = {
-    status: status === "all" ? undefined : status,
-    page,
-    pageSize: 25,
-  };
-  const references = useQuery({
-    queryKey: QUERY_KEYS.ddsReferences(filters),
-    queryFn: () => ddsReferenceService.list(filters),
-    refetchInterval: (query) =>
-      query.state.data?.items.some(
-        (item) =>
-          item.jobStatus === "pending" || item.jobStatus === "processing",
-      )
-        ? 2_000
-        : false,
-  });
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [gridApi, setGridApi] = useState<GridApi<DdsReferenceListItem> | null>(
+    null,
+  );
+  const [generatingBlocks, setGeneratingBlocks] = useState<Set<number>>(
+    new Set(),
+  );
   const bulk = useMutation({
     mutationFn: (kind: "approve" | "regenerate") =>
       kind === "approve"
@@ -65,8 +55,55 @@ export default function DdsReferencesPage() {
       setRejected(result.rejected.map(({ reason }) => reason));
       setSelected(new Set());
       void queryClient.invalidateQueries({ queryKey: ["dds-references"] });
+      gridApi?.purgeInfiniteCache();
     },
   });
+  const datasource = useMemo<IDatasource>(
+    () => ({
+      getRows: async ({ startRow, endRow, successCallback, failCallback }) => {
+        const pageSize = endRow - startRow;
+
+        try {
+          const result = await ddsReferenceService.list({
+            status: status === "all" ? undefined : status,
+            page: Math.floor(startRow / pageSize) + 1,
+            pageSize,
+          });
+
+          setLoadError(null);
+          setGeneratingBlocks((current) => {
+            const next = new Set(current);
+            const isGenerating = result.items.some(
+              (item) =>
+                item.jobStatus === "pending" || item.jobStatus === "processing",
+            );
+            if (isGenerating) next.add(startRow);
+            else next.delete(startRow);
+            return next;
+          });
+          successCallback(result.items, result.total);
+        } catch (error) {
+          setLoadError(
+            error instanceof Error
+              ? error
+              : new Error("Не удалось загрузить эталоны"),
+          );
+          failCallback();
+        }
+      },
+    }),
+    [status],
+  );
+
+  useEffect(() => {
+    if (!gridApi || generatingBlocks.size === 0) return;
+
+    const interval = window.setInterval(
+      () => gridApi.refreshInfiniteCache(),
+      2_000,
+    );
+    return () => window.clearInterval(interval);
+  }, [generatingBlocks.size, gridApi]);
   const columns = useMemo<ColDef<DdsReferenceListItem>[]>(
     () => [
       {
@@ -129,10 +166,8 @@ export default function DdsReferencesPage() {
     ],
     [selected],
   );
-  const pages = Math.max(1, Math.ceil((references.data?.total ?? 0) / 25));
-
   return (
-    <main className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-4 md:p-6">
+    <main className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4 md:p-6">
       <div>
         <Heading size="6">Эталоны карточек ДДС</Heading>
         <Text as="p" color="gray" size="2" mt="1">
@@ -143,8 +178,8 @@ export default function DdsReferencesPage() {
         <Select.Root
           value={status}
           onValueChange={(value) => {
+            setGeneratingBlocks(new Set());
             setStatus(value as typeof status);
-            setPage(1);
           }}
         >
           <Select.Trigger className="min-w-48" />
@@ -180,47 +215,40 @@ export default function DdsReferencesPage() {
           <Callout.Text>{rejected.join("; ")}</Callout.Text>
         </Callout.Root>
       )}
-      {(references.error || bulk.error) && (
+      {(loadError || bulk.error) && (
         <Callout.Root color="red">
           <Callout.Icon>
             <AlertTriangle size={16} />
           </Callout.Icon>
           <Callout.Text>
-            {references.error?.message ?? bulk.error?.message}
+            {loadError?.message ?? bulk.error?.message}
           </Callout.Text>
         </Callout.Root>
       )}
-      <Card size="1" className="min-h-96">
+      <div className="min-h-0 flex-1">
         <DataTableReact<DdsReferenceListItem>
+          key={status}
           {...DATA_TABLE_DEFAULTS}
-          rowData={references.data?.items ?? []}
           columnDefs={columns}
+          rowModelType="infinite"
+          datasource={datasource}
+          cacheBlockSize={25}
+          pagination
+          paginationPageSize={25}
+          paginationPageSizeSelector={[25, 50, 100]}
           getRowId={({ data }) => data.scenarioVersionId}
+          onGridReady={({ api }) => setGridApi(api)}
           onRowClicked={({ data }) => data && setOpened(data.scenarioVersionId)}
         />
-      </Card>
-      <Flex justify="between" align="center">
-        <Button
-          variant="soft"
-          disabled={page <= 1}
-          onClick={() => setPage((value) => value - 1)}
-        >
-          Назад
-        </Button>
-        <Text size="2">
-          Страница {page} из {pages}
-        </Text>
-        <Button
-          variant="soft"
-          disabled={page >= pages}
-          onClick={() => setPage((value) => value + 1)}
-        >
-          Далее
-        </Button>
-      </Flex>
+      </div>
       <Dialog.Root
         open={opened !== null}
-        onOpenChange={(open) => !open && setOpened(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOpened(null);
+            gridApi?.purgeInfiniteCache();
+          }
+        }}
       >
         <Dialog.Content maxWidth="760px">
           <Dialog.Title>Редактирование эталона</Dialog.Title>

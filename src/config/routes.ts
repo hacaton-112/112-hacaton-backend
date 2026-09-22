@@ -82,15 +82,15 @@ export const ASSIGNMENT_QUERY_PARAM = "assignment";
 export const WORKPLACE_QUERY_PARAM = "workplace";
 
 /**
- * Окно карты адресуется стабильным именем браузерного popup;
- * в браузере его заменяет вкладка по hash-адресу того же маршрута.
+ * Окно карты адресуется стабильным именем браузерного popup, а открывается
+ * по обычному пути того же маршрута.
  */
 export const MAP_WINDOW_LABEL = "incident-map";
-export const MAP_WINDOW_URL = `/#${ROUTE_PATTERNS.map}`;
+export const MAP_WINDOW_URL = ROUTE_PATTERNS.map;
 
 export const PHONE_WINDOW_LABEL = "dds-phone";
-export const PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.phone}`;
+export const PHONE_WINDOW_URL = ROUTE_PATTERNS.phone;
 
 /** Телефон оператора 112: тот же звонок, но в отдельном окне рабочего места. */
 export const OPERATOR_PHONE_WINDOW_LABEL = "operator-phone";
-export const OPERATOR_PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.operatorPhone}`;
+export const OPERATOR_PHONE_WINDOW_URL = ROUTE_PATTERNS.operatorPhone;

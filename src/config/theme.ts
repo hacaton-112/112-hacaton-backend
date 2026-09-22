@@ -57,7 +57,19 @@ export const RADIUS_LABELS: Record<AppRadius, string> = {
   full: "Полное",
 };
 
+/**
+ * Масштаб рабочего места.
+ *
+ * Ниже 90 % тема Bolid своих значений не знает, поэтому множитель задаётся
+ * переменной `--scaling` напрямую — см. `scalingFactor`.
+ */
 export const SCALING_OPTIONS = [
+  "60%",
+  "65%",
+  "70%",
+  "75%",
+  "80%",
+  "85%",
   "90%",
   "95%",
   "100%",
@@ -66,6 +78,10 @@ export const SCALING_OPTIONS = [
   "120%",
   "130%",
 ] as const;
+
+/** «80%» → 0.8: значением переменной темы служит доля, а не проценты. */
+export const scalingFactor = (scaling: AppScaling): number =>
+  Number.parseInt(scaling, 10) / 100;
 
 export type AppTheme = (typeof THEME_PREFERENCES)[number];
 export type AppAccentColor = (typeof ACCENT_COLORS)[number];

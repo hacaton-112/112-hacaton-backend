@@ -5,6 +5,17 @@ import {
   NavigationControl,
   ScaleControl,
 } from "maplibre-gl";
+
+import "../../lib/map-worker";
+
+import {
+  hasWebGl,
+  isMissingTileError,
+  mapFailureText,
+} from "../../lib/map-errors";
+
+const WEBGL_MISSING =
+  "Браузер не даёт WebGL — карта не рисуется. Включите аппаратное ускорение в настройках браузера или откройте тренажёр на этой машине.";
 import {
   Card,
   Code,
@@ -65,7 +76,11 @@ export function ScenarioLocationMap({
   const onSelectRef = useRef(onSelect);
   const [target, setTarget] = useState<ScenarioLocationTarget>("incident");
   const targetRef = useRef(target);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Поддержку WebGL спрашивают один раз при создании состояния: меняться за
+  // жизнь страницы ей неоткуда, а в эффекте это была бы лишняя перерисовка.
+  const [webGl] = useState(hasWebGl);
+  const failure = webGl ? error : WEBGL_MISSING;
   const loading = use(ScenarioFormLoadingContext);
   // Отметки на карте проверяются вместе: попадание точки в область зависит от
   // обеих, поэтому любой клик снимает обе ошибки.
@@ -100,6 +115,8 @@ export function ScenarioLocationMap({
     )
       ? [locatorCenter[1], locatorCenter[0]]
       : MOSCOW.center;
+    if (!webGl) return;
+
     const map = new MapLibreMap({
       container: containerRef.current,
       style: env.mapStyleUrl,
@@ -129,7 +146,11 @@ export function ScenarioLocationMap({
       });
     };
     map.on("click", handleClick);
-    map.on("error", () => setFailed(true));
+    // Пустой квадрат за границей детальных тайлов сбоем не считается.
+    map.on("error", (event) => {
+      if (!isMissingTileError(event.error))
+        setError(mapFailureText(event.error));
+    });
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);
@@ -144,7 +165,7 @@ export function ScenarioLocationMap({
     // Initial coordinates only set the first viewport. Subsequent changes are
     // rendered by the dedicated effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [webGl]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -270,7 +291,7 @@ export function ScenarioLocationMap({
             {target === "incident" ? "точку происшествия" : "центр области"}
           </Text>
         </Card>
-        {failed && (
+        {failure && (
           <Flex
             justify="center"
             px="3"
@@ -278,7 +299,7 @@ export function ScenarioLocationMap({
             className="bg-grayA-3 pointer-events-none absolute inset-x-0 bottom-0"
           >
             <Text size="1" color="gray">
-              Подложка карты недоступна — координаты можно ввести вручную
+              {failure} Координаты можно ввести вручную.
             </Text>
           </Flex>
         )}
