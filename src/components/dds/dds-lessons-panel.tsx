@@ -10,9 +10,17 @@ import {
   TextField,
   toast,
 } from "@bolid-ui/themes";
-import { AlertTriangle, Clock3, Plus, Square } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock3,
+  FileChartColumn,
+  Plus,
+  Square,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 
+import { ROUTES } from "../../config/routes";
 import {
   DDS_LESSON_CARD_SOURCES,
   type DdsLessonCardSource,
@@ -36,6 +44,7 @@ const SOURCE_LABELS: Record<DdsLessonCardSource, string> = {
 type ScenarioCategory = (typeof SCENARIO_CATEGORIES)[number];
 
 export function DdsLessonsPanel() {
+  const navigate = useNavigate();
   const api = useInstructorDdsLessons();
   const groups = useTrainingGroups();
   const students = useStudents();
@@ -219,6 +228,7 @@ export function DdsLessonsPanel() {
               lesson={selected}
               onFinish={() => api.finish.mutateAsync(selected.id)}
               pending={api.finish.isPending}
+              onOpenReport={() => navigate(ROUTES.ddsLessonReport(selected.id))}
             />
           )}
         </div>
@@ -231,12 +241,14 @@ function LessonDetails({
   lesson,
   onFinish,
   pending,
+  onOpenReport,
 }: {
   lesson: NonNullable<
     ReturnType<typeof useInstructorDdsLessons>["lessons"]["data"]
   >[number];
   onFinish: () => Promise<unknown>;
   pending: boolean;
+  onOpenReport: () => void;
 }) {
   const currentByUser = new Map(
     lesson.cards
@@ -256,7 +268,7 @@ function LessonDetails({
             {lesson.acknowledgementNormSeconds} сек.
           </Text>
         </div>
-        {lesson.status === "active" && (
+        {lesson.status === "active" ? (
           <Button
             color="red"
             variant="soft"
@@ -268,8 +280,29 @@ function LessonDetails({
           >
             <Square size={14} /> Завершить занятие
           </Button>
+        ) : (
+          <Button variant="soft" onClick={onOpenReport}>
+            <FileChartColumn size={14} /> Отчёт
+          </Button>
         )}
       </Flex>
+      {lesson.skippedParticipants.length > 0 && (
+        <Callout.Root color="amber">
+          <Callout.Icon>
+            <AlertTriangle size={16} />
+          </Callout.Icon>
+          <Callout.Text>
+            Не включены в занятие:{" "}
+            {lesson.skippedParticipants
+              .map(
+                ({ fullName, serviceTag }) =>
+                  `${fullName}${serviceTag ? ` (${serviceTag})` : ""}`,
+              )
+              .join(", ")}
+            . Для этих участников не распознана служба ДДС.
+          </Callout.Text>
+        </Callout.Root>
+      )}
       <div className="grid gap-2 md:grid-cols-2">
         {lesson.participants.map((participant) => {
           const current = currentByUser.get(participant.userId);

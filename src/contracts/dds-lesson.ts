@@ -49,6 +49,16 @@ export const DdsLessonSchema = DdsLessonSummarySchema.extend({
       service: z.enum(DDS_SERVICE_CODES).nullable(),
     }),
   ),
+  skippedParticipants: z
+    .array(
+      z.object({
+        userId: z.uuid(),
+        fullName: z.string(),
+        serviceTag: z.string().nullable(),
+        reason: z.string(),
+      }),
+    )
+    .default([]),
   cards: z.array(
     z.object({
       operatorId: z.uuid(),
