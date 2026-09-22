@@ -9,6 +9,7 @@ import {
   callStates,
   ddsCardReferences,
   ddsExercises,
+  ddsLessonInsights,
   ddsLessons,
   incidentCards,
   scenarios,
@@ -21,8 +22,10 @@ import {
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
 import { DdsDispatchService } from "@/modules/dds-exercise/application/dds-dispatch.service";
 import { DdsLessonService } from "@/modules/dds-exercise/application/dds-lesson.service";
+import { DdsReportService } from "@/modules/dds-exercise/application/dds-report.service";
 import { DdsReferenceService } from "@/modules/dds-exercise/application/dds-reference.service";
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
+import { ReportExporter } from "@/modules/reports/infrastructure/report-exporter";
 
 const step = (message: string): void => console.log(`• ${message}`);
 
@@ -41,6 +44,8 @@ async function main(): Promise<void> {
   const exercises = app.get(DdsExerciseService);
   const monitoring = app.get(DdsTrainingService);
   const references = app.get(DdsReferenceService);
+  const reports = app.get(DdsReportService);
+  const exporter = app.get(ReportExporter);
   const withoutLlm = process.argv.includes("--without-llm");
   const suffix = generateId().slice(0, 8);
   const ids = {
@@ -300,6 +305,26 @@ async function main(): Promise<void> {
     step(
       "преподаватель завершил занятие; открытая карточка закрыта без штрафа",
     );
+
+    const report = await reports.lessonReport(
+      { id: ids.instructor, role: "instructor" },
+      lesson.id,
+    );
+    if (report.cards.length !== 3 || report.students.length !== 1)
+      throw new Error("Отчёт не собрал карточки и участника занятия");
+    for (const format of ["pdf", "xlsx", "csv"] as const) {
+      const artifact = await exporter.exportDdsLesson(report, format);
+      if (artifact.buffer.length === 0)
+        throw new Error(`Выгрузка ${format} оказалась пустой`);
+    }
+    const [insightsJob] = await db
+      .select({ status: ddsLessonInsights.status })
+      .from(ddsLessonInsights)
+      .where(eq(ddsLessonInsights.lessonId, lesson.id))
+      .limit(1);
+    if (!insightsJob)
+      throw new Error("После завершения занятия не создана задача выводов");
+    step("отчёт собран, три формата выгружены, выводы поставлены в фон");
   } finally {
     if (lessonId)
       await db.delete(ddsExercises).where(eq(ddsExercises.lessonId, lessonId));

@@ -4,6 +4,7 @@ export * from "./call.schema";
 export * from "./classifier.schema";
 export * from "./debrief.schema";
 export * from "./dds-exercise.schema";
+export * from "./dds-insights.schema";
 export * from "./dds-text.schema";
 export * from "./incident-card.schema";
 export * from "./methodical-material.schema";

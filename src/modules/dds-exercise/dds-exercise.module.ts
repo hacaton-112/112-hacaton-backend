@@ -24,6 +24,10 @@ import { GrammarModule } from "@/modules/grammar";
 import { DdsTextEvaluationService } from "./application/dds-text-evaluation.service";
 import { DdsReferenceService } from "./application/dds-reference.service";
 import { DdsReferenceController } from "./dds-reference.controller";
+import { ReportExporter } from "@/modules/reports/infrastructure/report-exporter";
+import { DdsReportService } from "./application/dds-report.service";
+import { DdsInsightsService } from "./application/dds-insights.service";
+import { DdsReportController } from "./dds-report.controller";
 
 @Module({
   imports: [AuthModule, ConfigModule, TextAiAdapterModule, GrammarModule],
@@ -32,6 +36,7 @@ import { DdsReferenceController } from "./dds-reference.controller";
     DdsTrainingController,
     DdsLessonController,
     DdsReferenceController,
+    DdsReportController,
   ],
   providers: [
     {
@@ -50,6 +55,9 @@ import { DdsReferenceController } from "./dds-reference.controller";
     DdsDispatchService,
     DdsTextEvaluationService,
     DdsReferenceService,
+    DdsReportService,
+    DdsInsightsService,
+    ReportExporter,
     DrizzleDdsExerciseStore,
     { provide: DDS_EXERCISE_STORE, useExisting: DrizzleDdsExerciseStore },
   ],
