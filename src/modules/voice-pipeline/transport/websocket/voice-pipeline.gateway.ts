@@ -1597,6 +1597,12 @@ export class VoicePipelineGateway
         "The training session can no longer be recovered",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
+    // Такие отказы видит только оператор во всплывающем сообщении, поэтому в
+    // журнале о них не остаётся следа — а разбирать жалобу «была ошибка
+    // звонка» потом не по чему.
+    this.logger.warn(
+      `Команда отклонена (${code}) в сессии ${state.sessionId ?? "без сессии"}`,
+    );
     await this.sendEvent(client, state, {
       type: "error",
       requestId,
