@@ -3,12 +3,16 @@ import { z } from "zod";
 const EnvSchema = z.object({
   VITE_API_URL: z.url().optional(),
   VITE_WS_URL: z.url().optional(),
-  /** Стиль подложки MapLibre. По умолчанию — тёмная тема CARTO под тему приложения. */
+  /**
+   * Стиль подложки MapLibre.
+   *
+   * По умолчанию карта берётся с того же адреса, что и страница: её отдаёт
+   * TileServer через gateway. Так тренажёр работает без интернета, а браузер
+   * не блокирует тайлы по HTTP на странице по HTTPS.
+   */
   VITE_MAP_STYLE_URL: z
-    .url()
-    .default(
-      "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-    ),
+    .union([z.url(), z.string().startsWith("/")])
+    .default("/maps/styles/dark-matter/style.json"),
 });
 
 const parsed = EnvSchema.safeParse(import.meta.env);
