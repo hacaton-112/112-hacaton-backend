@@ -134,6 +134,53 @@ services:
       # Первый старт может качать модель из LLM_MODEL_URL.
       start_period: 30m
 
+  # Структурные JSON-задачи нельзя отдавать дообученной модели заявителя.
+  # Отдельный llama-server сохраняет CPU живого диалога и остаётся внутри контура.
+  tools-llm:
+    image: ${LLM_SERVER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    container_name: system-112-tools-llm
+    restart: unless-stopped
+    init: true
+    environment:
+      MODEL_FILE: /models/${TOOLS_LLM_MODEL_FILE:-hf/models--unsloth--gemma-4-E2B-it-qat-GGUF/snapshots/66a399f68ddd113b06dff02fca9523e55465d11d/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf}
+      MODEL_URL: ${TOOLS_LLM_MODEL_URL:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ ! -s "$$MODEL_FILE" ]; then
+        if [ -z "$$MODEL_URL" ]; then echo "Нет $$MODEL_FILE в томе llm_models и не задан TOOLS_LLM_MODEL_URL" >&2; exit 1; fi;
+        mkdir -p "$$(dirname "$$MODEL_FILE")";
+        curl -fL --retry 10 --retry-all-errors --retry-delay 3 -sS -o "$$MODEL_FILE.part" "$$MODEL_URL" &&
+        mv "$$MODEL_FILE.part" "$$MODEL_FILE" || exit 1;
+        fi;
+        exec /app/llama-server
+        --model "$$MODEL_FILE"
+        --alias ${TOOLS_LLM_MODEL:-tools-model}
+        --host 0.0.0.0
+        --port 8080
+        --parallel 1
+        --ctx-size 8192
+        --threads ${TOOLS_LLM_THREADS:-4}
+        --threads-batch ${TOOLS_LLM_THREADS_BATCH:-4}
+        --batch-size 512
+        --ubatch-size 512
+        --flash-attn on
+        --cache-type-k q8_0
+        --cache-type-v q8_0
+        --jinja
+        --poll ${TOOLS_LLM_POLL:-1000}
+        --metrics
+    ports:
+      - "127.0.0.1:${TOOLS_LLM_PORT:-8081}:8080"
+    volumes:
+      - llm_models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30m
+
   piper-tts:
     build:
       context: ./docker/piper-tts
@@ -369,6 +416,10 @@ services:
       LLM_MODEL: training-model
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
       LLM_CONCURRENCY: ${LLM_CONCURRENCY:-1}
+      TOOLS_LLM_BASE_URL: http://tools-llm:8080/v1
+      TOOLS_LLM_MODEL: ${TOOLS_LLM_MODEL:-tools-model}
+      TOOLS_LLM_TIMEOUT_MS: ${TOOLS_LLM_TIMEOUT_MS:-120000}
+      TOOLS_LLM_CONCURRENCY: ${TOOLS_LLM_CONCURRENCY:-1}
       LLM_INTENT_TIMEOUT_MS: ${LLM_INTENT_TIMEOUT_MS:-2500}
       LLM_REPLY_MAX_TOKENS: ${LLM_REPLY_MAX_TOKENS:-256}
       LLM_REPLY_TEMPERATURE: ${LLM_REPLY_TEMPERATURE:-0.3}
@@ -407,6 +458,8 @@ services:
       piper-tts:
         condition: service_healthy
       local-llm:
+        condition: service_healthy
+      tools-llm:
         condition: service_healthy
 
   # Единственная точка входа production-контура. Сертификат выдаёт внутренняя
