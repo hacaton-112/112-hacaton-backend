@@ -1,11 +1,42 @@
 import { API_CONFIG } from "../config/api";
 import {
   DdsCardReferenceSchema,
+  DdsReferenceBulkResultSchema,
+  DdsReferenceListSchema,
   type DdsCardReference,
+  type DdsReferenceStatus,
 } from "../contracts/dds-reference";
 import { api } from "../lib/api";
 
 export const ddsReferenceService = {
+  async list(filters: {
+    status?: DdsReferenceStatus;
+    page: number;
+    pageSize: number;
+  }) {
+    const query = new URLSearchParams({
+      page: String(filters.page),
+      pageSize: String(filters.pageSize),
+    });
+    if (filters.status) query.set("status", filters.status);
+    return DdsReferenceListSchema.parse(
+      await api.get<unknown>(`${API_CONFIG.getDdsReferencesUrl()}?${query}`),
+    );
+  },
+  async approveMany(scenarioVersionIds: string[]) {
+    return DdsReferenceBulkResultSchema.parse(
+      await api.post<unknown>(API_CONFIG.getDdsReferencesApproveUrl(), {
+        scenarioVersionIds,
+      }),
+    );
+  },
+  async regenerateMany(scenarioVersionIds: string[]) {
+    return DdsReferenceBulkResultSchema.parse(
+      await api.post<unknown>(API_CONFIG.getDdsReferencesRegenerateUrl(), {
+        scenarioVersionIds,
+      }),
+    );
+  },
   async get(versionId: string) {
     return DdsCardReferenceSchema.parse(
       await api.get<unknown>(API_CONFIG.getDdsScenarioReferenceUrl(versionId)),

@@ -23,6 +23,8 @@ interface ApiErrorPayload {
 }
 
 const API_ERROR_MESSAGES: Record<string, string> = {
+  DDS_REFERENCE_INVALID:
+    "Эталон нельзя подтвердить: проверьте утверждённые пункты и причины отказа",
   AUTH_LOGIN_INVALID_CREDENTIALS: "Неверный email или пароль",
   AUTH_TOKEN_INVALID: "Сессия истекла, войдите заново",
   AUTH_REFRESH_TOKEN_INVALID: "Сессия истекла, войдите заново",

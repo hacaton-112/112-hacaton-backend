@@ -13,6 +13,7 @@ import {
   UserRound,
   Users,
   ShieldCheck,
+  ListChecks,
 } from "lucide-react";
 import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
@@ -217,14 +218,26 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Ученики
                 </SidebarNavItem>
                 {showScenarios && (
-                  <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.scenarios())}
-                    icon={BookOpen}
-                    label="Учебные сценарии"
-                    onClick={() => goTo(ROUTES.scenarios())}
-                  >
-                    Учебные сценарии
-                  </SidebarNavItem>
+                  <>
+                    <SidebarNavItem
+                      active={location.pathname.startsWith(ROUTES.scenarios())}
+                      icon={BookOpen}
+                      label="Учебные сценарии"
+                      onClick={() => goTo(ROUTES.scenarios())}
+                    >
+                      Учебные сценарии
+                    </SidebarNavItem>
+                    <SidebarNavItem
+                      active={location.pathname.startsWith(
+                        ROUTES.ddsReferences(),
+                      )}
+                      icon={ListChecks}
+                      label="Эталоны ДДС"
+                      onClick={() => goTo(ROUTES.ddsReferences())}
+                    >
+                      Эталоны ДДС
+                    </SidebarNavItem>
+                  </>
                 )}
               </SidebarMenu>
             </SidebarGroupContent>

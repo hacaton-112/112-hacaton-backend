@@ -17,6 +17,11 @@ export function DdsReferenceEditor({ versionId }: { versionId: string }) {
     queryKey: ["dds-reference", versionId],
     queryFn: () => ddsReferenceService.get(versionId),
     retry: false,
+    refetchInterval: (state) =>
+      state.state.data?.jobStatus === "pending" ||
+      state.state.data?.jobStatus === "processing"
+        ? 2_000
+        : false,
   });
   if (!query.data)
     return (

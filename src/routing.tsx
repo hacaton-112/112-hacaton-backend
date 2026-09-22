@@ -31,6 +31,9 @@ const ScenarioConstructorPage = lazy(
 const ScenarioCatalogPage = lazy(
   () => import("./pages/main/scenario-catalog-page"),
 );
+const DdsReferencesPage = lazy(
+  () => import("./pages/main/dds-references-page"),
+);
 const AssignmentsPage = lazy(() => import("./pages/main/assignments-page"));
 const MonitoringPage = lazy(() => import("./pages/main/monitoring-page"));
 const ReportsPage = lazy(() => import("./pages/main/reports-page"));
@@ -145,6 +148,10 @@ export function Routing() {
               />
             </Route>
             <Route element={<RoleLayout allowed={SCENARIO_AUTHOR_ROLES} />}>
+              <Route
+                path={ROUTE_PATTERNS.ddsReferences}
+                element={lazyPage(<DdsReferencesPage />)}
+              />
               <Route
                 path={ROUTE_PATTERNS.scenarios}
                 element={scenarioCatalog}

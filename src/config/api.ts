@@ -89,11 +89,15 @@ export const API_CONFIG = {
   getMyDdsResultUrl: (exerciseId: string) =>
     `/dds/my/results/${encodeURIComponent(exerciseId)}`,
   getDdsScenarioReferenceUrl: (versionId: string) =>
-    `/dds-references/scenarios/${encodeURIComponent(versionId)}`,
+    `/dds/references/scenarios/${encodeURIComponent(versionId)}`,
   getDdsScenarioReferenceRegenerateUrl: (versionId: string) =>
-    `/dds-references/scenarios/${encodeURIComponent(versionId)}/regenerate`,
+    `/dds/references/scenarios/${encodeURIComponent(versionId)}/regenerate`,
+  getDdsReferencesUrl: () => `/dds/references`,
+  getDdsReferencesApproveUrl: () => `/dds/references/approve`,
+  getDdsReferencesRegenerateUrl: () => `/dds/references/regenerate`,
   getDdsTextEvaluationRetryUrl: (exerciseId: string) =>
     `/dds-references/exercises/${encodeURIComponent(exerciseId)}/retry`,
+  getAdminQueuesUrl: () => `/admin/queues`,
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,
