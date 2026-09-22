@@ -6,14 +6,17 @@ import {
   Optional,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { AppBadRequestException } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
+import { ErrorCodes } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import {
+  ddsExercises,
   ddsLessonInsights,
   type DdsLessonInsightsRecord,
 } from "@/drizzle/schema";
@@ -137,6 +140,9 @@ export class DdsInsightsService implements OnModuleInit {
   }
 
   async enqueue(lessonId: string): Promise<void> {
+    // По занятию без единой карточки выводить нечего: модель тогда пишет,
+    // что данных нет, и преподаватель видит пустой блок вместо разбора.
+    if (!(await this.hasCards(lessonId))) return;
     await this.db
       .insert(ddsLessonInsights)
       .values({ id: generateId(), lessonId })
@@ -146,6 +152,11 @@ export class DdsInsightsService implements OnModuleInit {
   }
 
   async retry(lessonId: string): Promise<void> {
+    if (!(await this.hasCards(lessonId)))
+      throw new AppBadRequestException(
+        ErrorCodes.DDS_INSIGHTS_EMPTY_LESSON,
+        "В занятии нет карточек, по которым можно сделать выводы",
+      );
     await this.db
       .insert(ddsLessonInsights)
       .values({ id: generateId(), lessonId })
@@ -162,6 +173,14 @@ export class DdsInsightsService implements OnModuleInit {
       });
     if (this.scheduler) this.scheduler.wake();
     else if (this.enabled()) void this.drain();
+  }
+
+  private async hasCards(lessonId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ cards: count() })
+      .from(ddsExercises)
+      .where(eq(ddsExercises.lessonId, lessonId));
+    return Number(row?.cards ?? 0) > 0;
   }
 
   private enabled(): boolean {
