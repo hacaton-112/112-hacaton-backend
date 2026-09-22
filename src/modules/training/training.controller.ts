@@ -25,6 +25,7 @@ import {
   CreateTrainingAssignmentDto,
   CreateTrainingGroupDto,
   GroupStudentListDto,
+  MyTrainingAssignmentListDto,
   StudentListDto,
   OperatorOptionListDto,
   TrainingAssignmentDto,
@@ -165,11 +166,9 @@ export class TrainingController {
 
   @Get("assignments/my")
   @Roles("operator", "instructor", "admin")
-  @ZodSerializerDto(TrainingAssignmentListDto)
+  @ZodSerializerDto(MyTrainingAssignmentListDto)
   async myAssignments(@Req() request: AuthenticatedRequest) {
-    return {
-      assignments: await this.training.listMyAssignments(request.user.sub),
-    };
+    return this.training.myAssignmentsOverview(request.user.sub);
   }
 
   @Post("assignments")

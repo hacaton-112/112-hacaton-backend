@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
+import { TrainingModule } from "@/modules/training/training.module";
 import {
   parseTelephonyConfig,
   TELEPHONY_ENVIRONMENT_KEYS,
@@ -19,7 +20,7 @@ import { DrizzleDdsExerciseStore } from "./infrastructure/drizzle-dds-exercise.s
 import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
 
 @Module({
-  imports: [AuthModule, ConfigModule],
+  imports: [AuthModule, ConfigModule, TrainingModule],
   controllers: [DdsExerciseController, DdsTrainingController],
   providers: [
     {

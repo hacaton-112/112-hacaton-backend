@@ -206,6 +206,31 @@ export class TrainingAssignmentListDto extends createZodDto(
   TrainingAssignmentListSchema,
 ) {}
 
+/** Единственная попытка, которая сейчас блокирует запуск других занятий. */
+export const ActiveTrainingAttemptSchema = z
+  .object({
+    trainingSessionId: IdSchema,
+    assignmentId: IdSchema,
+    assignmentTitle: z.string(),
+    scenarioVersionId: IdSchema,
+    type: z.enum(ASSIGNMENT_TYPES),
+    attemptNumber: z.number().int().positive(),
+    startedAt: DateTimeSchema,
+    /** Для звонка `null`, для карточного занятия — открываемая карточка ДДС. */
+    exerciseId: IdSchema.nullable(),
+  })
+  .strict();
+
+export const MyTrainingAssignmentListSchema = z
+  .object({
+    assignments: z.array(TrainingAssignmentSchema),
+    activeAttempt: ActiveTrainingAttemptSchema.nullable(),
+  })
+  .strict();
+export class MyTrainingAssignmentListDto extends createZodDto(
+  MyTrainingAssignmentListSchema,
+) {}
+
 export const UpdateTrainingAssignmentSchema = z
   .object({
     title: z.string().trim().min(2).max(160).optional(),
@@ -372,6 +397,7 @@ export type CreateTrainingAssignment = z.infer<
 >;
 export type TrainingGroupView = z.infer<typeof TrainingGroupSchema>;
 export type TrainingAssignmentView = z.infer<typeof TrainingAssignmentSchema>;
+export type ActiveTrainingAttempt = z.infer<typeof ActiveTrainingAttemptSchema>;
 export type LiveTrainingSessionView = z.infer<typeof LiveTrainingSessionSchema>;
 export type InstructorCallView = z.infer<typeof InstructorCallSchema>;
 export type StudentStatsView = z.infer<typeof StudentStatsSchema>;
