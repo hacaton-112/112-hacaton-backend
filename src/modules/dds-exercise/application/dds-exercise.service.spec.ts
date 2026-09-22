@@ -505,20 +505,31 @@ describe(DdsExerciseService.name, () => {
       expect(presented.get(EXERCISE_ID)?.id).toBe(EXERCISE_ID);
     });
 
-    it("never asks a card attempt to call a crew", async () => {
+    it("shows crew handoff for an assigned card attempt", async () => {
+      const assigned = stored({ trainingAttemptId: "attempt-1" });
+      const assignedCrews = [
+        { callsign: "ПСЧ-12", phoneNumber: "1012" },
+      ];
       const { service, store } = createService(
         {
-          listByIds: jest
-            .fn()
-            .mockResolvedValue([stored({ trainingAttemptId: "attempt-1" })]),
+          listByIds: jest.fn().mockResolvedValue([assigned]),
+          loadCrewHandoffs: jest.fn().mockResolvedValue(
+            new Map([
+              [EXERCISE_ID, { crews: assignedCrews, calls: [] }],
+            ]),
+          ),
         },
         true,
       );
 
       const presented = await service.presentByIds([EXERCISE_ID]);
 
-      expect(presented.get(EXERCISE_ID)?.crewHandoff).toBeNull();
-      expect(store.loadCrewHandoffs).toHaveBeenCalledWith([]);
+      expect(presented.get(EXERCISE_ID)?.crewHandoff).toEqual({
+        notified: false,
+        crews: assignedCrews,
+        calls: [],
+      });
+      expect(store.loadCrewHandoffs).toHaveBeenCalledWith([assigned]);
     });
   });
 });
