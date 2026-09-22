@@ -25,6 +25,7 @@ import {
   DDS_SERVICE_LABELS,
   DDS_STATUS_LABELS,
 } from "./dds-formatters";
+import { DdsReferenceEditor } from "./dds-reference-editor";
 
 const SOURCE_LABELS: Record<DdsLessonCardSource, string> = {
   generated: "Сгенерированные системой",
@@ -241,6 +242,9 @@ function LessonDetails({
       .filter(({ exercise }) => exercise.completedAt === null)
       .map((card) => [card.operatorId, card]),
   );
+  const referenceCard = lesson.cards.find(
+    ({ exercise }) => exercise.sourceTrainingSessionId === null,
+  );
   return (
     <Card size="3" className="grid gap-4">
       <Flex align="start" justify="between" gap="3" wrap="wrap">
@@ -293,6 +297,11 @@ function LessonDetails({
           );
         })}
       </div>
+      {referenceCard && (
+        <DdsReferenceEditor
+          versionId={referenceCard.exercise.scenarioVersionId}
+        />
+      )}
       <div>
         <Heading size="3">Завершённые карточки</Heading>
         {lesson.cards
