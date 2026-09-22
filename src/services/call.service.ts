@@ -1,4 +1,4 @@
-import { Channel } from "@tauri-apps/api/core";
+import { Channel, isTauri } from "@tauri-apps/api/core";
 
 import { API_CONFIG } from "../config/api";
 import {
@@ -232,6 +232,8 @@ class NativeCallStream implements CallStream {
 }
 
 export const callService = {
+  /** Браузерный PCM/WebSocket-адаптер будет отдельной реализацией CallStream. */
+  isAvailable: isTauri(),
   createStream(callbacks: CallStreamCallbacks): CallStream {
     return new NativeCallStream(callbacks);
   },

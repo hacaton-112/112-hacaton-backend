@@ -60,6 +60,9 @@ describe("IncidentCardSchema", () => {
     expect(card.victimsTotal).toBeNull();
     expect(card.deathsTotal).toBeNull();
     expect(card.callerFirstName).toBeNull();
+    expect(card.city).toBeNull();
+    expect(card.street).toBeNull();
+    expect(card.house).toBeNull();
     expect(card.classifierEntryId).toBeNull();
     expect(card.classifierRouting).toBeNull();
     expect(card.victims).toEqual([]);
@@ -76,6 +79,26 @@ describe("IncidentCardSchema", () => {
     expect(card.latitude).toBe(55.75201);
     expect(card.longitude).toBe(37.6159);
     expect(card.victimsTotal).toBe(2);
+  });
+
+  it("keeps the editable address details returned by the backend", () => {
+    const card = IncidentCardSchema.parse({
+      ...emptyBackendCard,
+      country: "  Россия ",
+      federalSubject: "Москва",
+      city: "Москва",
+      street: "Учебная улица",
+      house: "12",
+      building: "2",
+      corpus: "1",
+      apartment: "34",
+    });
+
+    expect(card.country).toBe("Россия");
+    expect(card.city).toBe("Москва");
+    expect(card.street).toBe("Учебная улица");
+    expect(card.house).toBe("12");
+    expect(card.apartment).toBe("34");
   });
 
   it("rejects coordinates outside their geographic range", () => {

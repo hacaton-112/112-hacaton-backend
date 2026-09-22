@@ -1,11 +1,12 @@
-import { Popover } from "@bolid-ui/themes";
-import { Phone, Plus, X } from "lucide-react";
+import { Button, Dialog, Text, TextField } from "@bolid-ui/themes";
+import { Phone, Plus, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import {
-  DISPATCH_SERVICES,
   DISPATCH_SERVICE_LABELS,
   type DispatchService,
 } from "../../contracts/incident";
+import { findDispatchServices } from "../../lib/dispatch-service-search";
 
 interface ServiceBarProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
@@ -29,11 +30,25 @@ export function ServiceBar({
   disabled,
   onToggle,
 }: ServiceBarProps) {
-  const shown = [
-    ...classifierServices,
-    ...services.filter((service) => !classifierServices.includes(service)),
-  ];
-  const rest = DISPATCH_SERVICES.filter((service) => !shown.includes(service));
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const shown = useMemo(
+    () => [
+      ...classifierServices,
+      ...services.filter((service) => !classifierServices.includes(service)),
+    ],
+    [classifierServices, services],
+  );
+  const rest = useMemo(
+    () => findDispatchServices(query, shown),
+    [query, shown],
+  );
+
+  const select = (service: DispatchService) => {
+    onToggle(service);
+    setPickerOpen(false);
+    setQuery("");
+  };
 
   return (
     <div className="arm112-services" data-tour="dispatch-services">
@@ -65,9 +80,15 @@ export function ServiceBar({
         );
       })}
 
-      {rest.length > 0 && (
-        <Popover.Root>
-          <Popover.Trigger>
+      {shown.length < Object.keys(DISPATCH_SERVICE_LABELS).length && (
+        <Dialog.Root
+          open={pickerOpen}
+          onOpenChange={(open) => {
+            setPickerOpen(open);
+            if (!open) setQuery("");
+          }}
+        >
+          <Dialog.Trigger>
             <button
               type="button"
               className="arm112-service-add"
@@ -76,19 +97,67 @@ export function ServiceBar({
             >
               <Plus size={18} aria-hidden />
             </button>
-          </Popover.Trigger>
-          <Popover.Content size="1" className="arm112-service-menu">
-            {rest.map((service) => (
-              <button
-                key={service}
-                type="button"
-                onClick={() => onToggle(service)}
-              >
-                {DISPATCH_SERVICE_LABELS[service]}
-              </button>
-            ))}
-          </Popover.Content>
-        </Popover.Root>
+          </Dialog.Trigger>
+          <Dialog.Content
+            maxWidth="680px"
+            className="w-[calc(100vw-2rem)] sm:max-w-[680px]"
+          >
+            <Dialog.Title>Добавьте службы</Dialog.Title>
+            <Dialog.Description size="2" color="gray" mb="3">
+              Найдите подразделение по названию или номеру службы. Выбранная
+              служба появится в нижней полосе карточки.
+            </Dialog.Description>
+
+            <TextField.Root
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Поиск службы, например 103 или ЖКХ"
+              aria-label="Поиск службы"
+            >
+              <TextField.Slot>
+                <Search size={16} aria-hidden />
+              </TextField.Slot>
+            </TextField.Root>
+
+            <div className="arm112-service-directory" role="list">
+              {rest.map((service) => (
+                <button
+                  key={service}
+                  type="button"
+                  role="listitem"
+                  onClick={() => select(service)}
+                >
+                  <Phone size={16} aria-hidden />
+                  <span>
+                    <strong>{DISPATCH_SERVICE_LABELS[service]}</strong>
+                    <small>Добавить в карточку происшествия</small>
+                  </span>
+                  <Plus size={16} aria-hidden />
+                </button>
+              ))}
+              {rest.length === 0 && (
+                <Text
+                  as="p"
+                  size="2"
+                  color="gray"
+                  align="center"
+                  className="py-5"
+                >
+                  Подходящих служб не найдено
+                </Text>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <Dialog.Close>
+                <Button type="button" variant="soft" color="gray">
+                  Закрыть
+                </Button>
+              </Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Root>
       )}
 
       {shown.length === 0 && (

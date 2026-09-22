@@ -41,6 +41,17 @@
         "minHeight": 560,
         "visible": false,
         "decorations": true
+      },
+      {
+        "label": "operator-phone",
+        "title": "Телефон 112",
+        "url": "index.html#/operator-phone",
+        "width": 420,
+        "height": 680,
+        "minWidth": 360,
+        "minHeight": 560,
+        "visible": false,
+        "decorations": true
       }
     ],
     "security": {

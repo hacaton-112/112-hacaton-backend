@@ -1,6 +1,7 @@
-import { Button, IconButton, Spinner, Text } from "@bolid-ui/themes";
+import { Button, IconButton, Spinner, Text, toast } from "@bolid-ui/themes";
 import {
   ClipboardList,
+  ExternalLink,
   Mic,
   MicOff,
   PhoneOff,
@@ -12,6 +13,7 @@ import { useNavigate } from "react-router";
 
 import type { DispatchService } from "../../contracts/incident";
 import type { CallControls, CallSnapshot } from "../../hooks/use-call";
+import { openOperatorPhoneWindow } from "../../lib/operator-phone-window";
 import { ServiceBar } from "./service-bar";
 import { OperatorTour } from "./operator-tour";
 import { ScenarioPicker } from "./scenario-picker";
@@ -68,7 +70,7 @@ export function CallControlDock(props: CallControlDockProps) {
 
   return (
     <div
-      className="arm-operator-dock absolute inset-x-0 bottom-0 z-50"
+      className="arm-operator-dock z-50 shrink-0"
       data-tour="call-controls"
       aria-label="Управление звонком"
     >
@@ -122,6 +124,27 @@ export function CallControlDock(props: CallControlDockProps) {
 
           <div className="flex items-center justify-end gap-2">
             <OperatorTour />
+
+            {/* Телефон открывается в своём окне: карточка занимает экран
+                целиком, а разговор всё равно нужно видеть. */}
+            <Button
+              type="button"
+              size="2"
+              variant="soft"
+              color="gray"
+              data-tour="operator-phone"
+              onClick={() => {
+                openOperatorPhoneWindow().catch((error: unknown) => {
+                  toast.error("Окно телефона не открылось", {
+                    id: "operator-phone-window",
+                    description:
+                      error instanceof Error ? error.message : undefined,
+                  });
+                });
+              }}
+            >
+              <ExternalLink size={16} /> Телефон
+            </Button>
 
             {props.state === "idle" && (
               <ScenarioPicker

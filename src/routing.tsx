@@ -18,6 +18,7 @@ import AuthPage from "./pages/main/auth-page";
 import DebriefPage from "./pages/main/debrief-page";
 import DdsExercisePage from "./pages/main/dds-exercise-page";
 import HomePage from "./pages/main/home-page";
+import OperatorPage from "./pages/main/operator-page";
 import MapPage from "./pages/map/map-page";
 import {
   withAppProviders,
@@ -44,6 +45,9 @@ const MethodicalMaterialsPage = lazy(
   () => import("./pages/main/methodical-materials-page"),
 );
 const BrowserPhonePage = lazy(() => import("./pages/phone/browser-phone-page"));
+const OperatorPhonePage = lazy(
+  () => import("./pages/phone/operator-phone-page"),
+);
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -74,6 +78,7 @@ export function Routing() {
         <Route element={<AppLayout />}>
           <Route element={<AuthLayout />}>
             <Route index element={<HomePage />} />
+            <Route path={ROUTE_PATTERNS.operator} element={<OperatorPage />} />
             <Route path={ROUTE_PATTERNS.debrief} element={<DebriefPage />} />
             <Route
               path={ROUTE_PATTERNS.methodicalMaterials}
@@ -160,6 +165,10 @@ export function Routing() {
         <Route
           path={ROUTE_PATTERNS.phone}
           element={lazyPage(<BrowserPhonePage />)}
+        />
+        <Route
+          path={ROUTE_PATTERNS.operatorPhone}
+          element={lazyPage(<OperatorPhonePage />)}
         />
       </Route>
     </Routes>
