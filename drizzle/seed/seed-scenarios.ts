@@ -21,6 +21,8 @@ import {
   type ScenarioSeed,
 } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
+import { loadTickets, ticketToScenario } from "./tickets/ticket-scenarios";
+
 /**
  * Заливает демонстрационные сценарии из JSON в базу.
  *
@@ -259,6 +261,14 @@ async function main(): Promise<void> {
       // Та же схема, что проверяет ручной ввод: сценарий с несуществующим
       // ключом факта не должен доехать до базы.
       await seedScenario(db, ScenarioSeedSchema.parse(raw));
+    }
+
+    // Вызовы из экзаменационных билетов: из них же строятся карточки ДДС.
+    for (const ticket of loadTickets()) {
+      await seedScenario(
+        db,
+        ScenarioSeedSchema.parse(ticketToScenario(ticket)),
+      );
     }
   } finally {
     await pool.end();
