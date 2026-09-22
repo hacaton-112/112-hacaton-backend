@@ -99,9 +99,8 @@ export const IncidentCardVictimSchema = z
 /**
  * Карточка происшествия — то же, что хранит backend.
  *
- * Адрес одной строкой, как его просит настоящее АРМ: улица, дом, корпус,
- * строение, владение, дорога, километр, метр, участок и объект в одном поле.
- * Разбирать её на части будет эталонная анкета сценария.
+ * Полная строка адреса позволяет быстро записать место со слов заявителя, а
+ * отдельные реквизиты повторяют карточку АРМ и используются при разборе.
  */
 export const IncidentCardSchema = z.object({
   callerAnonymous: z.boolean(),
@@ -112,8 +111,18 @@ export const IncidentCardSchema = z.object({
   callerPhone: text(32),
 
   addressText: text(2_000),
+  country: text(120).default(null),
+  federalSubject: text(200).default(null),
+  city: text(200).default(null),
+  settlement: text(200).default(null),
+  administrativeDistrict: text(200).default(null),
   district: text(200),
   objectType: text(200),
+  street: text(200).default(null),
+  house: text(64).default(null),
+  building: text(64).default(null),
+  corpus: text(64).default(null),
+  apartment: text(64).default(null),
   entrance: text(32),
   floor: text(32),
   intercom: text(32),
@@ -174,8 +183,18 @@ export const EMPTY_INCIDENT_CARD: IncidentCardInput = {
   callerLanguage: "",
   callerPhone: "",
   addressText: "",
+  country: "",
+  federalSubject: "",
+  city: "",
+  settlement: "",
+  administrativeDistrict: "",
   district: "",
   objectType: "",
+  street: "",
+  house: "",
+  building: "",
+  corpus: "",
+  apartment: "",
   entrance: "",
   floor: "",
   intercom: "",

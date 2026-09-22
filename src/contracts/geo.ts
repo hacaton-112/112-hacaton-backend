@@ -31,4 +31,7 @@ export interface IncidentLocationFill {
   latitude: string;
   longitude: string;
   addressText?: string;
+  city?: string;
+  street?: string;
+  house?: string;
 }

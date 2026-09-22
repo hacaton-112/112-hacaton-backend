@@ -108,6 +108,15 @@ export function IncidentForm({
     if (locationFill.addressText !== undefined) {
       setValue("addressText", locationFill.addressText, options);
     }
+    if (locationFill.city !== undefined) {
+      setValue("city", locationFill.city, options);
+    }
+    if (locationFill.street !== undefined) {
+      setValue("street", locationFill.street, options);
+    }
+    if (locationFill.house !== undefined) {
+      setValue("house", locationFill.house, options);
+    }
   }, [disabled, locationFill, sessionId, setValue]);
 
   // Кнопки «сохранить» в АРМ нет: карточка уходит на сервер по ходу разговора,
@@ -127,8 +136,18 @@ export function IncidentForm({
   const clearAddress = () => {
     const options = { shouldDirty: true, shouldTouch: true } as const;
     setValue("addressText", "", options);
+    setValue("country", "", options);
+    setValue("federalSubject", "", options);
+    setValue("city", "", options);
+    setValue("settlement", "", options);
+    setValue("administrativeDistrict", "", options);
     setValue("district", "", options);
     setValue("objectType", "", options);
+    setValue("street", "", options);
+    setValue("house", "", options);
+    setValue("building", "", options);
+    setValue("corpus", "", options);
+    setValue("apartment", "", options);
     setValue("entrance", "", options);
     setValue("floor", "", options);
     setValue("intercom", "", options);
@@ -180,14 +199,74 @@ export function IncidentForm({
 
           <div className="arm112-grid">
             <LineField
+              name="country"
+              label="Страна"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="federalSubject"
+              label="Субъект"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="city"
+              label="Город"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="settlement"
+              label="Населённый пункт"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="administrativeDistrict"
+              label="Административный округ"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
               name="district"
-              label="Округ, район"
+              label="Район"
               register={register}
               disabled={disabled}
             />
             <LineField
               name="objectType"
               label="Объект"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="street"
+              label="Улица"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="house"
+              label="Дом / владение"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="building"
+              label="Строение"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="corpus"
+              label="Корпус"
+              register={register}
+              disabled={disabled}
+            />
+            <LineField
+              name="apartment"
+              label="Квартира / офис"
               register={register}
               disabled={disabled}
             />
@@ -209,18 +288,6 @@ export function IncidentForm({
               register={register}
               disabled={disabled}
             />
-            <LineField
-              name="latitude"
-              label="Широта"
-              register={register}
-              disabled={disabled}
-            />
-            <LineField
-              name="longitude"
-              label="Долгота"
-              register={register}
-              disabled={disabled}
-            />
             <label className="arm112-nearby">
               <Controller
                 control={control}
@@ -239,6 +306,11 @@ export function IncidentForm({
               Рядом
             </label>
           </div>
+
+          {/* Координаты задаются на карте. Оператору нужны адресные реквизиты,
+              а не внутренний формат геоданных. */}
+          <input type="hidden" {...register("latitude")} />
+          <input type="hidden" {...register("longitude")} />
 
           <LineField
             name="placeNotes"
@@ -405,8 +477,18 @@ function RequiredField({
 
 const pickIncidentDetails = (card: IncidentCard): IncidentCardPatch => ({
   addressText: card.addressText,
+  country: card.country,
+  federalSubject: card.federalSubject,
+  city: card.city,
+  settlement: card.settlement,
+  administrativeDistrict: card.administrativeDistrict,
   district: card.district,
   objectType: card.objectType,
+  street: card.street,
+  house: card.house,
+  building: card.building,
+  corpus: card.corpus,
+  apartment: card.apartment,
   entrance: card.entrance,
   floor: card.floor,
   intercom: card.intercom,
@@ -436,13 +518,21 @@ const toIsoDate = (
 };
 
 type TextFieldName =
+  | "country"
+  | "federalSubject"
+  | "city"
+  | "settlement"
+  | "administrativeDistrict"
   | "district"
   | "objectType"
+  | "street"
+  | "house"
+  | "building"
+  | "corpus"
+  | "apartment"
   | "entrance"
   | "floor"
   | "intercom"
-  | "latitude"
-  | "longitude"
   | "placeNotes";
 
 /**
