@@ -413,7 +413,12 @@ services:
   # CA организации; self-signed helper ниже предназначен только для dev/stage.
   gateway:
     profiles: ["app"]
-    image: nginx:1.28-alpine
+    build:
+      context: ./docker/gateway
+      additional_contexts:
+        # Веб-клиент — соседний репозиторий; собирается внутри образа.
+        web-src: ${WEB_SOURCE_DIR:-../trainer-client}
+    image: system-112-gateway:${GATEWAY_IMAGE_TAG:-local}
     container_name: system-112-training-gateway
     restart: unless-stopped
     init: true

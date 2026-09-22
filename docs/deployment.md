@@ -413,3 +413,24 @@ Prometheus читал метрики с хоста, в `.env` оставьте
 После обновления с версии без этого изменения `docker compose up -d` пересоздаст
 PostgreSQL, MinIO и pgAdmin: теперь они слушают только localhost. Данные в томах
 при этом сохраняются.
+
+# Веб-клиент
+
+Клиент — обычный сайт, отдельного desktop-приложения нет. Gateway собирает его
+из соседнего репозитория `trainer-client` при сборке своего образа
+(`docker/gateway/Dockerfile`, контекст `web-src`, путь меняется
+`WEB_SOURCE_DIR`), раздаёт на `/`, а `/api/` вместе с WebSocket проксирует в
+backend:
+
+```bash
+docker compose --profile app up -d --build gateway
+```
+
+После обновления клиента образ gateway нужно пересобрать той же командой.
+
+REST, WebSocket, AudioWorklet и `getUserMedia` работают с одного HTTPS origin,
+поэтому `CORS_ORIGINS` и `VITE_API_URL` не нужны. Микрофон браузер даёт только
+на HTTPS или `localhost`: с self-signed сертификатом его нужно один раз принять
+в браузере. Голосовой сокет несёт access token в `Sec-WebSocket-Protocol`
+(`bearer, <token>`), потому что браузер не умеет ставить `Authorization` на
+WebSocket; в URL токен не передаётся.
