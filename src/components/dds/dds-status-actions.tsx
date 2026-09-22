@@ -16,7 +16,10 @@ import type {
 } from "../../contracts/dds-exercise";
 import { DDS_STATUS_LABELS, requiresComment } from "./dds-formatters";
 
-type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
+type TransitionStatus = Exclude<
+  DdsResponseStatus,
+  "pending" | "lesson_finished"
+>;
 
 export function DdsStatusActions({
   exercise,
@@ -30,7 +33,8 @@ export function DdsStatusActions({
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
 }) {
   const available = exercise.allowedTransitions.filter(
-    (status): status is TransitionStatus => status !== "pending",
+    (status): status is TransitionStatus =>
+      status !== "pending" && status !== "lesson_finished",
   );
   const [selected, setSelected] = useState<TransitionStatus | undefined>(
     available[0],
@@ -113,8 +117,8 @@ export function DdsStatusActions({
 
       {waitingForCrew && (
         <Text size="1" color="amber">
-          Сначала передайте карточку наряду по телефону — позвоните по номеру
-          из блока «Передача наряду».
+          Сначала передайте карточку наряду по телефону — позвоните по номеру из
+          блока «Передача наряду».
         </Text>
       )}
 

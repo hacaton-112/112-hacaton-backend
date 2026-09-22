@@ -9,6 +9,7 @@ export const DDS_RESPONSE_STATUSES = [
   "working",
   "completed",
   "refused",
+  "lesson_finished",
 ] as const;
 
 export const DDS_SERVICE_CODES = [
@@ -100,6 +101,7 @@ export const DdsExerciseSchema = z.object({
   id: z.uuid(),
   scenarioVersionId: z.uuid(),
   trainingAttemptId: z.string().nullable(),
+  lessonId: z.uuid().nullable().default(null),
   sourceTrainingSessionId: z.string().nullable(),
   addressedService: DdsServiceCodeSchema,
   status: DdsResponseStatusSchema,

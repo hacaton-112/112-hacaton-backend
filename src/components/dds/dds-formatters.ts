@@ -14,6 +14,7 @@ export const DDS_STATUS_LABELS: Record<DdsResponseStatus, string> = {
   working: "Проведение работ",
   completed: "Работы завершены",
   refused: "Отказ от выполнения работ",
+  lesson_finished: "Занятие завершено преподавателем",
 };
 
 /** Классы происшествий на языке карточки, а не кодами схемы. */

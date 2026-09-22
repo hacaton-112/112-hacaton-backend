@@ -12,7 +12,10 @@ import { DdsCrewHandoffBlock } from "./dds-crew-handoff";
 import { DDS_STATUS_LABELS, DDS_VIOLATION_LABELS } from "./dds-formatters";
 import { DdsStatusActions } from "./dds-status-actions";
 
-type TransitionStatus = Exclude<DdsResponseStatus, "pending">;
+type TransitionStatus = Exclude<
+  DdsResponseStatus,
+  "pending" | "lesson_finished"
+>;
 
 export function DdsCardPanel({
   exercise,
@@ -128,26 +131,28 @@ export function DdsCardPanel({
 
       {/* Журнал статусов службы: в реальном АРМ он раскрывается с плитки. */}
       {journalOpen && (
-      <div className="arm-card-journal-panel">
-        <div className="arm-card-journal-head">
-          <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
-          <span>Событий: {exercise.events.length}</span>
-        </div>
-        {exercise.events.map((event) => (
-          <div key={event.sequence} className="arm-card-journal-row">
-            <span className="arm-card-journal-actor">оп. 0</span>
-            <span className="arm-card-journal-time">
-              {new Date(event.occurredAt).toLocaleString("ru-RU")}
-            </span>
-            <span className="arm-card-journal-status">
-              {DDS_STATUS_LABELS[event.toStatus]}
-            </span>
-            {event.comment && (
-              <span className="arm-card-journal-comment">{event.comment}</span>
-            )}
+        <div className="arm-card-journal-panel">
+          <div className="arm-card-journal-head">
+            <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
+            <span>Событий: {exercise.events.length}</span>
           </div>
-        ))}
-      </div>
+          {exercise.events.map((event) => (
+            <div key={event.sequence} className="arm-card-journal-row">
+              <span className="arm-card-journal-actor">оп. 0</span>
+              <span className="arm-card-journal-time">
+                {new Date(event.occurredAt).toLocaleString("ru-RU")}
+              </span>
+              <span className="arm-card-journal-status">
+                {DDS_STATUS_LABELS[event.toStatus]}
+              </span>
+              {event.comment && (
+                <span className="arm-card-journal-comment">
+                  {event.comment}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -9,6 +9,8 @@
 export const QUERY_KEYS = {
   voiceRuntime: () => ["voice-runtime"] as const,
   ddsLiveAttempts: () => ["dds-live-attempts"] as const,
+  ddsLessons: () => ["dds-lessons"] as const,
+  activeDdsLessons: () => ["dds-lessons", "my", "active"] as const,
   authSession: (refreshToken: string | null) =>
     ["auth", "session", refreshToken] as const,
   scenarios: () => ["scenarios"] as const,
