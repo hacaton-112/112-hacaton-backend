@@ -2,7 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
 import { ALICE_AI_SYSTEM_PROMPT } from "../alice-ai/alice-ai.request";
 import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
-import { createAiProviders } from "../alice-ai/alice-ai-adapter.module";
+import { createAiProviders } from "../text-ai-adapter.module";
 import {
   buildReplyPrompt,
   LocalLlmAdapter,
@@ -482,7 +482,7 @@ describe(LocalLlmAdapter.name, () => {
       ),
     ).toBe(true);
   });
-  it("supports local startup without Alice credentials and shares the concurrency budget", () => {
+  it("supports local startup without cloud credentials and shares the concurrency budget", () => {
     const providers = createAiProviders(
       new ConfigService({
         LLM_PROVIDER: "local",
@@ -494,6 +494,51 @@ describe(LocalLlmAdapter.name, () => {
     expect(providers.llm).toBeInstanceOf(LocalLlmAdapter);
     expect(providers.llm).toBe(providers.questions);
     expect(providers.llm).toBe(providers.structured);
+  });
+  it("routes structured work to an independent tools model", async () => {
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(response());
+    const providers = createAiProviders(
+      new ConfigService({
+        LLM_PROVIDER: "local",
+        LLM_BASE_URL: config.baseUrl,
+        LLM_MODEL: config.model,
+        TOOLS_LLM_BASE_URL: "http://127.0.0.1:8081/v1",
+        TOOLS_LLM_MODEL: "tools-model-v2",
+        TOOLS_LLM_TIMEOUT_MS: 120_000,
+        TOOLS_LLM_CONCURRENCY: 1,
+      }),
+      fetcher,
+    );
+
+    expect(providers.llm).toBe(providers.questions);
+    expect(providers.structured).toBeInstanceOf(LocalLlmAdapter);
+    expect(providers.structured).not.toBe(providers.llm);
+
+    await expect(providers.structured.complete(request)).resolves.toEqual({
+      ok: true,
+    });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe("http://127.0.0.1:8081/v1/chat/completions");
+    expect(JSON.parse(init!.body as string)).toMatchObject({
+      model: "tools-model-v2",
+    });
+  });
+  it("keeps an explicitly selected dialogue provider separate from tools", () => {
+    const providers = createAiProviders(
+      new ConfigService({
+        LLM_PROVIDER: "alice",
+        YANDEX_AI_API_KEY: "test-key",
+        YANDEX_AI_FOLDER_ID: "test-folder",
+        TOOLS_LLM_BASE_URL: "http://127.0.0.1:8081/v1",
+      }),
+      jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(),
+    );
+
+    expect(providers.structured).toBeInstanceOf(LocalLlmAdapter);
+    expect(providers.structured).not.toBe(providers.llm);
+    expect(providers.structured).not.toBe(providers.questions);
   });
   it("validates configuration and rejects already cancelled work before fetch", async () => {
     expect(

@@ -8,6 +8,12 @@ import {
   ALICE_AI_FETCH,
   type AliceAiFetch,
 } from "./alice-ai.tokens";
+import type {
+  StructuredOutputPort,
+  StructuredOutputRequest,
+} from "../../ports/structured-output.port";
+
+export type { StructuredOutputRequest } from "../../ports/structured-output.port";
 
 const StructuredCompletionResponseSchema = z
   .object({
@@ -23,22 +29,12 @@ const StructuredCompletionResponseSchema = z
   })
   .passthrough();
 
-export interface StructuredOutputRequest {
-  readonly schemaName: string;
-  readonly schemaDescription: string;
-  readonly schema: Record<string, unknown>;
-  readonly systemPrompt: string;
-  readonly userPrompt: string;
-  readonly maxTokens: number;
-  readonly signal: AbortSignal;
-}
-
 const isRetryableStatus = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
 
 /** Shared non-streaming JSON-Schema client for Alice AI authoring tools. */
 @Injectable()
-export class AliceAiStructuredOutputClient {
+export class AliceAiStructuredOutputClient implements StructuredOutputPort {
   constructor(
     @Inject(ALICE_AI_CONFIG)
     private readonly config: AliceAiConfig,

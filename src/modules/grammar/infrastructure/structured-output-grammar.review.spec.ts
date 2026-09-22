@@ -1,24 +1,24 @@
-import type { AliceAiStructuredOutputClient } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-structured-output.client";
+import type { StructuredOutputPort } from "@/modules/ai-gateway/ports/structured-output.port";
 
 import {
-  AliceAiGrammarReview,
+  StructuredOutputGrammarReview,
   GRAMMAR_REVIEW_SYSTEM_PROMPT,
-} from "./alice-ai-grammar.review";
+} from "./structured-output-grammar.review";
 
 const createReview = (findings: unknown) => {
   const complete = jest.fn().mockResolvedValue({ findings });
 
   return {
-    review: new AliceAiGrammarReview({
+    review: new StructuredOutputGrammarReview({
       complete,
-    } as unknown as AliceAiStructuredOutputClient),
+    } as StructuredOutputPort),
     complete,
   };
 };
 
 const signal = () => new AbortController().signal;
 
-describe(AliceAiGrammarReview.name, () => {
+describe(StructuredOutputGrammarReview.name, () => {
   it("sends only the texts and asks for a strict answer", async () => {
     const { review, complete } = createReview([]);
 

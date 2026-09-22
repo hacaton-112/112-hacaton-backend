@@ -20,7 +20,7 @@ jest.mock("@/core/config/env.config", () => ({
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { ConfigModule } from "@nestjs/config";
 
-import { AliceAiAdapterModule } from "@/modules/ai-gateway";
+import { TextAiAdapterModule } from "@/modules/ai-gateway";
 import { AsrModule } from "@/modules/asr/asr.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { IncidentCardModule } from "@/modules/incident-card";
@@ -54,7 +54,7 @@ describe(VoicePipelineModule.name, () => {
       ScenarioEngineModule,
       DialogueGenerationModule,
       // Разбор вопроса оператора — второй порт того же провайдера.
-      AliceAiAdapterModule,
+      TextAiAdapterModule,
       IncidentCardModule,
       SpeechSynthesisModule,
       TrainingModule,

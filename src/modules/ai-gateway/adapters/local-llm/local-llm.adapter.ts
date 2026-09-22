@@ -10,7 +10,10 @@ import {
 } from "@/contracts";
 import type { LlmPort } from "../../ports/llm.port";
 import type { QuestionUnderstandingPort } from "../../ports/question-understanding.port";
-import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
+import type {
+  StructuredOutputPort,
+  StructuredOutputRequest,
+} from "../../ports/structured-output.port";
 import {
   ASKED_FACTS_JSON_SCHEMA,
   parseAliceAiQuestionResponse,
@@ -113,10 +116,11 @@ export const LocalLlmConfigSchema = z
       .transform((url) => url.replace(/\/+$/, "")),
     model: z.string().trim().min(1).max(200),
     apiKey: z.string().min(1).optional(),
-    timeoutMs: z.coerce.number().int().min(500).max(30_000).default(8_000),
+    timeoutMs: z.coerce.number().int().min(500).max(300_000).default(8_000),
     concurrency: z.coerce.number().int().min(1).max(4).default(1),
     queueSize: z.coerce.number().int().min(0).max(16).default(0),
-    queueWaitMs: z.coerce.number().int().min(10).max(2000).default(500),
+    queueWaitMs: z.coerce.number().int().min(10).max(300_000).default(500),
+    reserveLiveSlot: z.boolean().default(true),
     literalFactReplies: z.boolean().default(false),
     replyMaxTokens: z.coerce.number().int().min(32).max(512).default(256),
     replyTemperature: z.coerce.number().min(0).max(1).default(0.3),
@@ -152,7 +156,9 @@ class LocalLlmHttpError extends Error {
 }
 
 /** llama-server protocol. No cloud fallback and no unbounded waiting queue. */
-export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
+export class LocalLlmAdapter
+  implements LlmPort, QuestionUnderstandingPort, StructuredOutputPort
+{
   private readonly logger = new Logger(LocalLlmAdapter.name);
   private readonly queue: InferenceQueue;
   readonly replyPolicy: NonNullable<LlmPort["replyPolicy"]>;
@@ -283,15 +289,15 @@ export class LocalLlmAdapter implements LlmPort, QuestionUnderstandingPort {
   /**
    * Структурный вызов из кабинета преподавателя.
    *
-   * Последний свободный слот остаётся живому звонку: проверка грамотности и
-   * помощник сценария подождут, а заявитель не должен из-за них переходить на
-   * запасную реплику. При `LLM_CONCURRENCY=1` инструменты преподавателя
-   * на локальной модели не работают вовсе — это осознанный выбор приоритета.
+   * У диалогового процесса последний свободный слот остаётся живому звонку:
+   * фоновые инструменты не должны вызывать переход на запасную реплику.
+   * Выделенный процесс инструментальных задач использует всю свою ёмкость.
    */
   complete(request: StructuredOutputRequest): Promise<unknown> {
-    // Студент v2 не обучен структурным JSON-задачам: для инструментов
-    // преподавателя должна быть настроена отдельная модель.
-    return this.run(request, this.config.concurrency - 1);
+    return this.run(
+      request,
+      this.config.concurrency - (this.config.reserveLiveSlot ? 1 : 0),
+    );
   }
 
   /** Разбор вопроса — часть живого звонка и берёт весь запас. */

@@ -9,7 +9,7 @@ import { ScenarioAudioController } from "./scenario-audio.controller";
 import { DialoguePreparationService } from "./dialogue-preparation.service";
 import { DialoguePreparationWorker } from "./dialogue-preparation.worker";
 import { DialoguePreparationController } from "./dialogue-preparation.controller";
-import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/ali
     CallRecordingModule,
     ScenarioEngineModule,
     SpeechSynthesisModule,
-    AliceAiAdapterModule,
+    TextAiAdapterModule,
   ],
   providers: [
     ScenarioAudioService,

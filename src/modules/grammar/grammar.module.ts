@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
-import { AliceAiAdapterModule } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
 
 import { GrammarService } from "./application/grammar.service";
-import { AliceAiGrammarReview } from "./infrastructure/alice-ai-grammar.review";
+import { StructuredOutputGrammarReview } from "./infrastructure/structured-output-grammar.review";
 import { parseGrammarConfig } from "./infrastructure/grammar.config";
 import { GRAMMAR_REVIEW_PORT } from "./ports/grammar-review.port";
 
@@ -16,15 +16,15 @@ import { GRAMMAR_REVIEW_PORT } from "./ports/grammar-review.port";
  * провайдера может не быть, и учебный комплекс обязан работать без него.
  */
 @Module({
-  imports: [ConfigModule, AliceAiAdapterModule],
+  imports: [ConfigModule, TextAiAdapterModule],
   providers: [
-    AliceAiGrammarReview,
+    StructuredOutputGrammarReview,
     {
       provide: GRAMMAR_REVIEW_PORT,
-      inject: [ConfigService, AliceAiGrammarReview],
+      inject: [ConfigService, StructuredOutputGrammarReview],
       useFactory: (
         configService: ConfigService,
-        review: AliceAiGrammarReview,
+        review: StructuredOutputGrammarReview,
       ) =>
         parseGrammarConfig({
           GRAMMAR_MODEL_REVIEW_ENABLED: configService.get(

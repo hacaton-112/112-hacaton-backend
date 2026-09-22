@@ -1,6 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 import { assertOfflineEndpoint, guardedOfflineFetch } from "./offline-policy";
-import { createAiProviders } from "./adapters/alice-ai/alice-ai-adapter.module";
+import { createAiProviders } from "./adapters/text-ai-adapter.module";
 
 describe("offline AI policy", () => {
   it.each([
@@ -32,6 +32,22 @@ describe("offline AI policy", () => {
         fetcher,
       ),
     ).toThrow("requires LLM_PROVIDER=local");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("refuses an external tools endpoint in offline-hybrid mode", () => {
+    const fetcher = jest.fn();
+    expect(() =>
+      createAiProviders(
+        new ConfigService({
+          VOICE_EXECUTION_PROFILE: "offline-hybrid",
+          LLM_PROVIDER: "local",
+          LLM_BASE_URL: "http://127.0.0.1:8080/v1",
+          LLM_MODEL: "dialogue-model",
+          TOOLS_LLM_BASE_URL: "https://example.org/v1",
+        }),
+        fetcher,
+      ),
+    ).toThrow("private IP or an explicitly allowed internal hostname");
     expect(fetcher).not.toHaveBeenCalled();
   });
   it("disables redirects and refuses external requests before fetch", async () => {
