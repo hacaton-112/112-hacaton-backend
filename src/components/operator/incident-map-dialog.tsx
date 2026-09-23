@@ -35,6 +35,7 @@ export function IncidentMapDialog({
         <button
           type="button"
           className="arm112-map-button"
+          data-tour="incident-map"
           disabled={!onSelectPoint}
           title={
             onSelectPoint

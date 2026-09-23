@@ -132,6 +132,7 @@ export function CallControlDock(props: CallControlDockProps) {
               size="2"
               variant="soft"
               color="gray"
+              data-tour="operator-phone"
               onClick={() => {
                 openOperatorPhoneWindow().catch((error: unknown) => {
                   toast.error("Окно телефона не открылось", {

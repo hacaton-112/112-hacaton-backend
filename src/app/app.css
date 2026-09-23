@@ -2960,7 +2960,8 @@ body,
 /* Окно телефона 112: узкое окно рядом с карточкой. */
 .arm112-phone-window {
   display: grid;
-  height: 100%;
+  /* Окно телефона открывается отдельно, и страница в нём — это всё окно. */
+  min-height: 100dvh;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   background: #e6e8e8;
   padding: 10px;
