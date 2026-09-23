@@ -19,6 +19,32 @@ export const PhoneHostMessageSchema = z.discriminatedUnion("type", [
       config: BrowserPhoneConfigSchema,
     })
     .strict(),
+  // Справочник нарядов этой карточки: телефон стоит отдельным аппаратом, и
+  // кому звонить, он узнаёт от рабочего места, а не из своего состояния.
+  z
+    .object({
+      type: z.literal("context"),
+      requestId: z.uuid(),
+      crews: z.array(
+        z
+          .object({
+            callsign: z.string().min(1),
+            phoneNumber: z.string().regex(/^\d{1,12}$/u),
+          })
+          .strict(),
+      ),
+      canCall: z.boolean(),
+    })
+    .strict(),
+  // Чем кончился вызов, знает рабочее место: оно ставит звонок в Asterisk.
+  z
+    .object({
+      type: z.literal("status"),
+      requestId: z.uuid(),
+      kind: z.enum(["sent", "error"]),
+      message: z.string().min(1),
+    })
+    .strict(),
 ]);
 
 export const PhoneWindowMessageSchema = z.discriminatedUnion("type", [
@@ -54,8 +80,17 @@ export type PhoneWindowMessage = z.infer<typeof PhoneWindowMessageSchema>;
 const REGISTRATION_TIMEOUT_MS = 15_000;
 const DISCOVERY_INTERVAL_MS = 250;
 
+export interface PhoneCrewEntry {
+  readonly callsign: string;
+  readonly phoneNumber: string;
+}
+
 export interface BrowserPhoneWindowSession {
   connect(config: BrowserPhoneConfig): Promise<void>;
+  /** Справочник нарядов карточки и право звонить по ней. */
+  setContext(crews: readonly PhoneCrewEntry[], canCall: boolean): void;
+  /** Итог вызова, поставленного рабочим местом. */
+  notify(kind: "sent" | "error", message: string): void;
   /** Набор в окне телефона: возвращает отписку. */
   onDial(handler: (number: string) => void): () => void;
   dispose(): void;
@@ -130,6 +165,29 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
         channel.addEventListener("message", onMessage);
         discover();
       });
+    },
+    setContext(crews, canCall) {
+      if (disposed) return;
+
+      channel.postMessage({
+        type: "context",
+        requestId,
+        crews: crews.map(({ callsign, phoneNumber }) => ({
+          callsign,
+          phoneNumber,
+        })),
+        canCall,
+      } satisfies PhoneHostMessage);
+    },
+    notify(kind, message) {
+      if (disposed) return;
+
+      channel.postMessage({
+        type: "status",
+        requestId,
+        kind,
+        message,
+      } satisfies PhoneHostMessage);
     },
     onDial(handler) {
       const onMessage = (event: MessageEvent<unknown>) => {

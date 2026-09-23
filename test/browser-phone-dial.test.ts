@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { PhoneWindowMessageSchema } from "../src/lib/browser-phone-window";
+import {
+  PhoneHostMessageSchema,
+  PhoneWindowMessageSchema,
+} from "../src/lib/browser-phone-window";
 
 const requestId = "68e4085a-a84f-435e-804f-8a242db80385";
 
@@ -32,5 +35,40 @@ describe("browser phone window channel", () => {
         extension: "202",
       }).type,
     ).toBe("registered");
+  });
+});
+
+describe("справочник нарядов в окне телефона", () => {
+  test("рабочее место передаёт наряды и право звонить", () => {
+    const message = PhoneHostMessageSchema.parse({
+      type: "context",
+      requestId: "3f6d2f5c-3e0a-4a1f-9d9f-6f1d0f58a111",
+      canCall: true,
+      crews: [{ callsign: "АЦ-1 ПСЧ-25", phoneNumber: "3101" }],
+    });
+
+    expect(message).toMatchObject({ type: "context", canCall: true });
+  });
+
+  test("наряд без номера в справочник не попадает", () => {
+    expect(
+      PhoneHostMessageSchema.safeParse({
+        type: "context",
+        requestId: "3f6d2f5c-3e0a-4a1f-9d9f-6f1d0f58a111",
+        canCall: true,
+        crews: [{ callsign: "Без связи", phoneNumber: "" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  test("итог вызова приходит в окно от рабочего места", () => {
+    const message = PhoneHostMessageSchema.parse({
+      type: "status",
+      requestId: "3f6d2f5c-3e0a-4a1f-9d9f-6f1d0f58a111",
+      kind: "error",
+      message: "Наряд не отвечает",
+    });
+
+    expect(message).toMatchObject({ kind: "error" });
   });
 });

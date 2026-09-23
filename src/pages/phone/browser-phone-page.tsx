@@ -14,6 +14,7 @@ import type { BrowserPhoneConfig } from "../../contracts/telephony";
 import {
   PHONE_CHANNEL_NAME,
   PhoneHostMessageSchema,
+  type PhoneCrewEntry,
   type PhoneWindowMessage,
 } from "../../lib/browser-phone-window";
 import { BrowserPhoneClient } from "../../services/browser-phone.service";
@@ -50,6 +51,14 @@ export default function BrowserPhonePage() {
   // Окно живёт рядом с рабочим местом, поэтому номер набирают здесь, а звонок
   // ставит карточка: у неё есть упражнение, к которому относится вызов.
   const [number, setNumber] = useState("");
+  // Наряды приходят из карточки: телефон сам не знает, по какому она
+  // происшествию, и справочник у него всегда от текущей карточки.
+  const [crews, setCrews] = useState<readonly PhoneCrewEntry[]>([]);
+  const [canCall, setCanCall] = useState(false);
+  const [hostStatus, setHostStatus] = useState<{
+    kind: "sent" | "error";
+    message: string;
+  }>();
   const channelRef = useRef<BroadcastChannel | null>(null);
   const requestIdRef = useRef<string | undefined>(undefined);
 
@@ -121,6 +130,18 @@ export default function BrowserPhonePage() {
         publish({ type: "ready", requestId: parsed.data.requestId });
         return;
       }
+      if (parsed.data.type === "context") {
+        setCrews(parsed.data.crews);
+        setCanCall(parsed.data.canCall);
+        return;
+      }
+      if (parsed.data.type === "status") {
+        setHostStatus({
+          kind: parsed.data.kind,
+          message: parsed.data.message,
+        });
+        return;
+      }
       void configure(parsed.data.requestId, parsed.data.config);
     };
     channel.addEventListener("message", onMessage);
@@ -187,7 +208,30 @@ export default function BrowserPhonePage() {
           </Text>
         )}
 
-        {extension && (
+        {crews.length > 0 && (
+          <div className="grid gap-1" aria-label="Наряды по карточке">
+            <Text size="1" color="gray">
+              Наряды по карточке
+            </Text>
+            {crews.map((crew) => (
+              <Button
+                key={crew.phoneNumber}
+                size="2"
+                variant={number === crew.phoneNumber ? "solid" : "soft"}
+                onClick={() => {
+                  setNumber(crew.phoneNumber);
+                  setHostStatus(undefined);
+                }}
+              >
+                {crew.callsign} · {crew.phoneNumber}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {/* Клавиатура появляется вместе со справочником карточки: ждать
+            регистрации в АТС незачем, она видна по состоянию выше. */}
+        {(extension || crews.length > 0) && (
           <div className="grid gap-2" aria-label="Набор номера наряда">
             <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
               <Text as="p" size="1" color="gray">
@@ -231,10 +275,16 @@ export default function BrowserPhonePage() {
             <Button
               color="green"
               size="3"
-              disabled={number === "" || state === "connecting"}
+              disabled={
+                number === "" ||
+                state === "connecting" ||
+                !canCall ||
+                !extension
+              }
               onClick={() => {
                 const requestId = requestIdRef.current;
                 if (!requestId || !channelRef.current) return;
+                setHostStatus(undefined);
                 // Звонок ставит рабочее место: только оно знает карточку.
                 channelRef.current.postMessage({
                   type: "dial",
@@ -245,6 +295,27 @@ export default function BrowserPhonePage() {
             >
               <PhoneCall size={18} /> Позвонить
             </Button>
+
+            {!canCall && (
+              <Text size="1" color="gray">
+                Сначала примите карточку в рабочем месте: до этого звонок наряду
+                не засчитывается.
+              </Text>
+            )}
+            {canCall && !extension && (
+              <Text size="1" color="gray">
+                Аппарат ещё не зарегистрирован в АТС: звонок станет доступен
+                после подключения.
+              </Text>
+            )}
+            {hostStatus && (
+              <Callout.Root
+                color={hostStatus.kind === "error" ? "red" : "green"}
+                role={hostStatus.kind === "error" ? "alert" : undefined}
+              >
+                <Callout.Text>{hostStatus.message}</Callout.Text>
+              </Callout.Root>
+            )}
           </div>
         )}
 
