@@ -115,6 +115,45 @@ openssl rand -base64 48
 - `BACKUP_DIRECTORY` — каталог, который резервная система сервера копирует на
   другой хост или носитель. Локальный каталог не является полноценной копией.
 
+### Экранный телефон ДДС
+
+Для телефона внутри браузера нужен тот же доверенный HTTPS origin, с которого
+открыт интерфейс. Gateway принимает `wss://<host>/asterisk/ws` и проксирует
+соединение в приватный HTTP/WebSocket Asterisk; порт 8088 наружу открывать не
+нужно. В `.env` задайте:
+
+```dotenv
+TELEPHONY_ENABLED=true
+ASTERISK_ARI_PASSWORD=<отдельный-случайный-секрет>
+ASTERISK_SIP_PASSWORD=<отдельный-случайный-секрет>
+ASTERISK_WORKSTATIONS=201,202,203,204
+ASTERISK_WEBRTC_WORKSTATIONS=201,202,203,204
+ASTERISK_WEBRTC_WS_URL=wss://system112.example.internal/asterisk/ws
+ASTERISK_WEBRTC_SIP_DOMAIN=system112.example.internal
+ASTERISK_EXTERNAL_ADDRESS=<адрес-сервера-в-сети-рабочих-мест>
+```
+
+`ASTERISK_WEBRTC_WORKSTATIONS` — подмножество `ASTERISK_WORKSTATIONS`. Один
+добавочный должен принадлежать либо экранному WebRTC-телефону, либо аппаратному
+SIP-телефону: при смене режима Asterisk пересоздаёт endpoint. После первого
+запуска закрепите учебные учётные записи за добавочными:
+
+```bash
+bun run db:seed:workstations
+```
+
+Проверьте конфигурацию без вывода паролей и затем регистрацию:
+
+```bash
+docker compose config --quiet
+docker compose exec asterisk asterisk -rx 'pjsip show endpoints'
+```
+
+После открытия рабочего места нужный endpoint должен перейти из `Unavailable`
+в `Avail`. Если `/api/v1/telephony/browser-phone/config` отвечает `503`, список
+WebRTC-мест пуст или телефония выключена. Если WebSocket не подключается,
+проверьте доверие к сертификату и публичный путь `/asterisk/ws`.
+
 Адреса базы и MinIO внутри стека задаёт `docker-compose.yml`: в `.env` их
 указывать не нужно. Backend доверяет forwarded IP ровно от одного hop — NGINX;
 его HTTP-порт на хосте отсутствует, поэтому клиент не может обойти proxy.
@@ -276,8 +315,8 @@ git pull && docker compose up -d --build
 ```
 
 Миграции применяются автоматически: новый backend стартует только после того,
-как backend применил миграции. Если миграция упала, контейнер уйдёт в перезапуск, а причина будет в журнале:
-ошибкой, и причина будет в журнале:
+как backend применил миграции. Если миграция упала, контейнер уйдёт в
+перезапуск, а причина будет в журнале:
 
 ```bash
 docker compose logs backend
