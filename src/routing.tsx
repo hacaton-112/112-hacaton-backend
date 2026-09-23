@@ -45,6 +45,9 @@ const MethodicalMaterialsPage = lazy(
   () => import("./pages/main/methodical-materials-page"),
 );
 const BrowserPhonePage = lazy(() => import("./pages/phone/browser-phone-page"));
+const OperatorPhonePage = lazy(
+  () => import("./pages/phone/operator-phone-page"),
+);
 
 const pageFallback = (
   <Flex align="center" justify="center" className="h-full">
@@ -162,6 +165,10 @@ export function Routing() {
         <Route
           path={ROUTE_PATTERNS.phone}
           element={lazyPage(<BrowserPhonePage />)}
+        />
+        <Route
+          path={ROUTE_PATTERNS.operatorPhone}
+          element={lazyPage(<OperatorPhonePage />)}
         />
       </Route>
     </Routes>

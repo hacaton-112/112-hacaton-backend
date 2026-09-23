@@ -30,6 +30,7 @@ export const ROUTE_PATTERNS = {
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
   phone: "/phone",
+  operatorPhone: "/operator-phone",
 } as const;
 
 export const ROUTES = {
@@ -79,3 +80,7 @@ export const MAP_WINDOW_URL = `/#${ROUTE_PATTERNS.map}`;
 
 export const PHONE_WINDOW_LABEL = "dds-phone";
 export const PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.phone}`;
+
+/** Телефон оператора 112: тот же звонок, но в отдельном окне рабочего места. */
+export const OPERATOR_PHONE_WINDOW_LABEL = "operator-phone";
+export const OPERATOR_PHONE_WINDOW_URL = `/#${ROUTE_PATTERNS.operatorPhone}`;

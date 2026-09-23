@@ -10,6 +10,7 @@ import { IncidentMapDialog } from "../../components/operator/incident-map-dialog
 import { IncidentForm } from "../../components/operator/incident-form";
 import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
 import { useCall } from "../../hooks/use-call";
+import { useOperatorPhoneWindow } from "../../hooks/use-operator-phone-window";
 import { useIncidentCard } from "../../hooks/use-incident-card";
 import { useIncidentPoint } from "../../hooks/use-incident-point";
 import {
@@ -97,6 +98,12 @@ export default function OperatorPage() {
   // Точку на карте оператор отмечает только в своём идущем звонке: backend
   // определяет адрес по той же учебной сессии и чужую не примет.
   const incidentPoint = useIncidentPoint(call.trainingSessionId);
+  // Телефон живёт в отдельном окне, но звонок остаётся здесь: окну уходит
+  // снимок разговора, а обратно приходят только нажатия трубки и микрофона.
+  useOperatorPhoneWindow({
+    ...call,
+    onEnd: () => void handleEnd(),
+  });
 
   useEffect(() => {
     if (!call.error) return;

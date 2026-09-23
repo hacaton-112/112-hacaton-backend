@@ -2956,3 +2956,79 @@ body,
     display: none;
   }
 }
+
+/* Окно телефона 112: узкое окно рядом с карточкой. */
+.arm112-phone-window {
+  display: grid;
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: #e6e8e8;
+  padding: 10px;
+  gap: 8px;
+}
+
+.arm112-phone-window > header {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  gap: 2px;
+}
+
+.arm112-phone-window-label {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-phone-window > header strong {
+  color: #2f4257;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.arm112-phone-window-state {
+  color: #7d888e;
+  font-size: 12px;
+}
+
+.arm112-phone-window-state[data-live] {
+  color: var(--arm-success);
+  font-weight: 600;
+}
+
+.arm112-phone-window-timer {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: var(--arm-graphite);
+  padding: 8px 12px;
+  color: #fff;
+  gap: 2px;
+}
+
+.arm112-phone-window-timer strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm112-phone-window-timer span {
+  color: #c7ced2;
+  font-size: 11px;
+}
+
+.arm112-phone-window-chat {
+  display: grid;
+  min-height: 0;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+.arm112-phone-window > footer {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+}
