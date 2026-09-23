@@ -234,17 +234,10 @@
       "breakpoints": true
     },
     {
-      "idx": 28,
+      "idx": 33,
       "version": "7",
-      "when": 1790352000000,
-      "tag": "0026_methodical_materials",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1790352000000,
-      "tag": "0026_crew_handoff_asr",
+      "when": 1790697600000,
+      "tag": "0031_repair_skipped_feature_migrations",
       "breakpoints": true
     }
   ]
