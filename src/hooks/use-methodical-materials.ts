@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { QUERY_KEYS } from "../config/query-keys";
-import type { MethodicalMaterial } from "../contracts/methodical-materials";
+import type {
+  MethodicalMaterial,
+  MethodicalMaterialInput,
+} from "../contracts/methodical-materials";
 import { methodicalMaterialsService } from "../services/methodical-materials.service";
 
 export function useMethodicalMaterials() {
@@ -30,6 +33,33 @@ export function useMethodicalMaterials() {
       );
     },
   });
+  const create = useMutation({
+    mutationFn: (input: MethodicalMaterialInput) =>
+      methodicalMaterialsService.create(input),
+    onSuccess: (created) => {
+      queryClient.setQueryData<MethodicalMaterial[]>(queryKey, (current) => [
+        ...(current ?? []),
+        created,
+      ]);
+    },
+  });
+  const update = useMutation({
+    mutationFn: (input: {
+      materialId: string;
+      material: MethodicalMaterialInput;
+    }) => methodicalMaterialsService.update(input.materialId, input.material),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<MethodicalMaterial[]>(queryKey, (current) =>
+        current?.map((material) =>
+          material.id === updated.id ? updated : material,
+        ),
+      );
+    },
+  });
 
-  return { materials, completion };
+  return { materials, completion, authoring: { create, update } };
 }
+
+export type MethodicalAuthoringMutations = ReturnType<
+  typeof useMethodicalMaterials
+>["authoring"];

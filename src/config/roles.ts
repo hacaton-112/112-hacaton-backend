@@ -60,6 +60,10 @@ export const canViewClassifier = (role?: UserRole): boolean =>
 export const canManageClassifier = (role?: UserRole): boolean =>
   role === "admin";
 
+/** Методические материалы создают и обновляют преподаватели и администраторы. */
+export const canAuthorMethodicalMaterials = (role?: UserRole): boolean =>
+  role === "instructor" || role === "admin";
+
 /** Подписи ролей в интерфейсе. */
 export const ROLE_LABELS: Record<UserRole, string> = {
   operator: "Оператор",
