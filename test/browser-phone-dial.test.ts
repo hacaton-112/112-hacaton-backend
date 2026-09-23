@@ -71,4 +71,13 @@ describe("справочник нарядов в окне телефона", () 
 
     expect(message).toMatchObject({ kind: "error" });
   });
+
+  test("закрытая карточка отсоединяет аппарат от упражнения", () => {
+    expect(
+      PhoneHostMessageSchema.parse({
+        type: "detach",
+        requestId: "3f6d2f5c-3e0a-4a1f-9d9f-6f1d0f58a111",
+      }).type,
+    ).toBe("detach");
+  });
 });

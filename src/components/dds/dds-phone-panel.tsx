@@ -34,6 +34,7 @@ export function DdsPhonePanel({
   const command = useRef<{ number: string; eventId: string } | null>(null);
   // Аппарат, открытый рядом с рабочим местом: живёт, пока открыта карточка.
   const phoneWindow = useRef<BrowserPhoneWindowSession | null>(null);
+  const dialContext = useRef({ handoff, canCall });
   const unsubscribeDial = useRef<(() => void) | null>(null);
   const callsBeforeCommand = useRef<number | null>(null);
   const call = useMutation({
@@ -64,6 +65,7 @@ export function DdsPhonePanel({
       phoneWindow.current?.notify("error", error.message);
     },
   });
+  const activeCall = useRef(call);
   const latestCall = handoff.calls.at(-1);
 
   useEffect(
@@ -78,8 +80,10 @@ export function DdsPhonePanel({
   // Справочник карточки и право звонить меняются по ходу упражнения, и
   // открытый аппарат должен видеть их такими же, как рабочее место.
   useEffect(() => {
+    dialContext.current = { handoff, canCall };
+    activeCall.current = call;
     phoneWindow.current?.setContext(handoff.crews, canCall);
-  }, [handoff.crews, canCall]);
+  }, [call, handoff, canCall]);
 
   useEffect(() => {
     if (
@@ -96,28 +100,40 @@ export function DdsPhonePanel({
   const openPhone = async () => {
     setWindowError(undefined);
     setOpening(true);
+    let session: BrowserPhoneWindowSession | undefined;
 
     try {
-      const session = prepareBrowserPhoneWindow();
+      session = prepareBrowserPhoneWindow();
       await session.connect(await telephonyService.getBrowserPhoneConfig());
       unsubscribeDial.current?.();
       phoneWindow.current?.dispose();
       phoneWindow.current = session;
       session.setContext(handoff.crews, canCall);
+      const connectedSession = session;
       // Номер набирают в окне аппарата, а вызов ставит карточка: только она
       // знает, к какому упражнению его отнести.
-      unsubscribeDial.current = session.onDial((dialed) => {
-        if (!isOfferedCrewNumber(handoff, dialed)) {
-          session.notify(
+      unsubscribeDial.current = connectedSession.onDial((dialed) => {
+        const current = dialContext.current;
+        if (!current.canCall) {
+          connectedSession.notify("error", "Сначала примите карточку");
+          return;
+        }
+        if (!isOfferedCrewNumber(current.handoff, dialed)) {
+          connectedSession.notify(
             "error",
             "По этой карточке можно вызвать только наряд из справочника",
           );
           return;
         }
+        if (activeCall.current.isPending || activeCall.current.isSuccess) {
+          connectedSession.notify("error", "Предыдущий вызов ещё не завершён");
+          return;
+        }
 
-        call.mutate(dialed);
+        activeCall.current.mutate(dialed);
       });
     } catch (reason) {
+      session?.dispose();
       setWindowError(
         reason instanceof Error
           ? reason.message
@@ -146,19 +162,14 @@ export function DdsPhonePanel({
         </Badge>
       </Flex>
 
-      <Button
-        color="green"
-        disabled={!canCall}
-        loading={opening}
-        onClick={() => void openPhone()}
-      >
+      <Button color="green" loading={opening} onClick={() => void openPhone()}>
         <PhoneCall size={16} /> Открыть телефон
       </Button>
 
       <Text size="1" color="gray">
         {canCall
           ? "Наряды и набор номера — в окне телефона."
-          : "Сначала примите карточку. После этого станет доступен звонок наряду."}
+          : "Откройте аппарат заранее; звонок станет доступен после принятия карточки."}
       </Text>
 
       {call.error && (

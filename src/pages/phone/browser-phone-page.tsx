@@ -23,6 +23,7 @@ type PhoneState =
   | "waiting"
   | "connecting"
   | "registered"
+  | "dialing"
   | "ringing"
   | "answering"
   | "connected"
@@ -35,6 +36,7 @@ const STATE_LABELS: Record<PhoneState, string> = {
   waiting: "Ожидание рабочего места",
   connecting: "Подключение к АТС",
   registered: "Готов к звонку",
+  dialing: "Вызов наряда",
   ringing: "Входящий звонок",
   answering: "Подключение микрофона",
   connected: "Разговор",
@@ -94,6 +96,7 @@ export default function BrowserPhonePage() {
       await phoneRef.current?.dispose();
       const phone = new BrowserPhoneClient(config, audioRef.current, {
         onRegistered: () => {
+          if (requestIdRef.current !== requestId) return;
           setState("registered");
           publish({
             type: "registered",
@@ -101,10 +104,17 @@ export default function BrowserPhonePage() {
             extension: config.extension,
           });
         },
-        onIncomingCall: () => setState("ringing"),
-        onCallAnswered: () => setState("connected"),
-        onCallEnded: () => setState("ended"),
+        onIncomingCall: () => {
+          if (requestIdRef.current === requestId) setState("ringing");
+        },
+        onCallAnswered: () => {
+          if (requestIdRef.current === requestId) setState("connected");
+        },
+        onCallEnded: () => {
+          if (requestIdRef.current === requestId) setState("ended");
+        },
         onDisconnected: (reason) => {
+          if (requestIdRef.current !== requestId) return;
           setState("error");
           setError(reason?.message ?? "Соединение с Asterisk потеряно");
         },
@@ -130,9 +140,20 @@ export default function BrowserPhonePage() {
         publish({ type: "ready", requestId: parsed.data.requestId });
         return;
       }
+      if (parsed.data.type === "configure") {
+        void configure(parsed.data.requestId, parsed.data.config);
+        return;
+      }
+      if (parsed.data.requestId !== requestIdRef.current) return;
       if (parsed.data.type === "context") {
-        setCrews(parsed.data.crews);
+        const nextCrews = parsed.data.crews;
+        setCrews(nextCrews);
         setCanCall(parsed.data.canCall);
+        setNumber((current) =>
+          nextCrews.some(({ phoneNumber }) => phoneNumber === current)
+            ? current
+            : "",
+        );
         return;
       }
       if (parsed.data.type === "status") {
@@ -140,9 +161,22 @@ export default function BrowserPhonePage() {
           kind: parsed.data.kind,
           message: parsed.data.message,
         });
+        if (parsed.data.kind === "error") {
+          setState((current) =>
+            current === "dialing" ? "registered" : current,
+          );
+        }
         return;
       }
-      void configure(parsed.data.requestId, parsed.data.config);
+      requestIdRef.current = undefined;
+      setCrews([]);
+      setCanCall(false);
+      setHostStatus(undefined);
+      setNumber("");
+      setExtension(undefined);
+      setState("waiting");
+      void phoneRef.current?.dispose();
+      phoneRef.current = null;
     };
     channel.addEventListener("message", onMessage);
 
@@ -177,6 +211,13 @@ export default function BrowserPhonePage() {
       );
     }
   };
+
+  const offeredNumber = crews.some(({ phoneNumber }) => phoneNumber === number);
+  const canDial =
+    canCall &&
+    offeredNumber &&
+    extension !== undefined &&
+    (state === "registered" || state === "ended");
 
   return (
     <main className="bg-gray-2 min-h-screen p-4">
@@ -275,16 +316,12 @@ export default function BrowserPhonePage() {
             <Button
               color="green"
               size="3"
-              disabled={
-                number === "" ||
-                state === "connecting" ||
-                !canCall ||
-                !extension
-              }
+              disabled={!canDial}
               onClick={() => {
                 const requestId = requestIdRef.current;
                 if (!requestId || !channelRef.current) return;
                 setHostStatus(undefined);
+                setState("dialing");
                 // Звонок ставит рабочее место: только оно знает карточку.
                 channelRef.current.postMessage({
                   type: "dial",
@@ -295,6 +332,12 @@ export default function BrowserPhonePage() {
             >
               <PhoneCall size={18} /> Позвонить
             </Button>
+
+            {number && !offeredNumber && (
+              <Text size="1" color="amber">
+                Для этой карточки можно вызвать только наряд из списка выше.
+              </Text>
+            )}
 
             {!canCall && (
               <Text size="1" color="gray">

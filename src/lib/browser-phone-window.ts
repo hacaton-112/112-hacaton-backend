@@ -45,6 +45,9 @@ export const PhoneHostMessageSchema = z.discriminatedUnion("type", [
       message: z.string().min(1),
     })
     .strict(),
+  // Карточка закрыта или заменена: аппарат остаётся отдельным окном, но
+  // больше не может ставить звонки от имени устаревшего упражнения.
+  z.object({ type: z.literal("detach"), requestId: z.uuid() }).strict(),
 ]);
 
 export const PhoneWindowMessageSchema = z.discriminatedUnion("type", [
@@ -208,6 +211,10 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
     dispose() {
       if (disposed) return;
       disposed = true;
+      channel.postMessage({
+        type: "detach",
+        requestId,
+      } satisfies PhoneHostMessage);
       channel.close();
     },
   };
