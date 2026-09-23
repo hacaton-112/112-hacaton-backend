@@ -1,0 +1,34 @@
+{
+  "options": {
+    "paths": {
+      "root": "/data",
+      "mbtiles": "data",
+      "styles": "styles",
+      "sprites": "sprites",
+      "fonts": "fonts"
+    },
+    "frontPage": false,
+    "serveAllFonts": true,
+    "serveAllStyles": false,
+    "serveStaticMaps": true,
+    "staticAttributionText": "© CARTO, © OpenStreetMap contributors"
+  },
+  "styles": {
+    "dark-matter": {
+      "style": "dark-matter.json",
+      "serve_data": true,
+      "serve_rendered": true
+    },
+    "positron": {
+      "style": "positron.json",
+      "serve_data": true,
+      "serve_rendered": true
+    }
+  },
+  "data": {
+    "openmaptiles": {
+      "mbtiles": "moscow-oblast.mbtiles",
+      "sparse": true
+    }
+  }
+}

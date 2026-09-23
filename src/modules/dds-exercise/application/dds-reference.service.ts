@@ -53,6 +53,25 @@ const SERVICE_BY_SCENARIO_SERVICE = {
   gas: "dds_04",
 } as const;
 
+/**
+ * По одной, самой свежей версии каждого сценария.
+ *
+ * Эталон живёт на конкретной версии: если взять не ту, список покажет, что
+ * эталона нет, хотя он есть. Сборка словаря из отсортированного списка на это
+ * и напоролась — в словаре побеждает последняя запись, то есть самая старая
+ * версия.
+ */
+export function latestVersionPerScenario<
+  T extends { scenarioId: string; version: number },
+>(versions: readonly T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const row of versions) {
+    const known = latest.get(row.scenarioId);
+    if (!known || known.version < row.version) latest.set(row.scenarioId, row);
+  }
+  return [...latest.values()];
+}
+
 export function expectedCrewServiceFromScenario(services: readonly string[]) {
   for (const service of services) {
     const mapped =
@@ -171,9 +190,7 @@ export class DdsReferenceService implements OnModuleInit {
         ),
       )
       .orderBy(desc(scenarioVersions.version));
-    const current = [
-      ...new Map(versions.map((row) => [row.scenarioId, row])).values(),
-    ];
+    const current = latestVersionPerScenario(versions);
     const ids = current.map(({ id }) => id);
     const references = ids.length
       ? await this.db

@@ -19,6 +19,10 @@ ops/tls/certs/*
 # Реплики нарядов, озвученные для учебной АТС
 telephony-sounds/
 
-# Карты и тайлы
-maps/
+# Карты: стили, спрайты и шрифты лежат в репозитории, а тайлы — нет:
+# архив весит сотни мегабайт и собирается отдельно (см. maps/README.md).
+maps/data/*
+!maps/data/.gitkeep
+maps/build/
+maps/tmp/
 *.mbtiles

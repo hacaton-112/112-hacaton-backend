@@ -1238,7 +1238,7 @@ export class VoicePipelineGateway
         speaking: true,
       });
     } catch {
-      await this.sendError(
+      await this.failRequest(
         client,
         state,
         activeRequest.requestId,
@@ -1259,7 +1259,7 @@ export class VoicePipelineGateway
       });
     } catch {
       if (!activeRequest.controller.signal.aborted) {
-        await this.sendError(
+        await this.failRequest(
           client,
           state,
           activeRequest.requestId,
@@ -1411,7 +1411,7 @@ export class VoicePipelineGateway
         speaking: true,
       });
     } catch {
-      await this.sendError(
+      await this.failRequest(
         client,
         state,
         activeRequest.requestId,
@@ -1575,6 +1575,23 @@ export class VoicePipelineGateway
     });
   }
 
+  /**
+   * Ошибка реплики, о которой стоит сказать оператору.
+   *
+   * Реплика заявителя готовится асинхронно, и звонок могли завершить прямо в
+   * это время: контекста сценария уже нет, но это обычный конец разговора, а
+   * не сбой. Сообщать о нём после отбоя — только пугать оператора.
+   */
+  private async failRequest(
+    client: WebSocket,
+    state: ConnectionState,
+    requestId: string | null,
+    code: VoicePipelineSocketErrorCode,
+  ): Promise<void> {
+    if (!state.callStarted) return;
+    await this.sendError(client, state, requestId, code);
+  }
+
   private async sendError(
     client: WebSocket,
     state: ConnectionState,
@@ -1597,6 +1614,12 @@ export class VoicePipelineGateway
         "The training session can no longer be recovered",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
+    // Такие отказы видит только оператор во всплывающем сообщении, поэтому в
+    // журнале о них не остаётся следа — а разбирать жалобу «была ошибка
+    // звонка» потом не по чему.
+    this.logger.warn(
+      `Команда отклонена (${code}) в сессии ${state.sessionId ?? "без сессии"}`,
+    );
     await this.sendEvent(client, state, {
       type: "error",
       requestId,

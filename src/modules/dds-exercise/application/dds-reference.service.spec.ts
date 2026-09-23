@@ -1,4 +1,7 @@
-import { expectedCrewServiceFromScenario } from "./dds-reference.service";
+import {
+  expectedCrewServiceFromScenario,
+  latestVersionPerScenario,
+} from "./dds-reference.service";
 
 describe(expectedCrewServiceFromScenario.name, () => {
   it.each([
@@ -13,4 +16,28 @@ describe(expectedCrewServiceFromScenario.name, () => {
       expect(expectedCrewServiceFromScenario(services)).toBe(expected);
     },
   );
+});
+
+describe("выбор текущей версии сценария", () => {
+  it("берёт самую свежую версию каждого сценария", () => {
+    const rows = [
+      { scenarioId: "a", version: 3, id: "a3" },
+      { scenarioId: "a", version: 1, id: "a1" },
+      { scenarioId: "b", version: 2, id: "b2" },
+      { scenarioId: "b", version: 7, id: "b7" },
+    ];
+
+    expect(
+      latestVersionPerScenario(rows)
+        .map(({ id }) => id)
+        .sort(),
+    ).toEqual(["a3", "b7"]);
+  });
+
+  it("возвращает по одной строке на сценарий", () => {
+    expect(latestVersionPerScenario([])).toEqual([]);
+    expect(
+      latestVersionPerScenario([{ scenarioId: "a", version: 1, id: "a1" }]),
+    ).toEqual([{ scenarioId: "a", version: 1, id: "a1" }]);
+  });
 });
