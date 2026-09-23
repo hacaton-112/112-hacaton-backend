@@ -1,6 +1,8 @@
 import {
-  CREW_ACKNOWLEDGEMENTS,
+  CREW_CLARIFICATIONS,
   CREW_CLOSING,
+  CREW_INCOMPLETE,
+  CREW_RECOGNITION_UNAVAILABLE,
   crewPhrase,
   crewPhrases,
   crewPromptMedia,
@@ -11,27 +13,24 @@ import {
 
 describe("crew phrases", () => {
   it("greets with the callsign of the crew", () => {
-    expect(crewPhrase("greeting", 0, "Пожарная часть 12")).toBe(
+    expect(crewPhrase("greeting", "Пожарная часть 12")).toBe(
       "Пожарная часть 12, слушаю.",
     );
   });
 
-  it("does not repeat the same acknowledgement twice in a row", () => {
-    const said = [0, 1, 2, 3, 4].map((index) =>
-      crewPhrase("acknowledgement", index, "ПСЧ-12"),
+  it("asks for the exact missing part of the report", () => {
+    expect(crewPhrase("clarification", "ПСЧ-12", "address")).toBe(
+      "Повторите адрес происшествия.",
     );
-
-    said.slice(1).forEach((phrase, index) => {
-      expect(phrase).not.toBe(said[index]);
-    });
-    expect(said[4]).toBe(CREW_ACKNOWLEDGEMENTS[0]);
   });
 
   it("lists every line the crew can say, so all of them are prepared", () => {
     expect(crewPhrases("ПСЧ-12")).toEqual([
       "ПСЧ-12, слушаю.",
-      ...CREW_ACKNOWLEDGEMENTS,
+      ...Object.values(CREW_CLARIFICATIONS),
       CREW_CLOSING,
+      CREW_INCOMPLETE,
+      CREW_RECOGNITION_UNAVAILABLE,
     ]);
   });
 

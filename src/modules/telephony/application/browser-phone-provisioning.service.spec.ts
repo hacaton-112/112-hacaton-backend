@@ -12,6 +12,8 @@ const config = {
     user: "system112",
     password: "ari-secret",
     app: "crew-handoff",
+    mediaHost: "backend",
+    mediaBindHost: "0.0.0.0",
   },
   soundsDir: "./telephony-sounds",
   browserPhone: {

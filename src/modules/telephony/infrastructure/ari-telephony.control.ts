@@ -1,20 +1,20 @@
+import { randomUUID } from "node:crypto";
+import { createSocket as createDatagramSocket, type Socket } from "node:dgram";
+
 import { Logger } from "@nestjs/common";
 import WebSocket from "ws";
 
 import type {
+  TelephonyAudioTap,
   TelephonyControlPort,
   TelephonyEvent,
 } from "../ports/telephony-control.port";
+import { decodeRtpMulaw, isNewerRtpSequence } from "./rtp-mulaw";
 import type { TelephonyConfig } from "./telephony.config";
 
-/**
- * Пороги определения речи Asterisk: сколько миллисекунд тишины завершают
- * фразу и с какой энергии звук считается голосом. Тишина короче секунды —
- * это пауза внутри фразы, а не её конец.
- */
-const TALK_DETECT = "1000,128";
 const MAX_RECONNECT_DELAY_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 5_000;
+export const MEDIA_TAP_APP_ARG = "crew-asr-media";
 
 interface AriEvent {
   readonly type: string;
@@ -42,6 +42,7 @@ export class AriTelephonyControl implements TelephonyControlPort {
   private reconnectDelayMs = 500;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private stopped = false;
+  private readonly audioTaps = new Set<TelephonyAudioTap>();
 
   constructor(
     private readonly config: TelephonyConfig["ari"],
@@ -59,6 +60,8 @@ export class AriTelephonyControl implements TelephonyControlPort {
     this.stopped = true;
     clearTimeout(this.reconnectTimer);
     this.socket?.close();
+    for (const tap of this.audioTaps) void tap.stop();
+    this.audioTaps.clear();
   }
 
   subscribe(listener: (event: TelephonyEvent) => void): () => void {
@@ -94,15 +97,115 @@ export class AriTelephonyControl implements TelephonyControlPort {
     );
   }
 
-  async detectSpeech(channelId: string): Promise<void> {
-    const query = new URLSearchParams({
-      variable: "TALK_DETECT(set)",
-      value: TALK_DETECT,
+  async captureInboundAudio(
+    channelId: string,
+    onAudio: (chunk: Uint8Array) => void,
+  ): Promise<TelephonyAudioTap> {
+    const socket = createDatagramSocket("udp4");
+    const port = await this.bindMediaSocket(socket);
+    const suffix = randomUUID();
+    const bridgeId = `crew-asr-bridge-${suffix}`;
+    const snoopId = `crew-asr-snoop-${suffix}`;
+    const mediaId = `crew-asr-media-${suffix}`;
+    let previousSequence: number | null = null;
+
+    socket.on("error", (error) => {
+      this.logger.warn(
+        `Asterisk media socket for ${channelId} failed: ${error.message}`,
+      );
     });
-    await this.request(
-      "POST",
-      `/channels/${encodeURIComponent(channelId)}/variable?${query}`,
-    );
+    socket.on("message", (packet) => {
+      const decoded = decodeRtpMulaw(packet);
+      if (
+        decoded === null ||
+        (previousSequence !== null &&
+          !isNewerRtpSequence(decoded.sequence, previousSequence))
+      ) {
+        return;
+      }
+      previousSequence = decoded.sequence;
+      onAudio(decoded.pcm16);
+    });
+
+    const cleanupAsterisk = async () => {
+      await Promise.all([
+        this.request(
+          "DELETE",
+          `/channels/${encodeURIComponent(mediaId)}`,
+          [404],
+        ).catch(() => undefined),
+        this.request(
+          "DELETE",
+          `/channels/${encodeURIComponent(snoopId)}`,
+          [404],
+        ).catch(() => undefined),
+      ]);
+      await this.request(
+        "DELETE",
+        `/bridges/${encodeURIComponent(bridgeId)}`,
+        [404],
+      ).catch(() => undefined);
+    };
+
+    try {
+      const bridgeQuery = new URLSearchParams({
+        type: "mixing,proxy_media",
+        name: bridgeId,
+      });
+      await this.request(
+        "POST",
+        `/bridges/${encodeURIComponent(bridgeId)}?${bridgeQuery}`,
+      );
+
+      const snoopQuery = new URLSearchParams({
+        app: this.config.app,
+        appArgs: `${MEDIA_TAP_APP_ARG},${channelId}`,
+        spy: "in",
+        whisper: "none",
+      });
+      await this.request(
+        "POST",
+        `/channels/${encodeURIComponent(channelId)}/snoop/${encodeURIComponent(snoopId)}?${snoopQuery}`,
+      );
+
+      const mediaQuery = new URLSearchParams({
+        app: this.config.app,
+        appArgs: `${MEDIA_TAP_APP_ARG},${channelId}`,
+        external_host: `${this.config.mediaHost}:${port}`,
+        format: "ulaw",
+        transport: "udp",
+        encapsulation: "rtp",
+        connection_type: "client",
+        direction: "both",
+        channelId: mediaId,
+      });
+      await this.request("POST", `/channels/externalMedia?${mediaQuery}`);
+
+      const channelQuery = new URLSearchParams({
+        channel: `${snoopId},${mediaId}`,
+      });
+      await this.request(
+        "POST",
+        `/bridges/${encodeURIComponent(bridgeId)}/addChannel?${channelQuery}`,
+      );
+    } catch (error) {
+      socket.close();
+      await cleanupAsterisk();
+      throw error;
+    }
+
+    let stopped = false;
+    const tap: TelephonyAudioTap = {
+      stop: async () => {
+        if (stopped) return;
+        stopped = true;
+        this.audioTaps.delete(tap);
+        socket.close();
+        await cleanupAsterisk();
+      },
+    };
+    this.audioTaps.add(tap);
+    return tap;
   }
 
   async play(channelId: string, media: string): Promise<string> {
@@ -155,6 +258,23 @@ export class AriTelephonyControl implements TelephonyControlPort {
 
   private authorization(): string {
     return `Basic ${Buffer.from(`${this.config.user}:${this.config.password}`).toString("base64")}`;
+  }
+
+  private bindMediaSocket(socket: Socket): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const failed = (error: Error) => reject(error);
+      socket.once("error", failed);
+      socket.bind(0, this.config.mediaBindHost, () => {
+        socket.off("error", failed);
+        const address = socket.address();
+        if (typeof address === "string") {
+          socket.close();
+          reject(new Error("Asterisk media socket did not bind to UDP"));
+          return;
+        }
+        resolve(address.port);
+      });
+    });
   }
 
   private open(): void {
@@ -224,6 +344,7 @@ export function translateAriEvent(event: AriEvent): TelephonyEvent | null {
 
   switch (event.type) {
     case "StasisStart":
+      if (event.args?.[0] === MEDIA_TAP_APP_ARG) return null;
       return channelId
         ? {
             type: "call-started",

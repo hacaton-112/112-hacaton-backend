@@ -431,6 +431,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       .select({
         id: ddsExercises.id,
         addressedService: ddsExercises.addressedService,
+        card: ddsExercises.card,
       })
       .from(ddsExercises)
       .where(
@@ -478,6 +479,9 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           outcome: ddsCrewCalls.outcome,
           correct: ddsCrewCalls.correct,
           acknowledgements: ddsCrewCalls.acknowledgements,
+          transcript: ddsCrewCalls.transcript,
+          validation: ddsCrewCalls.validation,
+          asrStatus: ddsCrewCalls.asrStatus,
         })
         .from(ddsCrewCalls)
         .leftJoin(rescueCrews, eq(rescueCrews.id, ddsCrewCalls.crewId))

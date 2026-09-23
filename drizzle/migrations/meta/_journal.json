@@ -239,6 +239,13 @@
       "when": 1790352000000,
       "tag": "0026_methodical_materials",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790352000000,
+      "tag": "0026_crew_handoff_asr",
+      "breakpoints": true
     }
   ]
 }

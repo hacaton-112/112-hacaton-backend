@@ -30,6 +30,11 @@ export type TelephonyEvent =
     }
   | { readonly type: "call-ended"; readonly channelId: string };
 
+export interface TelephonyAudioTap {
+  /** Идемпотентно останавливает захват и освобождает ресурсы АТС. */
+  stop(): Promise<void>;
+}
+
 export interface TelephonyControlPort {
   /** Подключение к АТС; переподключается само, пока не остановлено. */
   start(): void;
@@ -45,8 +50,14 @@ export interface TelephonyControlPort {
     readonly timeoutSeconds: number;
   }): Promise<void>;
   answer(channelId: string): Promise<void>;
-  /** Включает определение речи: без него не узнать, что диспетчер договорил. */
-  detectSpeech(channelId: string): Promise<void>;
+  /**
+   * Отдаёт только входящую речь SIP-абонента как PCM16 LE 16 кГц моно.
+   * Реплики виртуального наряда, проигрываемые в канал, в поток не попадают.
+   */
+  captureInboundAudio(
+    channelId: string,
+    onAudio: (chunk: Uint8Array) => void,
+  ): Promise<TelephonyAudioTap>;
   /** Воспроизводит звук и возвращает идентификатор воспроизведения. */
   play(channelId: string, media: string): Promise<string>;
   hangUp(channelId: string): Promise<void>;

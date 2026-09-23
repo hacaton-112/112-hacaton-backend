@@ -7,7 +7,18 @@ import {
 } from "@nestjs/common";
 
 import { generateId } from "@/common/utils/id";
-import type { CrewCallOutcome, DispatchService } from "@/drizzle/schema";
+import type {
+  CrewCallAsrStatus,
+  CrewCallOutcome,
+  DispatchService,
+} from "@/drizzle/schema";
+import {
+  ASR_STREAMER,
+  type AsrStreamer,
+  type AsrStreamHandle,
+  type AsrTranscript,
+} from "@/modules/asr/asr-stream.port";
+import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 
 import {
   CREW_SCRIPT_TIMING,
@@ -17,17 +28,24 @@ import {
   INITIAL_CREW_SCRIPT,
   stepCrewScript,
 } from "../domain/crew-handoff-script";
-import { crewPhrase, crewPhrases } from "../domain/crew-phrases";
+import {
+  type CrewHandoffValidation,
+  validateCrewHandoff,
+} from "../domain/crew-handoff-validation";
+import {
+  crewPhrase,
+  crewPhrases,
+  NO_ACTIVE_CARD_LINE,
+} from "../domain/crew-phrases";
 import type { RescueCrew } from "../infrastructure/drizzle-telephony.directory";
 import {
+  type TelephonyAudioTap,
   TELEPHONY_CONTROL,
   type TelephonyControlPort,
   type TelephonyEvent,
 } from "../ports/telephony-control.port";
 
-/** Что АТС говорит на номер, которого нет в справочнике нарядов. */
 export const UNKNOWN_NUMBER_LINE = "Набранный номер не обслуживается.";
-/** Голос автоинформатора АТС — не голос наряда. */
 export const PBX_VOICE_ID = "serena";
 
 export interface CrewHandoffDirectory {
@@ -51,6 +69,9 @@ export interface CrewHandoffDirectory {
       readonly endedAt: Date;
       readonly outcome: CrewCallOutcome;
       readonly acknowledgements: number;
+      readonly transcript: string;
+      readonly validation: CrewHandoffValidation | null;
+      readonly asrStatus: CrewCallAsrStatus;
     },
   ): Promise<void>;
 }
@@ -62,13 +83,13 @@ export interface CrewPromptSource {
   ): Promise<void>;
 }
 
-/** Доставка ДДС, которую диспетчер принял и ещё не передал наряду. */
 export type AwaitingHandoff = (
   userId: string,
   exerciseId?: string,
 ) => Promise<{
   readonly id: string;
   readonly addressedService: DispatchService;
+  readonly card: DdsCardSnapshot;
 } | null>;
 
 export const CREW_HANDOFF_DIRECTORY = Symbol("CREW_HANDOFF_DIRECTORY");
@@ -78,28 +99,31 @@ export const TELEPHONY_ENABLED = Symbol("TELEPHONY_ENABLED");
 
 interface ActiveCall {
   readonly channelId: string;
-  /** `null` — набран несуществующий номер, отвечает автоинформатор. */
   crew: RescueCrew | null;
+  card: DdsCardSnapshot | null;
   script: CrewScriptState;
-  /** Реагируем только на конец последней реплики: прежние могли быть вытеснены. */
+  transcriptParts: string[];
+  validation: CrewHandoffValidation | null;
+  asrStatus: CrewCallAsrStatus;
+  asrStream?: AsrStreamHandle;
+  audioTap?: TelephonyAudioTap;
+  recognitionStopped: boolean;
   latestPlaybackId?: string;
-  silenceTimer?: ReturnType<typeof setTimeout>;
+  responseTimer?: ReturnType<typeof setTimeout>;
   limitTimer?: ReturnType<typeof setTimeout>;
-  /** Страховка на случай, когда конец фразы так и не пришёл от АТС. */
-  phraseTimer?: ReturnType<typeof setTimeout>;
+  /** Реплика без автомата: неверный номер, нет карточки или ASR не поднялся. */
+  directOutcome?: CrewCallOutcome;
   finished: boolean;
-  /** События одного звонка обрабатываются строго по очереди. */
   queue: Promise<void>;
 }
 
 /**
- * Наряд на том конце провода.
+ * Виртуальный наряд ДДС.
  *
- * Отвечает на звонок с рабочего места ДДС, ведёт разговор по сценарию
- * квитирования и записывает звонок к доставке, которую диспетчер передаёт.
- * Разговоры живут в памяти процесса: учебный контур обслуживает один
- * экземпляр backend, а оборванный перезапуском звонок диспетчер просто
- * повторит.
+ * Asterisk передаёт сюда только входящий голос оператора. Локальный Whisper
+ * делает финальные расшифровки, а чистый валидатор сверяет накопленный текст с
+ * неизменяемым снимком карточки. Успех не зависит от LLM и не ставится по
+ * длительности звука.
  */
 @Injectable()
 export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
@@ -110,6 +134,7 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(TELEPHONY_ENABLED) private readonly enabled: boolean,
     @Inject(TELEPHONY_CONTROL) private readonly control: TelephonyControlPort,
+    @Inject(ASR_STREAMER) private readonly asr: AsrStreamer,
     @Inject(CREW_HANDOFF_DIRECTORY)
     private readonly directory: CrewHandoffDirectory,
     @Inject(CREW_PROMPT_SOURCE) private readonly prompts: CrewPromptSource,
@@ -127,16 +152,20 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     this.unsubscribe?.();
     this.control.stop();
-    for (const call of this.calls.values()) this.clearTimers(call);
+    for (const call of this.calls.values()) {
+      this.clearTimers(call);
+      call.asrStream?.abort();
+      void call.audioTap?.stop();
+    }
     this.calls.clear();
   }
 
-  /** Озвучивает реплики всех нарядов заранее, чтобы звонок не ждал синтеза. */
   private async prepareLines(): Promise<void> {
     const crews = await this.directory.listCrews().catch(() => []);
 
     await this.prompts.prepareAll([
       { text: UNKNOWN_NUMBER_LINE, voiceId: PBX_VOICE_ID },
+      { text: NO_ACTIVE_CARD_LINE, voiceId: PBX_VOICE_ID },
       ...crews.flatMap((crew) =>
         crewPhrases(crew.callsign).map((text) => ({
           text,
@@ -166,7 +195,12 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
     const call: ActiveCall = {
       channelId: event.channelId,
       crew: null,
+      card: null,
       script: INITIAL_CREW_SCRIPT,
+      transcriptParts: [],
+      validation: null,
+      asrStatus: "not_started",
+      recognitionStopped: false,
       finished: false,
       queue: Promise.resolve(),
     };
@@ -182,6 +216,7 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
           ? await this.awaitingHandoff(userId, event.exerciseId)
           : null;
         call.crew = crew;
+        call.card = awaiting?.card ?? null;
 
         await this.directory.startCall({
           id: generateId(),
@@ -192,7 +227,6 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
           dialedNumber: event.dialedNumber,
           channelId: event.channelId,
           startedAt: new Date(),
-          // Звонок без принятой карточки ни правильным, ни ошибочным не бывает.
           correct: awaiting
             ? crew?.service === awaiting.addressedService
             : null,
@@ -201,14 +235,43 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
         await this.control.answer(event.channelId);
 
         if (!crew) {
-          call.latestPlaybackId = await this.control.play(
-            event.channelId,
-            await this.prompts.ensure(UNKNOWN_NUMBER_LINE, PBX_VOICE_ID),
-          );
+          await this.playDirect(call, UNKNOWN_NUMBER_LINE, "unknown_number");
+          return;
+        }
+        if (!awaiting) {
+          await this.playDirect(call, NO_ACTIVE_CARD_LINE, "abandoned");
           return;
         }
 
-        await this.control.detectSpeech(event.channelId);
+        try {
+          const stream = await this.asr.open("ru");
+          call.asrStream = stream;
+          stream.onTranscript((transcript) =>
+            this.enqueueTranscript(call, transcript),
+          );
+          call.audioTap = await this.control.captureInboundAudio(
+            event.channelId,
+            (chunk) => stream.send(chunk),
+          );
+        } catch (error) {
+          call.asrStatus = "unavailable";
+          call.asrStream?.abort();
+          this.logger.warn(
+            `Could not start crew ASR for ${event.channelId}: ${
+              error instanceof Error ? error.message : "unknown error"
+            }`,
+          );
+          call.latestPlaybackId = await this.control.play(
+            call.channelId,
+            await this.prompts.ensure(
+              crewPhrase("recognition-unavailable", crew.callsign),
+              crew.voiceId,
+            ),
+          );
+          call.directOutcome = "abandoned";
+          return;
+        }
+
         call.limitTimer = this.rearm(
           call.limitTimer,
           () => this.enqueue(call, { type: "call-limit-reached" }),
@@ -219,57 +282,96 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
       .catch((error: unknown) => this.fail(call, error));
   }
 
+  private async playDirect(
+    call: ActiveCall,
+    line: string,
+    outcome: CrewCallOutcome,
+  ): Promise<void> {
+    call.directOutcome = outcome;
+    call.latestPlaybackId = await this.control.play(
+      call.channelId,
+      await this.prompts.ensure(line, PBX_VOICE_ID),
+    );
+  }
+
   private async route(call: ActiveCall, event: TelephonyEvent): Promise<void> {
     switch (event.type) {
       case "playback-finished":
         if (event.playbackId !== call.latestPlaybackId) return;
-        if (!call.crew) {
+        if (call.directOutcome) {
           await this.control.hangUp(call.channelId);
+          await this.finish(call, call.directOutcome);
           return;
         }
         await this.feed(call, { type: "prompt-finished" });
         return;
       case "speech-started":
-        call.phraseTimer = this.rearm(
-          call.phraseTimer,
-          () =>
-            this.enqueue(call, {
-              type: "speech-finished",
-              durationMs: CREW_SCRIPT_TIMING.maxPhraseMs,
-            }),
-          CREW_SCRIPT_TIMING.maxPhraseMs,
-        );
-        await this.feed(call, { type: "speech-started" });
-        return;
       case "speech-finished":
-        clearTimeout(call.phraseTimer);
-        call.phraseTimer = undefined;
-        await this.feed(call, {
-          type: "speech-finished",
-          durationMs: event.durationMs,
-        });
+        // Границы и содержание реплик определяет Silero VAD в ASR-сервисе.
         return;
-      case "call-ended":
-        if (!call.crew && !call.finished) {
-          await this.finish(call, "unknown_number");
-        } else {
-          await this.feed(call, { type: "caller-hung-up" });
+      case "call-ended": {
+        if (!call.finished && !call.directOutcome && call.asrStream) {
+          const final = await this.stopRecognition(call, true);
+          if (final?.transcript.trim())
+            await this.recordTranscript(call, final, false);
+        }
+
+        if (!call.finished) {
+          if (!call.crew) await this.finish(call, "unknown_number");
+          else if (call.directOutcome)
+            await this.finish(call, call.directOutcome);
+          else await this.feed(call, { type: "caller-hung-up" });
         }
         this.clearTimers(call);
         this.calls.delete(call.channelId);
         return;
+      }
       case "call-started":
         return;
+    }
+  }
+
+  private enqueueTranscript(call: ActiveCall, transcript: AsrTranscript): void {
+    if (!this.calls.has(call.channelId)) return;
+    call.queue = call.queue
+      .then(() => this.recordTranscript(call, transcript, true))
+      .catch((error: unknown) => this.fail(call, error));
+  }
+
+  private async recordTranscript(
+    call: ActiveCall,
+    transcript: AsrTranscript,
+    announce: boolean,
+  ): Promise<void> {
+    const text = transcript.transcript.trim();
+    if (!text || !call.card) return;
+    if (call.transcriptParts.at(-1) === text) return;
+
+    call.transcriptParts.push(text);
+    call.validation = validateCrewHandoff(
+      call.card,
+      call.transcriptParts.join(" "),
+    );
+
+    if (announce) {
+      await this.feed(call, {
+        type: "report-evaluated",
+        complete: call.validation.complete,
+        missingFields: call.validation.missingFields,
+      });
+    } else {
+      call.script = {
+        ...call.script,
+        acknowledgements: call.script.acknowledgements + 1,
+        reportComplete: call.validation.complete,
+      };
     }
   }
 
   private async feed(call: ActiveCall, event: CrewScriptEvent): Promise<void> {
     const step = stepCrewScript(call.script, event);
     call.script = step.state;
-
-    for (const command of step.commands) {
-      await this.execute(call, command);
-    }
+    for (const command of step.commands) await this.execute(call, command);
   }
 
   private async execute(
@@ -280,22 +382,25 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
       case "play": {
         const crew = call.crew!;
         const media = await this.prompts.ensure(
-          crewPhrase(command.prompt, command.index, crew.callsign),
+          crewPhrase(command.prompt, crew.callsign, command.missingField),
           crew.voiceId,
         );
         call.latestPlaybackId = await this.control.play(call.channelId, media);
         return;
       }
-      case "start-silence-timer":
-        call.silenceTimer = this.rearm(
-          call.silenceTimer,
-          () => this.enqueue(call, { type: "silence-elapsed" }),
+      case "start-response-timer":
+        call.responseTimer = this.rearm(
+          call.responseTimer,
+          () => this.enqueue(call, { type: "response-timeout" }),
           command.ms,
         );
         return;
-      case "stop-silence-timer":
-        clearTimeout(call.silenceTimer);
-        call.silenceTimer = undefined;
+      case "stop-response-timer":
+        clearTimeout(call.responseTimer);
+        call.responseTimer = undefined;
+        return;
+      case "stop-recognition":
+        await this.stopRecognition(call, false);
         return;
       case "hang-up":
         await this.control.hangUp(call.channelId);
@@ -306,13 +411,49 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Событие таймера встаёт в ту же очередь, что и события линии. */
   private enqueue(call: ActiveCall, event: CrewScriptEvent): void {
     if (!this.calls.has(call.channelId)) return;
-
     call.queue = call.queue
       .then(() => this.feed(call, event))
       .catch((error: unknown) => this.fail(call, error));
+  }
+
+  private async stopRecognition(
+    call: ActiveCall,
+    finalize: boolean,
+  ): Promise<AsrTranscript | null> {
+    if (call.recognitionStopped) return null;
+    call.recognitionStopped = true;
+
+    await call.audioTap?.stop().catch((error: unknown) => {
+      this.logger.warn(
+        `Could not stop crew media tap ${call.channelId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    });
+    call.audioTap = undefined;
+
+    if (!call.asrStream) return null;
+    if (!finalize) {
+      call.asrStream.abort();
+      if (call.asrStatus !== "unavailable") call.asrStatus = "completed";
+      return null;
+    }
+
+    try {
+      const result = await call.asrStream.finish();
+      call.asrStatus = "completed";
+      return result;
+    } catch (error) {
+      call.asrStatus = "unavailable";
+      this.logger.warn(
+        `Could not finalise crew ASR ${call.channelId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      return null;
+    }
   }
 
   private rearm(
@@ -337,10 +478,12 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
       endedAt: new Date(),
       outcome,
       acknowledgements: call.script.acknowledgements,
+      transcript: call.transcriptParts.join(" "),
+      validation: call.validation,
+      asrStatus: call.asrStatus,
     });
   }
 
-  /** Сбой посреди разговора: наряд кладёт трубку, звонок не теряется. */
   private async fail(call: ActiveCall, error: unknown): Promise<void> {
     this.logger.warn(
       `Crew handoff call ${call.channelId} failed: ${
@@ -348,16 +491,14 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
       }`,
     );
     this.clearTimers(call);
+    await this.stopRecognition(call, false).catch(() => undefined);
     await this.control.hangUp(call.channelId).catch(() => undefined);
-    await this.finish(
-      call,
-      call.script.acknowledgements > 0 ? "completed" : "abandoned",
-    ).catch(() => undefined);
+    await this.finish(call, "abandoned").catch(() => undefined);
+    this.calls.delete(call.channelId);
   }
 
   private clearTimers(call: ActiveCall): void {
-    clearTimeout(call.silenceTimer);
+    clearTimeout(call.responseTimer);
     clearTimeout(call.limitTimer);
-    clearTimeout(call.phraseTimer);
   }
 }
