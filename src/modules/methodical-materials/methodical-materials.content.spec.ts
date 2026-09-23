@@ -1,4 +1,10 @@
 import { METHODICAL_MATERIALS } from "./methodical-materials.content";
+import { CreateMethodicalMaterialSchema } from "./dto/methodical-materials.dto";
+import {
+  legacyItemsFromMarkdown,
+  markdownFromBuiltIn,
+  MethodicalMaterialsService,
+} from "./methodical-materials.service";
 
 describe("methodical materials content", () => {
   it("uses stable unique material and section identifiers", () => {
@@ -20,5 +26,77 @@ describe("methodical materials content", () => {
       "operator-112",
       "dds-response",
     ]);
+  });
+
+  it("converts built-in sections to editable markdown", () => {
+    const section = METHODICAL_MATERIALS[1]?.sections[0];
+    expect(section).toBeDefined();
+    const markdown = markdownFromBuiltIn(section!);
+
+    expect(markdown).toContain("- Откройте входящую карточку");
+    expect(markdown).toContain("> Норматив тренажёра");
+    expect(legacyItemsFromMarkdown(markdown)).toHaveLength(
+      section!.items.length,
+    );
+  });
+
+  it("validates authoring limits and unique section identifiers", () => {
+    const input = {
+      title: "Памятка оператора",
+      description: "Порядок приёма учебного вызова",
+      audience: "Операторы",
+      durationMinutes: 15,
+      roles: ["operator"] as const,
+      sections: [
+        {
+          id: "opening",
+          title: "Начало вызова",
+          summary: "Как начать разговор",
+          contentMarkdown: "- Представьтесь",
+        },
+        {
+          id: "opening",
+          title: "Повтор",
+          summary: "Повторяющийся идентификатор",
+          contentMarkdown: "- Уточните адрес",
+        },
+      ],
+    };
+
+    expect(CreateMethodicalMaterialSchema.safeParse(input).success).toBe(false);
+    expect(
+      CreateMethodicalMaterialSchema.safeParse({
+        ...input,
+        roles: ["operator"],
+        sections: input.sections.map((section, index) => ({
+          ...section,
+          id: `section-${index}`,
+        })),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects authoring from an operator even outside the controller", async () => {
+    const service = new MethodicalMaterialsService({} as never, {} as never);
+
+    await expect(
+      service.create(
+        { id: "operator-1", role: "operator" },
+        {
+          title: "Памятка",
+          description: "Описание памятки",
+          audience: "Операторы",
+          durationMinutes: 10,
+          roles: ["operator"],
+          sections: [
+            {
+              title: "Раздел",
+              summary: "Краткое описание",
+              contentMarkdown: "- Действие",
+            },
+          ],
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
   });
 });
