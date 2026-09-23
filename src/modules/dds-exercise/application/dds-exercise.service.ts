@@ -321,6 +321,15 @@ export class DdsExerciseService {
                 outcome: call.outcome,
                 correct: call.correct,
                 acknowledgements: call.acknowledgements,
+                transcript: call.transcript,
+                validation: call.validation
+                  ? {
+                      complete: call.validation.complete,
+                      coveredFields: [...call.validation.coveredFields],
+                      missingFields: [...call.validation.missingFields],
+                    }
+                  : null,
+                asrStatus: call.asrStatus,
               })),
             }
           : null,

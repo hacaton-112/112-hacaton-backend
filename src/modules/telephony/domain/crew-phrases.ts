@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { CrewPrompt } from "./crew-handoff-script";
+import type { CrewHandoffField } from "./crew-handoff-validation";
 
 /**
  * Что говорит наряд.
@@ -8,14 +9,19 @@ import type { CrewPrompt } from "./crew-handoff-script";
  * Квитанции чередуются, чтобы наряд не отвечал одним и тем же словом на каждую
  * фразу: так разговор звучит как приём, а не как автоответчик.
  */
-export const CREW_ACKNOWLEDGEMENTS = [
-  "Записываю.",
-  "Так, записал.",
-  "Понял, дальше.",
-  "Принял.",
-] as const;
-
 export const CREW_CLOSING = "Принято, выезжаем.";
+export const CREW_INCOMPLETE =
+  "Карточка передана не полностью. Повторите передачу.";
+export const CREW_RECOGNITION_UNAVAILABLE =
+  "Не удалось распознать передачу. Повторите звонок позже.";
+export const NO_ACTIVE_CARD_LINE = "Нет принятой карточки для передачи.";
+
+export const CREW_CLARIFICATIONS: Readonly<Record<CrewHandoffField, string>> = {
+  address: "Повторите адрес происшествия.",
+  incident: "Уточните, что произошло.",
+  description: "Передайте краткое описание обстановки.",
+  victims: "Уточните количество пострадавших.",
+};
 
 export const crewGreeting = (callsign: string): string =>
   `${callsign.trim()}, слушаю.`;
@@ -23,24 +29,30 @@ export const crewGreeting = (callsign: string): string =>
 /** Текст реплики наряда для команды автомата. */
 export const crewPhrase = (
   prompt: CrewPrompt,
-  index: number,
   callsign: string,
+  missingField?: CrewHandoffField,
 ): string => {
   switch (prompt) {
     case "greeting":
       return crewGreeting(callsign);
-    case "acknowledgement":
-      return CREW_ACKNOWLEDGEMENTS[index % CREW_ACKNOWLEDGEMENTS.length]!;
+    case "clarification":
+      return CREW_CLARIFICATIONS[missingField ?? "description"];
     case "closing":
       return CREW_CLOSING;
+    case "incomplete":
+      return CREW_INCOMPLETE;
+    case "recognition-unavailable":
+      return CREW_RECOGNITION_UNAVAILABLE;
   }
 };
 
 /** Все реплики наряда — их озвучивают заранее, до первого звонка. */
 export const crewPhrases = (callsign: string): readonly string[] => [
   crewGreeting(callsign),
-  ...CREW_ACKNOWLEDGEMENTS,
+  ...Object.values(CREW_CLARIFICATIONS),
   CREW_CLOSING,
+  CREW_INCOMPLETE,
+  CREW_RECOGNITION_UNAVAILABLE,
 ];
 
 /**

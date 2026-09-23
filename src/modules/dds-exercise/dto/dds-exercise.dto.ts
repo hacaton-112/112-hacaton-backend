@@ -2,6 +2,7 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
+  CREW_CALL_ASR_STATUSES,
   CREW_CALL_OUTCOMES,
   DISPATCH_SERVICES,
   SCENARIO_CATEGORIES,
@@ -62,6 +63,16 @@ export const DdsCrewCallSchema = z
     outcome: z.enum(CREW_CALL_OUTCOMES).nullable(),
     correct: z.boolean().nullable(),
     acknowledgements: z.number().int().nonnegative(),
+    transcript: z.string(),
+    validation: z
+      .object({
+        complete: z.boolean(),
+        coveredFields: z.array(z.string()),
+        missingFields: z.array(z.string()),
+      })
+      .strict()
+      .nullable(),
+    asrStatus: z.enum(CREW_CALL_ASR_STATUSES),
   })
   .strict();
 

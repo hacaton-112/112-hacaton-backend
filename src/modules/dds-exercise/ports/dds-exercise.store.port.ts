@@ -1,4 +1,5 @@
 import type {
+  CrewCallAsrStatus,
   CrewCallOutcome,
   DispatchService,
   EmergencyService,
@@ -133,6 +134,7 @@ export interface DdsExerciseStore {
   ): Promise<{
     readonly id: string;
     readonly addressedService: DispatchService;
+    readonly card: DdsCardSnapshot;
   } | null>;
 
   /** Наряды службы и звонки по каждой доставке — одним запросом на список. */
@@ -149,6 +151,13 @@ export interface StoredCrewCall {
   readonly outcome: CrewCallOutcome | null;
   readonly correct: boolean | null;
   readonly acknowledgements: number;
+  readonly transcript: string;
+  readonly validation: {
+    readonly complete: boolean;
+    readonly coveredFields: readonly string[];
+    readonly missingFields: readonly string[];
+  } | null;
+  readonly asrStatus: CrewCallAsrStatus;
 }
 
 export interface StoredCrewHandoff {

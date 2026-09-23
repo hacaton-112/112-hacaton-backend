@@ -5,6 +5,7 @@ import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import {
   type CrewCallOutcome,
+  type CrewCallAsrStatus,
   type DispatchService,
   ddsCrewCallCommands,
   ddsCrewCalls,
@@ -182,6 +183,13 @@ export class DrizzleTelephonyDirectory {
       readonly endedAt: Date;
       readonly outcome: CrewCallOutcome;
       readonly acknowledgements: number;
+      readonly transcript: string;
+      readonly validation: {
+        readonly complete: boolean;
+        readonly coveredFields: readonly string[];
+        readonly missingFields: readonly string[];
+      } | null;
+      readonly asrStatus: CrewCallAsrStatus;
     },
   ): Promise<void> {
     await this.db

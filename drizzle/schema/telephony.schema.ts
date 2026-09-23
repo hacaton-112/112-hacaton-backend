@@ -1,7 +1,10 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -73,6 +76,14 @@ export const CREW_CALL_OUTCOMES = [
 
 export type CrewCallOutcome = (typeof CREW_CALL_OUTCOMES)[number];
 
+export const CREW_CALL_ASR_STATUSES = [
+  "not_started",
+  "completed",
+  "unavailable",
+] as const;
+
+export type CrewCallAsrStatus = (typeof CREW_CALL_ASR_STATUSES)[number];
+
 export const crewCallOutcome = pgEnum("crew_call_outcome", CREW_CALL_OUTCOMES);
 
 /**
@@ -102,6 +113,18 @@ export const ddsCrewCalls = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     acknowledgements: integer("acknowledgements").notNull().default(0),
+    /** Финальные фразы ASR в порядке произнесения. */
+    transcript: text("transcript").notNull().default(""),
+    /** Детерминированное покрытие обязательных частей карточки. */
+    validation: jsonb("validation").$type<{
+      readonly complete: boolean;
+      readonly coveredFields: readonly string[];
+      readonly missingFields: readonly string[];
+    }>(),
+    asrStatus: text("asr_status")
+      .$type<CrewCallAsrStatus>()
+      .notNull()
+      .default("not_started"),
     outcome: crewCallOutcome("outcome"),
     /** Набран наряд той службы, которой адресована карточка. */
     correct: boolean("correct"),
@@ -109,6 +132,10 @@ export const ddsCrewCalls = pgTable(
   (table) => [
     uniqueIndex("dds_crew_calls_channel_unique_idx").on(table.channelId),
     index("dds_crew_calls_exercise_idx").on(table.exerciseId),
+    check(
+      "dds_crew_calls_asr_status_check",
+      sql`${table.asrStatus} in ('not_started', 'completed', 'unavailable')`,
+    ),
   ],
 );
 

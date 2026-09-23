@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
+import { AsrModule } from "@/modules/asr/asr.module";
 import { DdsExerciseModule } from "@/modules/dds-exercise";
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
 import {
@@ -38,7 +39,13 @@ import { TelephonyController } from "./telephony.controller";
  * место ДДС работает без шага передачи наряду.
  */
 @Module({
-  imports: [AuthModule, ConfigModule, DdsExerciseModule, SpeechSynthesisModule],
+  imports: [
+    AuthModule,
+    AsrModule,
+    ConfigModule,
+    DdsExerciseModule,
+    SpeechSynthesisModule,
+  ],
   controllers: [TelephonyController],
   providers: [
     {

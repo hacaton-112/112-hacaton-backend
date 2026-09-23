@@ -42,6 +42,14 @@ const TelephonyConfigSchema = z
     ASTERISK_ARI_USER: z.string().trim().min(1).default("system112"),
     ASTERISK_ARI_PASSWORD: z.string().optional(),
     ASTERISK_ARI_APP: z.string().trim().min(1).default("crew-handoff"),
+    /** Имя backend, доступное из контейнера Asterisk для RTP externalMedia. */
+    ASTERISK_MEDIA_HOST: z
+      .string()
+      .trim()
+      .min(1)
+      .default("host.docker.internal"),
+    /** Локальный интерфейс для динамических UDP-портов RTP. */
+    ASTERISK_MEDIA_BIND_HOST: z.string().trim().min(1).default("0.0.0.0"),
     ASTERISK_WEBRTC_WORKSTATIONS: WebRtcWorkstationsSchema,
     ASTERISK_WEBRTC_WS_URL: WebSocketUrlSchema.default(
       "ws://127.0.0.1:8088/ws",
@@ -93,6 +101,8 @@ export const TELEPHONY_ENVIRONMENT_KEYS = [
   "ASTERISK_ARI_USER",
   "ASTERISK_ARI_PASSWORD",
   "ASTERISK_ARI_APP",
+  "ASTERISK_MEDIA_HOST",
+  "ASTERISK_MEDIA_BIND_HOST",
   "ASTERISK_WEBRTC_WORKSTATIONS",
   "ASTERISK_WEBRTC_WS_URL",
   "ASTERISK_WEBRTC_SIP_DOMAIN",
@@ -107,6 +117,8 @@ export interface TelephonyConfig {
     readonly user: string;
     readonly password: string;
     readonly app: string;
+    readonly mediaHost: string;
+    readonly mediaBindHost: string;
   };
   readonly soundsDir: string;
   readonly browserPhone: {
@@ -132,6 +144,8 @@ export const parseTelephonyConfig = (
       user: parsed.ASTERISK_ARI_USER,
       password: parsed.ASTERISK_ARI_PASSWORD ?? "",
       app: parsed.ASTERISK_ARI_APP,
+      mediaHost: parsed.ASTERISK_MEDIA_HOST,
+      mediaBindHost: parsed.ASTERISK_MEDIA_BIND_HOST,
     },
     soundsDir: parsed.TELEPHONY_SOUNDS_DIR,
     browserPhone: {

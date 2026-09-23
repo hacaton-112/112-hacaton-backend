@@ -337,6 +337,13 @@ describe(DdsExerciseService.name, () => {
       outcome: "completed",
       correct: true,
       acknowledgements: 3,
+      transcript: "Москва, улица Учебная, дом 12",
+      validation: {
+        complete: true,
+        coveredFields: ["address", "incident", "description", "victims"],
+        missingFields: [],
+      },
+      asrStatus: "completed",
       ...overrides,
     });
     const handoffs = (calls: StoredCrewHandoff["calls"]) =>

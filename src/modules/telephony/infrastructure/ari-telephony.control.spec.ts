@@ -8,6 +8,8 @@ const config = {
   user: "system112",
   password: "secret",
   app: "crew-handoff",
+  mediaHost: "backend",
+  mediaBindHost: "127.0.0.1",
 };
 
 describe("translateAriEvent", () => {
@@ -24,6 +26,16 @@ describe("translateAriEvent", () => {
       callerNumber: "201",
       dialedNumber: "1012",
     });
+  });
+
+  it("ignores internal media channels entering the same Stasis app", () => {
+    expect(
+      translateAriEvent({
+        type: "StasisStart",
+        args: ["crew-asr-media", "c-1"],
+        channel: { id: "media-1" },
+      }),
+    ).toBeNull();
   });
 
   it("reads the explicit exercise of a click-to-call channel", () => {
@@ -107,6 +119,37 @@ describe(AriTelephonyControl.name, () => {
     expect(init?.headers).toEqual({
       Authorization: `Basic ${Buffer.from("system112:secret").toString("base64")}`,
     });
+  });
+
+  it("taps only inbound channel audio through external RTP media", async () => {
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const control = new AriTelephonyControl(config, fetcher);
+
+    const tap = await control.captureInboundAudio("c-1", jest.fn());
+    const urls = fetcher.mock.calls.map(([url]) => String(url));
+
+    expect(
+      urls.some(
+        (url) => url.includes("/channels/c-1/snoop/") && url.includes("spy=in"),
+      ),
+    ).toBe(true);
+    expect(
+      urls.some(
+        (url) =>
+          url.includes("/channels/externalMedia?") &&
+          url.includes("external_host=backend%3A") &&
+          url.includes("format=ulaw"),
+      ),
+    ).toBe(true);
+    expect(urls.some((url) => url.includes("/addChannel?channel="))).toBe(true);
+
+    await tap.stop();
+    await tap.stop();
+    expect(
+      fetcher.mock.calls.filter(([, init]) => init?.method === "DELETE"),
+    ).toHaveLength(3);
   });
 
   it("treats hanging up a channel that is already gone as done", async () => {

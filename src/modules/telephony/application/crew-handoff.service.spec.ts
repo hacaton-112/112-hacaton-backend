@@ -1,4 +1,10 @@
-import { CREW_SCRIPT_TIMING } from "../domain/crew-handoff-script";
+import type {
+  AsrStreamer,
+  AsrStreamHandle,
+  AsrTranscript,
+} from "@/modules/asr/asr-stream.port";
+import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
+
 import type { RescueCrew } from "../infrastructure/drizzle-telephony.directory";
 import type {
   TelephonyControlPort,
@@ -24,12 +30,28 @@ const AMBULANCE_CREW: RescueCrew = {
   phoneNumber: "1035",
   voiceId: "eric",
 };
+const CARD: DdsCardSnapshot = {
+  scenarioCode: "fire-1",
+  title: "Пожар в квартире",
+  summary: "В квартире горит кухня.",
+  category: "fire",
+  addressText: "Москва, улица Учебная, дом 12",
+  latitude: 55.7,
+  longitude: 37.6,
+  callerName: null,
+  callerPhone: null,
+  incidentType: "Пожар",
+  description: "На кухне открытое пламя и сильный дым",
+  victimsTotal: 1,
+  services: ["dds_01"],
+};
 
-/** Учебная АТС без сети: запоминает команды и отдаёт события по кнопке. */
 class FakePbx implements TelephonyControlPort {
   listener?: (event: TelephonyEvent) => void;
+  audio?: (chunk: Uint8Array) => void;
   readonly played: string[] = [];
   readonly hungUp: string[] = [];
+  readonly tapStop = jest.fn(async () => undefined);
   private playback = 0;
 
   start = jest.fn();
@@ -40,7 +62,12 @@ class FakePbx implements TelephonyControlPort {
   }
   originate = jest.fn(async () => undefined);
   answer = jest.fn(async () => undefined);
-  detectSpeech = jest.fn(async () => undefined);
+  captureInboundAudio = jest.fn(
+    async (_channelId: string, onAudio: (chunk: Uint8Array) => void) => {
+      this.audio = onAudio;
+      return { stop: this.tapStop };
+    },
+  );
   async play(_channelId: string, media: string) {
     this.played.push(media);
     this.playback += 1;
@@ -49,7 +76,6 @@ class FakePbx implements TelephonyControlPort {
   async hangUp(channelId: string) {
     this.hungUp.push(channelId);
   }
-
   emit(event: TelephonyEvent) {
     this.listener!(event);
   }
@@ -58,17 +84,43 @@ class FakePbx implements TelephonyControlPort {
   }
 }
 
+class FakeAsr implements AsrStreamer {
+  listener?: (transcript: AsrTranscript) => void;
+  readonly send = jest.fn();
+  readonly abort = jest.fn();
+  readonly finish = jest.fn(async () => ({
+    transcript: "",
+    audioMs: 0,
+    processingMs: 0,
+  }));
+  readonly open = jest.fn(async (): Promise<AsrStreamHandle> => ({
+    sessionId: "asr-1",
+    send: this.send,
+    onTranscript: (listener) => {
+      this.listener = listener;
+    },
+    finish: this.finish,
+    abort: this.abort,
+  }));
+
+  hear(transcript: string) {
+    this.listener?.({ transcript, audioMs: 2_000, processingMs: 100 });
+  }
+}
+
 const settle = async () => {
-  for (let index = 0; index < 20; index += 1) await Promise.resolve();
+  for (let index = 0; index < 30; index += 1) await Promise.resolve();
 };
 
 const setup = (
-  awaiting: { id: string; addressedService: "dds_01" | "dds_03" } | null = {
-    id: "exercise-1",
-    addressedService: "dds_01",
-  },
+  awaiting: {
+    id: string;
+    addressedService: "dds_01" | "dds_03";
+    card: DdsCardSnapshot;
+  } | null = { id: "exercise-1", addressedService: "dds_01", card: CARD },
 ) => {
   const pbx = new FakePbx();
+  const asr = new FakeAsr();
   const directory: jest.Mocked<CrewHandoffDirectory> = {
     findCrewByNumber: jest.fn(
       async (number: string) =>
@@ -81,11 +133,11 @@ const setup = (
     ),
     listCrews: jest.fn(async () => [FIRE_CREW]),
     startCall: jest.fn<
-      Promise<void>,
+      ReturnType<CrewHandoffDirectory["startCall"]>,
       Parameters<CrewHandoffDirectory["startCall"]>
     >(async () => undefined),
     finishCall: jest.fn<
-      Promise<void>,
+      ReturnType<CrewHandoffDirectory["finishCall"]>,
       Parameters<CrewHandoffDirectory["finishCall"]>
     >(async () => undefined),
   };
@@ -97,18 +149,20 @@ const setup = (
   const service = new CrewHandoffService(
     true,
     pbx,
+    asr,
     directory,
     prompts,
     awaitingHandoff,
   );
   service.onModuleInit();
 
-  const call = async (dialed: string) => {
+  const call = async (dialed = "1012", exerciseId?: string) => {
     pbx.emit({
       type: "call-started",
       channelId: "c-1",
       callerNumber: "201",
       dialedNumber: dialed,
+      ...(exerciseId ? { exerciseId } : {}),
     });
     await settle();
   };
@@ -120,189 +174,133 @@ const setup = (
     });
     await settle();
   };
-  const say = async (durationMs = 2_000) => {
-    pbx.emit({ type: "speech-started", channelId: "c-1" });
-    pbx.emit({ type: "speech-finished", channelId: "c-1", durationMs });
-    await settle();
-  };
 
   return {
     service,
     pbx,
+    asr,
     directory,
     prompts,
     awaitingHandoff,
     call,
     finishPrompt,
-    say,
   };
 };
 
 describe(CrewHandoffService.name, () => {
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
   it("stays off the line while telephony is disabled", () => {
     const pbx = new FakePbx();
     new CrewHandoffService(
       false,
       pbx,
+      new FakeAsr(),
       {} as CrewHandoffDirectory,
       {} as never,
       jest.fn(),
     ).onModuleInit();
-
     expect(pbx.start).not.toHaveBeenCalled();
   });
 
-  it("prepares every crew line before the first call", async () => {
-    const { prompts } = setup();
-    await settle();
+  it("accepts and persists a complete ASR report", async () => {
+    const { pbx, asr, directory, call, finishPrompt } = setup();
+    await call();
 
-    expect(prompts.prepareAll).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        { text: "Пожарная часть 12, слушаю.", voiceId: "ryan" },
-        { text: "Принято, выезжаем.", voiceId: "ryan" },
-      ]),
+    expect(pbx.captureInboundAudio).toHaveBeenCalledWith(
+      "c-1",
+      expect.any(Function),
     );
-  });
+    expect(pbx.played).toEqual(["sound:crew/Пожарная часть 12, слушаю."]);
+    await finishPrompt();
 
-  it("takes the report of the right crew and records it for the card", async () => {
-    jest.useFakeTimers();
-    const { pbx, directory, call, finishPrompt, say } = setup();
-
-    await call("1012");
-    expect(pbx.answer).toHaveBeenCalledWith("c-1");
-    expect(pbx.detectSpeech).toHaveBeenCalledWith("c-1");
-    expect(directory.startCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        exerciseId: "exercise-1",
-        crewId: "crew-fire",
-        callerUserId: "user-1",
-        correct: true,
-      }),
+    asr.hear(
+      "Москва, улица Учебная, дом 12. Пожар в квартире. На кухне открытое пламя, сильный дым. Один пострадавший.",
     );
-
-    await finishPrompt();
-    await say();
-    await finishPrompt();
-    jest.advanceTimersByTime(CREW_SCRIPT_TIMING.closingSilenceMs);
     await settle();
+    expect(pbx.played.at(-1)).toBe("sound:crew/Принято, выезжаем.");
     await finishPrompt();
 
-    expect(pbx.played).toEqual([
-      "sound:crew/Пожарная часть 12, слушаю.",
-      "sound:crew/Записываю.",
-      "sound:crew/Принято, выезжаем.",
-    ]);
-    expect(pbx.hungUp).toEqual(["c-1"]);
     expect(directory.finishCall).toHaveBeenCalledWith(
       "c-1",
-      expect.objectContaining({ outcome: "completed", acknowledgements: 1 }),
+      expect.objectContaining({
+        outcome: "completed",
+        acknowledgements: 1,
+        transcript: expect.stringContaining("Учебная"),
+        validation: expect.objectContaining({ complete: true }),
+        asrStatus: "completed",
+      }),
     );
+    expect(pbx.hungUp).toEqual(["c-1"]);
   });
 
-  it("uses the exercise selected by click-to-call", async () => {
-    const { pbx, awaitingHandoff } = setup();
-
-    pbx.emit({
-      type: "call-started",
-      channelId: "c-1",
-      callerNumber: "201",
-      dialedNumber: "1012",
-      exerciseId: "assigned-exercise-1",
-      requestEventId: "event-1",
-    });
+  it("asks for missing facts and never accepts arbitrary speech", async () => {
+    const { pbx, asr, directory, call } = setup();
+    await call();
+    asr.hear("Добрый день, вы меня слышите?");
     await settle();
 
-    expect(awaitingHandoff).toHaveBeenCalledWith(
-      "user-1",
-      "assigned-exercise-1",
-    );
-  });
-
-  it("marks a call to another service as a wrong number", async () => {
-    const { directory, call } = setup();
-
-    await call("1035");
-
-    expect(directory.startCall).toHaveBeenCalledWith(
-      expect.objectContaining({ crewId: "crew-ambulance", correct: false }),
-    );
-  });
-
-  it("answers an unknown number with the PBX line and hangs up", async () => {
-    const { pbx, directory, call, finishPrompt } = setup();
-
-    await call("1999");
-    expect(pbx.played).toEqual([`sound:crew/${UNKNOWN_NUMBER_LINE}`]);
-    expect(pbx.detectSpeech).not.toHaveBeenCalled();
-
-    await finishPrompt();
-    expect(pbx.hungUp).toEqual(["c-1"]);
-
+    expect(pbx.played.at(-1)).toBe("sound:crew/Повторите адрес происшествия.");
     pbx.emit({ type: "call-ended", channelId: "c-1" });
     await settle();
     expect(directory.finishCall).toHaveBeenCalledWith(
       "c-1",
-      expect.objectContaining({ outcome: "unknown_number" }),
+      expect.objectContaining({
+        outcome: "abandoned",
+        validation: expect.objectContaining({ complete: false }),
+      }),
     );
   });
 
-  it("keeps a call without an accepted card neither right nor wrong", async () => {
-    const { directory, call } = setup(null);
+  it("reports local ASR unavailability without counting success", async () => {
+    const runtime = setup();
+    runtime.asr.open.mockRejectedValueOnce(new Error("decoder is busy"));
+    await runtime.call();
 
-    await call("1012");
-
-    expect(directory.startCall).toHaveBeenCalledWith(
-      expect.objectContaining({ exerciseId: null, correct: null }),
+    expect(runtime.pbx.played.at(-1)).toBe(
+      "sound:crew/Не удалось распознать передачу. Повторите звонок позже.",
+    );
+    await runtime.finishPrompt();
+    expect(runtime.directory.finishCall).toHaveBeenCalledWith(
+      "c-1",
+      expect.objectContaining({
+        outcome: "abandoned",
+        asrStatus: "unavailable",
+      }),
     );
   });
 
-  it("reacts only to the end of the latest line", async () => {
-    const { pbx, call, finishPrompt } = setup();
-    await call("1012");
+  it("keeps a call without an accepted card out of successful handoff", async () => {
+    const runtime = setup(null);
+    await runtime.call();
 
-    // Устаревшее окончание не должно продвигать разговор.
-    pbx.emit({
-      type: "playback-finished",
-      channelId: "c-1",
-      playbackId: "old",
-    });
-    await settle();
-    expect(pbx.played).toHaveLength(1);
-
-    await finishPrompt();
-    expect(pbx.played).toHaveLength(1);
-  });
-
-  it("hangs up and keeps the call when a line cannot be played", async () => {
-    const { pbx, directory, prompts, call } = setup();
-    prompts.ensure.mockRejectedValueOnce(new Error("TTS is down"));
-
-    await call("1012");
-
-    expect(pbx.hungUp).toEqual(["c-1"]);
-    expect(directory.finishCall).toHaveBeenCalledWith(
+    expect(runtime.asr.open).not.toHaveBeenCalled();
+    expect(runtime.pbx.played.at(-1)).toBe(
+      "sound:crew/Нет принятой карточки для передачи.",
+    );
+    await runtime.finishPrompt();
+    expect(runtime.directory.finishCall).toHaveBeenCalledWith(
       "c-1",
       expect.objectContaining({ outcome: "abandoned" }),
     );
   });
 
-  it("acknowledges a phrase whose end the PBX never reported", async () => {
-    // Телефон с подавлением тишины в паузе не шлёт кадров, и детектор
-    // Asterisk не видит конца фразы.
-    jest.useFakeTimers();
-    const { pbx, call, finishPrompt } = setup();
-    await call("1012");
-    await finishPrompt();
+  it("answers an unknown number with the PBX line", async () => {
+    const runtime = setup();
+    await runtime.call("1999");
+    expect(runtime.pbx.played).toEqual([`sound:crew/${UNKNOWN_NUMBER_LINE}`]);
+    expect(runtime.asr.open).not.toHaveBeenCalled();
+    await runtime.finishPrompt();
+    expect(runtime.directory.finishCall).toHaveBeenCalledWith(
+      "c-1",
+      expect.objectContaining({ outcome: "unknown_number" }),
+    );
+  });
 
-    pbx.emit({ type: "speech-started", channelId: "c-1" });
-    await settle();
-    jest.advanceTimersByTime(CREW_SCRIPT_TIMING.maxPhraseMs);
-    await settle();
-
-    expect(pbx.played.at(-1)).toBe("sound:crew/Записываю.");
+  it("uses the exercise selected by click-to-call", async () => {
+    const runtime = setup();
+    await runtime.call("1012", "assigned-exercise-1");
+    expect(runtime.awaitingHandoff).toHaveBeenCalledWith(
+      "user-1",
+      "assigned-exercise-1",
+    );
   });
 });
