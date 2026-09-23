@@ -11,6 +11,8 @@ export const API_CONFIG = {
   getLogoutUrl: () => `/auth/logout`,
   getCurrentUserUrl: () => `/auth/me`,
   getMethodicalMaterialsUrl: () => `/methodical-materials`,
+  getMethodicalMaterialUrl: (materialId: string) =>
+    `/methodical-materials/${encodeURIComponent(materialId)}`,
   getMethodicalSectionCompletionUrl: (materialId: string, sectionId: string) =>
     `/methodical-materials/${encodeURIComponent(materialId)}/sections/${encodeURIComponent(sectionId)}/completion`,
   getScenariosUrl: () => `/scenarios`,

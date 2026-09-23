@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { MethodicalMaterialListSchema } from "../src/contracts/methodical-materials";
+import {
+  MethodicalMaterialInputSchema,
+  MethodicalMaterialListSchema,
+} from "../src/contracts/methodical-materials";
 
 describe("methodical materials contract", () => {
   test("parses role-filtered materials with section progress", () => {
@@ -12,6 +15,8 @@ describe("methodical materials contract", () => {
           description: "Алгоритм работы",
           audience: "Операторы",
           durationMinutes: 25,
+          roles: ["operator"],
+          updatedAt: null,
           completedSections: 1,
           totalSections: 1,
           sections: [
@@ -20,6 +25,7 @@ describe("methodical materials contract", () => {
               title: "Начало",
               summary: "Установите контакт",
               items: ["Представьтесь"],
+              contentMarkdown: "- Представьтесь",
               completed: true,
               completedAt: "2026-09-17T10:00:00.000Z",
             },
@@ -36,5 +42,25 @@ describe("methodical materials contract", () => {
         materials: [{ id: "operator-112" }],
       }),
     ).toThrow();
+  });
+
+  test("validates an editable markdown material", () => {
+    const parsed = MethodicalMaterialInputSchema.parse({
+      title: "Памятка оператора",
+      description: "Алгоритм обработки вызова",
+      audience: "Операторы",
+      durationMinutes: 20,
+      roles: ["operator"],
+      sections: [
+        {
+          title: "Начало разговора",
+          summary: "Установите контакт с заявителем",
+          contentMarkdown:
+            "## Порядок\n\n1. Представьтесь.\n2. Уточните адрес.",
+        },
+      ],
+    });
+
+    expect(parsed.sections[0]?.contentMarkdown).toContain("## Порядок");
   });
 });

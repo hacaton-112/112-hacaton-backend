@@ -15,21 +15,33 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  FilePlus2,
+  Pencil,
   RotateCcw,
   UsersRound,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { MarkdownContent } from "../../components/methodical-materials/markdown-content";
+import { MethodicalMaterialEditorDialog } from "../../components/methodical-materials/methodical-material-editor-dialog";
+import { canAuthorMethodicalMaterials } from "../../config/roles";
 import type {
   MethodicalMaterial,
   MethodicalSection,
 } from "../../contracts/methodical-materials";
 import { useMethodicalMaterials } from "../../hooks/use-methodical-materials";
+import { useAuthStore } from "../../stores/auth.store";
 
 export default function MethodicalMaterialsPage() {
-  const { materials, completion } = useMethodicalMaterials();
+  const { materials, completion, authoring } = useMethodicalMaterials();
+  const canAuthor = canAuthorMethodicalMaterials(
+    useAuthStore((state) => state.user?.role),
+  );
   const [selectedId, setSelectedId] = useState<string>();
   const [expandedSectionId, setExpandedSectionId] = useState<string>();
+  const [editor, setEditor] = useState<{
+    material?: MethodicalMaterial;
+  } | null>(null);
 
   const selected = useMemo(
     () =>
@@ -61,12 +73,29 @@ export default function MethodicalMaterialsPage() {
               Системы-112.
             </Text>
           </div>
-          {materials.data && materials.data.length > 0 && (
-            <Badge size="2" color="blue" variant="soft">
-              {overallCompleted(materials.data)} из{" "}
-              {overallTotal(materials.data)} разделов изучено
-            </Badge>
-          )}
+          <Flex align="center" gap="2" wrap="wrap">
+            {materials.data && materials.data.length > 0 && (
+              <Badge size="2" color="blue" variant="soft">
+                {overallCompleted(materials.data)} из{" "}
+                {overallTotal(materials.data)} разделов изучено
+              </Badge>
+            )}
+            {canAuthor && selected && (
+              <Button
+                type="button"
+                variant="soft"
+                color="gray"
+                onClick={() => setEditor({ material: selected })}
+              >
+                <Pencil size={16} /> Редактировать
+              </Button>
+            )}
+            {canAuthor && (
+              <Button type="button" onClick={() => setEditor({})}>
+                <FilePlus2 size={16} /> Создать материал
+              </Button>
+            )}
+          </Flex>
         </header>
 
         {materials.error && !materials.data ? (
@@ -141,6 +170,19 @@ export default function MethodicalMaterialsPage() {
           </div>
         )}
       </main>
+      {canAuthor && (
+        <MethodicalMaterialEditorDialog
+          open={editor !== null}
+          material={editor?.material}
+          mutations={authoring}
+          onOpenChange={(open) => !open && setEditor(null)}
+          onSaved={(saved) => {
+            setSelectedId(saved.id);
+            setExpandedSectionId(undefined);
+            setEditor(null);
+          }}
+        />
+      )}
     </ScrollArea>
   );
 }
@@ -241,7 +283,7 @@ function MaterialContent({
           return (
             <section
               key={section.id}
-              className={`rounded-(--radius-3) overflow-hidden border ${section.completed ? "border-(--green-a6)" : "border-(--gray-a5)"}`}
+              className={`overflow-hidden rounded-(--radius-3) border ${section.completed ? "border-(--green-a6)" : "border-(--gray-a5)"}`}
             >
               <button
                 type="button"
@@ -270,16 +312,7 @@ function MaterialContent({
               </button>
               {expanded && (
                 <div className="p-4 pt-3">
-                  <ul className="grid list-disc gap-2 pl-5 text-sm leading-6 text-(--gray-12)">
-                    {section.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                  {section.note && (
-                    <Callout.Root color="blue" size="1" mt="4">
-                      <Callout.Text>{section.note}</Callout.Text>
-                    </Callout.Root>
-                  )}
+                  <MarkdownContent markdown={section.contentMarkdown} />
                   <Flex justify="end" mt="4">
                     <Button
                       type="button"
