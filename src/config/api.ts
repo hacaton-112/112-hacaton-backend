@@ -16,6 +16,8 @@ export const API_CONFIG = {
   getMethodicalSectionCompletionUrl: (materialId: string, sectionId: string) =>
     `/methodical-materials/${encodeURIComponent(materialId)}/sections/${encodeURIComponent(sectionId)}/completion`,
   getScenariosUrl: () => `/scenarios`,
+  getScenarioExportUrl: () => `/scenarios/export`,
+  getScenarioImportUrl: () => `/scenarios/import`,
   getTrainingGroupsUrl: () => `/groups`,
   getTrainingGroupUrl: (groupId: string) => `/groups/${groupId}`,
   getGroupStudentsUrl: (groupId: string) => `/groups/${groupId}/students`,

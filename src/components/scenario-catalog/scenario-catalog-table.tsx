@@ -41,6 +41,7 @@ interface ScenarioCatalogTableProps {
   onOpenDraft: (job: ScenarioGenerationJob) => void;
   onRetry: (job: ScenarioGenerationJob) => void;
   onDismiss: (job: ScenarioGenerationJob) => void;
+  onSelectionChange: (scenarioVersionIds: string[]) => void;
 }
 
 /**
@@ -58,6 +59,7 @@ export function ScenarioCatalogTable({
   onOpenDraft,
   onRetry,
   onDismiss,
+  onSelectionChange,
 }: ScenarioCatalogTableProps) {
   const rows = useMemo<CatalogRow[]>(
     () =>
@@ -171,6 +173,21 @@ export function ScenarioCatalogTable({
       pinnedTopRowData={jobRows}
       columnDefs={columnDefs}
       getRowId={({ data }) => data.id}
+      rowSelection={{
+        mode: "multiRow",
+        checkboxes: true,
+        headerCheckbox: true,
+      }}
+      isRowSelectable={({ data }) => data?.kind === "scenario"}
+      onSelectionChanged={({ api }) =>
+        onSelectionChange(
+          api
+            .getSelectedRows()
+            .flatMap((row) =>
+              row.kind === "scenario" ? [row.scenario.scenarioVersionId] : [],
+            ),
+        )
+      }
       tooltipShowDelay={400}
       // У черновика две строки: описание и ход генерации.
       getRowHeight={({ data }) => (data?.kind === "job" ? 56 : undefined)}

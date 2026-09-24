@@ -1,5 +1,5 @@
 import { Button, Callout, Flex, Skeleton, Text, toast } from "@bolid-ui/themes";
-import { AlertTriangle, Plus, Sparkles } from "lucide-react";
+import { AlertTriangle, Download, Plus, Sparkles, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -7,6 +7,7 @@ import { ScenarioAiHelper } from "../../components/scenario-authoring/scenario-a
 import { ScenarioCatalogTable } from "../../components/scenario-catalog/scenario-catalog-table";
 import { scenarioCountLabel } from "../../components/scenario-catalog/scenario-catalog-formatters";
 import { ScenarioDeleteDialog } from "../../components/scenario-catalog/scenario-delete-dialog";
+import { ScenarioPackageDialog } from "../../components/scenario-catalog/scenario-package-dialog";
 import type { ScenarioSummary } from "../../contracts/call";
 import type { ScenarioGenerationJob } from "../../contracts/scenario-authoring";
 import { useScenarioAuthoring } from "../../hooks/use-scenario-authoring";
@@ -14,6 +15,7 @@ import { useScenarioGenerationJobs } from "../../hooks/use-scenario-generation";
 import { useScenarioVersion } from "../../hooks/use-scenario-version";
 import { useScenarios } from "../../hooks/use-scenarios";
 import { ROUTES } from "../../config/routes";
+import { scenarioService } from "../../services/scenario.service";
 
 const messageFrom = (error: unknown) =>
   error instanceof Error
@@ -35,6 +37,9 @@ export default function ScenarioCatalogPage() {
   const [removing, setRemoving] = useState<ScenarioSummary>();
   const [helperOpen, setHelperOpen] = useState(false);
   const [helperError, setHelperError] = useState<string>();
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
   // Идентификатор сценария известен только его версии: в списке его нет.
   const version = useScenarioVersion(removing?.scenarioVersionId);
 
@@ -105,6 +110,22 @@ export default function ScenarioCatalogPage() {
     }
   };
 
+  const exportPackage = async () => {
+    setExporting(true);
+    try {
+      const filename = await scenarioService.exportPackage(selectedVersionIds);
+      toast.success("Сценарии выгружены", { description: filename });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Не удалось выгрузить сценарии",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <main
       aria-label="Учебные сценарии"
@@ -117,6 +138,20 @@ export default function ScenarioCatalogPage() {
             : "Загрузка сценариев…"}
         </Text>
         <Flex gap="2">
+          <Button
+            size="2"
+            variant="soft"
+            disabled={exporting}
+            onClick={() => void exportPackage()}
+          >
+            <Download size={16} />
+            {selectedVersionIds.length > 0
+              ? `Выгрузить (${selectedVersionIds.length})`
+              : "Выгрузить"}
+          </Button>
+          <Button size="2" variant="soft" onClick={() => setPackageOpen(true)}>
+            <Upload size={16} /> Загрузить
+          </Button>
           <Button
             size="2"
             variant="soft"
@@ -170,6 +205,7 @@ export default function ScenarioCatalogPage() {
               onOpenDraft={openDraft}
               onRetry={retry}
               onDismiss={dismiss}
+              onSelectionChange={setSelectedVersionIds}
             />
           )}
         </div>
@@ -193,6 +229,11 @@ export default function ScenarioCatalogPage() {
         error={helperError}
         onErrorDismiss={() => setHelperError(undefined)}
         onGenerate={(brief) => void enqueue(brief)}
+      />
+      <ScenarioPackageDialog
+        open={packageOpen}
+        onOpenChange={setPackageOpen}
+        onImported={() => void scenarios.refetch()}
       />
     </main>
   );

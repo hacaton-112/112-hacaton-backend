@@ -602,6 +602,28 @@ export type GenerateScenarioDraftResponse = z.infer<
   typeof GenerateScenarioDraftResponseSchema
 >;
 export type PublishedScenario = z.infer<typeof PublishedScenarioSchema>;
+
+export const ScenarioPackageSchema = z.object({
+  formatVersion: z.literal(1),
+  exportedAt: z.iso.datetime(),
+  scenarios: z.array(ScenarioSeedSchema),
+});
+
+export const ScenarioImportReportSchema = z.object({
+  dryRun: z.boolean(),
+  accepted: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+  entries: z.array(
+    z.object({
+      code: z.string(),
+      outcome: z.enum(["created", "updated", "rejected"]),
+      reason: z.string().nullable(),
+    }),
+  ),
+});
+
+export type ScenarioPackage = z.infer<typeof ScenarioPackageSchema>;
+export type ScenarioImportReport = z.infer<typeof ScenarioImportReportSchema>;
 export type ScenarioGenerationJob = z.infer<typeof ScenarioGenerationJobSchema>;
 export type EditableScenarioVersion = z.infer<
   typeof EditableScenarioVersionSchema
