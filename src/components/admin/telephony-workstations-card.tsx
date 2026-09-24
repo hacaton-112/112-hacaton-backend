@@ -3,6 +3,7 @@ import {
   Button,
   Callout,
   Card,
+  Checkbox,
   Flex,
   Heading,
   Select,
@@ -29,13 +30,8 @@ export function TelephonyWorkstationsCard({
 }: {
   users: readonly AuthUser[];
 }) {
-  const {
-    workstations,
-    seat,
-    free,
-    exportConfiguration,
-    importConfiguration,
-  } = useTelephonyWorkstations();
+  const { workstations, seat, free, exportConfiguration, importConfiguration } =
+    useTelephonyWorkstations();
   const [extension, setExtension] = useState("");
   const [userId, setUserId] = useState<string>();
   const trainees = users.filter(
@@ -150,7 +146,9 @@ export function TelephonyWorkstationsCard({
 
       <div className="border-t border-(--gray-a5) pt-3">
         <Flex gap="2" wrap="wrap" align="center">
-          <Text size="2" weight="medium">Обмен конфигурацией</Text>
+          <Text size="2" weight="medium">
+            Обмен конфигурацией
+          </Text>
           <Button
             type="button"
             size="1"
@@ -169,20 +167,27 @@ export function TelephonyWorkstationsCard({
           >
             <Download size={14} /> CSV
           </Button>
-          <input
-            aria-label="Файл конфигурации рабочих мест"
-            type="file"
-            accept=".xml,.csv,text/csv,application/xml"
-            onChange={(event) => setImportFile(event.target.files?.[0])}
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          {/* Поле выбора файла спрятано под обычной кнопкой: свой вид у него
+              в каждом браузере свой, а имя файла показываем рядом. */}
+          <Button asChild variant="soft" size="1">
+            <label className="cursor-pointer">
+              <input
+                aria-label="Файл конфигурации рабочих мест"
+                className="sr-only"
+                type="file"
+                accept=".xml,.csv,text/csv,application/xml"
+                onChange={(event) => setImportFile(event.target.files?.[0])}
+              />
+              {importFile ? importFile.name : "Выбрать файл"}
+            </label>
+          </Button>
+          <Text as="label" size="2" className="flex items-center gap-2">
+            <Checkbox
               checked={dryRun}
-              onChange={(event) => setDryRun(event.target.checked)}
+              onCheckedChange={(checked) => setDryRun(checked === true)}
             />
             Только проверить
-          </label>
+          </Text>
           <Button
             type="button"
             size="1"
@@ -192,9 +197,11 @@ export function TelephonyWorkstationsCard({
               const format = importFile.name.toLowerCase().endsWith(".xml")
                 ? "xml"
                 : "csv";
-              void importFile.text().then((content) =>
-                importConfiguration.mutate({ format, content, dryRun }),
-              );
+              void importFile
+                .text()
+                .then((content) =>
+                  importConfiguration.mutate({ format, content, dryRun }),
+                );
             }}
           >
             <Upload size={14} /> {dryRun ? "Проверить" : "Импортировать"}
@@ -208,7 +215,12 @@ export function TelephonyWorkstationsCard({
                 size="1"
                 color={row.status === "rejected" ? "red" : "green"}
               >
-                Строка {row.row}: {row.status === "created" ? "будет создано" : row.status === "updated" ? "будет обновлено" : "отклонено"}
+                Строка {row.row}:{" "}
+                {row.status === "created"
+                  ? "будет создано"
+                  : row.status === "updated"
+                    ? "будет обновлено"
+                    : "отклонено"}
                 {row.extension ? `, номер ${row.extension}` : ""}
                 {row.reason ? ` — ${row.reason}` : ""}
               </Text>

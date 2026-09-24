@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Flex,
   Heading,
   Text,
@@ -86,19 +87,24 @@ function DdsReferenceForm({
           {draft.status === "approved" ? "Подтверждён" : "Черновик"}
         </Badge>
       </Flex>
+      {/* Пункты — строки одного списка: карточка внутри карточки добавляла
+          вторую рамку и лишние отступы, а смысла не несла. */}
       {draft.requiredItems.map((item, index) => (
-        <Card key={item.id} size="1" variant="surface">
+        <div
+          key={item.id}
+          className="border-gray-a5 border-t pt-3 first:border-t-0 first:pt-0"
+        >
           <Flex align="center" gap="2">
-            <input
-              type="checkbox"
+            <Checkbox
+              aria-label={`Утвердить пункт «${item.label}»`}
               checked={item.approved}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 setDraft({
                   ...draft,
                   requiredItems: draft.requiredItems.map(
                     (current, currentIndex) =>
                       currentIndex === index
-                        ? { ...current, approved: event.target.checked }
+                        ? { ...current, approved: checked === true }
                         : current,
                   ),
                 })
@@ -139,7 +145,7 @@ function DdsReferenceForm({
               Удалить
             </Button>
           </Flex>
-        </Card>
+        </div>
       ))}
       <Flex gap="2" wrap="wrap">
         <Button variant="soft" onClick={() => save.mutate(false)}>

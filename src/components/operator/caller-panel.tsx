@@ -22,6 +22,7 @@ import {
   type IncidentCardPatch,
   type IncidentCardVictim,
 } from "../../contracts/incident";
+import { toDate, toDateOnly } from "../../lib/date-only";
 
 interface CallerPanelProps {
   trainingSessionId?: string;
@@ -32,27 +33,6 @@ interface CallerPanelProps {
   disabled: boolean;
   onChange: (patch: IncidentCardPatch) => void;
 }
-
-const toDate = (value?: string | null): Date | null => {
-  if (!value) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-};
-
-const toDateOnly = (
-  value: Date | { year: number; month: number; day: number } | null,
-): string | null => {
-  if (!value) return null;
-
-  const year = value instanceof Date ? value.getFullYear() : value.year;
-  const month = value instanceof Date ? value.getMonth() + 1 : value.month;
-  const day = value instanceof Date ? value.getDate() : value.day;
-
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-};
 
 export function CallerPanel({
   trainingSessionId,

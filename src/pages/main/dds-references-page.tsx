@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   Callout,
+  Checkbox,
   Dialog,
   Flex,
   Heading,
@@ -113,16 +114,16 @@ export default function DdsReferencesPage() {
         sortable: false,
         cellRenderer: ({ data }: ICellRendererParams<DdsReferenceListItem>) =>
           data ? (
-            <input
+            <Checkbox
               aria-label={`Выбрать ${data.title}`}
-              type="checkbox"
               checked={selected.has(data.scenarioVersionId)}
+              // Клик по ячейке иначе дойдёт до строки и откроет редактор эталона.
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 setSelected((current) => {
                   const next = new Set(current);
-                  if (event.target.checked) next.add(data.scenarioVersionId);
+                  if (checked === true) next.add(data.scenarioVersionId);
                   else next.delete(data.scenarioVersionId);
                   return next;
                 })

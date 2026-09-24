@@ -2,17 +2,19 @@ import {
   Button,
   Callout,
   Card,
+  DatePicker,
   Flex,
   Heading,
   Select,
   Skeleton,
   Tabs,
   Text,
-  TextField,
   toast,
 } from "@bolid-ui/themes";
 import { AlertTriangle, Download, FileChartColumn, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
+
+import { toDate, toDateOnly } from "../../lib/date-only";
 
 import { ReportAttemptsTable } from "../../components/reports/report-attempts-table";
 import { ReportStudentsTable } from "../../components/reports/report-students-table";
@@ -150,20 +152,20 @@ export default function ReportsPage() {
           </TrainingField>
 
           <TrainingField label="Период с">
-            <TextField.Root
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(event) => setFrom(event.target.value)}
+            <DatePicker
+              placeholder="дд.мм.гггг"
+              value={toDate(from)}
+              maxValue={toDate(to)}
+              onChange={(value) => setFrom(toDateOnly(value) ?? "")}
             />
           </TrainingField>
 
           <TrainingField label="Период по">
-            <TextField.Root
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(event) => setTo(event.target.value)}
+            <DatePicker
+              placeholder="дд.мм.гггг"
+              value={toDate(to)}
+              minValue={toDate(from)}
+              onChange={(value) => setTo(toDateOnly(value) ?? "")}
             />
           </TrainingField>
 

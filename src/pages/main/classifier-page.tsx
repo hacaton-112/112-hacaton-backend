@@ -103,15 +103,19 @@ export default function ClassifierPage() {
                 </Text>
               </div>
               <Flex align="center" gap="2" wrap="wrap">
-                <label className="inline-flex min-h-8 cursor-pointer items-center rounded-full border border-(--gray-a6) px-3 text-sm hover:bg-(--gray-a3)">
-                  <input
-                    className="sr-only"
-                    type="file"
-                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    onChange={(event) => setFile(event.target.files?.[0])}
-                  />
-                  {file ? file.name : "Выбрать XLSX"}
-                </label>
+                {/* Поле выбора файла спрятано под обычной кнопкой: свой вид у
+                    него в каждом браузере свой. */}
+                <Button asChild variant="soft" size="1">
+                  <label className="cursor-pointer">
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={(event) => setFile(event.target.files?.[0])}
+                    />
+                    {file ? file.name : "Выбрать XLSX"}
+                  </label>
+                </Button>
                 <Button
                   type="button"
                   disabled={!file || management.importVersion.isPending}
@@ -307,7 +311,7 @@ function VersionRows({
       {expanded && version.warningCount > 0 && (
         <Table.Row>
           <Table.Cell colSpan={6}>
-            <div className="rounded-(--radius-2) max-h-56 overflow-y-auto bg-(--gray-a2) p-3">
+            <div className="max-h-56 overflow-y-auto rounded-(--radius-2) bg-(--gray-a2) p-3">
               <Text size="1" weight="bold">
                 Что нужно проверить в исходном файле
               </Text>
