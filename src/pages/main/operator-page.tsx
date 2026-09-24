@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { QUERY_KEYS } from "../../config/query-keys";
 import { CallerPanel } from "../../components/operator/caller-panel";
 import { CallControlDock } from "../../components/operator/call-control-dock";
+import { TextConversationPanel } from "../../components/operator/text-conversation-panel";
 import { IncidentMapDialog } from "../../components/operator/incident-map-dialog";
 import { IncidentForm } from "../../components/operator/incident-form";
 import { DISPATCH_SERVICE_LABELS } from "../../contracts/incident";
@@ -247,6 +248,22 @@ export default function OperatorPage() {
         onDispatch={() => void handleDispatch()}
         onEnd={() => void handleEnd()}
       />
+      {/* Лента разговора нужна только там, где реплики не слышно. */}
+      {call.channel === "text" && call.state !== "idle" && (
+        <div className="pointer-events-none fixed right-4 bottom-28 z-50">
+          <TextConversationPanel
+            state={call.state}
+            dialogue={call.dialogue}
+            isCallerSpeaking={call.isCallerSpeaking}
+            disabled={
+              call.state !== "active" ||
+              call.isCallerSpeaking ||
+              call.isRecovering
+            }
+            onSay={call.say}
+          />
+        </div>
+      )}
     </div>
   );
 }

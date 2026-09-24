@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { IncidentLocation } from "../contracts/geo";
 import type {
+  CallChannel,
   CallLocator,
   CallServerEvent,
   CallState,
@@ -51,6 +52,8 @@ export interface CallSnapshot {
   checklistTotal: number;
   answerNormSeconds: number;
   dialogue: DialogueTurn[];
+  /** Голосом или текстом идёт этот разговор. */
+  channel: CallChannel;
   error?: string;
   startedAt?: Date;
   acceptedAt?: Date;
@@ -63,7 +66,10 @@ export interface CallControls {
       ScenarioSummary,
       "scenarioVersionId" | "category" | "title" | "difficulty"
     > & { assignmentId?: string },
+    channel?: CallChannel,
   ) => void;
+  /** Ход оператора в текстовом разговоре. */
+  say: (text: string) => void;
   end: () => Promise<void>;
   toggleMute: () => void;
   reset: () => void;
@@ -81,6 +87,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   "scenario-audio-not-ready":
     "Записи для локального звонка ещё не готовы. Попросите преподавателя утвердить диалог и дождаться подготовки аудио.",
   "call-state-invalid": "Команда пришла не вовремя",
+  "text-channel-only": "Разговор идёт текстом: микрофон в нём не используется",
   "invalid-message": "Сервер не понял команду",
   "assignment-unavailable": "Назначение закрыто или вам не адресовано",
   "assignment-attempts-exhausted": "Попытки по этому назначению исчерпаны",
@@ -133,6 +140,9 @@ export function useCall(): CallSnapshot & CallControls {
   const [checklistTotal, setChecklistTotal] = useState(0);
   const [answerNormSeconds, setAnswerNormSeconds] = useState(240);
   const [dialogue, setDialogue] = useState<DialogueTurn[]>([]);
+  const [channel, setChannel] = useState<CallChannel>("voice");
+  // Режим нужен и вне рендера: восстановление после обрыва идёт из эффекта.
+  const channelRef = useRef<CallChannel>("voice");
   const [isListening, setListening] = useState(false);
   const [hasOpenedMicrophone, setHasOpenedMicrophone] = useState(false);
   const [isCallerSpeaking, setCallerSpeaking] = useState(false);
@@ -147,6 +157,8 @@ export function useCall(): CallSnapshot & CallControls {
     switch (event.type) {
       case "call.offered":
         setState("ringing");
+        setChannel(event.channel);
+        channelRef.current = event.channel;
         setTrainingSessionId(event.sessionId);
         setLocator(event.locator);
         setScenarioTitle(event.title);
@@ -174,6 +186,8 @@ export function useCall(): CallSnapshot & CallControls {
         break;
       case "call.resumed":
         setTrainingSessionId(event.sessionId);
+        setChannel(event.channel);
+        channelRef.current = event.channel;
         setState(event.stage === "offered" ? "ringing" : "active");
         setLocator(event.locator);
         setScenarioTitle(event.title);
@@ -242,6 +256,7 @@ export function useCall(): CallSnapshot & CallControls {
         setCallerAudioLevel(event.level);
         break;
       case "audio.done":
+      case "reply.done":
       case "request.cancelled":
         setCallerSpeaking(false);
         setCallerAudioLevel(0);
@@ -324,7 +339,7 @@ export function useCall(): CallSnapshot & CallControls {
           setRecovering(true);
           // Микрофон не переоткрываем сами: слушать снова решает оператор,
           // иначе восстановление записало бы тишину как его реплику.
-          return stream.resume(sessionId, false);
+          return stream.resume(sessionId, false, channelRef.current);
         }
       })
       .catch((reason: unknown) => {
@@ -436,6 +451,7 @@ export function useCall(): CallSnapshot & CallControls {
   useEffect(() => {
     if (
       state !== "active" ||
+      channel === "text" ||
       isMuted ||
       isListening ||
       !isConnected ||
@@ -454,6 +470,7 @@ export function useCall(): CallSnapshot & CallControls {
       });
   }, [
     state,
+    channel,
     isMuted,
     isListening,
     isConnected,
@@ -472,6 +489,8 @@ export function useCall(): CallSnapshot & CallControls {
 
   const reset = useCallback(() => {
     setState("idle");
+    setChannel("voice");
+    channelRef.current = "voice";
     setEndedByInstructor(false);
     setTrainingSessionId(undefined);
     clearActiveTrainingSession();
@@ -502,19 +521,44 @@ export function useCall(): CallSnapshot & CallControls {
         ScenarioSummary,
         "scenarioVersionId" | "category" | "title" | "difficulty"
       > & { assignmentId?: string },
+      requestedChannel: CallChannel = "voice",
     ) => {
       reset();
       setScenarioTitle(scenario.title);
       setScenarioDifficulty(scenario.difficulty);
+      setChannel(requestedChannel);
+      channelRef.current = requestedChannel;
       command((stream) =>
         stream.start(
           scenario.scenarioVersionId,
           scenario.category,
           scenario.assignmentId,
+          requestedChannel,
         ),
       )();
     },
     [command, reset],
+  );
+
+  /**
+   * Реплика оператора текстом.
+   *
+   * Она сразу попадает в ленту разговора: в голосовом режиме её возвращает
+   * распознавание, а здесь её никто, кроме самого окна, не покажет.
+   */
+  const say = useCallback(
+    (text: string) => {
+      const operatorText = text.trim();
+      if (!operatorText) return;
+
+      setDialogue((turns) => [
+        ...turns,
+        { id: turnId(), role: "operator", text: operatorText },
+      ]);
+      setCallerSpeaking(true);
+      command((stream) => stream.say(operatorText))();
+    },
+    [command],
   );
 
   const end = useCallback(
@@ -558,11 +602,13 @@ export function useCall(): CallSnapshot & CallControls {
     checklistTotal,
     answerNormSeconds,
     dialogue,
+    channel,
     error,
     startedAt,
     acceptedAt,
     elapsedSeconds,
     startScenario,
+    say,
     end,
     toggleMute,
     reset,

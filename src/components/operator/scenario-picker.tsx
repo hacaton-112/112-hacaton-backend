@@ -1,9 +1,9 @@
-import { Button, Select } from "@bolid-ui/themes";
-import { PhoneIncoming } from "lucide-react";
+import { Button, IconButton, Select } from "@bolid-ui/themes";
+import { MessageSquareText, PhoneIncoming } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import type { ScenarioSummary } from "../../contracts/call";
+import type { CallChannel, ScenarioSummary } from "../../contracts/call";
 import { attemptsLeft } from "../../contracts/training";
 import {
   ASSIGNMENT_QUERY_PARAM,
@@ -20,6 +20,7 @@ interface ScenarioPickerProps {
       ScenarioSummary,
       "scenarioVersionId" | "category" | "title" | "difficulty"
     > & { assignmentId?: string },
+    channel?: CallChannel,
   ) => void;
 }
 
@@ -66,6 +67,14 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
             ? "Попытки по назначению исчерпаны"
             : undefined;
 
+  const start = (channel: CallChannel) => {
+    if (!chosen) return;
+    onStart(
+      { ...chosen, assignmentId: isOperator ? assignment?.id : undefined },
+      channel,
+    );
+  };
+
   return (
     <div className="flex min-w-0 items-center gap-2">
       <Select.Root
@@ -92,13 +101,7 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
       <Button
         color="orange"
         disabled={disabled || !chosen || blockedReason !== undefined}
-        onClick={() =>
-          chosen &&
-          onStart({
-            ...chosen,
-            assignmentId: isOperator ? assignment?.id : undefined,
-          })
-        }
+        onClick={() => chosen && start("voice")}
         aria-label="Запустить выбранный сценарий"
         title={blockedReason ?? "Запустить выбранный сценарий"}
         className="shrink-0"
@@ -106,6 +109,20 @@ export function ScenarioPicker({ disabled, onStart }: ScenarioPickerProps) {
         <PhoneIncoming size={17} />
         <span className="hidden xl:inline">ПРИНЯТЬ ВЫЗОВ</span>
       </Button>
+
+      {/* Тот же сценарий без голоса: для класса без гарнитур и для разбора
+          сценария за столом. Оценка и карточка от этого не меняются. */}
+      <IconButton
+        variant="soft"
+        color="gray"
+        disabled={disabled || !chosen || blockedReason !== undefined}
+        onClick={() => chosen && start("text")}
+        aria-label="Начать разговор текстом"
+        title={blockedReason ?? "Начать разговор текстом, без микрофона"}
+        className="shrink-0"
+      >
+        <MessageSquareText size={17} />
+      </IconButton>
     </div>
   );
 }

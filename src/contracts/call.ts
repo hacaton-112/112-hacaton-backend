@@ -39,9 +39,14 @@ const SnapshotShape = {
  * События сервера. Схемы повторяют контракты backend, но не строгие: новое
  * поле в протоколе не должно ронять окно оператора посреди звонка.
  */
+/** Голосом или текстом ведётся разговор. */
+export const CallChannelSchema = z.enum(["voice", "text"]);
+
 export const CallServerEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("call.offered"),
+    // Старый backend режим не присылает: тогда это голос.
+    channel: CallChannelSchema.default("voice"),
     scenarioCode: z.string(),
     title: z.string(),
     locator: CallLocatorSchema.nullable(),
@@ -59,6 +64,7 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("call.resumed"),
+    channel: CallChannelSchema.default("voice"),
     scenarioCode: z.string(),
     title: z.string(),
     locator: CallLocatorSchema.nullable(),
@@ -114,6 +120,8 @@ export const CallServerEventSchema = z.discriminatedUnion("type", [
     sampleRate: z.number().int().positive(),
   }),
   z.object({ type: z.literal("audio.done") }),
+  /** Конец текстового хода: озвучивать нечего, ответить снова можно. */
+  z.object({ type: z.literal("reply.done") }),
   /** RMS обработанного TTS из AudioWorklet; используется только индикатором. */
   z.object({
     type: z.literal("audio.level"),
@@ -150,7 +158,13 @@ export const ScenarioListSchema = z.object({
 /** Команды интерфейса, отправляемые через транспорт звонка. */
 export type CallClientCommand =
   | { type: "accept" | "decline" | "end" }
-  | { type: "resume"; sessionId: string; resumeListening: boolean };
+  | { type: "speak"; operatorText: string }
+  | {
+      type: "resume";
+      sessionId: string;
+      resumeListening: boolean;
+      channel: CallChannel;
+    };
 
 /**
  * Состояние звонка в окне оператора.
@@ -161,6 +175,7 @@ export type CallClientCommand =
  */
 export type CallState = "idle" | "ringing" | "active" | "ended";
 
+export type CallChannel = z.infer<typeof CallChannelSchema>;
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;
 export type CallServerEvent = z.infer<typeof CallServerEventSchema>;

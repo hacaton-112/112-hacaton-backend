@@ -17,6 +17,7 @@ export const ROUTE_PATTERNS = {
   ddsLessonReport: "/dds-lessons/:lessonId/report",
   ddsResults: "/dds-results",
   ddsResult: "/dds-results/:exerciseId",
+  ddsArchive: "/dds-archive",
   scenarios: "/scenarios",
   ddsReferences: "/dds-references",
   assignments: "/assignments",
@@ -50,6 +51,7 @@ export const ROUTES = {
   ddsResults: () => "/dds-results",
   ddsResult: (exerciseId: string) =>
     `/dds-results/${encodeURIComponent(exerciseId)}`,
+  ddsArchive: () => "/dds-archive",
   debriefSession: (trainingSessionId: string) =>
     `/debrief/${encodeURIComponent(trainingSessionId)}`,
   scenarios: () => "/scenarios",
