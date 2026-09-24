@@ -69,7 +69,10 @@ import {
   DATA_TABLE_DEFAULTS,
   menuIcon,
 } from "../../lib/data-table";
-import { downloadFile, generateGroupProtocolCsv } from "../../lib/group-protocol-export";
+import {
+  downloadFile,
+  generateGroupProtocolCsv,
+} from "../../lib/group-protocol-export";
 import { useAuthStore } from "../../stores/auth.store";
 
 /** Группа: её ученики с успеваемостью, занятия и идущие звонки. */
@@ -102,7 +105,9 @@ export default function GroupPage() {
         </Callout.Root>
       )}
 
-      {group.isPending && <Skeleton height="320px" className="rounded-(--radius-4)" />}
+      {group.isPending && (
+        <Skeleton height="320px" className="rounded-(--radius-4)" />
+      )}
 
       {group.data && <GroupContent group={group.data} mutations={mutations} />}
     </main>

@@ -29,7 +29,7 @@ function ResultsList() {
   const navigate = useNavigate();
   if (query.isPending)
     return (
-      <main className="grid gap-3 p-6">
+      <main className="grid gap-3 p-4 md:p-6">
         <Skeleton height="56px" />
         <Skeleton height="300px" />
       </main>
@@ -95,7 +95,7 @@ function ResultDetails({ exerciseId }: { exerciseId: string }) {
   const navigate = useNavigate();
   if (query.isPending)
     return (
-      <main className="grid gap-3 p-6">
+      <main className="grid gap-3 p-4 md:p-6">
         <Skeleton height="56px" />
         <Skeleton height="400px" />
       </main>
@@ -122,7 +122,7 @@ function ResultDetails({ exerciseId }: { exerciseId: string }) {
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <main className="p-6">
+    <main className="p-4 md:p-6">
       <Callout.Root color="red">
         <Callout.Icon>
           <AlertTriangle />

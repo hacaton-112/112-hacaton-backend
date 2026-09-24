@@ -104,13 +104,26 @@ function RowActionCell({ node, data }: ICellRendererParams<GroupTableRow>) {
   );
 }
 
-function GroupReadinessCell({ node, data }: ICellRendererParams<GroupTableRow>) {
+function GroupReadinessCell({
+  node,
+  data,
+}: ICellRendererParams<GroupTableRow>) {
   const row = node.group ? node.allLeafChildren?.[0]?.data : data;
   const readiness = useInstructorReadiness(
     row ? { scope: "group", groupId: row.groupId } : null,
   );
-  if (readiness.isPending) return <Text size="1" color="gray">Расчёт…</Text>;
-  if (!readiness.data) return <Text size="1" color="gray">—</Text>;
+  if (readiness.isPending)
+    return (
+      <Text size="1" color="gray">
+        Расчёт…
+      </Text>
+    );
+  if (!readiness.data)
+    return (
+      <Text size="1" color="gray">
+        —
+      </Text>
+    );
   return (
     <Flex align="center" className="h-full">
       <ReadinessBadge prediction={readiness.data.prediction} />

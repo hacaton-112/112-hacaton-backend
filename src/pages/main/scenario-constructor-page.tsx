@@ -143,7 +143,7 @@ function ScenarioVersionEditor({
 
   if (version.error) {
     return (
-      <Box p="4">
+      <Box p={{ initial: "4", md: "6" }}>
         <Callout.Root color="red" role="alert">
           <Callout.Icon>
             <AlertTriangle size={18} />
@@ -167,7 +167,7 @@ function ScenarioVersionEditor({
 
   if (!version.data) {
     return (
-      <Box p="4">
+      <Box p={{ initial: "4", md: "6" }}>
         <ScenarioFormSkeleton label="Загружаем опубликованную версию" />
       </Box>
     );
@@ -494,7 +494,7 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
   const busy = waitingForDraft || enqueue.isPending || publishing;
 
   return (
-    <Box p="4" className="min-h-full">
+    <Box p={{ initial: "4", md: "6" }} className="min-h-full">
       <Breadcrumbs
         className="mb-4"
         items={[
