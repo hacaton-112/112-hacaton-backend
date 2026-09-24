@@ -7,7 +7,7 @@
   "packageManager": "bun@1.4.0",
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build --webpack",
     "format": "prettier --write \"{src,drizzle,test}/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -20,7 +20,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --config ./test/jest-e2e.json",
     "test:golden": "jest --config ./test/jest-golden.json",
     "diagnose:alice-ai": "bun --env-file=.env test/manual/alice-ai-request.diagnostic.ts",
     "diagnose:tts": "bun --env-file=.env test/manual/tts-diagnostic.runner.ts",
