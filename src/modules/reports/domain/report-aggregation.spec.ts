@@ -40,6 +40,7 @@ const attempt = (
     requiredFieldsMissing: 1,
     incorrectFields: 0,
     incidentCardCompleted: true,
+    fields: [],
     recommendations: [],
   },
   grammar: { status: "unavailable", message: "Недоступно" },

@@ -33,13 +33,22 @@ import {
   type InstructorReportAttempt,
   type InstructorReportExportQuery,
   type InstructorReportQuery,
+  type InstructorReadinessQuery,
 } from "../dto/instructor-report.dto";
 import {
   summarizeReportAttempts,
   summarizeReportStudents,
   type ReportStudentIdentity,
 } from "../domain/report-aggregation";
-import { summarizeInstructorDds } from "../domain/dds-instructor-report-aggregation";
+import {
+  summarizeInstructorDds,
+  type InstructorDdsCardInput,
+} from "../domain/dds-instructor-report-aggregation";
+import { summarizeGroupAnalytics } from "../domain/group-analytics";
+import {
+  predictReadiness,
+  type ReadinessObservation,
+} from "../domain/readiness-prediction";
 import {
   type ReportArtifact,
   ReportExporter,
@@ -105,7 +114,8 @@ export class InstructorReportService {
     }
 
     const attempts = await this.attempts(calls);
-    const dds = await this.dds(target, period);
+    const ddsCards = await this.ddsCards(target, period);
+    const dds = summarizeInstructorDds(ddsCards);
     return {
       generatedAt: new Date().toISOString(),
       scope: query.scope,
@@ -119,6 +129,70 @@ export class InstructorReportService {
       attempts,
       grammar: GRAMMAR_UNAVAILABLE,
       dds,
+      analytics:
+        query.scope === "group"
+          ? summarizeGroupAnalytics(attempts, ddsCards)
+          : null,
+    };
+  }
+
+  async getReadiness(actor: TrainingActor, query: InstructorReadinessQuery) {
+    const target = await this.target(actor, query);
+    const calls = await this.training.listInstructorCalls(actor, {
+      groupId: query.scope === "group" ? query.groupId : undefined,
+      operatorId: query.scope === "student" ? query.operatorId : undefined,
+      everyCall: true,
+      limit: MAX_REPORT_ATTEMPTS,
+    });
+    const attempts = await this.attempts(calls);
+    const cards = await this.ddsCards(target, { from: null, to: null });
+    const observationsFor = (operatorId?: string): ReadinessObservation[] => [
+      ...attempts
+        .filter((attempt) => !operatorId || attempt.operatorId === operatorId)
+        .map((attempt) => ({
+          occurredAt: attempt.offeredAt,
+          score: attempt.score,
+          passed: attempt.passed,
+          withinNorm: attempt.answeredWithinNorm,
+          hasProcessErrors:
+            (attempt.analysis.criticalQuestionsMissed ?? 0) +
+              (attempt.analysis.requiredFieldsMissing ?? 0) +
+              (attempt.analysis.incorrectFields ?? 0) >
+            0,
+          textCoverage:
+            attempt.analysis.fields.length === 0
+              ? null
+              : attempt.analysis.fields.filter(({ matched }) => matched).length /
+                attempt.analysis.fields.length,
+        })),
+      ...cards
+        .filter((card) => !operatorId || card.operatorId === operatorId)
+        .map((card) => ({
+          occurredAt: card.occurredAt,
+          score: card.finalScore,
+          passed:
+            card.finalScore === null
+              ? null
+              : card.finalScore >= card.passThreshold,
+          withinNorm: card.withinNorm,
+          hasProcessErrors: card.processErrors.length > 0,
+          textCoverage:
+            card.coverage.length === 0
+              ? null
+              : card.coverage.filter(({ status }) => status === "present")
+                    .length / card.coverage.length,
+        })),
+    ];
+    return {
+      generatedAt: new Date().toISOString(),
+      scope: query.scope,
+      target: { id: target.id, name: target.name },
+      prediction: predictReadiness(observationsFor()),
+      students: target.students.map((student) => ({
+        operatorId: student.id,
+        operatorName: student.fullName,
+        prediction: predictReadiness(observationsFor(student.id)),
+      })),
     };
   }
 
@@ -177,7 +251,7 @@ export class InstructorReportService {
 
   private async target(
     actor: TrainingActor,
-    query: InstructorReportQuery,
+    query: InstructorReportQuery | InstructorReadinessQuery,
   ): Promise<ReportTarget> {
     if (query.scope === "group") {
       if (query.groupId === undefined) {
@@ -236,17 +310,18 @@ export class InstructorReportService {
     return result;
   }
 
-  private async dds(
+  private async ddsCards(
     target: ReportTarget,
     period: { from: Date | null; to: Date | null },
-  ) {
+  ): Promise<InstructorDdsCardInput[]> {
     if (!this.db || target.students.length === 0)
-      return summarizeInstructorDds([]);
+      return [];
     const operatorIds = target.students.map(({ id }) => id);
     const rows = await this.db
       .select({
         exercise: ddsExercises,
         lessonTitle: ddsLessons.title,
+        lessonPassThreshold: ddsLessons.passThreshold,
         evaluation: ddsTextEvaluations,
       })
       .from(ddsExercises)
@@ -267,7 +342,7 @@ export class InstructorReportService {
     const scenarioVersionIds = rows.map(
       ({ exercise }) => exercise.scenarioVersionId,
     );
-    if (ids.length === 0) return summarizeInstructorDds([]);
+    if (ids.length === 0) return [];
     const [references, reviews] = await Promise.all([
       this.db
         .select()
@@ -287,8 +362,7 @@ export class InstructorReportService {
     const names = new Map(
       target.students.map((student) => [student.id, student.fullName]),
     );
-    return summarizeInstructorDds(
-      rows.map(({ exercise, lessonTitle, evaluation }) => {
+    return rows.map(({ exercise, lessonTitle, lessonPassThreshold, evaluation }) => {
         const reference =
           references.find(({ exerciseId }) => exerciseId === exercise.id) ??
           references.find(
@@ -308,6 +382,7 @@ export class InstructorReportService {
           finalStatus: exercise.status,
           automaticScore: exercise.score,
           finalScore: review?.score ?? exercise.score,
+          passThreshold: lessonPassThreshold ?? exercise.passThreshold,
           withinNorm:
             exercise.acknowledgedAt === null
               ? null
@@ -331,8 +406,7 @@ export class InstructorReportService {
           }),
           coverage: evaluation?.coverage ?? [],
         };
-      }),
-    );
+      });
   }
 
   private async attempt(
@@ -438,6 +512,11 @@ export class InstructorReportService {
               ).length,
         incidentCardCompleted:
           debrief === null ? null : debrief.incidentCard !== null,
+        fields: fields.map(({ field, matched, isRequired }) => ({
+          field,
+          matched,
+          isRequired,
+        })),
         recommendations: evaluation?.recommendations ?? [],
       },
       grammar: GRAMMAR_UNAVAILABLE,

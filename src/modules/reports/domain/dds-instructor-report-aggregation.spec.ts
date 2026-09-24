@@ -13,9 +13,10 @@ describe(summarizeInstructorDds.name, () => {
         finalStatus: "completed",
         automaticScore: 80,
         finalScore: 90,
+        passThreshold: 75,
         withinNorm: true,
         processErrors: ["late_acknowledgement"],
-        coverage: [{ label: "Адрес", status: "missing" }],
+        coverage: [{ id: "address", label: "Адрес", status: "missing" }],
       },
       {
         exerciseId: "two",
@@ -27,9 +28,10 @@ describe(summarizeInstructorDds.name, () => {
         finalStatus: "refused",
         automaticScore: 60,
         finalScore: 60,
+        passThreshold: 75,
         withinNorm: false,
         processErrors: ["late_acknowledgement"],
-        coverage: [{ label: "Адрес", status: "present" }],
+        coverage: [{ id: "address", label: "Адрес", status: "present" }],
       },
     ]);
 

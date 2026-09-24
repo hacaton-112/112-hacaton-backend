@@ -66,6 +66,15 @@ export class InstructorReportExportQueryDto extends createZodDto(
   InstructorReportExportQuerySchema,
 ) {}
 
+export const InstructorReadinessQuerySchema = z
+  .object(ReportQueryFields)
+  .strict()
+  .superRefine(validateReportTarget);
+
+export class InstructorReadinessQueryDto extends createZodDto(
+  InstructorReadinessQuerySchema,
+) {}
+
 export const InstructorReportStatsSchema = z
   .object({
     attempts: z.number().int().nonnegative(),
@@ -127,6 +136,13 @@ export const InstructorReportAttemptSchema = z
         requiredFieldsMissing: z.number().int().nonnegative().nullable(),
         incorrectFields: z.number().int().nonnegative().nullable(),
         incidentCardCompleted: z.boolean().nullable(),
+        fields: z.array(
+          z.object({
+            field: z.string(),
+            matched: z.boolean(),
+            isRequired: z.boolean(),
+          }),
+        ),
         recommendations: z.array(z.string()),
       })
       .strict(),
@@ -213,12 +229,102 @@ export const InstructorReportSchema = z
         weakPoints: [],
         recentAttempts: [],
       }),
+    analytics: z
+      .object({
+        cardFields: z.array(
+          z.object({
+            field: z.string(),
+            label: z.string(),
+            correct: z.number().int().nonnegative(),
+            missed: z.number().int().nonnegative(),
+            correctedAfterHint: z.number().int().nonnegative(),
+            total: z.number().int().positive(),
+            correctRate: z.number().int().min(0).max(100),
+          }),
+        ),
+        ddsReferenceItems: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            missing: z.number().int().nonnegative(),
+            present: z.number().int().nonnegative(),
+            total: z.number().int().positive(),
+            missRate: z.number().int().min(0).max(100),
+          }),
+        ),
+        processErrors: z.array(
+          z.object({
+            type: z.string(),
+            total: z.number().int().positive(),
+            students: z.array(
+              z.object({
+                operatorId: IdSchema,
+                operatorName: z.string(),
+                count: z.number().int().positive(),
+              }),
+            ),
+          }),
+        ),
+        dynamics: z.object({
+          voice: z.array(z.object({
+            key: z.string(), label: z.string(), occurredAt: DateTimeSchema,
+            averageScore: z.number().int(), attempts: z.number().int().positive(),
+          })),
+          dds: z.array(z.object({
+            key: z.string(), label: z.string(), occurredAt: DateTimeSchema,
+            averageScore: z.number().int(), attempts: z.number().int().positive(),
+          })),
+        }),
+        heatmap: z.object({
+          fields: z.array(z.object({ field: z.string(), label: z.string() })),
+          rows: z.array(z.object({
+            operatorId: IdSchema,
+            operatorName: z.string(),
+            values: z.array(z.number().int().min(0).max(100).nullable()),
+          })),
+        }),
+      })
+      .nullable(),
   })
   .strict();
+
+const ReadinessPredictionSchema = z.object({
+  probability: z.number().min(0).max(1),
+  label: z.enum(["ready", "needs_training", "insufficient"]),
+  blockers: z.array(z.string()).min(1).max(3),
+  features: z.object({
+    averageScore: z.number().nullable(), latestScore: z.number().nullable(),
+    trend: z.number(), passRate: z.number().nullable(),
+    withinNormRate: z.number().nullable(), processErrorFrequency: z.number(),
+    textCoverage: z.number().nullable(), attempts: z.number().int().nonnegative(),
+  }),
+  quality: z.object({
+    status: z.enum(["measured", "insufficient"]),
+    accuracy: z.number().min(0).max(1).nullable(),
+    observations: z.number().int().nonnegative(),
+    trainingObservations: z.number().int().nonnegative(),
+    testObservations: z.number().int().nonnegative(),
+  }),
+});
+
+export const InstructorReadinessSchema = z.object({
+  generatedAt: DateTimeSchema,
+  scope: z.enum(["group", "student"]),
+  target: z.object({ id: IdSchema, name: z.string() }),
+  prediction: ReadinessPredictionSchema,
+  students: z.array(z.object({
+    operatorId: IdSchema,
+    operatorName: z.string(),
+    prediction: ReadinessPredictionSchema,
+  })),
+});
+
+export class InstructorReadinessDto extends createZodDto(InstructorReadinessSchema) {}
 
 export class InstructorReportDto extends createZodDto(InstructorReportSchema) {}
 
 export type InstructorReportQuery = z.infer<typeof InstructorReportQuerySchema>;
+export type InstructorReadinessQuery = z.infer<typeof InstructorReadinessQuerySchema>;
 export type InstructorReportExportQuery = z.infer<
   typeof InstructorReportExportQuerySchema
 >;

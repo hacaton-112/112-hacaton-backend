@@ -48,4 +48,21 @@ describe(InstructorReportsController.name, () => {
       length: 6,
     });
   });
+
+  it("passes a readiness target with the authenticated actor", async () => {
+    const reports = {
+      getReadiness: jest.fn().mockResolvedValue({ prediction: {} }),
+    };
+    const controller = new InstructorReportsController(
+      reports as unknown as InstructorReportService,
+    );
+    const query = { scope: "group" as const, groupId };
+
+    await controller.readiness(request, query);
+
+    expect(reports.getReadiness).toHaveBeenCalledWith(
+      { id: "instructor-1", role: "instructor" },
+      query,
+    );
+  });
 });

@@ -19,6 +19,8 @@ import {
   InstructorReportDto,
   InstructorReportExportQueryDto,
   InstructorReportQueryDto,
+  InstructorReadinessDto,
+  InstructorReadinessQueryDto,
 } from "./dto/instructor-report.dto";
 
 const actor = (request: AuthenticatedRequest) => ({
@@ -52,5 +54,14 @@ export class InstructorReportsController {
     @Query() query: InstructorReportQueryDto,
   ) {
     return this.reports.getReport(actor(request), query);
+  }
+
+  @Get("readiness")
+  @ZodSerializerDto(InstructorReadinessDto)
+  readiness(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: InstructorReadinessQueryDto,
+  ) {
+    return this.reports.getReadiness(actor(request), query);
   }
 }

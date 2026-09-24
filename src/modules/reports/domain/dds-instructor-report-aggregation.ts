@@ -10,9 +10,14 @@ export interface InstructorDdsCardInput {
   finalStatus: string;
   automaticScore: number | null;
   finalScore: number | null;
+  passThreshold: number;
   withinNorm: boolean | null;
   processErrors: readonly DdsProcessErrorType[];
-  coverage: readonly { label: string; status: "present" | "missing" }[];
+  coverage: readonly {
+    id: string;
+    label: string;
+    status: "present" | "missing";
+  }[];
 }
 
 export function summarizeInstructorDds(
