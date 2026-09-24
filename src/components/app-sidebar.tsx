@@ -14,6 +14,7 @@ import {
   Users,
   ShieldCheck,
   ListChecks,
+  Archive,
 } from "lucide-react";
 import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
@@ -154,6 +155,20 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   onClick={() => goTo(ROUTES.ddsResults())}
                 >
                   Мои результаты ДДС
+                </SidebarNavItem>
+              )}
+              {showDds && (
+                <SidebarNavItem
+                  active={isRouteActive(
+                    location.pathname,
+                    ROUTES.ddsArchive(),
+                    true,
+                  )}
+                  icon={Archive}
+                  label="Архив карточек"
+                  onClick={() => goTo(ROUTES.ddsArchive())}
+                >
+                  Архив карточек
                 </SidebarNavItem>
               )}
               <SidebarNavItem

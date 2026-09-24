@@ -92,6 +92,7 @@ export const API_CONFIG = {
     `/dds/lessons/${encodeURIComponent(lessonId)}/report/export`,
   getDdsLessonInsightsRetryUrl: (lessonId: string) =>
     `/dds/lessons/${encodeURIComponent(lessonId)}/insights/retry`,
+  getDdsArchiveUrl: () => `/dds/archive`,
   getMyDdsResultsUrl: () => `/dds/my/results`,
   getMyDdsResultUrl: (exerciseId: string) =>
     `/dds/my/results/${encodeURIComponent(exerciseId)}`,

@@ -1,6 +1,7 @@
 import { API_CONFIG } from "../config/api";
 import {
   CallServerEventSchema,
+  type CallChannel,
   type CallClientCommand,
   type CallServerEvent,
 } from "../contracts/call";
@@ -28,12 +29,19 @@ interface CallStreamCallbacks {
 }
 export interface CallStream {
   connect(token: string): Promise<void>;
-  resume(sessionId: string, resumeListening: boolean): Promise<void>;
+  resume(
+    sessionId: string,
+    resumeListening: boolean,
+    channel: CallChannel,
+  ): Promise<void>;
   start(
     scenarioVersionId: string,
     scenarioCategory: string,
     assignmentId?: string,
+    channel?: CallChannel,
   ): Promise<void>;
+  /** Реплика оператора словами: текстовый разговор вместо микрофона. */
+  say(operatorText: string): Promise<void>;
   accept(): Promise<void>;
   decline(): Promise<void>;
   end(): Promise<void>;
@@ -136,17 +144,26 @@ class WebCallStream implements CallStream {
     scenarioVersionId: string,
     _scenarioCategory: string,
     assignmentId?: string,
+    channel: CallChannel = "voice",
   ): Promise<void> {
     void this.cancelPlayback();
     this.sendRaw({
       type: "start",
       scenarioVersionId,
       ...(assignmentId ? { assignmentId } : {}),
+      channel,
     });
     return Promise.resolve();
   }
-  resume(sessionId: string, resumeListening: boolean): Promise<void> {
-    return this.send({ type: "resume", sessionId, resumeListening });
+  resume(
+    sessionId: string,
+    resumeListening: boolean,
+    channel: CallChannel = "voice",
+  ): Promise<void> {
+    return this.send({ type: "resume", sessionId, resumeListening, channel });
+  }
+  say(operatorText: string): Promise<void> {
+    return this.send({ type: "speak", operatorText });
   }
   accept(): Promise<void> {
     return this.send({ type: "accept" });

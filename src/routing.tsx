@@ -47,6 +47,9 @@ const DdsLessonReportPage = lazyImport(
 const DdsMyResultsPage = lazyImport(
   () => import("./pages/main/dds-my-results-page"),
 );
+const DdsArchivePage = lazyImport(
+  () => import("./pages/main/dds-archive-page"),
+);
 const GroupsPage = lazyImport(() => import("./pages/main/groups-page"));
 const GroupPage = lazyImport(() => import("./pages/main/group-page"));
 const StudentPage = lazyImport(() => import("./pages/main/student-page"));
@@ -154,6 +157,10 @@ export function Routing() {
               <Route
                 path={ROUTE_PATTERNS.ddsResult}
                 element={lazyPage(<DdsMyResultsPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.ddsArchive}
+                element={lazyPage(<DdsArchivePage />)}
               />
             </Route>
             <Route element={<RoleLayout allowed={CLASSIFIER_VIEWER_ROLES} />}>
