@@ -21,6 +21,29 @@ export function useTelephonyWorkstations() {
     mutationFn: (extension: string) => telephonyService.free(extension),
     onSuccess: refresh,
   });
+  const exportConfiguration = useMutation({
+    mutationFn: (format: "xml" | "csv") =>
+      telephonyService.exportWorkstations(format),
+  });
+  const importConfiguration = useMutation({
+    mutationFn: (input: {
+      format: "xml" | "csv";
+      content: string;
+      dryRun: boolean;
+    }) =>
+      telephonyService.importWorkstations(
+        input.format,
+        input.content,
+        input.dryRun,
+      ),
+    onSuccess: refresh,
+  });
 
-  return { workstations, seat, free };
+  return {
+    workstations,
+    seat,
+    free,
+    exportConfiguration,
+    importConfiguration,
+  };
 }

@@ -9,7 +9,7 @@ import {
   Text,
   TextField,
 } from "@bolid-ui/themes";
-import { AlertTriangle, PhoneCall } from "lucide-react";
+import { AlertTriangle, Download, PhoneCall, Upload } from "lucide-react";
 import { useState } from "react";
 
 import type { AuthUser } from "../../contracts/auth";
@@ -29,14 +29,27 @@ export function TelephonyWorkstationsCard({
 }: {
   users: readonly AuthUser[];
 }) {
-  const { workstations, seat, free } = useTelephonyWorkstations();
+  const {
+    workstations,
+    seat,
+    free,
+    exportConfiguration,
+    importConfiguration,
+  } = useTelephonyWorkstations();
   const [extension, setExtension] = useState("");
   const [userId, setUserId] = useState<string>();
   const trainees = users.filter(
     (user) => user.isActive && user.role === "operator",
   );
   const extensionValid = EXTENSION.test(extension.trim());
-  const failure = workstations.error ?? seat.error ?? free.error;
+  const [importFile, setImportFile] = useState<File>();
+  const [dryRun, setDryRun] = useState(true);
+  const failure =
+    workstations.error ??
+    seat.error ??
+    free.error ??
+    exportConfiguration.error ??
+    importConfiguration.error;
 
   const submit = () => {
     if (!extensionValid || !userId) return;
@@ -79,7 +92,10 @@ export function TelephonyWorkstationsCard({
               <Badge variant="soft" className="font-mono">
                 {workstation.extension}
               </Badge>
-              <Text size="2">{workstation.fullName}</Text>
+              <Text size="2">
+                {workstation.name} — {workstation.fullName ?? "не назначен"}
+              </Text>
+              {!workstation.isActive && <Badge color="gray">Отключено</Badge>}
             </Flex>
             <Button
               type="button"
@@ -131,6 +147,75 @@ export function TelephonyWorkstationsCard({
           Посадить за телефон
         </Button>
       </Flex>
+
+      <div className="border-t border-(--gray-a5) pt-3">
+        <Flex gap="2" wrap="wrap" align="center">
+          <Text size="2" weight="medium">Обмен конфигурацией</Text>
+          <Button
+            type="button"
+            size="1"
+            variant="soft"
+            disabled={exportConfiguration.isPending}
+            onClick={() => exportConfiguration.mutate("xml")}
+          >
+            <Download size={14} /> XML
+          </Button>
+          <Button
+            type="button"
+            size="1"
+            variant="soft"
+            disabled={exportConfiguration.isPending}
+            onClick={() => exportConfiguration.mutate("csv")}
+          >
+            <Download size={14} /> CSV
+          </Button>
+          <input
+            aria-label="Файл конфигурации рабочих мест"
+            type="file"
+            accept=".xml,.csv,text/csv,application/xml"
+            onChange={(event) => setImportFile(event.target.files?.[0])}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(event) => setDryRun(event.target.checked)}
+            />
+            Только проверить
+          </label>
+          <Button
+            type="button"
+            size="1"
+            disabled={!importFile || importConfiguration.isPending}
+            onClick={() => {
+              if (!importFile) return;
+              const format = importFile.name.toLowerCase().endsWith(".xml")
+                ? "xml"
+                : "csv";
+              void importFile.text().then((content) =>
+                importConfiguration.mutate({ format, content, dryRun }),
+              );
+            }}
+          >
+            <Upload size={14} /> {dryRun ? "Проверить" : "Импортировать"}
+          </Button>
+        </Flex>
+        {importConfiguration.data && (
+          <div className="mt-2 grid gap-1" role="status">
+            {importConfiguration.data.rows.map((row) => (
+              <Text
+                key={`${row.row}-${row.extension ?? "empty"}`}
+                size="1"
+                color={row.status === "rejected" ? "red" : "green"}
+              >
+                Строка {row.row}: {row.status === "created" ? "будет создано" : row.status === "updated" ? "будет обновлено" : "отклонено"}
+                {row.extension ? `, номер ${row.extension}` : ""}
+                {row.reason ? ` — ${row.reason}` : ""}
+              </Text>
+            ))}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

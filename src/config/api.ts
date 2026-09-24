@@ -105,6 +105,8 @@ export const API_CONFIG = {
   getDdsTextEvaluationRetryUrl: (exerciseId: string) =>
     `/dds-references/exercises/${encodeURIComponent(exerciseId)}/retry`,
   getAdminQueuesUrl: () => `/admin/queues`,
+  getAdminWorkstationsExportUrl: () => `/admin/workstations/export`,
+  getAdminWorkstationsImportUrl: () => `/admin/workstations/import`,
   getTelephonyWorkstationsUrl: () => `/telephony/workstations`,
   getTelephonyWorkstationUrl: (extension: string) =>
     `/telephony/workstations/${encodeURIComponent(extension)}`,

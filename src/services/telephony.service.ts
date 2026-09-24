@@ -6,8 +6,10 @@ import {
   type CrewCallCommand,
   type TelephonyWorkstation,
   TelephonyWorkstationListSchema,
+  WorkstationImportReportSchema,
 } from "../contracts/telephony";
 import { api } from "../lib/api";
+import { saveReportBlob } from "./report-download";
 
 export const telephonyService = {
   async getBrowserPhoneConfig(): Promise<BrowserPhoneConfig> {
@@ -43,5 +45,27 @@ export const telephonyService = {
 
   async free(extension: string): Promise<void> {
     await api.delete(API_CONFIG.getTelephonyWorkstationUrl(extension));
+  },
+
+  async exportWorkstations(format: "xml" | "csv"): Promise<void> {
+    const response = await api.getDownload(
+      API_CONFIG.getAdminWorkstationsExportUrl(),
+      { params: { format } },
+    );
+    saveReportBlob(response.blob, `workstations.${format}`);
+  },
+
+  async importWorkstations(
+    format: "xml" | "csv",
+    content: string,
+    dryRun: boolean,
+  ) {
+    return WorkstationImportReportSchema.parse(
+      await api.post<unknown>(API_CONFIG.getAdminWorkstationsImportUrl(), {
+        format,
+        content,
+        dryRun,
+      }),
+    );
   },
 };
