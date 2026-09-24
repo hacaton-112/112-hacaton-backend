@@ -100,30 +100,28 @@ export function OperatorAssignmentList() {
             <Callout.Icon>
               <Play size={16} />
             </Callout.Icon>
-            <Callout.Text>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <Text as="p" weight="bold">
-                    Уже выполняется попытка №{activeAttempt.attemptNumber}
-                  </Text>
-                  <Text as="p" size="2">
-                    {activeAttempt.assignmentTitle} ·{" "}
-                    {activeAttempt.type === "card_action"
-                      ? "ДДС — карточка"
-                      : "Звонок"}
-                    . Начата {formatDateTime(activeAttempt.startedAt)}.
-                  </Text>
-                </div>
-                <Button
-                  type="button"
-                  color="amber"
-                  variant="soft"
-                  onClick={() => continueAttempt(activeAttempt)}
-                >
-                  Продолжить попытку <ArrowRight size={16} />
-                </Button>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3">
+              <div>
+                <Text as="p" weight="bold">
+                  Уже выполняется попытка №{activeAttempt.attemptNumber}
+                </Text>
+                <Text as="p" size="2">
+                  {activeAttempt.assignmentTitle} ·{" "}
+                  {activeAttempt.type === "card_action"
+                    ? "ДДС — карточка"
+                    : "Звонок"}
+                  . Начата {formatDateTime(activeAttempt.startedAt)}.
+                </Text>
               </div>
-            </Callout.Text>
+              <Button
+                type="button"
+                color="amber"
+                variant="soft"
+                onClick={() => continueAttempt(activeAttempt)}
+              >
+                Продолжить попытку <ArrowRight size={16} />
+              </Button>
+            </div>
           </Callout.Root>
         )}
 

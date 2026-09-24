@@ -94,3 +94,18 @@ export const PHONE_WINDOW_URL = ROUTE_PATTERNS.phone;
 /** Телефон оператора 112: тот же звонок, но в отдельном окне рабочего места. */
 export const OPERATOR_PHONE_WINDOW_LABEL = "operator-phone";
 export const OPERATOR_PHONE_WINDOW_URL = ROUTE_PATTERNS.operatorPhone;
+
+/**
+ * Сопоставляет пункт навигации с текущим URL по границе сегмента.
+ *
+ * Обычный `startsWith("/dds")` ошибочно считает активными одновременно
+ * `/dds`, `/dds-results` и `/dds-references`.
+ */
+export const isRouteActive = (
+  pathname: string,
+  route: string,
+  includeNested = false,
+): boolean =>
+  pathname === route ||
+  (includeNested &&
+    pathname.startsWith(route.endsWith("/") ? route : `${route}/`));

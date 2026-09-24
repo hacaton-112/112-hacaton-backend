@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BrowserPhoneConfig } from "../../contracts/telephony";
 import {
+  formatBrowserPhoneError,
   PHONE_CHANNEL_NAME,
   PhoneHostMessageSchema,
   type PhoneCrewEntry,
@@ -116,7 +117,7 @@ export default function BrowserPhonePage() {
         onDisconnected: (reason) => {
           if (requestIdRef.current !== requestId) return;
           setState("error");
-          setError(reason?.message ?? "Соединение с Asterisk потеряно");
+          setError(formatBrowserPhoneError(reason));
         },
       });
       phoneRef.current = phone;
@@ -124,12 +125,7 @@ export default function BrowserPhonePage() {
       try {
         await phone.connect();
       } catch (reason) {
-        fail(
-          requestId,
-          reason instanceof Error
-            ? reason.message
-            : "Не удалось зарегистрировать телефон в Asterisk",
-        );
+        fail(requestId, formatBrowserPhoneError(reason));
       }
     };
 

@@ -117,6 +117,7 @@ export default function DdsReferencesPage() {
               aria-label={`Выбрать ${data.title}`}
               type="checkbox"
               checked={selected.has(data.scenarioVersionId)}
+              onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onChange={(event) =>
                 setSelected((current) => {
@@ -238,7 +239,16 @@ export default function DdsReferencesPage() {
           paginationPageSizeSelector={[25, 50, 100]}
           getRowId={({ data }) => data.scenarioVersionId}
           onGridReady={({ api }) => setGridApi(api)}
-          onRowClicked={({ data }) => data && setOpened(data.scenarioVersionId)}
+          onRowClicked={({ data, event }) => {
+            const target = event?.target;
+            if (
+              target instanceof Element &&
+              target.closest("input, button, a, [role='button']")
+            ) {
+              return;
+            }
+            if (data) setOpened(data.scenarioVersionId);
+          }}
         />
       </div>
       <Dialog.Root

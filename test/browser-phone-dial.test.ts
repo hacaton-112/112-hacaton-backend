@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  formatBrowserPhoneError,
   PhoneHostMessageSchema,
   PhoneWindowMessageSchema,
 } from "../src/lib/browser-phone-window";
@@ -35,6 +36,23 @@ describe("browser phone window channel", () => {
         extension: "202",
       }).type,
     ).toBe("registered");
+  });
+});
+
+describe("browser phone errors", () => {
+  test("hides the PBX websocket URL from an operator", () => {
+    const message = formatBrowserPhoneError(
+      new Error("WebSocket closed wss://pbx.internal.example/ws"),
+    );
+
+    expect(message).toContain("WSS");
+    expect(message).not.toContain("pbx.internal.example");
+  });
+
+  test("explains rejected SIP registration", () => {
+    expect(
+      formatBrowserPhoneError(new Error("Registration rejected: 403")),
+    ).toContain("учётные данные SIP");
   });
 });
 

@@ -1,12 +1,16 @@
 import { Button, Dialog, Text, TextField } from "@bolid-ui/themes";
-import { Phone, Plus, Search, X } from "lucide-react";
+import { Check, LockKeyhole, Phone, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
   DISPATCH_SERVICE_LABELS,
   type DispatchService,
 } from "../../contracts/incident";
-import { findDispatchServices } from "../../lib/dispatch-service-search";
+import {
+  dispatchServiceSelectionChanges,
+  findDispatchServices,
+  toggleDispatchServiceSelection,
+} from "../../lib/dispatch-service-search";
 
 interface ServiceBarProps {
   /** Выбранные службы карточки: тот же список, что уходит на backend. */
@@ -32,6 +36,7 @@ export function ServiceBar({
 }: ServiceBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState<DispatchService[]>([]);
   const shown = useMemo(
     () => [
       ...classifierServices,
@@ -39,15 +44,20 @@ export function ServiceBar({
     ],
     [classifierServices, services],
   );
-  const rest = useMemo(
-    () => findDispatchServices(query, shown),
-    [query, shown],
+  const directory = useMemo(() => findDispatchServices(query), [query]);
+  const changes = useMemo(
+    () => dispatchServiceSelectionChanges(services, draft, classifierServices),
+    [classifierServices, draft, services],
   );
 
-  const select = (service: DispatchService) => {
-    onToggle(service);
+  const closePicker = () => {
     setPickerOpen(false);
     setQuery("");
+  };
+
+  const savePicker = () => {
+    changes.forEach(onToggle);
+    closePicker();
   };
 
   return (
@@ -85,7 +95,8 @@ export function ServiceBar({
           open={pickerOpen}
           onOpenChange={(open) => {
             setPickerOpen(open);
-            if (!open) setQuery("");
+            if (open) setDraft(shown);
+            else setQuery("");
           }}
         >
           <Dialog.Trigger>
@@ -121,22 +132,55 @@ export function ServiceBar({
             </TextField.Root>
 
             <div className="arm112-service-directory" role="list">
-              {rest.map((service) => (
-                <button
-                  key={service}
-                  type="button"
-                  role="listitem"
-                  onClick={() => select(service)}
-                >
-                  <Phone size={16} aria-hidden />
-                  <span>
-                    <strong>{DISPATCH_SERVICE_LABELS[service]}</strong>
-                    <small>Добавить в карточку происшествия</small>
-                  </span>
-                  <Plus size={16} aria-hidden />
-                </button>
-              ))}
-              {rest.length === 0 && (
+              {directory.map((service) => {
+                const selected = draft.includes(service);
+                const locked = classifierServices.includes(service);
+
+                return (
+                  <button
+                    key={service}
+                    type="button"
+                    role="listitem"
+                    data-selected={selected || undefined}
+                    aria-pressed={selected}
+                    disabled={locked}
+                    title={
+                      locked
+                        ? "Служба назначена классификатором и не снимается"
+                        : undefined
+                    }
+                    onClick={() =>
+                      setDraft((current) =>
+                        toggleDispatchServiceSelection(
+                          current,
+                          service,
+                          classifierServices,
+                        ),
+                      )
+                    }
+                  >
+                    <Phone size={16} aria-hidden />
+                    <span>
+                      <strong>{DISPATCH_SERVICE_LABELS[service]}</strong>
+                      <small>
+                        {locked
+                          ? "Назначена классификатором"
+                          : selected
+                            ? "Выбрана для карточки"
+                            : "Не выбрана"}
+                      </small>
+                    </span>
+                    {locked ? (
+                      <LockKeyhole size={16} aria-hidden />
+                    ) : selected ? (
+                      <Check size={16} aria-hidden />
+                    ) : (
+                      <Plus size={16} aria-hidden />
+                    )}
+                  </button>
+                );
+              })}
+              {directory.length === 0 && (
                 <Text
                   as="p"
                   size="2"
@@ -149,12 +193,23 @@ export function ServiceBar({
               )}
             </div>
 
-            <div className="mt-4 flex justify-end">
-              <Dialog.Close>
-                <Button type="button" variant="soft" color="gray">
-                  Закрыть
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <Text size="2" color="gray">
+                Выбрано: {draft.length}
+              </Text>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="soft"
+                  color="gray"
+                  onClick={closePicker}
+                >
+                  Отмена
                 </Button>
-              </Dialog.Close>
+                <Button type="button" onClick={savePicker}>
+                  Сохранить и закрыть
+                </Button>
+              </div>
             </div>
           </Dialog.Content>
         </Dialog.Root>
