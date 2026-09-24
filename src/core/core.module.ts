@@ -23,6 +23,7 @@ import { TrainingModule } from "@/modules/training/training.module";
 import { UsersModule } from "@/modules/users/users.module";
 import { VoicePipelineModule } from "@/modules/voice-pipeline";
 import { TelephonyModule } from "@/modules/telephony";
+import { OpenApiModule } from "@/modules/openapi/openapi.module";
 
 import { IS_DEV_ENV } from "./config/app.config";
 import "./config/env.config";
@@ -56,6 +57,7 @@ import { BackgroundQueueModule } from "./background-queue/background-queue.modul
     TrainingModule,
     UsersModule,
     VoicePipelineModule,
+    OpenApiModule,
   ],
   providers: [
     {

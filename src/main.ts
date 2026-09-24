@@ -13,6 +13,8 @@ import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
 import { HttpMetrics } from "@/modules/metrics/application/http-metrics";
 import { AuthenticatedWsAdapter } from "@/core/http/authenticated-ws.adapter";
+import { createOpenApiDocument } from "@/modules/openapi/openapi-document";
+import { OpenApiDocumentStore } from "@/modules/openapi/openapi-document.store";
 
 const GLOBAL_API_PREFIX = "api";
 
@@ -45,6 +47,7 @@ async function bootstrap(): Promise<void> {
     type: VersioningType.URI,
     defaultVersion: "1",
   });
+  app.get(OpenApiDocumentStore).set(createOpenApiDocument(app));
 
   // ── CORS ─────────────────────────────────────────────────────
   const corsOrigins = env.CORS_ORIGINS.split(",").map((origin: string) =>
