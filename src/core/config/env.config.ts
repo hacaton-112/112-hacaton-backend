@@ -226,6 +226,21 @@ export const env = createEnv({
       .max(30_000)
       .default(3_000),
 
+    // ── Журнал аудита ───────────────────────────────────────────
+    // Записи аудита хранятся ограниченный срок: журнал растёт с каждым
+    // действием, а бессрочное хранение персональных данных обучающихся не
+    // нужно ни для разбора занятия, ни для проверки.
+    AUDIT_LOG_RETENTION_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    AUDIT_LOG_RETENTION_DAYS: z.coerce
+      .number()
+      .int()
+      .min(30)
+      .max(3_650)
+      .default(365),
+
     // ── Qwen TTS ────────────────────────────────────────────────
     TTS_PROVIDER: z
       .enum(["mlx-audio", "vllm-omni", "piper"])

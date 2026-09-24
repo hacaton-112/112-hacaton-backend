@@ -60,12 +60,15 @@ describe("voice pipeline WebSocket contracts", () => {
       type: "resume",
       sessionId: "session-1",
       resumeListening: true,
+      // Режим по умолчанию голосовой: старый клиент о текстовом не знает.
+      channel: "voice",
     });
 
     expect(
       VoicePipelineServerEventSchema.safeParse({
         ...metadata,
         type: "call.resumed",
+        channel: "voice",
         scenarioCode: "S-015",
         title: "Пожар в квартире",
         locator: null,

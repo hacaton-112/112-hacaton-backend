@@ -406,7 +406,7 @@ const runPipeline = async (voiceId: string) => {
         replyEvent = event;
       } else if (event.type === "voice.audio.chunk") {
         await writer.write(event.chunk.audio);
-      } else {
+      } else if (event.type === "voice.completed") {
         completedEvent = event;
       }
     }

@@ -17,6 +17,7 @@ import {
   ErrorCodes,
   VoicePipelineClientCommandSchema,
   VoicePipelineServerEventSchema,
+  type CallChannel,
   type VoicePipelineClientCommand,
   type VoicePipelineServerEvent,
   type VoicePipelineSocketErrorCode,
@@ -134,6 +135,8 @@ interface ConnectionState {
   listening: ListeningStream | null;
   /** Про звук вне окна предупреждаем один раз, а не на каждом кадре. */
   strayAudioWarned: boolean;
+  /** Голосом идёт разговор или текстом: выбирается при старте звонка. */
+  channel: CallChannel;
   user: VerifiedJwtPayload;
 }
 
@@ -231,6 +234,7 @@ export class VoicePipelineGateway
       lastSnapshotKey: null,
       listening: null,
       strayAudioWarned: false,
+      channel: "voice",
       user,
     });
     this.metrics.sessionOpened();
@@ -649,6 +653,7 @@ export class VoicePipelineGateway
     }
 
     state.user = connectionState.user;
+    state.channel = command.channel;
     state.alive = true;
     state.lastSnapshotKey = null;
     this.connections.set(client, state);
@@ -681,6 +686,7 @@ export class VoicePipelineGateway
 
       await this.sendEvent(client, state, {
         type: "call.resumed",
+        channel: state.channel,
         scenarioCode: snapshot.scenarioCode,
         title: snapshot.title,
         locator: snapshot.locator,
@@ -736,6 +742,7 @@ export class VoicePipelineGateway
         // звонков подряд, а журнал, запись и разбор принадлежат звонку.
         state.sessionId = generateId();
         state.lastSnapshotKey = null;
+        state.channel = command.channel;
 
         // Попытка резервируется раньше звонка: лимит и номер проверяются под
         // блокировкой назначения, а не после того, как звонок уже создан.
@@ -769,6 +776,7 @@ export class VoicePipelineGateway
 
         await this.sendEvent(client, state, {
           type: "call.offered",
+          channel: state.channel,
           scenarioCode: snapshot.scenarioCode,
           title: snapshot.title,
           locator: snapshot.locator,
@@ -796,7 +804,11 @@ export class VoicePipelineGateway
           ...this.snapshotFields(snapshot),
         });
 
-        await this.startOpeningLine(client, state, snapshot.openingTurn);
+        // В текстовом разговоре первая реплика уже ушла в `call.accepted`:
+        // синтезировать её нечем и незачем.
+        if (state.channel === "voice") {
+          await this.startOpeningLine(client, state, snapshot.openingTurn);
+        }
 
         return;
       }
@@ -948,6 +960,14 @@ export class VoicePipelineGateway
   ): Promise<void> {
     if (!state.callStarted) {
       await this.sendError(client, state, null, "call-state-invalid");
+
+      return;
+    }
+
+    // Текстовый разговор микрофон не открывает: распознавать нечего, а
+    // молчаливый поток занимал бы сервис распознавания до конца звонка.
+    if (state.channel === "text") {
+      await this.sendError(client, state, null, "text-channel-only");
 
       return;
     }
@@ -1257,6 +1277,7 @@ export class VoicePipelineGateway
         signal: activeRequest.controller.signal,
         initiative,
       });
+      if (state.channel === "text") request = { ...request, textOnly: true };
     } catch {
       if (!activeRequest.controller.signal.aborted) {
         await this.failRequest(
@@ -1358,6 +1379,18 @@ export class VoicePipelineGateway
 
           recording?.write(event.chunk.audio);
           await this.sendAudio(client, event.chunk.audio);
+          continue;
+        }
+
+        if (event.type === "voice.text.completed") {
+          // В текстовом ходе время до реплики и есть время до ответа: звука,
+          // от которого считают задержку в голосовом режиме, здесь нет.
+          this.metrics.turnCompleted("generated", event.metrics.timeToReplyMs);
+          await this.sendEvent(client, state, {
+            type: "reply.done",
+            requestId: activeRequest.requestId,
+            metrics: event.metrics,
+          });
           continue;
         }
 
@@ -1612,6 +1645,7 @@ export class VoicePipelineGateway
       "assignment-attempt-active": "Another training attempt is still active",
       "session-recovery-unavailable":
         "The training session can no longer be recovered",
+      "text-channel-only": "This call is running in text, without a microphone",
     } as const satisfies Record<VoicePipelineSocketErrorCode, string>;
 
     // Такие отказы видит только оператор во всплывающем сообщении, поэтому в

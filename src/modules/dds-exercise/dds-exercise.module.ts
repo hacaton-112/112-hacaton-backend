@@ -29,6 +29,8 @@ import { ReportExporter } from "@/modules/reports/infrastructure/report-exporter
 import { DdsReportService } from "./application/dds-report.service";
 import { DdsInsightsService } from "./application/dds-insights.service";
 import { DdsReportController } from "./dds-report.controller";
+import { DdsArchiveService } from "./application/dds-archive.service";
+import { DdsArchiveController } from "./dds-archive.controller";
 
 @Module({
   imports: [
@@ -44,6 +46,7 @@ import { DdsReportController } from "./dds-report.controller";
     DdsLessonController,
     DdsReferenceController,
     DdsReportController,
+    DdsArchiveController,
   ],
   providers: [
     {
@@ -64,6 +67,7 @@ import { DdsReportController } from "./dds-report.controller";
     DdsReferenceService,
     DdsReportService,
     DdsInsightsService,
+    DdsArchiveService,
     ReportExporter,
     DrizzleDdsExerciseStore,
     { provide: DDS_EXERCISE_STORE, useExisting: DrizzleDdsExerciseStore },
