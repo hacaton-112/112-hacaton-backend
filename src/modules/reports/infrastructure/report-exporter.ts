@@ -54,6 +54,14 @@ const csvRow = (values: readonly (string | number | boolean | null)[]) =>
 const percent = (value: number | null): string =>
   value === null ? "—" : `${value}%`;
 
+const REPORT_PROCESS_ERROR_LABELS: Record<string, string> = {
+  ...DDS_PROCESS_ERROR_LABELS,
+  voice_late_answer: "Ответ позже норматива",
+  voice_critical_question: "Пропущен критический вопрос",
+  voice_required_field: "Не заполнено обязательное поле",
+  voice_incorrect_field: "Поле карточки заполнено неверно",
+};
+
 const statsRows = (stats: InstructorReportStats) =>
   [
     ["Попыток", stats.attempts],
@@ -470,6 +478,94 @@ export class ReportExporter {
     dds.getColumn(3).width = 18;
     this.styleTableHeader(dds.getRow(1));
 
+    if (report.analytics) {
+      const analytics = workbook.addWorksheet("Аналитика");
+      analytics.addRow([
+        "Поля карточки",
+        "Верно",
+        "Пропущено или неверно",
+        "Исправлено после разбора",
+        "Точность, %",
+      ]);
+      analytics.addRows(
+        report.analytics.cardFields.map((field) => [
+          field.label,
+          field.correct,
+          field.missed,
+          field.correctedAfterHint,
+          field.correctRate,
+        ]),
+      );
+      analytics.addRow([]);
+      analytics.addRow([
+        "Пункт эталона ДДС",
+        "Код",
+        "Пропущено",
+        "Всего",
+        "Доля пропусков, %",
+      ]);
+      analytics.addRows(
+        report.analytics.ddsReferenceItems.map((item) => [
+          item.label,
+          item.id,
+          item.missing,
+          item.total,
+          item.missRate,
+        ]),
+      );
+      analytics.addRow([]);
+      analytics.addRow(["Процессная ошибка", "Количество", "Обучающиеся"]);
+      analytics.addRows(
+        report.analytics.processErrors.map((error) => [
+          REPORT_PROCESS_ERROR_LABELS[error.type] ?? error.type,
+          error.total,
+          error.students
+            .map((student) => `${student.operatorName}: ${student.count}`)
+            .join("; "),
+        ]),
+      );
+      analytics.addRow([]);
+      analytics.addRow([
+        "Динамика",
+        "Период или занятие",
+        "Дата",
+        "Средний балл",
+        "Попыток",
+      ]);
+      analytics.addRows([
+        ...report.analytics.dynamics.voice.map((point) => [
+          "Голос",
+          point.label,
+          point.occurredAt,
+          point.averageScore,
+          point.attempts,
+        ]),
+        ...report.analytics.dynamics.dds.map((point) => [
+          "ДДС",
+          point.label,
+          point.occurredAt,
+          point.averageScore,
+          point.attempts,
+        ]),
+      ]);
+      analytics.addRow([]);
+      analytics.addRow([
+        "Тепловая карта",
+        ...report.analytics.heatmap.fields.map(({ label }) => label),
+      ]);
+      analytics.addRows(
+        report.analytics.heatmap.rows.map((row) => [
+          row.operatorName,
+          ...row.values.map((value) => value ?? "—"),
+        ]),
+      );
+      analytics.columns.forEach((column, index) => {
+        column.width = index === 0 ? 34 : index === 2 ? 48 : 22;
+        column.alignment = { vertical: "top", wrapText: true };
+      });
+      this.styleTableHeader(analytics.getRow(1));
+    }
+
     const output = await workbook.xlsx.writeBuffer();
     return Buffer.from(output);
   }
@@ -527,6 +623,50 @@ export class ReportExporter {
         document.text(
           `${DDS_PROCESS_ERROR_LABELS[error.type]}: ${error.count}`,
         );
+
+      if (report.analytics) {
+        document.moveDown().fontSize(13).text("Аналитика группы");
+        document.fontSize(9).text("Слабые поля карточки вызова:");
+        for (const field of report.analytics.cardFields.slice(0, 8)) {
+          this.ensurePdfSpace(document, 20);
+          document.text(
+            `${field.label}: точность ${field.correctRate}%, пропущено ${field.missed}, исправлено после разбора ${field.correctedAfterHint}`,
+          );
+        }
+        document.moveDown(0.4).text("Пропуски в эталоне ДДС:");
+        for (const item of report.analytics.ddsReferenceItems.slice(0, 8)) {
+          this.ensurePdfSpace(document, 20);
+          document.text(
+            `${item.label} (${item.id}): ${item.missRate}% (${item.missing} из ${item.total})`,
+          );
+        }
+        document.moveDown(0.4).text("Процессные ошибки:");
+        for (const error of report.analytics.processErrors) {
+          this.ensurePdfSpace(document, 20);
+          document.text(
+            `${REPORT_PROCESS_ERROR_LABELS[error.type] ?? error.type}: ${error.total}; ${error.students.map((student) => `${student.operatorName} — ${student.count}`).join(", ")}`,
+          );
+        }
+        document.moveDown(0.4).text("Динамика среднего балла:");
+        for (const [track, points] of [
+          ["Голос", report.analytics.dynamics.voice],
+          ["ДДС", report.analytics.dynamics.dds],
+        ] as const) {
+          for (const point of points) {
+            this.ensurePdfSpace(document, 20);
+            document.text(
+              `${track}, ${point.label}: ${point.averageScore} (${point.attempts} попыток)`,
+            );
+          }
+        }
+        document.moveDown(0.4).text("Тепловая карта полей:");
+        for (const row of report.analytics.heatmap.rows) {
+          this.ensurePdfSpace(document, 28);
+          document.text(
+            `${row.operatorName}: ${report.analytics.heatmap.fields.map((field, index) => `${field.label} — ${row.values[index] ?? "—"}%`).join("; ")}`,
+          );
+        }
+      }
 
       if (report.students.length > 0) {
         document.moveDown().fontSize(13).text("Ученики");

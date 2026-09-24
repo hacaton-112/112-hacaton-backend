@@ -1,7 +1,9 @@
 import type { InstructorReport } from "../dto/instructor-report.dto";
 import { ReportExporter } from "./report-exporter";
+import { Workbook } from "exceljs";
 
 const report: InstructorReport = {
+  analytics: null,
   generatedAt: "2026-09-17T12:00:00.000Z",
   scope: "group",
   target: {
@@ -79,6 +81,7 @@ const report: InstructorReport = {
         requiredFieldsMissing: 0,
         incorrectFields: 0,
         incidentCardCompleted: true,
+        fields: [],
         recommendations: ["Сохранять темп разговора"],
       },
       grammar: { status: "unavailable", message: "Недоступно" },
@@ -123,6 +126,28 @@ describe(ReportExporter.name, () => {
 
     expect(artifact.contentType).toContain("spreadsheetml");
     expect(artifact.buffer.subarray(0, 2).toString()).toBe("PK");
+  });
+
+  it("writes group analytics to a separate XLSX sheet", async () => {
+    const artifact = await exporter.export(
+      {
+        ...report,
+        analytics: {
+          cardFields: [{
+            field: "address", label: "Адрес", correct: 1, missed: 1,
+            correctedAfterHint: 1, total: 2, correctRate: 50,
+          }],
+          ddsReferenceItems: [],
+          processErrors: [],
+          dynamics: { voice: [], dds: [] },
+          heatmap: { fields: [], rows: [] },
+        },
+      },
+      "xlsx",
+    );
+    const workbook = new Workbook();
+    await workbook.xlsx.load(artifact.buffer as never);
+    expect(workbook.getWorksheet("Аналитика")).toBeDefined();
   });
 
   it("writes a PDF with an embedded Cyrillic font", async () => {
