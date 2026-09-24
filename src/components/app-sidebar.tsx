@@ -29,7 +29,7 @@ import {
   canTrainAsDds,
   canAdministerUsers,
 } from "../config/roles";
-import { ROUTES } from "../config/routes";
+import { isRouteActive, ROUTES } from "../config/routes";
 import { useAuthStore } from "../stores/auth.store";
 import {
   Sidebar,
@@ -119,7 +119,10 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             <SidebarMenu>
               {user?.role === "operator" && (
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.assignments())}
+                  active={isRouteActive(
+                    location.pathname,
+                    ROUTES.assignments(),
+                  )}
                   icon={GraduationCap}
                   label="Мои назначения"
                   onClick={() => goTo(ROUTES.assignments())}
@@ -131,7 +134,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   вызова 112 — дополнительный режим. */}
               {showDds && (
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.dds())}
+                  active={isRouteActive(location.pathname, ROUTES.dds())}
                   icon={RadioTower}
                   label="Карточки ДДС"
                   onClick={() => goTo(ROUTES.dds())}
@@ -141,7 +144,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               )}
               {user?.role === "operator" && (
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.ddsResults())}
+                  active={isRouteActive(
+                    location.pathname,
+                    ROUTES.ddsResults(),
+                    true,
+                  )}
                   icon={FileChartColumn}
                   label="Мои результаты ДДС"
                   onClick={() => goTo(ROUTES.ddsResults())}
@@ -150,7 +157,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 </SidebarNavItem>
               )}
               <SidebarNavItem
-                active={location.pathname === ROUTES.operator()}
+                active={isRouteActive(location.pathname, ROUTES.operator())}
                 icon={Headphones}
                 label="Рабочее место"
                 onClick={() => goTo(ROUTES.operatorWorkplace())}
@@ -158,7 +165,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 Рабочее место
               </SidebarNavItem>
               <SidebarNavItem
-                active={location.pathname.startsWith(ROUTES.debrief())}
+                active={isRouteActive(
+                  location.pathname,
+                  ROUTES.debrief(),
+                  true,
+                )}
                 icon={ClipboardList}
                 label="Разбор звонков"
                 onClick={() => goTo(ROUTES.debrief())}
@@ -166,7 +177,8 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 Разбор звонков
               </SidebarNavItem>
               <SidebarNavItem
-                active={location.pathname.startsWith(
+                active={isRouteActive(
+                  location.pathname,
                   ROUTES.methodicalMaterials(),
                 )}
                 icon={LibraryBig}
@@ -186,7 +198,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.monitoring())}
+                  active={isRouteActive(location.pathname, ROUTES.monitoring())}
                   icon={Activity}
                   label="Мониторинг"
                   onClick={() => goTo(ROUTES.monitoring())}
@@ -194,7 +206,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Мониторинг
                 </SidebarNavItem>
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.reports())}
+                  active={isRouteActive(location.pathname, ROUTES.reports())}
                   icon={FileChartColumn}
                   label="Отчёты"
                   onClick={() => goTo(ROUTES.reports())}
@@ -202,7 +214,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Отчёты
                 </SidebarNavItem>
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.groups())}
+                  active={isRouteActive(
+                    location.pathname,
+                    ROUTES.groups(),
+                    true,
+                  )}
                   icon={Users}
                   label="Группы"
                   onClick={() => goTo(ROUTES.groups())}
@@ -210,7 +226,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   Группы
                 </SidebarNavItem>
                 <SidebarNavItem
-                  active={location.pathname.startsWith(ROUTES.students())}
+                  active={isRouteActive(
+                    location.pathname,
+                    ROUTES.students(),
+                    true,
+                  )}
                   icon={GraduationCap}
                   label="Ученики"
                   onClick={() => goTo(ROUTES.students())}
@@ -220,7 +240,11 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 {showScenarios && (
                   <>
                     <SidebarNavItem
-                      active={location.pathname.startsWith(ROUTES.scenarios())}
+                      active={isRouteActive(
+                        location.pathname,
+                        ROUTES.scenarios(),
+                        true,
+                      )}
                       icon={BookOpen}
                       label="Учебные сценарии"
                       onClick={() => goTo(ROUTES.scenarios())}
@@ -228,7 +252,8 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                       Учебные сценарии
                     </SidebarNavItem>
                     <SidebarNavItem
-                      active={location.pathname.startsWith(
+                      active={isRouteActive(
+                        location.pathname,
                         ROUTES.ddsReferences(),
                       )}
                       icon={ListChecks}
@@ -252,7 +277,10 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               <SidebarMenu>
                 {canViewClassifier(user?.role) && (
                   <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.classifier())}
+                    active={isRouteActive(
+                      location.pathname,
+                      ROUTES.classifier(),
+                    )}
                     icon={FileSpreadsheet}
                     label="Классификатор"
                     onClick={() => goTo(ROUTES.classifier())}
@@ -262,7 +290,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 )}
                 {canAdministerUsers(user?.role) && (
                   <SidebarNavItem
-                    active={location.pathname.startsWith(ROUTES.admin())}
+                    active={isRouteActive(location.pathname, ROUTES.admin())}
                     icon={ShieldCheck}
                     label="Администрирование"
                     onClick={() => goTo(ROUTES.admin())}

@@ -16,7 +16,7 @@ export function TrainingField({
   children: ReactNode;
 }) {
   return (
-    <Label className={`grid gap-1 ${className ?? ""}`}>
+    <Label className={`grid min-w-0 gap-1 ${className ?? ""}`}>
       <Text size="1" color="gray">
         {label}
       </Text>

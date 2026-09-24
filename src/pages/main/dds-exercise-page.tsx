@@ -2,15 +2,20 @@ import {
   Button,
   Card,
   Callout,
-  Flex,
   Heading,
   ScrollArea,
   Spinner,
   Text,
   TextField,
 } from "@bolid-ui/themes";
-import { AlertTriangle, ChevronUp, Clock3, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronUp,
+  Clock3,
+  Search,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ROUTES } from "../../config/routes";
 import { useAuthStore } from "../../stores/auth.store";
@@ -61,7 +66,7 @@ function DdsLearnerPage() {
 
   if (requestedExerciseId !== appliedExerciseId) {
     setAppliedExerciseId(requestedExerciseId);
-    if (requestedExerciseId) setSelectedExerciseId(requestedExerciseId);
+    setSelectedExerciseId(requestedExerciseId);
   }
 
   const filtered = useMemo(() => {
@@ -85,6 +90,20 @@ function DdsLearnerPage() {
         exercise.status !== "completed" && exercise.status !== "refused",
     ) ??
     list[0];
+  const isCardFocused = selectedExerciseId !== undefined;
+
+  const returnToQueue = () => {
+    setSelectedExerciseId(undefined);
+    navigate(ROUTES.dds(), { replace: true });
+  };
+
+  const focusExercise = useCallback(
+    (exerciseId: string) => {
+      setSelectedExerciseId(exerciseId);
+      navigate(ROUTES.ddsExercise(exerciseId), { replace: true });
+    },
+    [navigate],
+  );
 
   const transition = async (status: TransitionStatus, comment?: string) => {
     if (!selectedExercise) return;
@@ -102,12 +121,19 @@ function DdsLearnerPage() {
       <main className="arm-dds-page min-h-full w-full">
         <header className="arm-dds-search-header">
           <div>
-            <Flex align="center" justify="between" gap="2">
-              <h1>Поиск происшествий</h1>
-              <Search className="arm-dds-search-glass" size={26} />
-            </Flex>
+            <TextField.Root
+              className="arm-dds-primary-search"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Поиск происшествий"
+              aria-label="Поиск происшествий"
+            >
+              <TextField.Slot side="right">
+                <Search className="arm-dds-search-glass" size={26} />
+              </TextField.Slot>
+            </TextField.Root>
             <div className="arm-dds-search-filters">
-              <span>расширенный по параметрам</span>
+              <span>номер, адрес, сценарий или тип происшествия</span>
               <button
                 type="button"
                 onClick={() => setQuery("")}
@@ -121,19 +147,9 @@ function DdsLearnerPage() {
         </header>
 
         <section
-          className="arm-dds-toolbar"
-          aria-label="Поиск и подача карточек"
+          className="arm-dds-toolbar arm-dds-toolbar-single"
+          aria-label="Состояние смены ДДС"
         >
-          <TextField.Root
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Введите номер, адрес или тип происшествия"
-            aria-label="Поиск происшествий"
-          >
-            <TextField.Slot>
-              <Search size={17} />
-            </TextField.Slot>
-          </TextField.Root>
           <DdsShiftPanel
             fetching={dds.exercises.isFetching}
             incoming={
@@ -148,7 +164,7 @@ function DdsLearnerPage() {
 
         <DdsActiveLesson
           current={selectedExercise}
-          onReady={(exercise) => setSelectedExerciseId(exercise.id)}
+          onReady={(exercise) => focusExercise(exercise.id)}
         />
 
         {dds.exercises.error && (
@@ -184,42 +200,52 @@ function DdsLearnerPage() {
             </Card>
           )}
 
-        <section className="arm-dds-queue" aria-labelledby="dds-queue-title">
-          <div className="arm-dds-section-title">
-            <strong id="dds-queue-title">
-              Список происшествий <ChevronUp size={15} />
-            </strong>
-            <span>
-              {dds.exercises.isFetching && <Spinner size="1" />}{" "}
-              {filtered.length}
-              {" из "}
-              {list.length}
-            </span>
-          </div>
-          <DdsExerciseList
-            exercises={filtered}
-            selectedId={selectedExercise?.id}
-            onSelect={setSelectedExerciseId}
-          />
-          {filtered.length > 0 && (
-            <div className="arm-dds-pagination">
-              <span>Страница: 1</span>
-              <span>Записей на странице: {filtered.length}</span>
-              <strong>
-                1-{filtered.length} из {list.length}
+        {!isCardFocused && (
+          <section className="arm-dds-queue" aria-labelledby="dds-queue-title">
+            <div className="arm-dds-section-title">
+              <strong id="dds-queue-title">
+                Список происшествий <ChevronUp size={15} />
               </strong>
+              <span>
+                {dds.exercises.isFetching && <Spinner size="1" />}{" "}
+                {filtered.length}
+                {" из "}
+                {list.length}
+              </span>
             </div>
-          )}
-        </section>
+            <DdsExerciseList exercises={filtered} onSelect={focusExercise} />
+            {filtered.length > 0 && (
+              <div className="arm-dds-pagination">
+                <span>Страница: 1</span>
+                <span>Записей на странице: {filtered.length}</span>
+                <strong>
+                  1-{filtered.length} из {list.length}
+                </strong>
+              </div>
+            )}
+          </section>
+        )}
 
-        <section className="arm-dds-detail" aria-label="Карточка происшествия">
-          <DdsCardPanel
-            exercise={selectedExercise}
-            pending={dds.transition.isPending}
-            error={dds.transition.error?.message}
-            onTransition={transition}
-          />
-        </section>
+        {isCardFocused && (
+          <>
+            <div className="arm-dds-card-navigation">
+              <Button type="button" variant="soft" onClick={returnToQueue}>
+                <ArrowLeft size={16} /> К списку происшествий
+              </Button>
+            </div>
+            <section
+              className="arm-dds-detail"
+              aria-label="Карточка происшествия"
+            >
+              <DdsCardPanel
+                exercise={selectedExercise}
+                pending={dds.transition.isPending}
+                error={dds.transition.error?.message}
+                onTransition={transition}
+              />
+            </section>
+          </>
+        )}
       </main>
     </ScrollArea>
   );

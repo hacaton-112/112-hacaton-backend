@@ -41,7 +41,7 @@ export function ReportSummary({ report }: { report: InstructorReport }) {
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {tiles.map((tile) => (
         <Card key={tile.label} size="2">
           <Text as="p" size="1" color="gray">

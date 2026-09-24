@@ -145,11 +145,7 @@ export function DdsPhonePanel({
   };
 
   return (
-    <Card
-      size="2"
-      variant="classic"
-      className="bg-gray-12 grid gap-3 text-white"
-    >
+    <Card size="2" variant="classic" className="arm-dds-phone-panel grid gap-3">
       <Flex align="center" justify="between" gap="2" wrap="wrap">
         <Flex align="center" gap="2">
           <PhoneCall size={17} />
@@ -166,7 +162,7 @@ export function DdsPhonePanel({
         <PhoneCall size={16} /> Открыть телефон
       </Button>
 
-      <Text size="1" color="gray">
+      <Text size="1" className="arm-dds-phone-help">
         {canCall
           ? "Наряды и набор номера — в окне телефона."
           : "Откройте аппарат заранее; звонок станет доступен после принятия карточки."}
