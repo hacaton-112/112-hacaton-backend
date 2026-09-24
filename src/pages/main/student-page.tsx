@@ -15,6 +15,7 @@ import { Breadcrumbs } from "../../components/ui/breadcrumbs";
 import { InstructorCallsTable } from "../../components/training/instructor-calls-table";
 import { StudentMethodicalMaterialsTab } from "../../components/training/student-methodical-materials";
 import { InstructorDdsSummary } from "../../components/reports/instructor-dds-summary";
+import { ReadinessCard } from "../../components/reports/readiness-card";
 import { TrainingAssignmentsPanel } from "../../components/training/training-assignments-panel";
 import {
   formatDateTime,
@@ -27,13 +28,19 @@ import {
   useStudentProfile,
   useTrainingMutations,
 } from "../../hooks/use-training";
-import { useInstructorReport } from "../../hooks/use-reports";
+import {
+  useInstructorReadiness,
+  useInstructorReport,
+} from "../../hooks/use-reports";
 
 /** Ученик: успеваемость по всем занятиям и разборы его звонков. */
 export default function StudentPage() {
   const { groupId, userId = "" } = useParams();
   const profile = useStudentProfile(userId);
   const report = useInstructorReport(
+    userId ? { scope: "student", operatorId: userId } : null,
+  );
+  const readiness = useInstructorReadiness(
     userId ? { scope: "student", operatorId: userId } : null,
   );
 
@@ -75,7 +82,11 @@ export default function StudentPage() {
       )}
 
       {profile.data && (
-        <StudentContent profile={profile.data} dds={report.data?.dds} />
+        <StudentContent
+          profile={profile.data}
+          dds={report.data?.dds}
+          readiness={readiness.data?.prediction}
+        />
       )}
     </main>
   );
@@ -84,9 +95,11 @@ export default function StudentPage() {
 function StudentContent({
   profile,
   dds,
+  readiness,
 }: {
   profile: StudentProfile;
   dds?: import("../../contracts/reports").InstructorReport["dds"];
+  readiness?: import("../../contracts/reports").ReadinessPrediction;
 }) {
   const { student, stats, calls } = profile;
   const mutations = useTrainingMutations();
@@ -167,6 +180,7 @@ function StudentContent({
       </div>
 
       {dds && <InstructorDdsSummary dds={dds} />}
+      {readiness && <ReadinessCard prediction={readiness} />}
 
       <Tabs.Root defaultValue="calls" className="flex min-h-0 flex-1 flex-col">
         <Tabs.List size="2">

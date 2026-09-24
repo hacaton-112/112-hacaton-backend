@@ -18,6 +18,7 @@ import { ReportAttemptsTable } from "../../components/reports/report-attempts-ta
 import { ReportStudentsTable } from "../../components/reports/report-students-table";
 import { ReportSummary } from "../../components/reports/report-summary";
 import { InstructorDdsSummary } from "../../components/reports/instructor-dds-summary";
+import { ReportAnalytics } from "../../components/reports/report-analytics";
 import { TrainingField } from "../../components/training/training-field";
 import type {
   InstructorReportFilters,
@@ -262,6 +263,9 @@ export default function ReportsPage() {
 
           <ReportSummary report={report.data} />
           <InstructorDdsSummary dds={report.data.dds} />
+          {report.data.analytics && (
+            <ReportAnalytics analytics={report.data.analytics} />
+          )}
 
           <Tabs.Root defaultValue="attempts">
             <Tabs.List>

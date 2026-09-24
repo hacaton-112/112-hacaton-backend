@@ -29,6 +29,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { GroupFormDialog } from "../../components/training/group-form-dialog";
+import { ReadinessBadge } from "../../components/reports/readiness-card";
 import { StudentEditDialog } from "../../components/training/student-edit-dialog";
 import { StudentCreateDialog } from "../../components/training/student-create-dialog";
 import { TrainingConfirmDialog } from "../../components/training/training-confirm-dialog";
@@ -42,6 +43,7 @@ import {
   useTrainingGroups,
   useTrainingMutations,
 } from "../../hooks/use-training";
+import { useInstructorReadiness } from "../../hooks/use-reports";
 import {
   ACTION_COLUMN,
   DATA_TABLE_DEFAULTS,
@@ -98,6 +100,20 @@ function RowActionCell({ node, data }: ICellRendererParams<GroupTableRow>) {
       >
         Перейти <ArrowRight size={14} />
       </Button>
+    </Flex>
+  );
+}
+
+function GroupReadinessCell({ node, data }: ICellRendererParams<GroupTableRow>) {
+  const row = node.group ? node.allLeafChildren?.[0]?.data : data;
+  const readiness = useInstructorReadiness(
+    row ? { scope: "group", groupId: row.groupId } : null,
+  );
+  if (readiness.isPending) return <Text size="1" color="gray">Расчёт…</Text>;
+  if (!readiness.data) return <Text size="1" color="gray">—</Text>;
+  return (
+    <Flex align="center" className="h-full">
+      <ReadinessBadge prediction={readiness.data.prediction} />
     </Flex>
   );
 }
@@ -263,6 +279,13 @@ export default function GroupsPage() {
         minWidth: 150,
         valueGetter: ({ data }) => data?.student?.joinedAt ?? null,
         valueFormatter: ({ value }) => (value ? formatDateTime(value) : ""),
+      },
+      {
+        colId: "readiness",
+        headerName: "Готовность группы",
+        minWidth: 210,
+        sortable: false,
+        cellRenderer: GroupReadinessCell,
       },
       {
         ...ACTION_COLUMN,
