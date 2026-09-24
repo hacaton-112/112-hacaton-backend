@@ -33,6 +33,8 @@ export const VoicePipelineRequestSchema = z
     voice: VoicePipelineVoiceSchema,
     /** Internal factory decision, never supplied by a websocket client. */
     preferPreparedReply: z.boolean().optional(),
+    /** Текстовый разговор: реплика нужна словами, синтез речи не запускается. */
+    textOnly: z.boolean().optional(),
     /** Monotonic process-local deadline set by the trusted scenario factory, not a client field. */
     exceptionDeadlineAt: z.number().nonnegative().optional(),
     exceptionReason: z
@@ -172,6 +174,15 @@ export const VoicePipelineMetricsSchema = z
     }
   });
 
+/** Итог текстового хода: звука нет, и метрики синтеза здесь не бывает. */
+export const TextTurnMetricsSchema = z
+  .object({
+    timeToReplyMs: z.number().nonnegative(),
+    durationMs: z.number().nonnegative(),
+    generation: VoicePipelineGenerationMetricsSchema,
+  })
+  .strict();
+
 export const VoicePipelineStreamEventSchema = z.discriminatedUnion("type", [
   z
     .object({
@@ -192,6 +203,12 @@ export const VoicePipelineStreamEventSchema = z.discriminatedUnion("type", [
       metrics: VoicePipelineMetricsSchema,
     })
     .strict(),
+  z
+    .object({
+      type: z.literal("voice.text.completed"),
+      metrics: TextTurnMetricsSchema,
+    })
+    .strict(),
 ]);
 
 export type VoicePipelineVoice = z.infer<typeof VoicePipelineVoiceSchema>;
@@ -202,6 +219,7 @@ export type PrescribedSpeechRequest = z.infer<
 export type PrescribedSpeechMetrics = z.infer<
   typeof PrescribedSpeechMetricsSchema
 >;
+export type TextTurnMetrics = z.infer<typeof TextTurnMetricsSchema>;
 export type VoicePipelineGenerationMetrics = z.infer<
   typeof VoicePipelineGenerationMetricsSchema
 >;

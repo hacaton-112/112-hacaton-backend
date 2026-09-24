@@ -351,6 +351,7 @@ const createMetrics = () => ({
 const startedCall = async (
   gateway: VoicePipelineGateway,
   socket: SocketMock,
+  channel: "voice" | "text" = "voice",
 ): Promise<void> => {
   await gateway.handleClientMessage(
     asSocket(socket),
@@ -358,6 +359,7 @@ const startedCall = async (
       type: "start",
       scenarioVersionId: "version-1",
       assignmentId: "assignment-1",
+      channel,
     }),
     false,
   );
@@ -375,6 +377,7 @@ const createRuntime = async (
   } = createRecorder(),
   cards = createCards(),
   training = createTraining(),
+  channel: "voice" | "text" = "voice",
 ) => {
   const streamReply = jest.fn(
     (input: VoicePipelineRequest, signal: AbortSignal) => stream(input, signal),
@@ -427,7 +430,7 @@ const createRuntime = async (
   const socket = new SocketMock();
   await gateway.handleConnection(asSocket(socket), handshake("Bearer token"));
   // Все сценарии разговора идут после старта: speak до него отвергается.
-  await startedCall(gateway, socket);
+  await startedCall(gateway, socket, channel);
   socket.sent.length = 0;
 
   return {
@@ -587,6 +590,79 @@ describe(VoicePipelineGateway.name, () => {
       "audio.start",
       "audio.done",
     ]);
+  });
+
+  it("ведёт текстовый разговор без синтеза речи и без микрофона", async () => {
+    // Поток отвечает так же, как настоящий конвейер в текстовом режиме:
+    // реплика словами и конец хода, без единого звукового кадра.
+    const textStream = async function* (
+      pipelineRequest: VoicePipelineRequest,
+    ): AsyncIterable<VoicePipelineStreamEvent> {
+      expect(pipelineRequest.textOnly).toBe(true);
+      yield {
+        type: "voice.reply.ready",
+        result: { reply, source: "model", attempts },
+        timeToReplyMs: 20,
+      };
+      yield {
+        type: "voice.text.completed",
+        metrics: {
+          timeToReplyMs: 20,
+          durationMs: 25,
+          generation: { source: "model", attempts },
+        },
+      };
+    };
+    const runtime = await createRuntime(
+      textStream,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "text",
+    );
+
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "accept" }),
+      false,
+    );
+
+    // Первая реплика приходит текстом в самом `call.accepted`.
+    expect(textEvents(runtime.socket).map((event) => event.type)).toEqual([
+      "call.accepted",
+    ]);
+    expect(runtime.streamPrescribedSpeech).not.toHaveBeenCalled();
+
+    runtime.socket.sent.length = 0;
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "speak", operatorText: "Что произошло?" }),
+      false,
+    );
+
+    expect(textEvents(runtime.socket).map((event) => event.type)).toEqual([
+      "reply.text",
+      "reply.done",
+    ]);
+    // Звук клиенту не уходит: двоичных кадров в текстовом разговоре нет.
+    expect(runtime.socket.sent.some(({ binary }) => binary)).toBe(false);
+
+    runtime.socket.sent.length = 0;
+    await runtime.gateway.handleClientMessage(
+      asSocket(runtime.socket),
+      message({ type: "listen.start" }),
+      false,
+    );
+
+    expect(textEvents(runtime.socket)[0]).toMatchObject({
+      type: "error",
+      code: "text-channel-only",
+    });
+    expect(runtime.asr.open).not.toHaveBeenCalled();
   });
 
   it("reports a refused lifecycle command instead of failing silently", async () => {

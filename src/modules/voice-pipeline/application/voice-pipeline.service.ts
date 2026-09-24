@@ -212,6 +212,26 @@ export class VoicePipelineService {
       timeToReplyMs,
     });
 
+    // Текстовый разговор заканчивается самой репликой: озвучивать нечего, и
+    // пауза «перед ответом» здесь тоже лишняя — она изображает время на речь.
+    if (request.textOnly) {
+      yield VoicePipelineStreamEventSchema.parse({
+        type: "voice.text.completed",
+        metrics: {
+          timeToReplyMs,
+          durationMs: performance.now() - startedAt,
+          generation: {
+            source: generationResult.source,
+            attempts: generationResult.attempts,
+            ...(generationResult.resolution
+              ? { resolution: generationResult.resolution }
+              : {}),
+          },
+        },
+      });
+      return;
+    }
+
     const turnPlan = request.generation.context.turnPlan;
     const plannedDelayMs = turnPlan?.minimumResponseDelayMs ?? 0;
     const delayMs = remainingResponseDelayMs(

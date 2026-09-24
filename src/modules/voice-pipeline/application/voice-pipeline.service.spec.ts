@@ -185,6 +185,25 @@ const prescribedRequest: PrescribedSpeechRequest = {
 };
 
 describe(VoicePipelineService.name, () => {
+  it("в текстовом разговоре отдаёт реплику и не идёт в синтез речи", async () => {
+    const dialogue = createDialogueMock(modelResult);
+    const speech = createSpeechMock();
+    const service = new VoicePipelineService(dialogue.service, speech.service);
+
+    const events = await collect(service, { ...request, textOnly: true });
+
+    expect(events.map(({ type }) => type)).toEqual([
+      "voice.reply.ready",
+      "voice.text.completed",
+    ]);
+    expect(speech.synthesize).not.toHaveBeenCalled();
+    const completed = events.at(-1);
+    expect(completed).toMatchObject({
+      type: "voice.text.completed",
+      metrics: { generation: { source: modelResult.source } },
+    });
+  });
+
   it("передаёт эмоцию студента v2 в TTS", async () => {
     const dialogue = createDialogueMock({
       ...modelResult,

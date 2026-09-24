@@ -9,6 +9,7 @@ import {
 import { AudioFormatSchema, AudioSampleRateSchema } from "./speech.contracts";
 import {
   PrescribedSpeechMetricsSchema,
+  TextTurnMetricsSchema,
   VoicePipelineMetricsSchema,
 } from "./voice-pipeline.contracts";
 
@@ -17,6 +18,15 @@ const VoicePipelineEventMetadataShape = {
   sessionId: AiIdentifierSchema,
   timestamp: z.iso.datetime(),
 };
+
+/**
+ * Чем ведётся учебный разговор.
+ *
+ * Голос остаётся основным режимом, текст нужен там, где голос недоступен: класс
+ * без гарнитур, слабый канал, разбор сценария за столом. Факты, оценка и
+ * карточка в обоих режимах одни и те же — отличается только способ реплики.
+ */
+export const CallChannelSchema = z.enum(["voice", "text"]);
 
 export const VoicePipelineSpeakCommandSchema = z
   .object({
@@ -61,6 +71,7 @@ export const VoicePipelineStartCommandSchema = z
     scenarioVersionId: AiIdentifierSchema,
     /** Required for operators; instructors/admins may still run a free preview. */
     assignmentId: AiIdentifierSchema.optional(),
+    channel: CallChannelSchema.default("voice"),
   })
   .strict();
 
@@ -69,6 +80,14 @@ export const VoicePipelineResumeCommandSchema = z
     type: z.literal("resume"),
     sessionId: AiIdentifierSchema,
     resumeListening: z.boolean().default(false),
+    /**
+     * Режим разговора после переподключения.
+     *
+     * Клиент называет его сам: если backend перезапустился, соединение
+     * восстанавливается из базы, а режим — свойство окна, а не звонка, и на
+     * оценку он не влияет.
+     */
+    channel: CallChannelSchema.default("voice"),
   })
   .strict();
 
@@ -132,6 +151,7 @@ export const VoicePipelineCallOfferedEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
     type: z.literal("call.offered"),
+    channel: CallChannelSchema,
     scenarioCode: z.string().trim().min(1).max(32),
     title: z.string().trim().min(1).max(120),
     locator: CallLocatorSchema.nullable(),
@@ -162,6 +182,7 @@ export const VoicePipelineCallResumedEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
     type: z.literal("call.resumed"),
+    channel: CallChannelSchema,
     scenarioCode: z.string().trim().min(1).max(32),
     title: z.string().trim().min(1).max(120),
     locator: CallLocatorSchema.nullable(),
@@ -277,6 +298,22 @@ export const VoicePipelineAudioDoneEventSchema = z
   })
   .strict();
 
+/**
+ * Ход текстового разговора закончен.
+ *
+ * В голосовом режиме конец хода обозначает `audio.done`, но озвучивать в
+ * текстовом нечего: клиенту всё равно нужен сигнал, что заявитель дописал и
+ * снова можно отвечать.
+ */
+export const VoicePipelineReplyDoneEventSchema = z
+  .object({
+    ...VoicePipelineEventMetadataShape,
+    type: z.literal("reply.done"),
+    requestId: AiIdentifierSchema,
+    metrics: TextTurnMetricsSchema,
+  })
+  .strict();
+
 export const VoicePipelineRequestCancelledEventSchema = z
   .object({
     ...VoicePipelineEventMetadataShape,
@@ -299,6 +336,8 @@ export const VoicePipelineSocketErrorCodeSchema = z.enum([
   "assignment-attempts-exhausted",
   "assignment-attempt-active",
   "session-recovery-unavailable",
+  // Микрофон в текстовом разговоре не используется.
+  "text-channel-only",
 ]);
 
 export const VoicePipelineSocketErrorEventSchema = z
@@ -323,6 +362,7 @@ export const VoicePipelineServerEventSchema = z.discriminatedUnion("type", [
   VoicePipelineReplyTextEventSchema,
   VoicePipelineAudioStartEventSchema,
   VoicePipelineAudioDoneEventSchema,
+  VoicePipelineReplyDoneEventSchema,
   VoicePipelineRequestCancelledEventSchema,
   VoicePipelineSocketErrorEventSchema,
 ]);
@@ -336,6 +376,7 @@ export type VoicePipelineResumeCommand = z.infer<
 export type VoicePipelineSpeakCommand = z.infer<
   typeof VoicePipelineSpeakCommandSchema
 >;
+export type CallChannel = z.infer<typeof CallChannelSchema>;
 export type CallStage = z.infer<typeof CallStageSchema>;
 export type CallLocator = z.infer<typeof CallLocatorSchema>;
 export type VoicePipelineListenStartedEvent = z.infer<
