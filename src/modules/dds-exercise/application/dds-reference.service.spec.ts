@@ -1,7 +1,6 @@
-import {
-  expectedCrewServiceFromScenario,
-  latestVersionPerScenario,
-} from "./dds-reference.service";
+import { latestVersionPerScenario } from "@/modules/scenario-catalog/domain/latest-version-per-scenario";
+
+import { expectedCrewServiceFromScenario } from "./dds-reference.service";
 
 describe(expectedCrewServiceFromScenario.name, () => {
   it.each([

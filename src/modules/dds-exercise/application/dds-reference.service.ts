@@ -47,7 +47,6 @@ import type {
 } from "../dto/dds-reference.dto";
 import { latestVersionPerScenario } from "@/modules/scenario-catalog/domain/latest-version-per-scenario";
 
-export { latestVersionPerScenario } from "@/modules/scenario-catalog/domain/latest-version-per-scenario";
 
 const SERVICE_BY_SCENARIO_SERVICE = {
   fire: "dds_01",

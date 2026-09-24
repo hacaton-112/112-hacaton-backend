@@ -23,6 +23,7 @@ import {
   validateEntries,
 } from "@/modules/scenario-audio/domain/dialogue-preparation";
 import { audioFingerprint } from "@/modules/scenario-audio/domain/prepared-dialogue";
+import type { ScenarioSeed } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 
 import {
   toEditableScenario,
@@ -103,7 +104,7 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
   }
 
   importMany(input: {
-    scenarios: readonly import("@/modules/scenario-engine/domain/scenario-seed.schema").ScenarioSeed[];
+    scenarios: readonly ScenarioSeed[];
     actorId: string;
     dryRun: boolean;
   }): Promise<readonly { code: string; outcome: "created" | "updated" }[]> {
