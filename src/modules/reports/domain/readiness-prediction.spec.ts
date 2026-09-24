@@ -36,4 +36,35 @@ describe(predictReadiness.name, () => {
       predictReadiness([...observations].reverse()),
     );
   });
+
+  it("does not let a checked attempt see its own result", () => {
+    // Шесть провалов подряд, затем два успеха. Если прогноз для проверяемой
+    // попытки считать вместе с ней самой, он увидит её высокий балл и «угадает»
+    // оба успеха. По одной лишь прошлой истории он их предсказать не может.
+    const failing = Array.from({ length: 6 }, (_, index) => ({
+      occurredAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      score: 35,
+      passed: false,
+      withinNorm: false,
+      hasProcessErrors: true,
+      textCoverage: 0.3,
+    }));
+    const passing = Array.from({ length: 2 }, (_, index) => ({
+      occurredAt: new Date(Date.UTC(2026, 0, index + 7)).toISOString(),
+      score: 98,
+      passed: true,
+      withinNorm: true,
+      hasProcessErrors: false,
+      textCoverage: 1,
+    }));
+
+    const quality = predictReadiness([...failing, ...passing]).quality;
+
+    expect(quality.status).toBe("measured");
+    expect(quality.accuracy).toBeLessThan(1);
+  });
+
+  it("names nothing as a blocker when nothing holds the trainee back", () => {
+    expect(predictReadiness(history(10, 95)).blockers).toEqual([]);
+  });
 });
