@@ -14,6 +14,7 @@ import {
   DDS_STATUS_LABELS,
 } from "@/modules/dds-exercise/domain/dds-report-aggregation";
 import type { DdsLessonReport } from "@/modules/dds-exercise/dto/dds-report.dto";
+import type { TrainingCertificateData } from "@/modules/training/training.service";
 
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -137,6 +138,51 @@ const ATTEMPT_HEADERS = [
 
 @Injectable()
 export class ReportExporter {
+  exportCertificate(data: TrainingCertificateData): Promise<ReportArtifact> {
+    return new Promise((resolve, reject) => {
+      const document = new PDFDocument({
+        size: "A4",
+        margins: { top: 58, right: 58, bottom: 58, left: 58 },
+        info: { Title: `Сертификат — ${data.assignmentTitle}` },
+      });
+      const chunks: Buffer[] = [];
+      document.on("data", (chunk: Buffer) => chunks.push(chunk));
+      document.on("end", () =>
+        resolve({
+          buffer: Buffer.concat(chunks),
+          contentType: "application/pdf",
+          filename: `certificate-${data.assignmentId.slice(0, 8)}-${data.operatorId.slice(0, 8)}.pdf`,
+        }),
+      );
+      document.on("error", reject);
+      document.registerFont("ReportSans", REPORT_FONT_PATH).font("ReportSans");
+      document.fontSize(24).text("СЕРТИФИКАТ", { align: "center" });
+      document
+        .moveDown(0.4)
+        .fontSize(11)
+        .text("о завершении учебного назначения", { align: "center" })
+        .moveDown(2);
+      document.fontSize(12).text(`Обучающийся: ${data.operatorName}`);
+      document.text(`Группа: ${data.groupName ?? "индивидуальное назначение"}`);
+      document.moveDown();
+      document.text(`Назначение: ${data.assignmentTitle}`);
+      document.text(
+        `Период: ${this.certificateDate(data.startedAt)} — ${this.certificateDate(data.completedAt)}`,
+      );
+      document.text(`Количество попыток: ${data.attempts}`);
+      document.text(`Итоговый балл: ${data.finalScore} из 100`);
+      document.text(`Проходной порог: ${data.passThreshold}`);
+      document.moveDown(1.5).fontSize(18).text("ЗАЧТЕНО", { align: "center" });
+      document.moveDown(3).fontSize(11);
+      document.text(`Дата выдачи: ${this.certificateDate(data.issuedAt)}`);
+      document.moveDown(2);
+      document.text("Место выдачи: ______________________________________");
+      document.moveDown(2);
+      document.text("Преподаватель: __________________ / ________________");
+      document.end();
+    });
+  }
+
   async export(
     report: InstructorReport,
     format: InstructorReportFormat,
@@ -348,6 +394,15 @@ export class ReportExporter {
       }
       document.end();
     });
+  }
+
+  private certificateDate(value: string): string {
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "Europe/Moscow",
+    }).format(new Date(value));
   }
 
   private csv(report: InstructorReport): string {

@@ -157,4 +157,24 @@ describe(ReportExporter.name, () => {
     expect(artifact.buffer.subarray(0, 4).toString()).toBe("%PDF");
     expect(artifact.buffer.length).toBeGreaterThan(1_000);
   });
+
+  it("writes a readable certificate PDF with Cyrillic and digits", async () => {
+    const artifact = await exporter.exportCertificate({
+      assignmentId: "00000000-0000-4000-8000-000000000004",
+      operatorId: "00000000-0000-4000-8000-000000000002",
+      operatorName: "Анна Оператор",
+      groupName: "Смена А",
+      assignmentTitle: "Практика диспетчера ДДС",
+      startedAt: "2026-09-01T09:00:00.000Z",
+      completedAt: "2026-09-17T12:00:00.000Z",
+      attempts: 3,
+      finalScore: 91,
+      passThreshold: 75,
+      issuedAt: "2026-09-18T12:00:00.000Z",
+    });
+
+    expect(artifact.contentType).toBe("application/pdf");
+    expect(artifact.buffer.subarray(0, 4).toString()).toBe("%PDF");
+    expect(artifact.buffer.length).toBeGreaterThan(1_000);
+  });
 });

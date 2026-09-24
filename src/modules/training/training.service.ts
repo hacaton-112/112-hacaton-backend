@@ -42,6 +42,7 @@ import {
 } from "@/drizzle/schema";
 import { AuditLogService } from "@/modules/audit-log/audit-log.service";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
+import { trainingCertificateResult } from "./domain/training-certificate";
 
 import type {
   AddTrainingGroupMember,
@@ -69,6 +70,20 @@ export interface TrainingActor {
 export interface OperatorMembership {
   groupId: string;
   serviceTag: string;
+}
+
+export interface TrainingCertificateData {
+  assignmentId: string;
+  operatorId: string;
+  operatorName: string;
+  groupName: string | null;
+  assignmentTitle: string;
+  startedAt: string;
+  completedAt: string;
+  attempts: number;
+  finalScore: number;
+  passThreshold: number;
+  issuedAt: string;
 }
 
 type AssignmentStatus = TrainingAssignmentRecord["status"];
@@ -661,6 +676,109 @@ export class TrainingService {
     return this.withAttemptCounts(
       await this.assignmentRows(this.assignmentScope(actor)),
     );
+  }
+
+  async certificateData(
+    actor: TrainingActor,
+    assignmentId: string,
+    requestedStudentId?: string,
+  ): Promise<TrainingCertificateData> {
+    const assignment = await this.requireManagedAssignment(actor, assignmentId);
+    if (assignment.status !== "completed" || !assignment.completedAt) {
+      throw new AppConflictException(
+        ErrorCodes.ASSIGNMENT_CERTIFICATE_NOT_READY,
+        "Сертификат доступен только после завершения назначения",
+      );
+    }
+
+    const operatorId = assignment.targetUserId ?? requestedStudentId;
+    if (!operatorId) {
+      throw new AppBadRequestException(
+        ErrorCodes.ASSIGNMENT_CERTIFICATE_STUDENT_REQUIRED,
+        "Для группового назначения выберите обучающегося",
+      );
+    }
+    if (
+      assignment.targetUserId !== null &&
+      requestedStudentId !== undefined &&
+      requestedStudentId !== assignment.targetUserId
+    ) {
+      this.assignmentNotFound();
+    }
+
+    const [student] = await this.db
+      .select({ fullName: users.fullName })
+      .from(users)
+      .where(and(eq(users.id, operatorId), eq(users.role, "operator")))
+      .limit(1);
+    if (!student) {
+      throw new AppNotFoundException(
+        ErrorCodes.AUTH_USER_NOT_FOUND,
+        "Обучающийся не найден",
+      );
+    }
+
+    const rows = await this.db
+      .select({
+        attemptId: trainingAttempts.id,
+        voiceScore: callEvaluations.score,
+        ddsScore: ddsExercises.score,
+      })
+      .from(trainingAttempts)
+      .leftJoin(
+        callEvaluations,
+        eq(callEvaluations.trainingSessionId, trainingAttempts.trainingSessionId),
+      )
+      .leftJoin(
+        ddsExercises,
+        eq(ddsExercises.trainingAttemptId, trainingAttempts.id),
+      )
+      .where(
+        and(
+          eq(trainingAttempts.assignmentId, assignment.id),
+          eq(trainingAttempts.operatorId, operatorId),
+        ),
+      );
+    const scoresByAttempt = new Map<string, number | null>();
+    for (const row of rows) {
+      const score = row.ddsScore ?? row.voiceScore;
+      const known = scoresByAttempt.get(row.attemptId) ?? null;
+      scoresByAttempt.set(
+        row.attemptId,
+        score === null ? known : known === null ? score : Math.max(known, score),
+      );
+    }
+    const result = trainingCertificateResult(
+      [...scoresByAttempt.values()],
+      assignment.passThreshold,
+    );
+    if (!result) {
+      throw new AppConflictException(
+        ErrorCodes.ASSIGNMENT_CERTIFICATE_NOT_PASSED,
+        "Сертификат не выдаётся: нет оценки, достигшей проходного порога",
+      );
+    }
+
+    const [group] = assignment.groupId
+      ? await this.db
+          .select({ name: trainingGroups.name })
+          .from(trainingGroups)
+          .where(eq(trainingGroups.id, assignment.groupId))
+          .limit(1)
+      : [];
+    return {
+      assignmentId: assignment.id,
+      operatorId,
+      operatorName: student.fullName,
+      groupName: group?.name ?? null,
+      assignmentTitle: assignment.title,
+      startedAt: (assignment.launchedAt ?? assignment.createdAt).toISOString(),
+      completedAt: assignment.completedAt.toISOString(),
+      attempts: result.attempts,
+      finalScore: result.finalScore,
+      passThreshold: assignment.passThreshold,
+      issuedAt: new Date().toISOString(),
+    };
   }
 
   /** Лента оператора: только запущенные занятия, адресованные ему. */
