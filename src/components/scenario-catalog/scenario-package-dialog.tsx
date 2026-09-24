@@ -105,17 +105,19 @@ export function ScenarioPackageDialog({
           Сначала сервер проверит весь JSON без записи. После проверки
           подтвердите создание новых версий.
         </Dialog.Description>
-        <label className="inline-flex cursor-pointer">
-          <input
-            type="file"
-            accept="application/json,.json"
-            className="sr-only"
-            onChange={(event) => void selectFile(event)}
-          />
-          <span className="inline-flex items-center gap-2 rounded-md bg-(--accent-9) px-3 py-2 text-sm text-white">
+        {/* Поле выбора файла спрятано под обычной кнопкой: свой вид у него в
+            каждом браузере свой, а рядом стоят кнопки приложения. */}
+        <Button asChild variant="soft">
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              onChange={(event) => void selectFile(event)}
+            />
             <Upload size={16} /> Выбрать JSON-файл
-          </span>
-        </label>
+          </label>
+        </Button>
         {pending && !report && (
           <Flex align="center" gap="2" mt="3">
             <Spinner size="1" />

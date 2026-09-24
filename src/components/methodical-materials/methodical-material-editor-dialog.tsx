@@ -1,10 +1,12 @@
 import {
   Button,
   Callout,
+  Checkbox,
   Dialog,
   Flex,
   Spinner,
   Text,
+  TextArea,
   TextField,
   toast,
 } from "@bolid-ui/themes";
@@ -235,12 +237,11 @@ function MaterialEditorForm({
                 key={role}
                 className="flex cursor-pointer items-center gap-2"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={roles.includes(role)}
-                  onChange={(event) =>
+                  onCheckedChange={(checked) =>
                     setRoles((current) =>
-                      event.target.checked
+                      checked === true
                         ? [...current, role]
                         : current.filter((value) => value !== role),
                     )
@@ -355,16 +356,18 @@ function MaterialEditorForm({
           </div>
           <div className="mt-4 grid min-h-[360px] gap-4 lg:grid-cols-2">
             <TrainingField label="Markdown">
-              <textarea
+              <TextArea
                 required
                 spellCheck
-                className="h-[340px] w-full resize-y rounded-(--radius-2) border border-(--gray-a7) bg-(--color-surface) p-3 font-mono text-sm leading-6 outline-none focus:border-(--accent-8)"
+                // Разметку набирают моноширинным: так видно отступы списков и
+                // цитат, а предпросмотр рядом показывает результат.
+                className="h-[340px] font-mono"
                 value={activeSection.contentMarkdown}
                 placeholder={
                   "## Алгоритм\n\n1. Уточните адрес.\n2. Проверьте угрозы.\n\n> Важное примечание"
                 }
                 onChange={(event) =>
-                  updateActive({ contentMarkdown: event.target.value })
+                  updateActive({ contentMarkdown: event.currentTarget.value })
                 }
               />
             </TrainingField>

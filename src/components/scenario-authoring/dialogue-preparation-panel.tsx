@@ -1,4 +1,4 @@
-import { Button, Card, Flex, Heading, Text } from "@bolid-ui/themes";
+import { Button, Card, Checkbox, Flex, Heading, Text } from "@bolid-ui/themes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -202,15 +202,14 @@ export function DialoguePreparationPanel({
             </Flex>
           </details>
         )}
-        <label>
-          <input
-            type="checkbox"
+        <Text as="label" size="2" className="flex items-center gap-2">
+          <Checkbox
             checked={useAi}
             disabled={busy}
-            onChange={(event) => setUseAi(event.target.checked)}
-          />{" "}
+            onCheckedChange={(checked) => setUseAi(checked === true)}
+          />
           Предложить варианты вопросов с помощью AI
-        </label>
+        </Text>
         {useAi && (
           <Text size="2" color="gray">
             Вопросы будут переданы настроенному AI-провайдеру (локальному или

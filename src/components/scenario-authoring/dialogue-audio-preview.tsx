@@ -1,4 +1,4 @@
-import { Button, Flex, Text } from "@bolid-ui/themes";
+import { Button, Flex, Select, Text } from "@bolid-ui/themes";
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { DialoguePreparation } from "../../contracts/dialogue-preparation";
@@ -36,24 +36,30 @@ export function DialogueAudioPreview({
   });
   return (
     <Flex direction="column" gap="2">
-      <label>
+      <Text as="label" size="2" className="grid gap-1">
         Прослушать запись
-        <select
-          aria-label="Запись для прослушивания"
-          value={index}
-          onChange={(event) => {
+        <Select.Root
+          value={String(index)}
+          onValueChange={(value) => {
             request.current += 1;
-            setIndex(Number(event.target.value));
+            setIndex(Number(value));
             setUrl(undefined);
           }}
         >
-          {previews.map((item) => (
-            <option key={item.index} value={item.index} disabled={!item.ready}>
-              {item.index + 1}. {item.text}
-            </option>
-          ))}
-        </select>
-      </label>
+          <Select.Trigger aria-label="Запись для прослушивания" />
+          <Select.Content>
+            {previews.map((item) => (
+              <Select.Item
+                key={item.index}
+                value={String(item.index)}
+                disabled={!item.ready}
+              >
+                {item.index + 1}. {item.text}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </Text>
       <Button
         type="button"
         variant="soft"

@@ -3,6 +3,7 @@ import {
   Button,
   Callout,
   Card,
+  Checkbox,
   Flex,
   Heading,
   Select,
@@ -180,20 +181,24 @@ export function DdsLessonsPanel() {
           <legend className="text-sm font-semibold">Категории событий</legend>
           <Flex gap="3" wrap="wrap">
             {SCENARIO_CATEGORIES.map((category) => (
-              <label key={category} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <Text
+                key={category}
+                as="label"
+                size="2"
+                className="flex items-center gap-2"
+              >
+                <Checkbox
                   checked={categories.includes(category)}
-                  onChange={(event) =>
+                  onCheckedChange={(checked) =>
                     setCategories((current) =>
-                      event.target.checked
+                      checked === true
                         ? [...new Set([...current, category])]
                         : current.filter((value) => value !== category),
                     )
                   }
                 />
                 {DDS_CATEGORY_LABELS[category]}
-              </label>
+              </Text>
             ))}
           </Flex>
         </fieldset>

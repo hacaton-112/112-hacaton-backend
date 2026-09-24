@@ -1,4 +1,4 @@
-import { Button, Card, Flex, Text, TextArea } from "@bolid-ui/themes";
+import { Button, Card, Checkbox, Flex, Text, TextArea } from "@bolid-ui/themes";
 import { useState } from "react";
 import {
   DialogueEntriesSchema,
@@ -60,17 +60,16 @@ export function DialoguePreparationReview({
                 Ответ заявителя: {entry.acknowledge ? "Хорошо. " : ""}
                 {fact.promptValue}
               </Text>
-              <label>
-                <input
-                  type="checkbox"
+              <Text as="label" size="2" className="flex items-center gap-2">
+                <Checkbox
                   checked={entry.acknowledge}
                   disabled={disabled}
-                  onChange={(event) =>
-                    update({ acknowledge: event.target.checked })
+                  onCheckedChange={(checked) =>
+                    update({ acknowledge: checked === true })
                   }
-                />{" "}
+                />
                 Начать ответ со слова «Хорошо»
-              </label>
+              </Text>
             </Flex>
           </Card>
         );
