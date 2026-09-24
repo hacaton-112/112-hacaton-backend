@@ -213,6 +213,19 @@ export const env = createEnv({
       .max(2_592_000)
       .default(86_400),
 
+    // Адрес по точке собирается из собственных тайлов: внешний Nominatim в
+    // закрытом контуре недоступен и остаётся только для разработки.
+    REVERSE_GEOCODER_PROVIDER: z.enum(["tiles", "nominatim"]).default("tiles"),
+    MAP_TILES_BASE_URL: z
+      .url()
+      .default("http://tileserver:8080/data/openmaptiles"),
+    MAP_TILES_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(200)
+      .max(30_000)
+      .default(3_000),
+
     // ── Qwen TTS ────────────────────────────────────────────────
     TTS_PROVIDER: z
       .enum(["mlx-audio", "vllm-omni", "piper"])
