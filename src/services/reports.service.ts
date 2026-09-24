@@ -1,7 +1,9 @@
 import { API_CONFIG } from "../config/api";
 import {
   InstructorReportSchema,
+  InstructorReadinessSchema,
   type InstructorReportFilters,
+  type InstructorReadinessFilters,
   type ReportFormat,
 } from "../contracts/reports";
 import { api } from "../lib/api";
@@ -19,6 +21,15 @@ export const reportsService = {
     return InstructorReportSchema.parse(
       await api.get<unknown>(API_CONFIG.getInstructorReportUrl(), {
         params: reportRequestParams(filters),
+        timeout: REPORT_TIMEOUT_MS,
+      }),
+    );
+  },
+
+  async readiness(filters: InstructorReadinessFilters) {
+    return InstructorReadinessSchema.parse(
+      await api.get<unknown>(API_CONFIG.getInstructorReadinessUrl(), {
+        params: filters,
         timeout: REPORT_TIMEOUT_MS,
       }),
     );

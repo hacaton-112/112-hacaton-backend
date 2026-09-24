@@ -61,6 +61,15 @@ export const InstructorReportAttemptSchema = z.object({
     requiredFieldsMissing: z.number().int().nonnegative().nullable(),
     incorrectFields: z.number().int().nonnegative().nullable(),
     incidentCardCompleted: z.boolean().nullable(),
+    fields: z
+      .array(
+        z.object({
+          field: z.string(),
+          matched: z.boolean(),
+          isRequired: z.boolean(),
+        }),
+      )
+      .default([]),
     recommendations: z.array(z.string()),
   }),
   grammar: z.object({
@@ -133,6 +142,112 @@ export const InstructorReportSchema = z.object({
       weakPoints: [],
       recentAttempts: [],
     }),
+  analytics: z
+    .object({
+      cardFields: z.array(
+        z.object({
+          field: z.string(),
+          label: z.string(),
+          correct: z.number().int().nonnegative(),
+          missed: z.number().int().nonnegative(),
+          correctedAfterHint: z.number().int().nonnegative(),
+          total: z.number().int().positive(),
+          correctRate: z.number().int().min(0).max(100),
+        }),
+      ),
+      ddsReferenceItems: z.array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          missing: z.number().int().nonnegative(),
+          present: z.number().int().nonnegative(),
+          total: z.number().int().positive(),
+          missRate: z.number().int().min(0).max(100),
+        }),
+      ),
+      processErrors: z.array(
+        z.object({
+          type: z.string(),
+          total: z.number().int().positive(),
+          students: z.array(
+            z.object({
+              operatorId: z.uuid(),
+              operatorName: z.string(),
+              count: z.number().int().positive(),
+            }),
+          ),
+        }),
+      ),
+      dynamics: z.object({
+        voice: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string(),
+            occurredAt: z.iso.datetime(),
+            averageScore: z.number().int(),
+            attempts: z.number().int().positive(),
+          }),
+        ),
+        dds: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string(),
+            occurredAt: z.iso.datetime(),
+            averageScore: z.number().int(),
+            attempts: z.number().int().positive(),
+          }),
+        ),
+      }),
+      heatmap: z.object({
+        fields: z.array(z.object({ field: z.string(), label: z.string() })),
+        rows: z.array(
+          z.object({
+            operatorId: z.uuid(),
+            operatorName: z.string(),
+            values: z.array(z.number().int().min(0).max(100).nullable()),
+          }),
+        ),
+      }),
+    })
+    .nullable()
+    .default(null),
+});
+
+export const ReadinessPredictionSchema = z.object({
+  probability: z.number().min(0).max(1),
+  label: z.enum(["ready", "needs_training", "insufficient"]),
+  blockers: z.array(z.string()).min(1).max(3),
+  features: z.object({
+    averageScore: z.number().nullable(),
+    latestScore: z.number().nullable(),
+    trend: z.number(),
+    passRate: z.number().nullable(),
+    withinNormRate: z.number().nullable(),
+    processErrorFrequency: z.number(),
+    textCoverage: z.number().nullable(),
+    attempts: z.number().int().nonnegative(),
+  }),
+  quality: z.object({
+    status: z.enum(["measured", "insufficient"]),
+    accuracy: z.number().min(0).max(1).nullable(),
+    observations: z.number().int().nonnegative(),
+    trainingObservations: z.number().int().nonnegative(),
+    testObservations: z.number().int().nonnegative(),
+  }),
+});
+
+export const InstructorReadinessSchema = z.object({
+  generatedAt: z.iso.datetime(),
+  scope: ReportScopeSchema,
+  target: z.object({ id: z.uuid(), name: z.string() }),
+  prediction: ReadinessPredictionSchema,
+  students: z.array(
+    z.object({
+      operatorId: z.uuid(),
+      operatorName: z.string(),
+      prediction: ReadinessPredictionSchema,
+    }),
+  ),
 });
 
 export type ReportScope = z.infer<typeof ReportScopeSchema>;
@@ -144,6 +259,8 @@ export type InstructorReportStudent = z.infer<
 export type InstructorReportAttempt = z.infer<
   typeof InstructorReportAttemptSchema
 >;
+export type InstructorReadiness = z.infer<typeof InstructorReadinessSchema>;
+export type ReadinessPrediction = z.infer<typeof ReadinessPredictionSchema>;
 
 export type InstructorReportFilters =
   | {
@@ -158,3 +275,7 @@ export type InstructorReportFilters =
       from?: string;
       to?: string;
     };
+
+export type InstructorReadinessFilters =
+  | { scope: "group"; groupId: string }
+  | { scope: "student"; operatorId: string };

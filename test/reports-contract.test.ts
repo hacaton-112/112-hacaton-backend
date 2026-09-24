@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { InstructorReportSchema } from "../src/contracts/reports";
+import {
+  InstructorReadinessSchema,
+  InstructorReportSchema,
+} from "../src/contracts/reports";
 import {
   filenameFromContentDisposition,
   reportRequestParams,
@@ -76,5 +79,38 @@ describe("instructor report contract", () => {
 
     expect(report.grammar.status).toBe("unavailable");
     expect(report.stats.attempts).toBe(0);
+  });
+
+  test("validates an explainable readiness prediction", () => {
+    const prediction = {
+      probability: 0.72,
+      label: "ready",
+      blockers: ["Сохранять стабильность", "Соблюдать норматив"],
+      features: {
+        averageScore: 82,
+        latestScore: 87,
+        trend: 5,
+        passRate: 0.8,
+        withinNormRate: 0.9,
+        processErrorFrequency: 0.1,
+        textCoverage: 0.85,
+        attempts: 10,
+      },
+      quality: {
+        status: "measured",
+        accuracy: 0.75,
+        observations: 10,
+        trainingObservations: 6,
+        testObservations: 4,
+      },
+    } as const;
+    const result = InstructorReadinessSchema.parse({
+      generatedAt: "2026-09-17T12:00:00.000Z",
+      scope: "student",
+      target: { id: operatorId, name: "Стажёр" },
+      prediction,
+      students: [],
+    });
+    expect(result.prediction.probability).toBe(0.72);
   });
 });

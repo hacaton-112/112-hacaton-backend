@@ -39,6 +39,8 @@ export const QUERY_KEYS = {
   instructorCalls: () => ["instructor-calls"] as const,
   instructorReport: (filters: object | null) =>
     ["instructor-report", filters] as const,
+  instructorReadiness: (filters: object | null) =>
+    ["instructor-readiness", filters] as const,
   classifierVersions: () => ["classifier", "versions"] as const,
   activeClassifierTree: () => ["classifier", "active", "tree"] as const,
   classifierRoute: (entryId?: string, qualifierCodes: readonly string[] = []) =>
