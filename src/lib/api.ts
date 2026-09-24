@@ -65,6 +65,12 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   ASSIGNMENT_ATTEMPT_ACTIVE: "У вас уже есть активная попытка",
   ASSIGNMENT_HAS_ACTIVE_ATTEMPTS:
     "Сначала завершите активные попытки операторов",
+  ASSIGNMENT_CERTIFICATE_NOT_READY:
+    "Сертификат доступен только после завершения назначения",
+  ASSIGNMENT_CERTIFICATE_STUDENT_REQUIRED:
+    "Для группового назначения выберите обучающегося",
+  ASSIGNMENT_CERTIFICATE_NOT_PASSED:
+    "Сертификат не сформирован: проходной порог ещё не достигнут",
   TRAINING_SESSION_NOT_ACTIVE: "Сессия уже завершена",
   REPORT_INVALID_PERIOD: "Начало периода отчёта позже его окончания",
   REPORT_TOO_LARGE: "Слишком много попыток — сократите период отчёта",

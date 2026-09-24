@@ -6,13 +6,23 @@ import type {
 import {
   Badge,
   Button,
+  Dialog,
   Flex,
   IconButton,
+  Select,
   Skeleton,
   Text,
   toast,
 } from "@bolid-ui/themes";
-import { Archive, CircleStop, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import {
+  Archive,
+  Award,
+  CircleStop,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ROUTES } from "../../config/routes";
@@ -31,6 +41,7 @@ import {
   type TrainingMutations,
 } from "../../hooks/use-training";
 import { ACTION_COLUMN, DATA_TABLE_DEFAULTS } from "../../lib/data-table";
+import { trainingService } from "../../services/training.service";
 import { AssignmentFormDialog } from "./assignment-form-dialog";
 import { TrainingConfirmDialog } from "./training-confirm-dialog";
 import {
@@ -70,6 +81,10 @@ export function TrainingAssignmentsPanel({
   const [editor, setEditor] = useState<Editor>();
   const [assignmentToDelete, setAssignmentToDelete] =
     useState<TrainingAssignment>();
+  const [certificatePending, setCertificatePending] = useState<string>();
+  const [certificateAssignment, setCertificateAssignment] =
+    useState<TrainingAssignment>();
+  const [certificateStudentId, setCertificateStudentId] = useState("");
   const saving =
     editor?.mode === "edit"
       ? mutations.updateAssignment
@@ -142,6 +157,29 @@ export function TrainingAssignmentsPanel({
     }
   };
 
+  const downloadCertificate = async (
+    assignment: TrainingAssignment,
+    studentId = target.kind === "student" ? target.student.id : undefined,
+  ) => {
+    setCertificatePending(assignment.id);
+    try {
+      await trainingService.downloadCertificate(
+        assignment.id,
+        studentId,
+      );
+      toast.success("Сертификат скачан");
+      setCertificateAssignment(undefined);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Не удалось скачать сертификат",
+      );
+    } finally {
+      setCertificatePending(undefined);
+    }
+  };
+
   const busy =
     mutations.launchAssignment.isPending ||
     mutations.completeAssignment.isPending ||
@@ -211,7 +249,7 @@ export function TrainingAssignmentsPanel({
     },
     {
       ...ACTION_COLUMN,
-      width: 300,
+      width: 410,
       cellRenderer: ({ data }: ICellRendererParams<TrainingAssignment>) => {
         if (!data) return null;
         const actions = assignmentActions(data.status);
@@ -261,6 +299,23 @@ export function TrainingAssignmentsPanel({
               >
                 <Archive size={14} />
               </IconButton>
+            )}
+            {data.status === "completed" && (
+              <Button
+                size="1"
+                variant="soft"
+                disabled={certificatePending === data.id}
+                onClick={() => {
+                  if (target.kind === "student") {
+                    void downloadCertificate(data);
+                    return;
+                  }
+                  setCertificateStudentId(target.group.members[0]?.userId ?? "");
+                  setCertificateAssignment(data);
+                }}
+              >
+                <Award size={14} /> Сертификат
+              </Button>
             )}
             {actions.includes("delete") && (
               <IconButton
@@ -343,6 +398,54 @@ export function TrainingAssignmentsPanel({
         error={mutations.deleteAssignment.error?.message}
         onConfirm={() => void remove()}
       />
+
+      {target.kind === "group" && (
+        <Dialog.Root
+          open={certificateAssignment !== undefined}
+          onOpenChange={(open) => !open && setCertificateAssignment(undefined)}
+        >
+          <Dialog.Content maxWidth="520px" className="w-[calc(100vw-2rem)] sm:max-w-[520px]">
+            <Dialog.Title>Сертификат обучающегося</Dialog.Title>
+            <Dialog.Description size="2" mb="3" color="gray">
+              Выберите участника группы. Сервер выдаст PDF, только если
+              назначение завершено и порог пройден.
+            </Dialog.Description>
+            <Select.Root
+              value={certificateStudentId}
+              onValueChange={setCertificateStudentId}
+            >
+              <Select.Trigger placeholder="Выберите обучающегося" />
+              <Select.Content>
+                {target.group.members.map((student) => (
+                  <Select.Item key={student.userId} value={student.userId}>
+                    {student.fullName}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+            <Flex justify="end" gap="2" mt="4">
+              <Dialog.Close>
+                <Button variant="soft" color="gray">Отмена</Button>
+              </Dialog.Close>
+              <Button
+                disabled={
+                  !certificateStudentId ||
+                  certificatePending === certificateAssignment?.id
+                }
+                onClick={() => {
+                  if (certificateAssignment)
+                    void downloadCertificate(
+                      certificateAssignment,
+                      certificateStudentId,
+                    );
+                }}
+              >
+                <Award size={14} /> Скачать
+              </Button>
+            </Flex>
+          </Dialog.Content>
+        </Dialog.Root>
+      )}
     </div>
   );
 }

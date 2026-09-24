@@ -39,6 +39,8 @@ export const API_CONFIG = {
     `/assignments/${assignmentId}/complete`,
   getArchiveAssignmentUrl: (assignmentId: string) =>
     `/assignments/${assignmentId}/archive`,
+  getTrainingCertificateUrl: (assignmentId: string) =>
+    `/training/assignments/${encodeURIComponent(assignmentId)}/certificate`,
   getLiveTrainingSessionsUrl: () => `/instructor/live-sessions`,
   getInstructorCallsUrl: () => `/instructor/calls`,
   getEndTrainingSessionUrl: (trainingSessionId: string) =>

@@ -18,6 +18,10 @@ import {
   type UpdateTrainingGroup,
 } from "../contracts/training";
 import { api } from "../lib/api";
+import {
+  filenameFromContentDisposition,
+  saveReportBlob,
+} from "./report-download";
 
 const byGroup = (groupId?: string) =>
   groupId ? { params: { groupId } } : undefined;
@@ -114,6 +118,16 @@ export const trainingService = {
     return TrainingAssignmentSchema.parse(
       await api.post<unknown>(API_CONFIG.getArchiveAssignmentUrl(assignmentId)),
     );
+  },
+  async downloadCertificate(assignmentId: string, studentId?: string) {
+    const response = await api.getDownload(
+      API_CONFIG.getTrainingCertificateUrl(assignmentId),
+      studentId ? { params: { studentId } } : undefined,
+    );
+    const filename =
+      filenameFromContentDisposition(response.contentDisposition) ??
+      `certificate-${assignmentId.slice(0, 8)}.pdf`;
+    saveReportBlob(response.blob, filename);
   },
   async listLiveSessions(groupId?: string) {
     return LiveTrainingSessionListSchema.parse(
