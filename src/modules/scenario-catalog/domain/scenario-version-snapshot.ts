@@ -1,5 +1,6 @@
 import {
   type CallerPersonaRecord,
+  type AuthoringSource,
   ESCALATION_TRIGGERS,
   type EscalationRuleRecord,
   INCIDENT_CARD_FIELDS,
@@ -31,7 +32,7 @@ export interface ScenarioVersionRowsInput {
   readonly version: number;
   readonly scenario: ScenarioSeed;
   readonly authorId: string;
-  readonly authoringSource: "manual" | "assistant";
+  readonly authoringSource: AuthoringSource;
   readonly authoringPrompt?: string;
   readonly publishedAt: Date;
   readonly generateId: () => string;

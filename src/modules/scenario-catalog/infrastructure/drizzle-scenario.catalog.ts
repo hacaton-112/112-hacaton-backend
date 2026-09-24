@@ -5,6 +5,7 @@ import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { scenarios, scenarioVersions } from "@/drizzle/schema";
 
+import { latestVersionPerScenario } from "../domain/latest-version-per-scenario";
 import type { ScenarioSummary } from "../dto/scenario-summary.dto";
 import type { ScenarioCatalog } from "../ports/scenario-catalog.port";
 
@@ -15,6 +16,7 @@ export class DrizzleScenarioCatalog implements ScenarioCatalog {
   async listPublished(): Promise<readonly ScenarioSummary[]> {
     const rows = await this.db
       .select({
+        scenarioId: scenarios.id,
         scenarioVersionId: scenarioVersions.id,
         code: scenarios.code,
         title: scenarios.title,
@@ -37,14 +39,8 @@ export class DrizzleScenarioCatalog implements ScenarioCatalog {
 
     // Из нескольких опубликованных версий одного сценария оператору нужна
     // последняя: старые остаются только для разбора прошедших занятий.
-    const latest = new Map<string, ScenarioSummary>();
-
-    for (const row of rows) {
-      if (!latest.has(row.code)) {
-        latest.set(row.code, row);
-      }
-    }
-
-    return [...latest.values()];
+    return latestVersionPerScenario(rows).map(
+      ({ scenarioId: _, ...row }) => row,
+    );
   }
 }

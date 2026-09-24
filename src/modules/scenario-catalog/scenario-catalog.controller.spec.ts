@@ -40,6 +40,7 @@ const createController = () => {
       authoring as unknown as ScenarioAuthoringService,
       {} as ScenarioGenerationService,
       training as unknown as TrainingService,
+      {} as never,
     ),
     authoring,
   };

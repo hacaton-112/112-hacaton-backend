@@ -102,6 +102,93 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
     });
   }
 
+  importMany(input: {
+    scenarios: readonly import("@/modules/scenario-engine/domain/scenario-seed.schema").ScenarioSeed[];
+    actorId: string;
+    dryRun: boolean;
+  }): Promise<readonly { code: string; outcome: "created" | "updated" }[]> {
+    return this.db.transaction(async (tx) => {
+      const outcomes: { code: string; outcome: "created" | "updated" }[] = [];
+      for (const seed of input.scenarios) {
+        const [existing] = await tx
+          .select({ id: scenarios.id })
+          .from(scenarios)
+          .where(eq(scenarios.code, seed.code))
+          .for("update")
+          .limit(1);
+        outcomes.push({
+          code: seed.code,
+          outcome: existing ? "updated" : "created",
+        });
+        if (input.dryRun) continue;
+
+        const now = new Date();
+        if (!existing) {
+          const scenarioId = generateId();
+          await tx.insert(scenarios).values({
+            id: scenarioId,
+            code: seed.code,
+            title: seed.title,
+            category: seed.category,
+            difficulty: seed.difficulty,
+            summary: seed.summary,
+            status: "published",
+            authorId: input.actorId,
+            updatedAt: now,
+          });
+          await this.insertVersion(tx, {
+            scenario: seed,
+            scenarioId,
+            version: 1,
+            authorId: input.actorId,
+            authoringSource: "imported",
+            publishedAt: now,
+          });
+          continue;
+        }
+
+        const [latest] = await tx
+          .select({
+            id: scenarioVersions.id,
+            version: scenarioVersions.version,
+          })
+          .from(scenarioVersions)
+          .where(
+            and(
+              eq(scenarioVersions.scenarioId, existing.id),
+              isNotNull(scenarioVersions.publishedAt),
+            ),
+          )
+          .orderBy(desc(scenarioVersions.version))
+          .limit(1);
+        await tx
+          .update(scenarios)
+          .set({
+            title: seed.title,
+            category: seed.category,
+            difficulty: seed.difficulty,
+            summary: seed.summary,
+            status: "published",
+            updatedAt: now,
+          })
+          .where(eq(scenarios.id, existing.id));
+        await this.insertVersion(
+          tx,
+          {
+            scenario: seed,
+            scenarioId: existing.id,
+            version: (latest?.version ?? 0) + 1,
+            authorId: input.actorId,
+            authoringSource: "imported",
+            publishedAt: now,
+          },
+          latest?.id,
+        );
+      }
+      return outcomes;
+    });
+  }
+
   async loadVersion(
     scenarioVersionId: string,
   ): Promise<EditableScenarioVersion | null> {
@@ -367,16 +454,14 @@ export class DrizzleScenarioAuthoringRepository implements ScenarioAuthoringRepo
       if (requests.some((request) => !pack.assets[audioFingerprint(request)]))
         throw new ConflictException("Подготовка аудио не завершена");
       const entries = validateEntries(input.scenario, pack.entries);
-      await tx
-        .insert(scenarioAudioPacks)
-        .values({
-          scenarioVersionId,
-          status: "ready",
-          assets: pack.assets,
-          entries,
-          completed: requests.length,
-          total: requests.length,
-        });
+      await tx.insert(scenarioAudioPacks).values({
+        scenarioVersionId,
+        status: "ready",
+        assets: pack.assets,
+        entries,
+        completed: requests.length,
+        total: requests.length,
+      });
       await tx
         .update(dialoguePreparations)
         .set({ status: "published", scenarioVersionId, updatedAt: new Date() })

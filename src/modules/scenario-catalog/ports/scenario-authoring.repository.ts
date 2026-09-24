@@ -7,7 +7,7 @@ export interface PublishScenarioInput {
   readonly preparationId?: string;
   readonly scenario: ScenarioSeed;
   readonly authorId: string;
-  readonly authoringSource: "manual" | "assistant";
+  readonly authoringSource: AuthoringSource;
   readonly authoringPrompt?: string;
 }
 
@@ -92,6 +92,12 @@ export interface ScenarioAuthoringRepository {
   publishVersion(
     input: PublishScenarioVersionInput,
   ): Promise<PublishedScenario>;
+
+  importMany(input: {
+    scenarios: readonly ScenarioSeed[];
+    actorId: string;
+    dryRun: boolean;
+  }): Promise<readonly { code: string; outcome: "created" | "updated" }[]>;
 }
 
 export const SCENARIO_AUTHORING_REPOSITORY = Symbol(

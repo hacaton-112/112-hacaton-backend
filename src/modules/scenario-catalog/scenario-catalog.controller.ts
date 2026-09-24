@@ -9,6 +9,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -29,6 +30,7 @@ import { TrainingService } from "@/modules/training/training.service";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import { ScenarioGenerationService } from "./application/scenario-generation.service";
+import { ScenarioPackageService } from "./application/scenario-package.service";
 import {
   CreateScenarioGenerationJobDto,
   ScenarioGenerationJobDto,
@@ -50,6 +52,12 @@ import {
   CheckScenarioGrammarRequestDto,
   ScenarioGrammarReportDto,
 } from "./dto/scenario-grammar.dto";
+import {
+  ScenarioExportQueryDto,
+  ScenarioImportReportDto,
+  type ScenarioImportReport,
+  ScenarioPackageDto,
+} from "./dto/scenario-package.dto";
 import { type ScenarioList, ScenarioListDto } from "./dto/scenario-summary.dto";
 import type {
   EditableScenarioVersion,
@@ -90,6 +98,7 @@ export class ScenarioCatalogController {
     private readonly authoring: ScenarioAuthoringService,
     private readonly generation: ScenarioGenerationService,
     private readonly training: TrainingService,
+    private readonly packages: ScenarioPackageService,
   ) {}
 
   /** Сценарии, на которых можно тренироваться прямо сейчас. */
@@ -107,6 +116,44 @@ export class ScenarioCatalogController {
         allowed.has(scenarioVersionId),
       ),
     };
+  }
+
+  @Get("export")
+  @Roles("instructor", "admin")
+  @ZodSerializerDto(ScenarioPackageDto)
+  async exportPackage(
+    @Query() query: ScenarioExportQueryDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="scenarios-${new Date().toISOString().slice(0, 10)}.json"`,
+    );
+    return this.packages.export(
+      query.ids
+        ?.split(",")
+        .map((id) => id.trim())
+        .filter(Boolean) ?? [],
+    );
+  }
+
+  @Post("import")
+  @Roles("instructor", "admin")
+  @ZodSerializerDto(ScenarioImportReportDto)
+  importPackage(
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ScenarioImportReport> {
+    const record =
+      body !== null && typeof body === "object"
+        ? (body as Record<string, unknown>)
+        : {};
+    const { dryRun, ...packageInput } = record;
+    return this.packages.import(
+      packageInput,
+      dryRun === true,
+      request.user.sub,
+    );
   }
 
   /** AI only prepares an editable draft; this route never writes to the DB. */

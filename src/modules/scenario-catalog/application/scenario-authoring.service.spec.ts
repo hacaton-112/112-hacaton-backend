@@ -36,6 +36,7 @@ const createService = (responses: unknown[]) => {
     .fn()
     .mockResolvedValue({ ...publication, version: 2 });
   const archive = jest.fn().mockResolvedValue("archived");
+  const importMany = jest.fn().mockResolvedValue([]);
 
   return {
     service: new ScenarioAuthoringService(
@@ -45,6 +46,7 @@ const createService = (responses: unknown[]) => {
         loadVersion,
         publishVersion,
         archive,
+        importMany,
       } as ScenarioAuthoringRepository,
       new GrammarService(),
     ),
@@ -53,6 +55,7 @@ const createService = (responses: unknown[]) => {
     loadVersion,
     publishVersion,
     archive,
+    importMany,
   };
 };
 

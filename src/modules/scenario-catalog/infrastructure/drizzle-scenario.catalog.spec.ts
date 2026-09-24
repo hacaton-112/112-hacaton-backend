@@ -1,6 +1,7 @@
 import { DrizzleScenarioCatalog } from "./drizzle-scenario.catalog";
 
 const row = (code: string, version: number) => ({
+  scenarioId: code,
   scenarioVersionId: `${code}-v${version}`,
   code,
   title: "Пожар в жилом доме",

@@ -7,6 +7,7 @@ import { TrainingModule } from "@/modules/training/training.module";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import { ScenarioGenerationService } from "./application/scenario-generation.service";
+import { ScenarioPackageService } from "./application/scenario-package.service";
 import { AliceAiScenarioDraftAssistant } from "./infrastructure/alice-ai-scenario-draft.assistant";
 import { DrizzleScenarioAuthoringRepository } from "./infrastructure/drizzle-scenario-authoring.repository";
 import { DrizzleScenarioCatalog } from "./infrastructure/drizzle-scenario.catalog";
@@ -30,6 +31,7 @@ import { ScenarioCatalogController } from "./scenario-catalog.controller";
   providers: [
     ScenarioAuthoringService,
     ScenarioGenerationService,
+    ScenarioPackageService,
     DrizzleScenarioGenerationRepository,
     {
       provide: SCENARIO_GENERATION_REPOSITORY,

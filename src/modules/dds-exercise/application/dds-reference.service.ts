@@ -45,6 +45,9 @@ import type {
   DdsReferenceListQuery,
   UpdateDdsReference,
 } from "../dto/dds-reference.dto";
+import { latestVersionPerScenario } from "@/modules/scenario-catalog/domain/latest-version-per-scenario";
+
+export { latestVersionPerScenario } from "@/modules/scenario-catalog/domain/latest-version-per-scenario";
 
 const SERVICE_BY_SCENARIO_SERVICE = {
   fire: "dds_01",
@@ -61,17 +64,6 @@ const SERVICE_BY_SCENARIO_SERVICE = {
  * и напоролась — в словаре побеждает последняя запись, то есть самая старая
  * версия.
  */
-export function latestVersionPerScenario<
-  T extends { scenarioId: string; version: number },
->(versions: readonly T[]): T[] {
-  const latest = new Map<string, T>();
-  for (const row of versions) {
-    const known = latest.get(row.scenarioId);
-    if (!known || known.version < row.version) latest.set(row.scenarioId, row);
-  }
-  return [...latest.values()];
-}
-
 export function expectedCrewServiceFromScenario(services: readonly string[]) {
   for (const service of services) {
     const mapped =
