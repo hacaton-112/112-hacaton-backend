@@ -129,7 +129,7 @@ export default function ScenarioCatalogPage() {
   return (
     <main
       aria-label="Учебные сценарии"
-      className="flex h-full min-h-full min-w-0 flex-col gap-3 p-4"
+      className="flex h-full min-h-full min-w-0 flex-col gap-3 p-4 md:p-6"
     >
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <Text size="2" color="gray">

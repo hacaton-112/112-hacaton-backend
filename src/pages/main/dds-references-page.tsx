@@ -114,21 +114,23 @@ export default function DdsReferencesPage() {
         sortable: false,
         cellRenderer: ({ data }: ICellRendererParams<DdsReferenceListItem>) =>
           data ? (
-            <Checkbox
-              aria-label={`Выбрать ${data.title}`}
-              checked={selected.has(data.scenarioVersionId)}
-              // Клик по ячейке иначе дойдёт до строки и откроет редактор эталона.
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onCheckedChange={(checked) =>
-                setSelected((current) => {
-                  const next = new Set(current);
-                  if (checked === true) next.add(data.scenarioVersionId);
-                  else next.delete(data.scenarioVersionId);
-                  return next;
-                })
-              }
-            />
+            <Flex align="center" justify="center" height="100%">
+              <Checkbox
+                aria-label={`Выбрать ${data.title}`}
+                checked={selected.has(data.scenarioVersionId)}
+                // Клик по ячейке иначе дойдёт до строки и откроет редактор эталона.
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                onCheckedChange={(checked) =>
+                  setSelected((current) => {
+                    const next = new Set(current);
+                    if (checked === true) next.add(data.scenarioVersionId);
+                    else next.delete(data.scenarioVersionId);
+                    return next;
+                  })
+                }
+              />
+            </Flex>
           ) : null,
       },
       { field: "code", headerName: "Код", width: 130 },

@@ -54,6 +54,22 @@
   backdrop-filter: blur(8px);
 }
 
+/* Колонка выбора узкая, и флажок, прижатый к левому краю, стоит вплотную к
+   соседней колонке. В ячейке и в заголовке он встаёт по центру. */
+.data-table-cell:has(.data-table-selection-checkbox),
+.data-table-header-cell:has(.data-table-selection-checkbox) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-table-cell:has(.data-table-selection-checkbox)
+  .data-table-selection-checkbox,
+.data-table-header-cell:has(.data-table-selection-checkbox)
+  .data-table-selection-checkbox {
+  margin-inline: auto;
+}
+
 .data-table-row.scenario-row--job {
   background-color: var(--violet-a2) !important;
 }

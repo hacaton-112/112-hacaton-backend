@@ -81,14 +81,14 @@ export default function DdsLessonReportPage() {
 
   if (report.isPending)
     return (
-      <main className="grid gap-4 p-6">
+      <main className="grid gap-4 p-4 md:p-6">
         <Skeleton height="56px" />
         <Skeleton height="420px" />
       </main>
     );
   if (report.error || !data)
     return (
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         <Callout.Root color="red">
           <Callout.Icon>
             <AlertTriangle />
