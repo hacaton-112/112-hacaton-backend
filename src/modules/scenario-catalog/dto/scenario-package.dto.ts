@@ -19,15 +19,6 @@ export const ScenarioPackageSchema = z.object({
 
 export class ScenarioPackageDto extends createZodDto(ScenarioPackageSchema) {}
 
-export const ScenarioImportRequestSchema = z.object({
-  dryRun: z.boolean().default(false),
-  package: z.unknown(),
-});
-
-export class ScenarioImportRequestDto extends createZodDto(
-  ScenarioImportRequestSchema,
-) {}
-
 export const ScenarioImportReportSchema = z.object({
   dryRun: z.boolean(),
   accepted: z.number().int().nonnegative(),
