@@ -21,6 +21,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:golden": "jest --config ./test/jest-golden.json",
     "diagnose:alice-ai": "bun --env-file=.env test/manual/alice-ai-request.diagnostic.ts",
     "diagnose:tts": "bun --env-file=.env test/manual/tts-diagnostic.runner.ts",
     "prepare:tts-reference": "bun --env-file=.env test/manual/prepare-tts-reference.ts",

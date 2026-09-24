@@ -1,0 +1,9 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testMatch": ["<rootDir>/test/golden/**/*.spec.ts"],
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "moduleNameMapper": { "^@/(.*)$": "<rootDir>/src/$1" },
+  "testEnvironment": "node",
+  "maxWorkers": 1
+}
