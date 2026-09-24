@@ -30,6 +30,8 @@ import {
 } from "./infrastructure/telephony.config";
 import { TELEPHONY_CONTROL } from "./ports/telephony-control.port";
 import { TelephonyController } from "./telephony.controller";
+import { AdminWorkstationsController } from "./admin-workstations.controller";
+import { WorkstationConfigurationService } from "./application/workstation-configuration.service";
 
 /**
  * Учебная IP-телефония: диспетчер ДДС передаёт карточку наряду по SIP.
@@ -46,7 +48,7 @@ import { TelephonyController } from "./telephony.controller";
     DdsExerciseModule,
     SpeechSynthesisModule,
   ],
-  controllers: [TelephonyController],
+  controllers: [TelephonyController, AdminWorkstationsController],
   providers: [
     {
       provide: TELEPHONY_CONFIG,
@@ -70,6 +72,7 @@ import { TelephonyController } from "./telephony.controller";
         new AriTelephonyControl(config.ari),
     },
     DrizzleTelephonyDirectory,
+    WorkstationConfigurationService,
     { provide: CREW_HANDOFF_DIRECTORY, useExisting: DrizzleTelephonyDirectory },
     {
       provide: CREW_PROMPT_SOURCE,

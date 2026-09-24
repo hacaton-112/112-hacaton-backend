@@ -28,8 +28,12 @@ export const TelephonyWorkstationListSchema = z
       z
         .object({
           extension: ExtensionSchema,
-          userId: z.string().min(1),
-          fullName: z.string().min(1),
+          name: z.string().min(1),
+          service: z.enum(DISPATCH_SERVICES),
+          userId: z.string().min(1).nullable(),
+          fullName: z.string().min(1).nullable(),
+          email: z.email().nullable(),
+          isActive: z.boolean(),
         })
         .strict(),
     ),
@@ -46,6 +50,38 @@ export class TelephonyWorkstationListDto extends createZodDto(
 ) {}
 export class BindWorkstationRequestDto extends createZodDto(
   BindWorkstationRequestSchema,
+) {}
+
+export const WorkstationExportQuerySchema = z.object({
+  format: z.enum(["xml", "csv"]),
+});
+
+export const WorkstationImportRequestSchema = z.object({
+  format: z.enum(["xml", "csv"]),
+  content: z.string().min(1).max(2_000_000),
+  dryRun: z.boolean().default(false),
+});
+
+export const WorkstationImportReportSchema = z.object({
+  dryRun: z.boolean(),
+  rows: z.array(
+    z.object({
+      row: z.number().int().positive(),
+      extension: z.string().nullable(),
+      status: z.enum(["created", "updated", "rejected"]),
+      reason: z.string().nullable(),
+    }),
+  ),
+});
+
+export class WorkstationExportQueryDto extends createZodDto(
+  WorkstationExportQuerySchema,
+) {}
+export class WorkstationImportRequestDto extends createZodDto(
+  WorkstationImportRequestSchema,
+) {}
+export class WorkstationImportReportDto extends createZodDto(
+  WorkstationImportReportSchema,
 ) {}
 
 export const StartCrewCallRequestSchema = z

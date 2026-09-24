@@ -246,6 +246,13 @@
       "when": 1790784000000,
       "tag": "0032_crew_handoff_asr",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790870400000,
+      "tag": "0033_workstation_configuration",
+      "breakpoints": true
     }
   ]
 }

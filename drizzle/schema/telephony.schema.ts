@@ -53,9 +53,11 @@ export const telephonyWorkstations = pgTable(
   "telephony_workstations",
   {
     extension: text("extension").primaryKey(),
+    name: text("name").notNull(),
+    service: dispatchService("service").notNull(),
     userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, { onDelete: "set null" }),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

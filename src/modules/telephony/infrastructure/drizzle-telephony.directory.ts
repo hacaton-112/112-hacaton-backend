@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
@@ -24,8 +24,12 @@ export interface RescueCrew {
 
 export interface TelephonyWorkstation {
   readonly extension: string;
-  readonly userId: string;
-  readonly fullName: string;
+  readonly name: string;
+  readonly service: DispatchService;
+  readonly userId: string | null;
+  readonly fullName: string | null;
+  readonly email: string | null;
+  readonly isActive: boolean;
 }
 
 export interface CrewCallCommandRecord {
@@ -75,7 +79,12 @@ export class DrizzleTelephonyDirectory {
     const [workstation] = await this.db
       .select({ userId: telephonyWorkstations.userId })
       .from(telephonyWorkstations)
-      .where(eq(telephonyWorkstations.extension, extension))
+      .where(
+        and(
+          eq(telephonyWorkstations.extension, extension),
+          eq(telephonyWorkstations.isActive, true),
+        ),
+      )
       .limit(1);
 
     return workstation?.userId ?? null;
@@ -85,7 +94,12 @@ export class DrizzleTelephonyDirectory {
     const [workstation] = await this.db
       .select({ extension: telephonyWorkstations.extension })
       .from(telephonyWorkstations)
-      .where(eq(telephonyWorkstations.userId, userId))
+      .where(
+        and(
+          eq(telephonyWorkstations.userId, userId),
+          eq(telephonyWorkstations.isActive, true),
+        ),
+      )
       .limit(1);
 
     return workstation?.extension ?? null;
@@ -95,11 +109,15 @@ export class DrizzleTelephonyDirectory {
     return this.db
       .select({
         extension: telephonyWorkstations.extension,
+        name: telephonyWorkstations.name,
+        service: telephonyWorkstations.service,
         userId: telephonyWorkstations.userId,
         fullName: users.fullName,
+        email: users.email,
+        isActive: telephonyWorkstations.isActive,
       })
       .from(telephonyWorkstations)
-      .innerJoin(users, eq(users.id, telephonyWorkstations.userId))
+      .leftJoin(users, eq(users.id, telephonyWorkstations.userId))
       .orderBy(asc(telephonyWorkstations.extension));
   }
 
@@ -112,11 +130,18 @@ export class DrizzleTelephonyDirectory {
   async bindWorkstation(extension: string, userId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
-        .delete(telephonyWorkstations)
+        .update(telephonyWorkstations)
+        .set({ userId: null })
         .where(eq(telephonyWorkstations.userId, userId));
       await tx
         .insert(telephonyWorkstations)
-        .values({ extension, userId })
+        .values({
+          extension,
+          userId,
+          name: `Рабочее место ${extension}`,
+          service: "dds_01",
+          isActive: true,
+        })
         .onConflictDoUpdate({
           target: telephonyWorkstations.extension,
           set: { userId, createdAt: new Date() },
@@ -126,8 +151,60 @@ export class DrizzleTelephonyDirectory {
 
   async unbindWorkstation(extension: string): Promise<void> {
     await this.db
-      .delete(telephonyWorkstations)
+      .update(telephonyWorkstations)
+      .set({ userId: null })
       .where(eq(telephonyWorkstations.extension, extension));
+  }
+
+  async findUserByEmail(email: string) {
+    const [user] = await this.db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    return user ?? null;
+  }
+
+  async saveWorkstation(input: {
+    readonly extension: string;
+    readonly name: string;
+    readonly service: DispatchService;
+    readonly userId: string | null;
+    readonly isActive: boolean;
+  }): Promise<"created" | "updated"> {
+    const [existing] = await this.db
+      .select({ extension: telephonyWorkstations.extension })
+      .from(telephonyWorkstations)
+      .where(eq(telephonyWorkstations.extension, input.extension))
+      .limit(1);
+
+    await this.db.transaction(async (tx) => {
+      if (input.userId) {
+        // Один пользователь не может одновременно отвечать с двух аппаратов.
+        await tx
+          .update(telephonyWorkstations)
+          .set({ userId: null })
+          .where(
+            and(
+              eq(telephonyWorkstations.userId, input.userId),
+              ne(telephonyWorkstations.extension, input.extension),
+            ),
+          );
+      }
+      await tx
+        .insert(telephonyWorkstations)
+        .values(input)
+        .onConflictDoUpdate({
+          target: telephonyWorkstations.extension,
+          set: {
+            name: input.name,
+            service: input.service,
+            userId: input.userId,
+            isActive: input.isActive,
+          },
+        });
+    });
+    return existing ? "updated" : "created";
   }
 
   async reserveCrewCallCommand(input: {

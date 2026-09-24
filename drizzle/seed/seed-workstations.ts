@@ -43,7 +43,13 @@ async function main(): Promise<void> {
         .where(eq(telephonyWorkstations.userId, user.id));
       await db
         .insert(telephonyWorkstations)
-        .values({ extension: seat.extension, userId: user.id })
+        .values({
+          extension: seat.extension,
+          userId: user.id,
+          name: `Рабочее место ${seat.extension}`,
+          service: "dds_01",
+          isActive: true,
+        })
         .onConflictDoUpdate({
           target: telephonyWorkstations.extension,
           set: { userId: user.id },
