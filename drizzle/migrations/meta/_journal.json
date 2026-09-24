@@ -253,6 +253,13 @@
       "when": 1790870400000,
       "tag": "0033_workstation_configuration",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790956800000,
+      "tag": "0034_repair_skipped_feature_migrations",
+      "breakpoints": true
     }
   ]
 }
