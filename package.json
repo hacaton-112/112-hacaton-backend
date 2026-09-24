@@ -64,7 +64,8 @@
     "map:image": "bun scripts/build-map-image.ts",
     "map:prepare": "bun scripts/prepare-russia-map.ts",
     "map:prepare:fonts": "bun scripts/prepare-map.ts",
-    "map:up": "docker compose --profile maps up -d tileserver"
+    "map:up": "docker compose --profile maps up -d tileserver",
+    "demo:reset": "bun --env-file=.env test/manual/reset-demo.ts"
   },
   "dependencies": {
     "@fastify/helmet": "^13.1.1",
