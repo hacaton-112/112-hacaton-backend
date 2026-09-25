@@ -4,7 +4,7 @@ import { join } from "node:path";
 describe("telephony deployment assets", () => {
   it("proxies the public secure browser-phone path to private Asterisk WS", () => {
     const nginx = readFileSync(
-      join(process.cwd(), "ops", "nginx", "nginx.conf"),
+      join(process.cwd(), "..", "..", "infra", "nginx", "nginx.conf"),
       "utf8",
     );
 
@@ -16,7 +16,7 @@ describe("telephony deployment assets", () => {
 
   it("documents a same-origin WSS URL in the production environment", () => {
     const environment = readFileSync(
-      join(process.cwd(), ".env.production.example"),
+      join(process.cwd(), "..", "..", ".env.production.example"),
       "utf8",
     );
 

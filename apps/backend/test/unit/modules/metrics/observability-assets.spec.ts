@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const OBSERVABILITY_DIR = join(process.cwd(), "observability");
+const OBSERVABILITY_DIR = join(process.cwd(), "..", "..", "infra", "observability");
 const DASHBOARDS_DIR = join(OBSERVABILITY_DIR, "grafana/dashboards");
 const RULES_PATH = join(
   OBSERVABILITY_DIR,
