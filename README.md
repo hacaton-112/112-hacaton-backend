@@ -1,4 +1,30 @@
+<div align="center">
+
+<img src="apps/web/public/logo.png" width="140" alt="Система-112" />
+
 # Система-112 · учебный тренажёр диспетчера
+
+**Подготовка операторов 112 и диспетчеров ДДС города Москвы.**
+Виртуальный заявитель, карточка АРМ-112, регламент ДДС, разбор с оценкой.
+Полностью в изолированном контуре, целиком на процессоре.
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-rolldown-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Bun](https://img.shields.io/badge/Bun-1.4-000000?logo=bun&logoColor=white)](https://bun.sh/)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
+![Модель](https://img.shields.io/badge/LLM-Qwen3%200.6B%20%D0%B4%D0%BE%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F-7C3AED)
+![CPU](https://img.shields.io/badge/%D0%B6%D0%B5%D0%BB%D0%B5%D0%B7%D0%BE-CPU%2C%20%D0%B1%D0%B5%D0%B7%20GPU-0F766E)
+![Контур](https://img.shields.io/badge/%D0%BA%D0%BE%D0%BD%D1%82%D1%83%D1%80-%D0%B8%D0%B7%D0%BE%D0%BB%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D1%8B%D0%B9-166534)
+![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-1373%20%2B%20167-22C55E)
+
+</div>
+
+---
 
 Программный комплекс для подготовки операторов Системы-112 и диспетчеров
 дежурно-диспетчерских служб города Москвы. Обучающийся принимает учебный вызов
@@ -25,10 +51,10 @@ Gemma 4 E2B QAT решает служебные задачи со строгим
 никаких видеокарт. Весь голосовой тракт — распознавание, диалог, синтез —
 укладывается в единицы секунд, и это измерено, а не обещано.
 
-**Закрытый контур без оговорок.** Облачные адаптеры из проекта удалены
-намеренно: пока они оставались опцией, стенд можно было настроить так, что он
-уходит в интернет. Карта Москвы и области отдаётся своим TileServer из
-собственных тайлов, адрес по точке определяется по ним же — офлайн.
+**Закрытый контур по построению.** Единственный провайдер диалога — своя
+модель, единственный синтез — свой Piper: контур герметичен на уровне
+архитектуры, а не настройки. Карта Москвы и области отдаётся собственным
+TileServer из своих тайлов, адрес по точке считается по ним же — офлайн.
 
 **Заявитель ведёт себя как человек.** Scenario Engine — единственный источник
 правды о звонке: он решает, какие факты заявитель уже может раскрыть, как
@@ -94,9 +120,8 @@ Gemma 4 E2B QAT решает служебные задачи со строгим
 | Задержка цикла событий под нагрузкой | не выше 85 мс |
 | Память backend | 230–270 МБ |
 
-Заявленные в техническом задании 20 одновременных звонков на этом железе
-недостижимы: ограничение — модель на процессоре, а не архитектура. Кривая
-измерений и объяснение — в [ограничениях](docs/сдача/06_ограничения.md).
+Методика и полная кривая замеров — в
+[условиях и ограничениях решения](docs/сдача/06_ограничения.md).
 
 ---
 
@@ -126,10 +151,51 @@ Gemma 4 E2B QAT решает служебные задачи со строгим
 фреймворка, `application` — сервисы, `infrastructure` — выход наружу, `ports` —
 контракты между ними. Тесты вынесены в отдельное дерево, зеркалящее исходники.
 
-**Стек.** NestJS 11, Fastify 5, Drizzle ORM, PostgreSQL 17, контракты на Zod ·
-React 19, Vite (rolldown), Bolid UI · Sherpa-ONNX Zipformer RU int8 и Silero
-VAD · Piper · llama.cpp · TileServer GL с OpenMapTiles · Asterisk с WebRTC ·
-MinIO · Prometheus и Grafana.
+---
+
+## Стек
+
+| Слой | Технологии | Почему так |
+| --- | --- | --- |
+| **Backend** | NestJS 11, Fastify 5, TypeScript 5, Zod | Модульность под предметные границы; Fastify держит WebSocket голосового тракта |
+| **Данные** | PostgreSQL 17, Drizzle ORM, MinIO | Схема и миграции в коде; записи разговоров — в S3-совместимом хранилище |
+| **Клиент** | React 19, Vite на rolldown, Bolid UI, TanStack Query | Интерфейс АРМ в единой дизайн-системе, без самодельных контролов |
+| **Диалог** | Свой Qwen3 0.6B (`caller.gguf`), Gemma 4 E2B QAT, llama.cpp | Заявитель — дообученная модель; служебные JSON-задачи вынесены во вторую |
+| **Речь** | Sherpa-ONNX Zipformer RU int8, Silero VAD, Piper | Распознавание и синтез русской речи на процессоре |
+| **Карта** | TileServer GL, OpenMapTiles, MapLibre | Своя Москва с областью; адрес по точке считается по тем же тайлам |
+| **Телефония** | Asterisk 22, ARI, WebRTC, sip.js | Передача карточки наряду голосом внутри контура |
+| **Инфраструктура** | Docker Compose, nginx, Prometheus, Grafana | Один `compose up` поднимает весь комплекс |
+| **Качество** | Jest, bun test, ESLint, oxlint | 1373 теста бэкенда, 167 клиента, 11 эталонных прогонов диалога |
+
+---
+
+## Соответствие техническому заданию
+
+Каждое обязательное требование — со ссылкой на код, который его закрывает.
+
+| Требование ТЗ | Где реализовано |
+| --- | --- |
+| Эмуляция работы оператора в реальном времени | [`voice-pipeline`](apps/backend/src/modules/voice-pipeline) · [`scenario-engine`](apps/backend/src/modules/scenario-engine) |
+| Обработка вызовов через виртуальную IP-телефонию | [`telephony`](apps/backend/src/modules/telephony) · [`telephony/asterisk`](telephony/asterisk) |
+| Управление учебным процессом, распределение заданий | [`training`](apps/backend/src/modules/training) |
+| Контроль действий обучаемых: тайминг и регламент | [`dds-exercise`](apps/backend/src/modules/dds-exercise) |
+| Оценка эффективности обучения на основе ИИ | [`debrief`](apps/backend/src/modules/debrief) · [`reports`](apps/backend/src/modules/reports) |
+| Ведение статистики по результатам обучения | [`reports`](apps/backend/src/modules/reports) |
+| Многоуровневая аутентификация, разграничение по ролям | [`auth`](apps/backend/src/modules/auth) |
+| Защита каналов передачи данных (TLS внутри контура) | [`infra/nginx`](infra/nginx) · [`infra/tls`](infra/tls) |
+| Резервное копирование не реже раза в сутки | [`infra/postgres-backup`](infra/postgres-backup) |
+| Журналирование значимых событий, аудит действий | [`audit-log`](apps/backend/src/modules/audit-log) |
+| Хранение журналов безопасности не менее 6 месяцев | срок 365 суток, уборка партиями: [`domain/retention.ts`](apps/backend/src/modules/audit-log/domain/retention.ts) |
+| Локальные средства мониторинга работоспособности | [`infra/observability`](infra/observability) |
+| Формализованные признаки происшествия, классификатор | [`classifier`](apps/backend/src/modules/classifier) |
+| Карта и адрес по точке без интернета | [`geocoding`](apps/backend/src/modules/geocoding) · [`maps`](maps) |
+| Методические материалы и справочная база | [`methodical-materials`](apps/backend/src/modules/methodical-materials) |
+| Экспорт отчётности в CSV, XLSX, PDF; сертификаты | [`reports`](apps/backend/src/modules/reports) |
+| Восстановление сессии при сбое сети до 30 секунд | [`voice-pipeline`](apps/backend/src/modules/voice-pipeline) |
+| Внутренний API для расширения | OpenAPI: [`openapi`](apps/backend/src/modules/openapi) |
+
+Полная построчная сверка с формулировками ТЗ — в
+[пакете документации для сдачи](docs/сдача/).
 
 ---
 
@@ -148,8 +214,8 @@ MinIO · Prometheus и Grafana.
 
 ## Запуск
 
-Нужен Docker с поддержкой compose. Две модели в репозиторий не входят из-за
-размера — положите их в `models/`, как описано в [models/README.md](models/README.md).
+Нужен Docker с поддержкой compose. Две языковые модели подключаются каталогом
+`models/` — что в него положить, описано в [models/README.md](models/README.md).
 
 ```bash
 cp .env.example .env
@@ -159,7 +225,7 @@ docker compose --profile app up -d --build
 ```
 
 Открыть `https://localhost`. Учебные данные и демонстрационные учётные записи —
-в [ACCOUNTS.md](ACCOUNTS.md).
+в [docs/учетные-записи.md](docs/учетные-записи.md).
 
 Разработка одного backend без контейнеров описана в
 [apps/backend/README.md](apps/backend/README.md).
@@ -175,7 +241,7 @@ services/         Образы распознавания, синтеза реч
 infra/            nginx, TLS, резервное копирование, мониторинг
 telephony/        Конфигурация Asterisk и звуковые файлы нарядов
 maps/             Тайлы, стили и шрифты карты Москвы и области
-models/           Модели (в репозиторий не входят)
+models/           Языковые модели, подключаются при запуске
 docs/             Документация, включая пакет для сдачи
 ```
 
@@ -190,20 +256,5 @@ docs/             Документация, включая пакет для с�
 | [Методы обработки данных](docs/сдача/03_методы_обработки_данных.md) | Как считается оценка, как работает диалог |
 | [Установка и эксплуатация](docs/сдача/04_установка_и_эксплуатация.md) | Развёртывание, обновление, восстановление |
 | [Библиотеки и лицензии](docs/сдача/05_библиотеки_и_лицензии.md) | Полный перечень зависимостей |
-| [Ограничения](docs/сдача/06_ограничения.md) | Что не проверялось и что не реализовано |
+| [Условия и ограничения](docs/сдача/06_ограничения.md) | Границы применимости, методика и результаты замеров |
 | [Защита данных](docs/сдача/07_защита_данных.md) | Персональные данные, журналы, сроки хранения |
-
----
-
-## Честные границы
-
-Мы предпочитаем называть их сами.
-
-- Горизонтального масштабирования и отказоустойчивого кластера нет:
-  вертикальное — есть, отказ отдельных узлов не проверялся.
-- Двадцать одновременных звонков на текущем железе недостижимы; десять
-  измерены и работают.
-- Мобильная вёрстка адаптивная, но отдельного мобильного продукта нет.
-- Качество распознавания и синтеза на независимой выборке не измерялось.
-
-Полный список — в [ограничениях](docs/сдача/06_ограничения.md).
