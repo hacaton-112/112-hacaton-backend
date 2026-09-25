@@ -20,12 +20,12 @@ import {
 import {
   LocalLlmAdapter,
   LocalLlmConfigSchema,
-} from "@/modules/ai-gateway/adapters/local-llm/local-llm.adapter";
+} from "@/modules/ai-gateway/infrastructure/local-llm/local-llm.adapter";
 import {
-  type QwenTtsEnvironment,
-  parseQwenTtsConfig,
-} from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
-import { PiperTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/piper/piper-tts.adapter";
+  type TtsEnvironment,
+  parseTtsConfig,
+} from "@/modules/ai-gateway/infrastructure/tts/tts.config";
+import { PiperTtsAdapter } from "@/modules/ai-gateway/infrastructure/tts/piper/piper-tts.adapter";
 import type { LlmPort, TtsPort } from "@/modules/ai-gateway";
 import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
 import { DialogueGenerationService } from "@/modules/dialogue-generation/application/dialogue-generation.service";
@@ -63,12 +63,12 @@ const LOCAL_LLM_ENVIRONMENT_KEYS = [
   "LLM_REPLY_PROTOCOL",
 ] as const;
 
-const QWEN_ENVIRONMENT_KEYS = [
+const TTS_ENVIRONMENT_KEYS = [
   "TTS_REQUEST_TIMEOUT_MS",
   "PIPER_TTS_BASE_URL",
   "PIPER_TTS_MALE_VOICE",
   "PIPER_TTS_FEMALE_VOICE",
-] as const satisfies readonly (keyof QwenTtsEnvironment)[];
+] as const satisfies readonly (keyof TtsEnvironment)[];
 
 const selectEnvironment = (keys: readonly string[]): Record<string, unknown> =>
   Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -258,7 +258,7 @@ const createDialogueRuntime = () => {
 };
 
 const createSpeechRuntime = () => {
-  const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
+  const config = parseTtsConfig(selectEnvironment(TTS_ENVIRONMENT_KEYS));
   const port = new ObservedTtsPort(
     new PiperTtsAdapter(config, globalThis.fetch.bind(globalThis)),
   );

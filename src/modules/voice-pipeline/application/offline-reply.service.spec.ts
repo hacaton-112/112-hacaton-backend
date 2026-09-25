@@ -7,7 +7,7 @@ import type {
 } from "@/contracts";
 import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
-import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
 import { VoiceRuntimeService } from "./voice-runtime.service";
 import { VoicePipelineService } from "./voice-pipeline.service";

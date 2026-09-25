@@ -19,7 +19,7 @@ import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 
-import { TrainingService } from "./training.service";
+import { TrainingService } from "./application/training.service";
 import {
   AddTrainingGroupMemberDto,
   CreateTrainingAssignmentDto,

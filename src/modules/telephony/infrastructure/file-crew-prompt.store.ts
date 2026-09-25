@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { Logger } from "@nestjs/common";
 
-import { QWEN_TTS_VOICES, type SpeechSynthesisStreamEvent } from "@/contracts";
+import { CALLER_VOICES, type SpeechSynthesisStreamEvent } from "@/contracts";
 
 import {
   crewPromptMedia,
@@ -111,8 +111,8 @@ export class FileCrewPromptStore {
     voiceId: string,
   ): Promise<string> {
     const voice =
-      QWEN_TTS_VOICES.find((candidate) => candidate.id === voiceId) ??
-      QWEN_TTS_VOICES[0];
+      CALLER_VOICES.find((candidate) => candidate.id === voiceId) ??
+      CALLER_VOICES[0];
     const parts: Uint8Array[] = [];
     let sampleRate = 0;
     let bytes = 0;

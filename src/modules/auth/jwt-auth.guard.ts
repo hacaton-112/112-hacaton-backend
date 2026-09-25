@@ -8,7 +8,7 @@ import type { FastifyRequest } from "fastify";
 import { AppUnauthorizedException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
 
-import { AccessTokenVerifier } from "./access-token.verifier";
+import { AccessTokenVerifier } from "./infrastructure/access-token.verifier";
 import type { VerifiedJwtPayload } from "./dto/jwt-payload.dto";
 
 export interface AuthenticatedRequest extends FastifyRequest {

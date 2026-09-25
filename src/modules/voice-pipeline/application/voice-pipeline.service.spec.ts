@@ -11,7 +11,7 @@ import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
 import { LlmReplyStreamCollector } from "@/modules/dialogue-generation/application/llm-reply-stream.collector";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
-import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 
 import { VoicePipelineError } from "../domain/voice-pipeline.error";
 import {

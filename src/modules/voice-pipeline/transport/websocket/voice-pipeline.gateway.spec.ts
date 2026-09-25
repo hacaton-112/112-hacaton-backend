@@ -5,7 +5,7 @@ import { Logger } from "@nestjs/common";
 import WebSocket, { type RawData } from "ws";
 
 import { AppConflictException } from "@/common/exceptions/app.exception";
-import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/scenario-audio.service";
+import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/application/scenario-audio.service";
 import {
   ErrorCodes,
   VoicePipelineServerEventSchema,
@@ -19,15 +19,15 @@ import type {
   AsrStreamer,
   AsrStreamHandle,
   AsrTranscript,
-} from "@/modules/asr/asr-stream.port";
-import type { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+} from "@/modules/asr/ports/asr-stream.port";
+import type { AccessTokenVerifier } from "@/modules/auth/infrastructure/access-token.verifier";
 import type { CallRecorder, RecordingSegment } from "@/modules/call-recording";
 import {
   ScenarioEngineError,
   type CallSnapshot,
   type ScenarioEngineService,
 } from "@/modules/scenario-engine";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { VoicePipelineRequestFactory } from "../../application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "../../application/voice-pipeline.service";

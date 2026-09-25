@@ -14,7 +14,7 @@ import {
   DDS_STATUS_LABELS,
 } from "@/modules/dds-exercise/domain/dds-report-aggregation";
 import type { DdsLessonReport } from "@/modules/dds-exercise/dto/dds-report.dto";
-import type { TrainingCertificateData } from "@/modules/training/training.service";
+import type { TrainingCertificateData } from "@/modules/training/application/training.service";
 
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

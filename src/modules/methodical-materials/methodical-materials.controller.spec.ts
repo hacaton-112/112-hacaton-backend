@@ -5,7 +5,7 @@ import { ROLES_METADATA_KEY } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 
 import { MethodicalMaterialsController } from "./methodical-materials.controller";
-import type { MethodicalMaterialsService } from "./methodical-materials.service";
+import type { MethodicalMaterialsService } from "./application/methodical-materials.service";
 
 describe(MethodicalMaterialsController.name, () => {
   it("authenticates every route and reserves authoring for staff", () => {

@@ -4,7 +4,7 @@ import { GUARDS_METADATA, HTTP_CODE_METADATA } from "@nestjs/common/constants";
 import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { ROLES_METADATA_KEY } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import type { ScenarioGenerationService } from "./application/scenario-generation.service";

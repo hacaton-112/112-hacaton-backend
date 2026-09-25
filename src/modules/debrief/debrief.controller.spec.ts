@@ -1,4 +1,4 @@
-import type { TrainingService } from "@/modules/training/training.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { DebriefService } from "./application/debrief.service";
 import { DebriefController } from "./debrief.controller";

@@ -39,7 +39,7 @@ import {
   STRUCTURED_OUTPUT_PORT,
   type StructuredOutputPort,
 } from "@/modules/ai-gateway/ports/structured-output.port";
-import type { TrainingActor } from "@/modules/training/training.service";
+import type { TrainingActor } from "@/modules/training/application/training.service";
 
 import type {
   DdsReferenceListQuery,

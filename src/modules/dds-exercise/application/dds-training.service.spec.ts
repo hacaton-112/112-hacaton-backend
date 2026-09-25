@@ -1,5 +1,5 @@
-import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { DdsExerciseService } from "./dds-exercise.service";
 import { DdsTrainingService } from "./dds-training.service";

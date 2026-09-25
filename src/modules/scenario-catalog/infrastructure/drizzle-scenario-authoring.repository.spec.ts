@@ -9,7 +9,7 @@ import {
   scenarioAudioPacks,
   dialoguePreparations,
 } from "@/drizzle/schema";
-import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import {
   type ScenarioSeed,
   ScenarioSeedSchema,

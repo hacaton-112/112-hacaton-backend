@@ -1,4 +1,4 @@
-import type { JwtAlgorithm } from "../jwt.constants";
+import type { JwtAlgorithm } from "../domain/jwt.constants";
 
 /**
  * Narrow port over the JWT library.

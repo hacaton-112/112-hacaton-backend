@@ -1,7 +1,7 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-import { REFRESH_TOKEN_PATTERN } from "../refresh-token";
+import { REFRESH_TOKEN_PATTERN } from "../domain/refresh-token";
 
 /**
  * Shared by refresh and logout: both act on a refresh token and nothing else.

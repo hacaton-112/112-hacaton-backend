@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import { Client } from "pg";
 import WebSocket from "ws";
 
-import { resamplePcm16Mono } from "@/modules/ai-gateway/diagnostics/tts-diagnostic";
+import { resamplePcm16Mono } from "@/modules/ai-gateway/domain/tts-diagnostic";
 
 /**
  * Нагрузочный прогон учебных звонков против запущенного backend.

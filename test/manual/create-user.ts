@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 
 import { CoreModule } from "@/core/core.module";
-import { AuthService } from "@/modules/auth/auth.service";
+import { AuthService } from "@/modules/auth/application/auth.service";
 import { CreateUserSchema } from "@/modules/auth/dto/create-user.dto";
 
 /**

@@ -13,7 +13,7 @@ import type { AuthenticatedRequest } from "@/modules/auth/jwt-auth.guard";
 import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 import { TrainingCertificateQueryDto } from "./dto/training-certificate.dto";
 import { ReportExporter } from "./infrastructure/report-exporter";

@@ -3,7 +3,7 @@ import { ErrorCodes } from "@/contracts";
 
 import type { IncidentCard } from "../dto/incident-card.dto";
 import type { IncidentCardStore } from "../ports/incident-card.store.port";
-import type { ClassifierService } from "@/modules/classifier/classifier.service";
+import type { ClassifierService } from "@/modules/classifier/application/classifier.service";
 
 import { IncidentCardService } from "./incident-card.service";
 

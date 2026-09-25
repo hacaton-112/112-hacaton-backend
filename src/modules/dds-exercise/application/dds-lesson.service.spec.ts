@@ -1,5 +1,5 @@
 import type { DdsLessonRecord, DdsExerciseRecord } from "@/drizzle/schema";
-import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 import type { DdsExerciseService } from "./dds-exercise.service";
 import type { DdsExerciseStore } from "../ports/dds-exercise.store.port";

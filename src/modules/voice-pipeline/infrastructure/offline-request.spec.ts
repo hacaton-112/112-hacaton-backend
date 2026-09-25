@@ -2,7 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import type { CallerReply, FactQuestion } from "@/contracts";
 import type { QuestionUnderstandingPort } from "@/modules/ai-gateway";
 import type { ScenarioEngineService } from "@/modules/scenario-engine";
-import type { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import type { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 import { VoiceRuntimeService } from "../application/voice-runtime.service";
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
 

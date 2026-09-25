@@ -11,7 +11,7 @@ import { DatabaseHealthIndicator } from "./indicators/database.indicator";
 import {
   RuntimeHealthService,
   type RuntimeHealth,
-} from "./runtime-health.service";
+} from "./application/runtime-health.service";
 
 @Controller(ApiRoutes.Health)
 export class HealthController {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { findQwenTtsVoice, FactIdSchema } from "@/contracts";
+import { findCallerVoice, FactIdSchema } from "@/contracts";
 import {
   CALLER_GENDERS,
   EMERGENCY_SERVICES,
@@ -87,7 +87,7 @@ export const ScenarioSeedSchema = z
       // женским голосом, разрушает разбор быстрее любой ошибки в тексте.
       .refine(
         (persona) =>
-          findQwenTtsVoice(persona.voiceId)?.gender === persona.gender,
+          findCallerVoice(persona.voiceId)?.gender === persona.gender,
         {
           message:
             "Голос персонажа неизвестен рантайму синтеза или не совпадает с его полом",

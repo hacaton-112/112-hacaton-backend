@@ -15,7 +15,7 @@ import {
   type AuthenticatedRequest,
   JwtAuthGuard,
 } from "@/modules/auth/jwt-auth.guard";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 import { DebriefService } from "./application/debrief.service";
 import {

@@ -5,7 +5,7 @@ import { NestFactory } from "@nestjs/core";
 
 import { CoreModule } from "@/core/core.module";
 import { createFastifyAdapter } from "@/core/http/fastify.adapter";
-import { createOpenApiDocument } from "@/modules/openapi/openapi-document";
+import { createOpenApiDocument } from "@/modules/openapi/domain/openapi-document";
 
 async function main(): Promise<void> {
   const outputDirectory = join(process.cwd(), "docs", "сдача");

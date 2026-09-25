@@ -1,5 +1,5 @@
 import { ErrorCodes } from "@/contracts";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import { InstructorSessionsController } from "./instructor-sessions.controller";
 import type { VoicePipelineGateway } from "./transport/websocket/voice-pipeline.gateway";

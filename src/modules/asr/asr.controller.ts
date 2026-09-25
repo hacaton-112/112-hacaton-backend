@@ -8,7 +8,7 @@ import {
 
 import { ApiRoutes } from "@/contracts";
 
-import { type AsrHealth, type AsrSession, AsrService } from "./asr.service";
+import { type AsrHealth, type AsrSession, AsrService } from "./application/asr.service";
 
 interface CreateSessionBody {
   language?: unknown;

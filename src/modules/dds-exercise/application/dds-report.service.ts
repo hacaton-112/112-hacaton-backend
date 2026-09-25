@@ -18,7 +18,7 @@ import {
   trainingGroups,
   users,
 } from "@/drizzle/schema";
-import type { TrainingActor } from "@/modules/training/training.service";
+import type { TrainingActor } from "@/modules/training/application/training.service";
 
 import {
   buildDdsReportTiming,

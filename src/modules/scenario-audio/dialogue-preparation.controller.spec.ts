@@ -4,7 +4,7 @@ import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 import { ROLES_METADATA_KEY } from "@/modules/auth/roles.decorator";
 import { DialoguePreparationController } from "./dialogue-preparation.controller";
-import { ReviewPreparationDto } from "./dialogue-preparation.dto";
+import { ReviewPreparationDto } from "./dto/dialogue-preparation.dto";
 
 describe("private preparation API", () => {
   it("protects every route including snapshots and WAV previews from operators", () => {

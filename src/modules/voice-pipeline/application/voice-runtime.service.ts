@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { offlineSettings } from "@/modules/ai-gateway/offline-policy";
+import { offlineSettings } from "@/modules/ai-gateway/domain/offline-policy";
 
 @Injectable()
 export class VoiceRuntimeService {

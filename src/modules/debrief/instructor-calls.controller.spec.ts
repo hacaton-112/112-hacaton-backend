@@ -1,6 +1,6 @@
 import type { InstructorCallView } from "@/modules/training/dto/training.dto";
-import type { MethodicalMaterialsService } from "@/modules/methodical-materials/methodical-materials.service";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { MethodicalMaterialsService } from "@/modules/methodical-materials/application/methodical-materials.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { DebriefService } from "./application/debrief.service";
 import { InstructorCallsController } from "./instructor-calls.controller";

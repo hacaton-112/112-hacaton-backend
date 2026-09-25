@@ -3,7 +3,7 @@ import type { ExecutionContext } from "@nestjs/common";
 import { AppUnauthorizedException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
 
-import type { AccessTokenVerifier } from "./access-token.verifier";
+import type { AccessTokenVerifier } from "./infrastructure/access-token.verifier";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 
 interface RequestStub {

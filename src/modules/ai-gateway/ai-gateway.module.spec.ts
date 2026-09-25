@@ -5,12 +5,12 @@ import { MODULE_METADATA } from "@nestjs/common/constants";
 import { DialogueGenerationModule } from "@/modules/dialogue-generation/dialogue-generation.module";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthesis.module";
 
-import { TextAiAdapterModule } from "./adapters/text-ai-adapter.module";
-import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
+import { TextAiAdapterModule } from "./infrastructure/text-ai-adapter.module";
+import { TtsAdapterModule } from "./infrastructure/tts/tts-adapter.module";
 import {
-  QWEN_TTS_CONFIG,
-  QWEN_TTS_FETCH,
-} from "./adapters/qwen-tts/qwen-tts.tokens";
+  TTS_CONFIG,
+  TTS_FETCH,
+} from "./infrastructure/tts/tts.tokens";
 import { AiGatewayModule } from "./ai-gateway.module";
 import { LLM_PORT, TTS_PORT } from "./ai-gateway.tokens";
 import { QUESTION_UNDERSTANDING_PORT } from "./ports/question-understanding.port";
@@ -29,9 +29,9 @@ describe("AI provider module registration", () => {
       MODULE_METADATA.PROVIDERS,
       TextAiAdapterModule,
     );
-    const qwenProviders = getModuleMetadata(
+    const ttsProviders = getModuleMetadata(
       MODULE_METADATA.PROVIDERS,
-      QwenTtsAdapterModule,
+      TtsAdapterModule,
     );
 
     expect(textProviders).toContainEqual(
@@ -43,12 +43,12 @@ describe("AI provider module registration", () => {
     expect(textProviders).not.toContainEqual(
       expect.objectContaining({ provide: TTS_PORT }),
     );
-    expect(qwenProviders).toContainEqual({
+    expect(ttsProviders).toContainEqual({
       provide: TTS_PORT,
-      inject: [QWEN_TTS_CONFIG, QWEN_TTS_FETCH],
+      inject: [TTS_CONFIG, TTS_FETCH],
       useFactory: expect.any(Function),
     });
-    expect(qwenProviders).not.toContainEqual(
+    expect(ttsProviders).not.toContainEqual(
       expect.objectContaining({ provide: LLM_PORT }),
     );
   });
@@ -59,11 +59,11 @@ describe("AI provider module registration", () => {
     ).toEqual([TextAiAdapterModule]);
     expect(
       getModuleMetadata(MODULE_METADATA.IMPORTS, SpeechSynthesisModule),
-    ).toEqual([QwenTtsAdapterModule]);
+    ).toEqual([TtsAdapterModule]);
   });
 
   it("exposes both isolated provider modules through the gateway aggregator", () => {
-    const expectedModules = [TextAiAdapterModule, QwenTtsAdapterModule];
+    const expectedModules = [TextAiAdapterModule, TtsAdapterModule];
 
     expect(getModuleMetadata(MODULE_METADATA.IMPORTS, AiGatewayModule)).toEqual(
       expectedModules,
@@ -81,7 +81,7 @@ describe("AI provider module registration", () => {
       QUESTION_UNDERSTANDING_PORT,
     ]);
     expect(
-      getModuleMetadata(MODULE_METADATA.EXPORTS, QwenTtsAdapterModule),
+      getModuleMetadata(MODULE_METADATA.EXPORTS, TtsAdapterModule),
     ).toEqual([TTS_PORT]);
   });
 });

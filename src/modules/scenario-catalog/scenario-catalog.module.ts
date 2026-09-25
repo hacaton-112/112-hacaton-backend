@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 
-import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/infrastructure/text-ai-adapter.module";
 import { GrammarModule } from "@/modules/grammar";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { TrainingModule } from "@/modules/training/training.module";

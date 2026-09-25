@@ -3,7 +3,7 @@ import type { QuestionUnderstandingPort } from "@/modules/ai-gateway";
 import type { ScenarioEngineService } from "@/modules/scenario-engine";
 
 import { ScenarioVoicePipelineRequestFactory } from "./scenario-voice-pipeline-request.factory";
-import type { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import type { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 import { ConfigService } from "@nestjs/config";
 
 const fallbackReply: CallerReply = {

@@ -5,7 +5,7 @@ import {
   AppNotFoundException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
-import { ClassifierService } from "@/modules/classifier/classifier.service";
+import { ClassifierService } from "@/modules/classifier/application/classifier.service";
 
 import type { IncidentCard, SaveIncidentCard } from "../dto/incident-card.dto";
 import { classifierDispatchServices } from "../domain/classifier-dispatch-services";

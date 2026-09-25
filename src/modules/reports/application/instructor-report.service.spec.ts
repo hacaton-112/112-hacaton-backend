@@ -1,8 +1,8 @@
 import type { AppException } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
-import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import type { DebriefService } from "@/modules/debrief/application/debrief.service";
-import type { TrainingService } from "@/modules/training/training.service";
+import type { TrainingService } from "@/modules/training/application/training.service";
 
 import type { ReportExporter } from "../infrastructure/report-exporter";
 import { InstructorReportService } from "./instructor-report.service";

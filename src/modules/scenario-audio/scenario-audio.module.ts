@@ -4,12 +4,12 @@ import { AuthModule } from "@/modules/auth/auth.module";
 import { CallRecordingModule } from "@/modules/call-recording";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis";
-import { ScenarioAudioService } from "./scenario-audio.service";
+import { ScenarioAudioService } from "./application/scenario-audio.service";
 import { ScenarioAudioController } from "./scenario-audio.controller";
-import { DialoguePreparationService } from "./dialogue-preparation.service";
-import { DialoguePreparationWorker } from "./dialogue-preparation.worker";
+import { DialoguePreparationService } from "./application/dialogue-preparation.service";
+import { DialoguePreparationWorker } from "./application/dialogue-preparation.worker";
 import { DialoguePreparationController } from "./dialogue-preparation.controller";
-import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/infrastructure/text-ai-adapter.module";
 
 @Module({
   imports: [
