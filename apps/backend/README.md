@@ -7,23 +7,23 @@ Backend на NestJS 11 с HTTP runtime Fastify 5 для desktop-тренажёр
 ## Состав репозитория
 
 Проект поставляется одним монорепозиторием: backend и общая инфраструктура находятся
-в корне, а React-клиент — в каталоге [`web/`](web/README.md). Backend и клиент сохраняют
+в `apps/backend/`, а React-клиент — в каталоге [`apps/web/`](../web/README.md). Backend и клиент сохраняют
 собственные `package.json` и `bun.lock`, поэтому их зависимости и команды запускаются
 независимо из соответствующих каталогов.
 
 Подробное объяснение ролей `dto`, `contracts`, `domain`, `application`, `ports`
 и `infrastructure` находится в
-[`docs/module-architecture.md`](docs/module-architecture.md).
+[`docs/module-architecture.md`](../../docs/module-architecture.md).
 
 Методические материалы для преподавателей, операторов 112 и диспетчеров ДДС
-собраны в [`docs/methodical`](docs/methodical/README.md). Комплект включает
+собраны в [`docs/methodical`](../../docs/methodical/README.md). Комплект включает
 алгоритмы работы, сценарии занятий, критерии оценивания и печатные формы.
 
 ## Что уже есть
 
 Первый этап гибридного диалога: подготовка аудио опубликованных сценариев,
 быстрые ответы без LLM/TTS и переключаемая локальная LLM. Включение и ограничения
-CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_DIALOGUE.md).
+CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](../../docs/HYBRID_DIALOGUE.md).
 
 - NestJS 11, Fastify 5 и URI-версионирование API (`/api/v1`);
 - централизованная конфигурация с проверкой переменных окружения;
@@ -37,7 +37,7 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
 - локальный CPU runtime llama-server с Qwen3 0.6B Q4_K_M; образ собран из
   пропатченного `bitnet.cpp`, но BitNet b1.58 2B/4T отклонён по замерам
-  (см. [`docs/LLM_CPU_BENCHMARK.md`](docs/LLM_CPU_BENCHMARK.md));
+  (см. [`docs/LLM_CPU_BENCHMARK.md`](../../docs/LLM_CPU_BENCHMARK.md));
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
 - потоковый синтез речи Piper на процессоре;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
@@ -45,7 +45,7 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 - rate limiting и security headers.
 
 Особенности Fastify runtime, ограничения multipart и правила добавления новых
-HTTP-интеграций описаны в [`docs/fastify-runtime.md`](docs/fastify-runtime.md).
+HTTP-интеграций описаны в [`docs/fastify-runtime.md`](../../docs/fastify-runtime.md).
 
 `TextAiAdapterModule` предоставляет `LLM_PORT` только для
 `DialogueGenerationModule`, а `QwenTtsAdapterModule` предоставляет `TTS_PORT`
@@ -200,7 +200,7 @@ SHA-256. Каждый обмен выдаёт новый токен и гаси�
 
 ### Сценарии
 
-Демонстрационные сценарии лежат в `drizzle/seed/scenarios/*.json` и заливаются
+Демонстрационные сценарии лежат в `apps/backend/drizzle/seed/scenarios/*.json` и заливаются
 командой:
 
 ```bash
@@ -364,7 +364,7 @@ Backend повторяет расчёт при сохранении карточ
   нормативами, ошибками карточки и рекомендациями;
 - `GET /api/v1/instructor/reports/export` — тот же снимок в `csv`, `xlsx` или
   `pdf`. Фильтры, лимиты и форматы описаны в
-  [`docs/instructor-reports.md`](docs/instructor-reports.md).
+  [`docs/instructor-reports.md`](../../docs/instructor-reports.md).
 
 Учётные записи ведёт только администратор. `POST /api/v1/users` создаёт
 учётную запись с ФИО, email, паролем и ролью, `PATCH /api/v1/users/:userId`
@@ -720,26 +720,26 @@ Nest, `application/` — сервисы, которые её связывают,
 запросов и ответов. В корне модуля остаются только сам модуль, контроллеры,
 токены и HTTP-guard'ы.
 
-Тесты лежат отдельно от кода, в `test/unit/`, повторяя дерево `src/`: файл
-`src/modules/dds-exercise/application/dds-archive.service.ts` проверяет
-`test/unit/modules/dds-exercise/application/dds-archive.service.spec.ts`.
+Тесты лежат отдельно от кода, в `apps/backend/test/unit/`, повторяя дерево `apps/backend/src/`: файл
+`apps/backend/src/modules/dds-exercise/application/dds-archive.service.ts` проверяет
+`apps/backend/test/unit/modules/dds-exercise/application/dds-archive.service.spec.ts`.
 
 ```text
-src/
+apps/backend/src/
   common/       # общие ошибки, фильтры, interceptors и утилиты
   contracts/    # публичные константы и типы API
   core/         # конфигурация, Fastify adapter и подключение инфраструктуры
   modules/      # изолированные NestJS-модули
-test/
-  unit/         # модульные тесты, зеркало src/
+apps/backend/test/
+  unit/         # модульные тесты, зеркало apps/backend/src/
   e2e/          # сквозные проверки на поднятой базе
   golden/       # эталонные прогоны диалога
   manual/       # запускаемые руками сценарии и нагрузочный прогон
   fixtures/     # данные для тестов
-drizzle/
+apps/backend/drizzle/
   schema/       # Drizzle-схемы
   migrations/   # генерируется drizzle-kit
-ops/
+infra/
   nginx/        # TLS gateway для REST и WebSocket
   postgres-backup/ # backup, restore и restore drill PostgreSQL
   tls/          # dev/stage helper; ключи и сертификаты исключены из Git
@@ -750,12 +750,14 @@ ops/
 Разработка одного backend: база в контейнере, приложение на хосте.
 
 ```bash
+cd ../..
 cp .env.example .env
 docker compose up -d postgres
+cd apps/backend
 bun install
 bun run db:generate
-bun run db:migrate
-bun run start:dev
+bun --env-file=../../.env run db:migrate
+bun --env-file=../../.env run start:dev
 ```
 
 ### Весь комплекс на своей машине
@@ -769,13 +771,13 @@ bun run start:dev
 ```bash
 cp .env.example .env
 # каталог с моделями рядом с репозиторием
-echo 'LLM_MODELS_DIR=../models' >> .env
+echo 'LLM_MODELS_DIR=./models' >> .env
 echo 'TOOLS_LLM_MODEL_FILE=gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf' >> .env
-sh ops/tls/generate-self-signed.sh          # сертификат для gateway
+sh ../../infra/tls/generate-self-signed.sh          # сертификат для gateway
 docker compose --profile app up -d --build
 ```
 
-В `../models` ожидаются `caller.gguf` и файл инструментальной модели. Без
+В `models/` ожидаются `caller.gguf` и файл инструментальной модели. Без
 `LLM_MODELS_DIR` compose берёт том `llm_models`, как на сервере, и модели
 нужно класть в него.
 
@@ -786,12 +788,12 @@ docker compose --profile app up -d --build
 
 ## Запуск в Docker и выкладка на сервер
 
-Backend собирается в образ по `Dockerfile` и запускается в `docker-compose.yml`
+Backend собирается в образ по `apps/backend/Dockerfile` и запускается в `docker-compose.yml`
 вместе с базой, MinIO, Prometheus, Grafana, ежедневным backup и NGINX gateway.
 Приложение и миграции входят в профиль `app`, поэтому обычный
 `docker compose up -d` для разработки их не трогает. До первого production-
 запуска положите сертификат внутреннего CA в пути из `.env` (для dev/stage есть
-`ops/tls/generate-self-signed.sh`):
+`infra/tls/generate-self-signed.sh`):
 
 ```bash
 cp .env.production.example .env
@@ -803,7 +805,7 @@ HTTP-порт backend наружу не публикуется: desktop подк
 HTTPS/WSS, а NGINX проксирует оба протокола. `postgres-backup` делает проверенный
 custom-format dump при старте и затем каждые 24 часа; restore требует явного
 подтверждения имени базы. Порядок выкладки, restore drill и замена сертификатов
-описаны в [`docs/deployment.md`](docs/deployment.md).
+описаны в [`docs/deployment.md`](../../docs/deployment.md).
 
 ### Метрики и Grafana
 
@@ -815,12 +817,12 @@ Backend отдаёт метрики Prometheus на отдельном порт�
 `METRICS_HOST` и `METRICS_PORT`.
 
 Grafana слушает `http://localhost:3001`. Источник данных и dashboard состояния
-системы, backend и ASR заводятся из `observability/grafana` при старте.
-Prometheus загружает recording/alerting rules из `observability/prometheus`.
+системы, backend и ASR заводятся из `infra/observability/grafana` при старте.
+Prometheus загружает recording/alerting rules из `infra/observability/prometheus`.
 Какой backend он читает, решает `PROMETHEUS_CONFIG`: `prometheus.yml` — для
 контейнера из профиля `app`, `prometheus.host.yml` — для backend, запущенного
 на хосте. Метрики, пороги и runbook описаны в
-[`docs/observability.md`](docs/observability.md).
+[`docs/observability.md`](../../docs/observability.md).
 
 ## Проверки
 

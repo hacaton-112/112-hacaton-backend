@@ -139,7 +139,7 @@ SIP-телефону: при смене режима Asterisk пересозда
 запуска закрепите учебные учётные записи за добавочными:
 
 ```bash
-bun run db:seed:workstations
+bun --env-file=../../.env run db:seed:workstations
 ```
 
 Проверьте конфигурацию без вывода паролей и затем регистрацию:
@@ -184,11 +184,11 @@ docker compose exec asterisk asterisk -rx 'rtp set debug on'
 `TLS_OVERWRITE=true`):
 
 ```bash
-./ops/tls/generate-self-signed.sh system112.local
+./infra/tls/generate-self-signed.sh system112.local
 ```
 
 Добавьте `system112.local` в DNS или `/etc/hosts` и явно доверьте
-`ops/tls/certs/tls.crt` на тестовом рабочем месте. Не отключайте проверку TLS в
+`infra/tls/certs/tls.crt` на тестовом рабочем месте. Не отключайте проверку TLS в
 desktop-приложении и не используйте этот ключ в production.
 
 ## 3. Первый запуск
@@ -247,13 +247,15 @@ curl -fsSL https://bun.sh/install | bash
 ```
 
 ```bash
+cd apps/backend
+cd apps/backend
 bun install --frozen-lockfile
 ```
 
 Опубликуйте демонстрационные сценарии:
 
 ```bash
-bun run db:seed
+bun --env-file=../../.env run db:seed
 ```
 
 Создайте учётную запись администратора. Пароль читается без эха, поэтому не
@@ -265,7 +267,7 @@ read -rs ADMIN_PASSWORD
 ```
 
 ```bash
-bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
+bun --env-file=../../.env run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фамилия" admin && unset ADMIN_PASSWORD
 ```
 
 Роль — `operator`, `instructor` или `admin`. Публичной регистрации нет: всех
@@ -274,7 +276,7 @@ bun run --silent user:create -- admin@example.ru "$ADMIN_PASSWORD" "Имя Фа�
 ## 5. Проверка
 
 ```bash
-curl --cacert ops/tls/certs/tls.crt https://system112.local/api/v1/health
+curl --cacert infra/tls/certs/tls.crt https://system112.local/api/v1/health
 ```
 
 Ответ `"status":"ok"` означает, что backend работает и видит базу.
@@ -308,7 +310,7 @@ ssh -N -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 user@server
 | Запросы по статусу, p95 по маршруту       | нагрузка и медленные маршруты API                                                                                |
 | Задержка цикла событий, память, процессор | выдерживает ли процесс параллельные звонки: при занятом цикле событий кадры звука стоят в очереди, и речь рвётся |
 
-Dashboard и источник данных заводятся из файлов в `observability/grafana`.
+Dashboard и источник данных заводятся из файлов в `infra/observability/grafana`.
 Правки в интерфейсе Grafana не сохраняются: меняйте JSON в репозитории и
 перезапускайте сервис.
 
@@ -345,7 +347,7 @@ docker compose logs backend
 заново. Сид публикует новую версию только для изменённого сценария:
 
 ```bash
-bun run db:seed
+bun --env-file=../../.env run db:seed
 ```
 
 Старые образы после обновления можно удалить:
@@ -497,8 +499,8 @@ PostgreSQL, MinIO и pgAdmin: теперь они слушают только lo
 # Веб-клиент
 
 Клиент — обычный сайт, отдельного desktop-приложения нет. Gateway собирает его
-из каталога `web/` этого репозитория при сборке своего образа
-(`docker/gateway/Dockerfile`, контекст `web-src`), раздаёт на `/`, а `/api/`
+из каталога `apps/web/` этого репозитория при сборке своего образа
+(`services/gateway/Dockerfile`, контекст `web-src`), раздаёт на `/`, а `/api/`
 вместе с WebSocket проксирует в
 backend:
 
