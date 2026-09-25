@@ -629,13 +629,16 @@ describe(LocalLlmAdapter.name, () => {
         .join("");
     };
 
-    const both = Promise.all([collect("first"), collect("second")]);
+    // Первый ход держит модель дольше собственного срока и прервётся сам —
+    // проверяем второй: он всё это время стоял в очереди.
+    // Оба хода прерываются по собственному сроку — важно другое: дошёл ли
+    // второй до модели вообще. Пока срок отсчитывался с постановки в очередь,
+    // он истекал во время ожидания, и запроса к модели не было.
+    const turns = Promise.allSettled([collect("first"), collect("second")]);
+    await new Promise((resolve) => setTimeout(resolve, 900));
     releaseFirst();
+    await turns;
 
-    // Оба хода дошли до модели: очередь задержала второй, но не отказала ему.
-    const [first, second] = await both;
-    expect(JSON.parse(first)).toMatchObject({ text: "Во дворе." });
-    expect(JSON.parse(second)).toMatchObject({ text: "Во дворе." });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

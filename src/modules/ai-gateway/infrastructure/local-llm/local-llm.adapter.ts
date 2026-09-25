@@ -191,11 +191,16 @@ export class LocalLlmAdapter
     signal: AbortSignal,
   ): AsyncIterable<LlmStreamEvent> {
     const request = GenerateCallerReplyRequestSchema.parse(raw);
+    // Срок ответа отсчитывается с момента, когда модель взялась за реплику, а
+    // не с постановки в очередь. Иначе ожидание чужого хода съедало бюджет
+    // собственного: при одновременных звонках ход доходил до модели и обрывался
+    // на середине, а оператор получал сценарную заглушку. Сколько ждать своей
+    // очереди, ограничивает сама очередь — `queueWaitMs`.
+    const release = await this.queue.acquire(signal);
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(this.config.timeoutMs),
     ]);
-    const release = await this.queue.acquire(deadline);
     try {
       const callerV2 = this.config.replyProtocol === "caller-v2";
       const response = await this.post(
@@ -314,14 +319,14 @@ export class LocalLlmAdapter
     request: StructuredOutputRequest,
     limit: number,
   ): Promise<unknown> {
+    const release = await this.queue.acquire(
+      request.signal,
+      limit < this.config.concurrency,
+    );
     const deadline = AbortSignal.any([
       request.signal,
       AbortSignal.timeout(this.config.timeoutMs),
     ]);
-    const release = await this.queue.acquire(
-      deadline,
-      limit < this.config.concurrency,
-    );
     try {
       const response = await this.post(
         {
