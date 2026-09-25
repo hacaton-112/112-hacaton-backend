@@ -50,8 +50,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ZodSerializerDto(AuthSessionDto)
-  refresh(@Body() body: RefreshTokenDto): Promise<AuthSession> {
-    return this.auth.refresh(body.refreshToken);
+  refresh(
+    @Body() body: RefreshTokenDto,
+    @Req() request: FastifyRequest,
+  ): Promise<AuthSession> {
+    return this.auth.refresh(body.refreshToken, readClientMetadata(request));
   }
 
   /**
@@ -63,8 +66,11 @@ export class AuthController {
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ short: { limit: 10, ttl: 60_000 } })
-  logout(@Body() body: RefreshTokenDto): Promise<void> {
-    return this.auth.logout(body.refreshToken);
+  logout(
+    @Body() body: RefreshTokenDto,
+    @Req() request: FastifyRequest,
+  ): Promise<void> {
+    return this.auth.logout(body.refreshToken, readClientMetadata(request));
   }
 
   @Get("me")

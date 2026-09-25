@@ -13,6 +13,7 @@ import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { generateId } from "@/common/utils/id";
 import { type UserRecord, type UserRole, users } from "@/drizzle/schema";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 // Imported as a value, not a type: `import type` is erased before decorator
 // metadata is emitted, and Nest would receive Object instead of the class.
@@ -44,6 +45,7 @@ export class AuthService {
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
     @Inject(TOKEN_SIGNER) private readonly tokenSigner: TokenSigner,
     private readonly sessions: AuthSessionService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async login(
@@ -69,6 +71,21 @@ export class AuthService {
         }`,
       );
 
+      await this.audit.log({
+        actorId: user?.id ?? null,
+        action: "auth.login.failed",
+        resource: "auth-session",
+        details: {
+          email,
+          reason: !user
+            ? "unknown_account"
+            : !user.isActive
+              ? "inactive_account"
+              : "wrong_password",
+        },
+        ipAddress: metadata.ipAddress,
+      });
+
       throw new AppUnauthorizedException(
         ErrorCodes.AUTH_LOGIN_INVALID_CREDENTIALS,
         "Invalid email or password",
@@ -79,17 +96,53 @@ export class AuthService {
     // extra work behind that could be measured.
     const issued = await this.sessions.issue(user.id, metadata);
 
+    await this.audit.log({
+      actorId: user.id,
+      action: "auth.login.succeeded",
+      resource: "auth-session",
+      resourceId: issued.sessionId,
+      sessionId: issued.sessionId,
+      ipAddress: metadata.ipAddress,
+    });
+
     return this.createSession(user, issued);
   }
 
   /** Exchanges a refresh token for a fresh pair, rotating the old one away. */
-  async refresh(refreshToken: string): Promise<AuthSession> {
-    const rotated = await this.sessions.rotate(refreshToken);
+  async refresh(
+    refreshToken: string,
+    metadata: ClientMetadata = { userAgent: null, ipAddress: null },
+  ): Promise<AuthSession> {
+    let rotated: IssuedRefreshToken;
+    try {
+      rotated = await this.sessions.rotate(
+        refreshToken,
+        undefined,
+        metadata.ipAddress,
+      );
+    } catch (error) {
+      await this.audit.log({
+        action: "auth.refresh.failed",
+        resource: "auth-session",
+        details: { reason: "invalid_refresh_token" },
+        ipAddress: metadata.ipAddress,
+      });
+      throw error;
+    }
     const user = await this.findById(rotated.userId);
 
     if (!user || !user.isActive) {
       if (user && !user.isActive) {
         await this.sessions.revokeAllForUser(user.id);
+        await this.audit.log({
+          actorId: user.id,
+          action: "auth.sessions.revoked",
+          resource: "user",
+          resourceId: user.id,
+          sessionId: rotated.sessionId,
+          details: { reason: "account_inactive" },
+          ipAddress: metadata.ipAddress,
+        });
       }
       // Deliberately the refresh error rather than AUTH_USER_NOT_FOUND: a
       // deleted account must not be observable through this endpoint.
@@ -99,12 +152,34 @@ export class AuthService {
       );
     }
 
+    await this.audit.log({
+      actorId: user.id,
+      action: "auth.refresh.rotated",
+      resource: "auth-session",
+      resourceId: rotated.sessionId,
+      sessionId: rotated.sessionId,
+      ipAddress: metadata.ipAddress,
+    });
+
     return this.createSession(user, rotated);
   }
 
   /** Ends the session the token belongs to; unknown tokens are ignored. */
-  async logout(refreshToken: string): Promise<void> {
-    await this.sessions.revokeByToken(refreshToken);
+  async logout(
+    refreshToken: string,
+    metadata: ClientMetadata = { userAgent: null, ipAddress: null },
+  ): Promise<void> {
+    const revoked = await this.sessions.revokeByToken(refreshToken);
+    if (revoked) {
+      await this.audit.log({
+        actorId: revoked.userId,
+        action: "auth.logout.succeeded",
+        resource: "auth-session",
+        resourceId: revoked.sessionId,
+        sessionId: revoked.sessionId,
+        ipAddress: metadata.ipAddress,
+      });
+    }
   }
 
   async getProfile(userId: string): Promise<AuthUser> {

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ListChecks,
   Archive,
+  ScrollText,
 } from "lucide-react";
 import { Button, Grid, Popover, Text } from "@bolid-ui/themes";
 import type { LucideIcon } from "lucide-react";
@@ -304,14 +305,27 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   </SidebarNavItem>
                 )}
                 {canAdministerUsers(user?.role) && (
-                  <SidebarNavItem
-                    active={isRouteActive(location.pathname, ROUTES.admin())}
-                    icon={ShieldCheck}
-                    label="Администрирование"
-                    onClick={() => goTo(ROUTES.admin())}
-                  >
-                    Администрирование
-                  </SidebarNavItem>
+                  <>
+                    <SidebarNavItem
+                      active={isRouteActive(location.pathname, ROUTES.admin())}
+                      icon={ShieldCheck}
+                      label="Администрирование"
+                      onClick={() => goTo(ROUTES.admin())}
+                    >
+                      Администрирование
+                    </SidebarNavItem>
+                    <SidebarNavItem
+                      active={isRouteActive(
+                        location.pathname,
+                        ROUTES.auditLog(),
+                      )}
+                      icon={ScrollText}
+                      label="Журнал аудита"
+                      onClick={() => goTo(ROUTES.auditLog())}
+                    >
+                      Журнал аудита
+                    </SidebarNavItem>
+                  </>
                 )}
               </SidebarMenu>
             </SidebarGroupContent>

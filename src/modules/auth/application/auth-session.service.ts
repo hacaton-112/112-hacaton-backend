@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AppUnauthorizedException } from "@/common/exceptions/app.exception";
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 import { AUTH_SESSION_CONFIG, AUTH_SESSION_STORE } from "../auth.tokens";
 import type { AuthSessionStore } from "../ports/auth-session-store.port";
@@ -25,6 +26,11 @@ export interface IssuedRefreshToken {
   userId: string;
   refreshToken: string;
   refreshExpiresIn: number;
+}
+
+export interface RevokedAuthSession {
+  sessionId: string;
+  userId: string;
 }
 
 const MILLISECONDS_PER_SECOND = 1_000;
@@ -57,6 +63,7 @@ export class AuthSessionService {
   constructor(
     @Inject(AUTH_SESSION_STORE) private readonly store: AuthSessionStore,
     @Inject(AUTH_SESSION_CONFIG) private readonly config: AuthSessionConfig,
+    private readonly audit: AuditLogService,
   ) {}
 
   async issue(
@@ -103,6 +110,7 @@ export class AuthSessionService {
   async rotate(
     rawToken: string,
     now: Date = new Date(),
+    ipAddress: string | null = null,
   ): Promise<IssuedRefreshToken> {
     const found = await this.store.findRefreshToken(hashRefreshToken(rawToken));
 
@@ -115,6 +123,15 @@ export class AuthSessionService {
 
     if (token.usedAt !== null) {
       await this.store.revokeSession(session.id, "token_reuse", now);
+      await this.audit.log({
+        actorId: session.userId,
+        action: "auth.refresh.revoked",
+        resource: "auth-session",
+        resourceId: session.id,
+        sessionId: session.id,
+        details: { reason: "token_reuse" },
+        ipAddress,
+      });
       this.logger.warn(
         `Revoked session ${session.id}: a refresh token was presented twice`,
       );
@@ -154,6 +171,15 @@ export class AuthSessionService {
       // replay or the loser of two concurrent refreshes. Indistinguishable from
       // here, so it is treated as theft.
       await this.store.revokeSession(session.id, "token_reuse", now);
+      await this.audit.log({
+        actorId: session.userId,
+        action: "auth.refresh.revoked",
+        resource: "auth-session",
+        resourceId: session.id,
+        sessionId: session.id,
+        details: { reason: "concurrent_rotation" },
+        ipAddress,
+      });
       this.logger.warn(
         `Revoked session ${session.id}: a refresh token was claimed twice`,
       );
@@ -172,14 +198,21 @@ export class AuthSessionService {
    * Ends the session a token belongs to. Silent about unknown tokens so logout
    * cannot be used to probe which ones exist.
    */
-  async revokeByToken(rawToken: string, now: Date = new Date()): Promise<void> {
+  async revokeByToken(
+    rawToken: string,
+    now: Date = new Date(),
+  ): Promise<RevokedAuthSession | null> {
     const found = await this.store.findRefreshToken(hashRefreshToken(rawToken));
 
     if (found === null) {
-      return;
+      return null;
     }
 
     await this.store.revokeSession(found.session.id, "logout", now);
+    return {
+      sessionId: found.session.id,
+      userId: found.session.userId,
+    };
   }
 
   /** Signs a user out everywhere, e.g. after an administrator reset the password. */

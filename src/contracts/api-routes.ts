@@ -2,6 +2,7 @@ export const ApiRoutes = {
   Health: "health",
   Asr: "asr",
   Auth: "auth",
+  AuditLog: "audit-log",
   Geocoding: "geocoding",
   Scenarios: "scenarios",
   Calls: "calls",

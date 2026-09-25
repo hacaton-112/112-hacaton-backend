@@ -38,7 +38,7 @@ export class UsersService {
       action: "user.created",
       resource: "user",
       resourceId: user.id,
-      details: { email: user.email, role: user.role },
+      details: { role: user.role },
     });
     return user;
   }
@@ -77,26 +77,46 @@ export class UsersService {
       );
     }
     const user = await this.auth.updateUser(userId, input);
-    const action =
-      input.isActive === false
-        ? "user.deactivated"
-        : input.isActive === true
-          ? "user.reactivated"
-          : input.password !== undefined
-            ? "user.password_reset"
-            : input.role !== undefined
-              ? "user.role_changed"
-              : "user.updated";
-    await this.audit.log({
-      actorId: actor.id,
-      action,
-      resource: "user",
-      resourceId: userId,
-      details: {
-        fields: Object.keys(input).filter((key) => key !== "password"),
-        passwordChanged: input.password !== undefined,
-      },
-    });
+    const securityActions = [
+      ...(input.isActive === false ? ["user.blocked"] : []),
+      ...(input.isActive === true ? ["user.unblocked"] : []),
+      ...(input.role !== undefined ? ["user.role_changed"] : []),
+      ...(input.password !== undefined ? ["user.password_changed"] : []),
+    ];
+
+    for (const action of securityActions) {
+      await this.audit.log({
+        actorId: actor.id,
+        action,
+        resource: "user",
+        resourceId: userId,
+      });
+    }
+
+    if (securityActions.length === 0) {
+      await this.audit.log({
+        actorId: actor.id,
+        action: "user.updated",
+        resource: "user",
+        resourceId: userId,
+        details: { fields: Object.keys(input) },
+      });
+    }
+
+    if (input.role !== undefined || input.password !== undefined) {
+      await this.audit.log({
+        actorId: actor.id,
+        action: "auth.sessions.revoked",
+        resource: "user",
+        resourceId: userId,
+        details: {
+          reasons: [
+            ...(input.role !== undefined ? ["role_changed"] : []),
+            ...(input.password !== undefined ? ["password_changed"] : []),
+          ],
+        },
+      });
+    }
     return user;
   }
 }
