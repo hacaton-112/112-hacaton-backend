@@ -1,0 +1,52 @@
+import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+
+import { QUERY_KEYS } from "../config/query-keys";
+import type { CallSummary, Debrief } from "../contracts/debrief";
+import { debriefService } from "../services/debrief.service";
+import { useAuthStore } from "../stores/auth.store";
+
+export interface DebriefState {
+  calls?: CallSummary[];
+  debrief?: Debrief;
+  isPending: boolean;
+  error: Error | null;
+  loadRecordingSegment: (url: string) => Promise<string>;
+}
+
+/** Данные списка вызовов или одного разбора в зависимости от маршрута. */
+export function useDebrief(trainingSessionId?: string): DebriefState {
+  const asReviewer = useAuthStore((state) => state.user?.role !== "operator");
+  const callsQuery = useQuery({
+    queryKey: QUERY_KEYS.calls(),
+    queryFn: debriefService.listCalls,
+    enabled: trainingSessionId === undefined,
+  });
+
+  const debriefQuery = useQuery({
+    queryKey: QUERY_KEYS.debrief(trainingSessionId),
+    queryFn: () => {
+      if (!trainingSessionId) {
+        throw new Error("Не указана учебная сессия");
+      }
+
+      return debriefService.loadDebrief(trainingSessionId, asReviewer);
+    },
+    enabled: trainingSessionId !== undefined,
+  });
+
+  const loadRecordingSegment = useCallback(
+    (url: string) => debriefService.loadRecordingSegment(url),
+    [],
+  );
+
+  const activeQuery = trainingSessionId ? debriefQuery : callsQuery;
+
+  return {
+    calls: callsQuery.data,
+    debrief: debriefQuery.data,
+    isPending: activeQuery.isPending,
+    error: activeQuery.error,
+    loadRecordingSegment,
+  };
+}
