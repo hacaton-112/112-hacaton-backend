@@ -11,6 +11,7 @@ import type {
   TelephonyEvent,
 } from "@/modules/telephony/ports/telephony-control.port";
 import {
+  type AwaitingHandoff,
   type CrewHandoffDirectory,
   CrewHandoffService,
   UNKNOWN_NUMBER_LINE,
@@ -112,13 +113,18 @@ const settle = async () => {
   for (let index = 0; index < 30; index += 1) await Promise.resolve();
 };
 
-const setup = (
-  awaiting: {
-    id: string;
-    addressedService: "dds_01" | "dds_03";
-    card: DdsCardSnapshot;
-  } | null = { id: "exercise-1", addressedService: "dds_01", card: CARD },
-) => {
+type AwaitingResult = NonNullable<Awaited<ReturnType<AwaitingHandoff>>>;
+
+const DEFAULT_AWAITING: AwaitingResult = {
+  id: "exercise-1",
+  addressedService: "dds_01",
+  card: CARD,
+  purpose: "handoff",
+  reportedStatus: null,
+  allowedCrewPhoneNumbers: null,
+};
+
+const setup = (awaiting: AwaitingResult | null = DEFAULT_AWAITING) => {
   const pbx = new FakePbx();
   const asr = new FakeAsr();
   const directory: jest.Mocked<CrewHandoffDirectory> = {
@@ -301,6 +307,35 @@ describe(CrewHandoffService.name, () => {
     expect(runtime.awaitingHandoff).toHaveBeenCalledWith(
       "user-1",
       "assigned-exercise-1",
+    );
+  });
+
+  it("plays a deterministic progress report without opening ASR", async () => {
+    const runtime = setup({
+      ...DEFAULT_AWAITING,
+      purpose: "progress_check",
+      reportedStatus: "arrived",
+      allowedCrewPhoneNumbers: ["1012"],
+    });
+
+    await runtime.call("1012", "exercise-1");
+
+    expect(runtime.asr.open).not.toHaveBeenCalled();
+    expect(runtime.pbx.played.at(-1)).toBe(
+      "sound:crew/Пожарная часть 12. Прибыли по адресу: Москва, улица Учебная, дом 12.",
+    );
+    expect(runtime.directory.startCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: "progress_check",
+        reportedStatus: "arrived",
+        reportText: expect.stringContaining("Прибыли по адресу"),
+        correct: true,
+      }),
+    );
+    await runtime.finishPrompt();
+    expect(runtime.directory.finishCall).toHaveBeenCalledWith(
+      "c-1",
+      expect.objectContaining({ outcome: "completed" }),
     );
   });
 });

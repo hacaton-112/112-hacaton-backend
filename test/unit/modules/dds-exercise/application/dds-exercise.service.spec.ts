@@ -345,6 +345,9 @@ describe(DdsExerciseService.name, () => {
         missingFields: [],
       },
       asrStatus: "completed",
+      purpose: "handoff",
+      reportedStatus: null,
+      reportText: null,
       ...overrides,
     });
     const handoffs = (calls: StoredCrewHandoff["calls"]) =>
@@ -450,11 +453,72 @@ describe(DdsExerciseService.name, () => {
       expect(exercise!.crewHandoff).toEqual({
         notified: true,
         crews,
+        callMode: null,
+        nextReportStatus: null,
+        selectedCrewPhoneNumber: "1012",
         calls: [
           expect.objectContaining({ dialedNumber: "1999", correct: false }),
           expect.objectContaining({ dialedNumber: "1012", correct: true }),
         ],
       });
+    });
+
+    it("requires the matching crew report before each progress status", async () => {
+      const responding = jest.fn().mockResolvedValue(
+        stored({
+          status: "responding",
+          acknowledgedAt: new Date("2026-09-15T12:00:20.000Z"),
+        }),
+      );
+      const { service, store } = createService(
+        {
+          loadOwn: responding,
+          loadCrewHandoffs: handoffs([call()]),
+        },
+        true,
+      );
+
+      expect(
+        await codeOf(() =>
+          service.transition(EXERCISE_ID, "operator-1", {
+            eventId: TRANSITION_EVENT_ID,
+            status: "arrived",
+          }),
+        ),
+      ).toBe(ErrorCodes.DDS_CREW_REPORT_REQUIRED);
+      expect(store.appendTransition).not.toHaveBeenCalled();
+    });
+
+    it("moves to the reported status after a completed control call", async () => {
+      const responding = jest.fn().mockResolvedValue(
+        stored({
+          status: "responding",
+          acknowledgedAt: new Date("2026-09-15T12:00:20.000Z"),
+        }),
+      );
+      const { service, store } = createService(
+        {
+          loadOwn: responding,
+          loadCrewHandoffs: handoffs([
+            call(),
+            call({
+              purpose: "progress_check",
+              reportedStatus: "arrived",
+              reportText: "ПСЧ-12. Прибыли по адресу.",
+            }),
+          ]),
+        },
+        true,
+      );
+
+      await service.transition(EXERCISE_ID, "operator-1", {
+        eventId: TRANSITION_EVENT_ID,
+        status: "arrived",
+      });
+
+      expect(store.appendTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ nextStatus: "arrived" }),
+      );
     });
 
     it("stays silent about telephony when it is off", async () => {
@@ -534,6 +598,9 @@ describe(DdsExerciseService.name, () => {
         notified: false,
         crews: assignedCrews,
         calls: [],
+        callMode: null,
+        nextReportStatus: null,
+        selectedCrewPhoneNumber: null,
       });
       expect(store.loadCrewHandoffs).toHaveBeenCalledWith([assigned]);
     });

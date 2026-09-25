@@ -29,6 +29,10 @@ import {
   type StoredCrewHandoff,
   type StoredDdsExercise,
 } from "../ports/dds-exercise.store.port";
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "@/modules/telephony/domain/crew-call";
 import { DdsTextEvaluationService } from "./dds-text-evaluation.service";
 
 /**
@@ -39,16 +43,91 @@ import { DdsTextEvaluationService } from "./dds-text-evaluation.service";
  */
 export const DDS_CREW_HANDOFF_REQUIRED = Symbol("DDS_CREW_HANDOFF_REQUIRED");
 
+const REPORT_REQUIRED_FOR_STATUS: Partial<
+  Record<DdsExercise["status"], CrewProgressReportStatus>
+> = {
+  arrived: "arrived",
+  working: "working",
+  completed: "completed",
+};
+
+const NEXT_PROGRESS_REPORT: Partial<
+  Record<DdsExercise["status"], CrewProgressReportStatus>
+> = {
+  responding: "arrived",
+  arrived: "working",
+  working: "completed",
+};
+
+export interface CrewCallPlan {
+  readonly purpose: CrewCallPurpose;
+  readonly reportedStatus: CrewProgressReportStatus | null;
+  readonly allowedCrewPhoneNumbers: readonly string[];
+}
+
+interface CrewCallHistory {
+  readonly crews: readonly { readonly phoneNumber: string }[];
+  readonly calls: readonly {
+    readonly purpose: CrewCallPurpose;
+    readonly reportedStatus: CrewProgressReportStatus | null;
+    readonly dialedNumber: string;
+    readonly outcome: "completed" | "abandoned" | "unknown_number" | null;
+    readonly correct: boolean | null;
+  }[];
+}
+
+export const crewCallPlan = (
+  status: DdsExercise["status"],
+  handoff: CrewCallHistory,
+): CrewCallPlan | null => {
+  const selected = handoff.calls.find(
+    (call) =>
+      call.purpose === "handoff" &&
+      call.outcome === "completed" &&
+      call.correct === true,
+  );
+
+  if (status === "accepted" && !selected) {
+    return {
+      purpose: "handoff",
+      reportedStatus: null,
+      allowedCrewPhoneNumbers: handoff.crews.map(
+        ({ phoneNumber }) => phoneNumber,
+      ),
+    };
+  }
+
+  const nextReport = NEXT_PROGRESS_REPORT[status];
+  if (!selected || !nextReport) return null;
+  const alreadyReported = handoff.calls.some(
+    (call) =>
+      call.purpose === "progress_check" &&
+      call.reportedStatus === nextReport &&
+      call.outcome === "completed" &&
+      call.correct === true,
+  );
+  if (alreadyReported) return null;
+
+  return {
+    purpose: "progress_check",
+    reportedStatus: nextReport,
+    allowedCrewPhoneNumbers: [selected.dialedNumber],
+  };
+};
+
 /** Первый принятый нарядом звонок в нужную службу и ошибки набора до него. */
 export const handoffFacts = (handoff: StoredCrewHandoff) => {
-  const index = handoff.calls.findIndex(
+  const handoffCalls = handoff.calls.filter(
+    (call) => call.purpose === "handoff",
+  );
+  const index = handoffCalls.findIndex(
     (call) => call.outcome === "completed" && call.correct === true,
   );
-  const before = index === -1 ? handoff.calls : handoff.calls.slice(0, index);
+  const before = index === -1 ? handoffCalls : handoffCalls.slice(0, index);
 
   return {
     completedCallStartedAt:
-      index === -1 ? null : handoff.calls[index]!.startedAt,
+      index === -1 ? null : handoffCalls[index]!.startedAt,
     wrongCallsBefore: before.filter((call) => call.correct === false).length,
   };
 };
@@ -63,9 +142,32 @@ export class DdsExerciseService {
     @Optional() private readonly textEvaluations?: DdsTextEvaluationService,
   ) {}
 
-  /** Доставка, к которой относится звонок диспетчера наряду. */
-  findAwaitingHandoff(operatorId: string, exerciseId?: string) {
-    return this.store.findAwaitingHandoff(operatorId, exerciseId);
+  /** Карточка и разрешённый тип следующего звонка диспетчера наряду. */
+  async findCrewCallContext(operatorId: string, exerciseId?: string) {
+    if (!exerciseId) {
+      const exercise = await this.store.findAwaitingHandoff(operatorId);
+      if (!exercise) return null;
+      return {
+        ...exercise,
+        purpose: "handoff" as const,
+        reportedStatus: null,
+        allowedCrewPhoneNumbers: null,
+      };
+    }
+
+    const exercise = await this.store.loadOwn(exerciseId, operatorId);
+    if (!exercise || exercise.completedAt !== null) return null;
+    const [handoff] = (await this.store.loadCrewHandoffs([exercise])).values();
+    if (!handoff) return null;
+    const plan = crewCallPlan(exercise.status, handoff);
+    if (!plan) return null;
+
+    return {
+      id: exercise.id,
+      addressedService: exercise.addressedService,
+      card: exercise.card,
+      ...plan,
+    };
   }
 
   async start(
@@ -202,6 +304,24 @@ export class DdsExerciseService {
       );
     }
 
+    const requiredReport = REPORT_REQUIRED_FOR_STATUS[request.status];
+    if (
+      handoff !== null &&
+      requiredReport &&
+      !handoff.calls.some(
+        (call) =>
+          call.purpose === "progress_check" &&
+          call.reportedStatus === requiredReport &&
+          call.outcome === "completed" &&
+          call.correct === true,
+      )
+    ) {
+      throw new AppConflictException(
+        ErrorCodes.DDS_CREW_REPORT_REQUIRED,
+        `Receive the crew report for ${requiredReport} before changing the status`,
+      );
+    }
+
     const now = new Date();
     const acknowledgedAt =
       exercise.status === "pending" ? now : exercise.acknowledgedAt;
@@ -297,6 +417,13 @@ export class DdsExerciseService {
     textEvaluation: DdsTextEvaluationRecord | null,
   ): DdsExercise {
     const facts = handoff ? handoffFacts(handoff) : null;
+    const plan = handoff ? crewCallPlan(exercise.status, handoff) : null;
+    const selectedCrew = handoff?.calls.find(
+      (call) =>
+        call.purpose === "handoff" &&
+        call.outcome === "completed" &&
+        call.correct === true,
+    );
     const processResult = evaluateDdsExercise({
       status: exercise.status,
       acknowledgementDeadlineAt: exercise.acknowledgementDeadlineAt,
@@ -370,7 +497,13 @@ export class DdsExerciseService {
                     }
                   : null,
                 asrStatus: call.asrStatus,
+                purpose: call.purpose,
+                reportedStatus: call.reportedStatus,
+                reportText: call.reportText,
               })),
+              callMode: plan?.purpose ?? null,
+              nextReportStatus: plan?.reportedStatus ?? null,
+              selectedCrewPhoneNumber: selectedCrew?.dialedNumber ?? null,
             }
           : null,
     };

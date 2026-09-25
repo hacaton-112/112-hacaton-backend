@@ -1,3 +1,8 @@
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "../domain/crew-call";
+
 /**
  * Что происходит на линии учебной АТС.
  *
@@ -16,6 +21,8 @@ export type TelephonyEvent =
       /** Экранный телефон передаёт карточку явно; ручной набор оставляет поле пустым. */
       readonly exerciseId?: string;
       readonly requestEventId?: string;
+      readonly callPurpose?: CrewCallPurpose;
+      readonly reportedStatus?: CrewProgressReportStatus;
     }
   | {
       readonly type: "playback-finished";

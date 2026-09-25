@@ -13,6 +13,10 @@ import {
   telephonyWorkstations,
   users,
 } from "@/drizzle/schema";
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "../domain/crew-call";
 
 export interface RescueCrew {
   readonly id: string;
@@ -39,6 +43,8 @@ export interface CrewCallCommandRecord {
   readonly callerExtension: string;
   readonly dialedNumber: string;
   readonly channelId: string;
+  readonly purpose: CrewCallPurpose;
+  readonly reportedStatus: CrewProgressReportStatus | null;
   readonly startedAt: Date | null;
 }
 
@@ -214,6 +220,8 @@ export class DrizzleTelephonyDirectory {
     readonly callerExtension: string;
     readonly dialedNumber: string;
     readonly channelId: string;
+    readonly purpose: CrewCallPurpose;
+    readonly reportedStatus: CrewProgressReportStatus | null;
   }): Promise<CrewCallCommandRecord> {
     const [created] = await this.db
       .insert(ddsCrewCallCommands)
@@ -248,6 +256,9 @@ export class DrizzleTelephonyDirectory {
     readonly callerExtension: string;
     readonly dialedNumber: string;
     readonly channelId: string;
+    readonly purpose: CrewCallPurpose;
+    readonly reportedStatus: CrewProgressReportStatus | null;
+    readonly reportText: string | null;
     readonly startedAt: Date;
     readonly correct: boolean | null;
   }): Promise<void> {

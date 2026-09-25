@@ -12,7 +12,10 @@ const setup = (overrides?: {
   status?: "pending" | "accepted" | "responding";
   extension?: string | null;
   startedAt?: Date | null;
+  progress?: boolean;
 }) => {
+  const purpose = overrides?.progress ? "progress_check" : "handoff";
+  const reportedStatus = overrides?.progress ? "arrived" : null;
   const control = {
     originate: jest.fn(async () => undefined),
   } as unknown as jest.Mocked<TelephonyControlPort>;
@@ -27,6 +30,8 @@ const setup = (overrides?: {
       callerExtension: "201",
       dialedNumber: "1012",
       channelId: EVENT_ID,
+      purpose,
+      reportedStatus,
       startedAt: overrides?.startedAt ?? null,
     })),
     markCrewCallCommandStarted: jest.fn(async () => undefined),
@@ -38,8 +43,23 @@ const setup = (overrides?: {
       completedAt: null,
       crewHandoff: {
         crews: [{ callsign: "ПСЧ-12", phoneNumber: "1012" }],
-        calls: [],
-        notified: false,
+        calls: overrides?.progress
+          ? [
+              {
+                dialedNumber: "1012",
+                callsign: "ПСЧ-12",
+                purpose: "handoff",
+                reportedStatus: null,
+                reportText: null,
+                outcome: "completed",
+                correct: true,
+              },
+            ]
+          : [],
+        notified: overrides?.progress ?? false,
+        callMode: purpose,
+        nextReportStatus: reportedStatus,
+        selectedCrewPhoneNumber: overrides?.progress ? "1012" : null,
       },
     })),
   } as unknown as jest.Mocked<DdsExerciseService>;
@@ -69,7 +89,7 @@ describe(CrewClickToCallService.name, () => {
     });
     expect(control.originate).toHaveBeenCalledWith({
       endpoint: "PJSIP/201",
-      appArgs: ["1012", EXERCISE_ID, EVENT_ID],
+      appArgs: ["1012", EXERCISE_ID, EVENT_ID, "handoff", ""],
       callerId: "201",
       channelId: EVENT_ID,
       timeoutSeconds: 30,
@@ -89,6 +109,24 @@ describe(CrewClickToCallService.name, () => {
     });
 
     expect(control.originate).not.toHaveBeenCalled();
+  });
+
+  it("starts a control call only to the crew that accepted the card", async () => {
+    const { service, control } = setup({
+      status: "responding",
+      progress: true,
+    });
+
+    await service.start("operator-1", EXERCISE_ID, {
+      eventId: EVENT_ID,
+      dialedNumber: "1012",
+    });
+
+    expect(control.originate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appArgs: ["1012", EXERCISE_ID, EVENT_ID, "progress_check", "arrived"],
+      }),
+    );
   });
 
   it("rejects a number that is not offered by the active card", async () => {

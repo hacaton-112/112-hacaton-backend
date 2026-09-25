@@ -20,6 +20,10 @@ import {
 } from "@/modules/asr/ports/asr-stream.port";
 import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "../domain/crew-call";
 import {
   CREW_SCRIPT_TIMING,
   type CrewScriptCommand,
@@ -35,6 +39,7 @@ import {
 import {
   crewPhrase,
   crewPhrases,
+  crewProgressReport,
   NO_ACTIVE_CARD_LINE,
 } from "../domain/crew-phrases";
 import type { RescueCrew } from "../infrastructure/drizzle-telephony.directory";
@@ -60,6 +65,9 @@ export interface CrewHandoffDirectory {
     readonly callerExtension: string;
     readonly dialedNumber: string;
     readonly channelId: string;
+    readonly purpose: CrewCallPurpose;
+    readonly reportedStatus: CrewProgressReportStatus | null;
+    readonly reportText: string | null;
     readonly startedAt: Date;
     readonly correct: boolean | null;
   }): Promise<void>;
@@ -90,6 +98,9 @@ export type AwaitingHandoff = (
   readonly id: string;
   readonly addressedService: DispatchService;
   readonly card: DdsCardSnapshot;
+  readonly purpose: CrewCallPurpose;
+  readonly reportedStatus: CrewProgressReportStatus | null;
+  readonly allowedCrewPhoneNumbers: readonly string[] | null;
 } | null>;
 
 export const CREW_HANDOFF_DIRECTORY = Symbol("CREW_HANDOFF_DIRECTORY");
@@ -101,6 +112,9 @@ interface ActiveCall {
   readonly channelId: string;
   crew: RescueCrew | null;
   card: DdsCardSnapshot | null;
+  purpose: CrewCallPurpose;
+  reportedStatus: CrewProgressReportStatus | null;
+  reportText: string | null;
   script: CrewScriptState;
   transcriptParts: string[];
   validation: CrewHandoffValidation | null;
@@ -196,6 +210,9 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
       channelId: event.channelId,
       crew: null,
       card: null,
+      purpose: "handoff",
+      reportedStatus: null,
+      reportText: null,
       script: INITIAL_CREW_SCRIPT,
       transcriptParts: [],
       validation: null,
@@ -217,6 +234,36 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
           : null;
         call.crew = crew;
         call.card = awaiting?.card ?? null;
+        call.purpose = awaiting?.purpose ?? "handoff";
+        call.reportedStatus = awaiting?.reportedStatus ?? null;
+
+        const contextMatchesCommand =
+          awaiting !== null &&
+          (event.callPurpose === undefined ||
+            event.callPurpose === awaiting.purpose) &&
+          (event.reportedStatus === undefined ||
+            event.reportedStatus === awaiting.reportedStatus);
+        const numberIsAllowed =
+          awaiting?.allowedCrewPhoneNumbers === null ||
+          awaiting?.allowedCrewPhoneNumbers.includes(event.dialedNumber) ===
+            true;
+        const correct =
+          awaiting !== null &&
+          contextMatchesCommand &&
+          numberIsAllowed &&
+          crew?.service === awaiting.addressedService;
+
+        if (
+          correct &&
+          awaiting.purpose === "progress_check" &&
+          awaiting.reportedStatus
+        ) {
+          call.reportText = crewProgressReport(
+            crew.callsign,
+            awaiting.reportedStatus,
+            awaiting.card,
+          );
+        }
 
         await this.directory.startCall({
           id: generateId(),
@@ -226,10 +273,11 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
           callerExtension: event.callerNumber,
           dialedNumber: event.dialedNumber,
           channelId: event.channelId,
+          purpose: call.purpose,
+          reportedStatus: call.reportedStatus,
+          reportText: call.reportText,
           startedAt: new Date(),
-          correct: awaiting
-            ? crew?.service === awaiting.addressedService
-            : null,
+          correct: awaiting ? correct : null,
         });
 
         await this.control.answer(event.channelId);
@@ -240,6 +288,22 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
         }
         if (!awaiting) {
           await this.playDirect(call, NO_ACTIVE_CARD_LINE, "abandoned");
+          return;
+        }
+        if (
+          awaiting.purpose === "progress_check" &&
+          (!contextMatchesCommand || !numberIsAllowed)
+        ) {
+          await this.playDirect(call, NO_ACTIVE_CARD_LINE, "abandoned");
+          return;
+        }
+        if (call.reportText) {
+          await this.playDirect(
+            call,
+            call.reportText,
+            "completed",
+            crew.voiceId,
+          );
           return;
         }
 
@@ -286,11 +350,12 @@ export class CrewHandoffService implements OnModuleInit, OnModuleDestroy {
     call: ActiveCall,
     line: string,
     outcome: CrewCallOutcome,
+    voiceId = PBX_VOICE_ID,
   ): Promise<void> {
     call.directOutcome = outcome;
     call.latestPlaybackId = await this.control.play(
       call.channelId,
-      await this.prompts.ensure(line, PBX_VOICE_ID),
+      await this.prompts.ensure(line, voiceId),
     );
   }
 

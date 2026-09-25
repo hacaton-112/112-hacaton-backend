@@ -87,7 +87,7 @@ import { WorkstationConfigurationService } from "./application/workstation-confi
       inject: [DdsExerciseService],
       useFactory:
         (dds: DdsExerciseService) => (userId: string, exerciseId?: string) =>
-          dds.findAwaitingHandoff(userId, exerciseId),
+          dds.findCrewCallContext(userId, exerciseId),
     },
     CrewHandoffService,
     CrewClickToCallService,

@@ -51,6 +51,19 @@ describe("translateAriEvent", () => {
     });
   });
 
+  it("reads the server-owned purpose of a control call", () => {
+    expect(
+      translateAriEvent({
+        type: "StasisStart",
+        args: ["1012", "exercise-1", "event-1", "progress_check", "arrived"],
+        channel: { id: "c-1", caller: { number: "201" } },
+      }),
+    ).toMatchObject({
+      callPurpose: "progress_check",
+      reportedStatus: "arrived",
+    });
+  });
+
   it("finds the channel of a finished playback in its target", () => {
     expect(
       translateAriEvent({

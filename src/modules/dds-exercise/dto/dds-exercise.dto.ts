@@ -7,6 +7,10 @@ import {
   DISPATCH_SERVICES,
   SCENARIO_CATEGORIES,
 } from "@/drizzle/schema";
+import {
+  CREW_CALL_PURPOSES,
+  CREW_PROGRESS_REPORT_STATUSES,
+} from "@/modules/telephony/domain/crew-call";
 
 import { DDS_EXERCISE_VIOLATIONS } from "../domain/dds-exercise-evaluation";
 import { DDS_RESPONSE_STATUSES } from "../domain/dds-response-status";
@@ -96,6 +100,9 @@ export const DdsCrewCallSchema = z
       .strict()
       .nullable(),
     asrStatus: z.enum(CREW_CALL_ASR_STATUSES),
+    purpose: z.enum(CREW_CALL_PURPOSES),
+    reportedStatus: z.enum(CREW_PROGRESS_REPORT_STATUSES).nullable(),
+    reportText: nullableText(2_000),
   })
   .strict();
 
@@ -117,6 +124,9 @@ export const DdsCrewHandoffSchema = z
         .strict(),
     ),
     calls: z.array(DdsCrewCallSchema),
+    callMode: z.enum(CREW_CALL_PURPOSES).nullable(),
+    nextReportStatus: z.enum(CREW_PROGRESS_REPORT_STATUSES).nullable(),
+    selectedCrewPhoneNumber: nullableText(32),
   })
   .strict();
 

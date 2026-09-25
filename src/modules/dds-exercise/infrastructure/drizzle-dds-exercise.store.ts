@@ -421,6 +421,7 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
       .where(
         and(
           eq(ddsCrewCalls.exerciseId, ddsExercises.id),
+          eq(ddsCrewCalls.purpose, "handoff"),
           eq(ddsCrewCalls.outcome, "completed"),
           eq(ddsCrewCalls.correct, true),
         ),
@@ -482,6 +483,9 @@ export class DrizzleDdsExerciseStore implements DdsExerciseStore {
           transcript: ddsCrewCalls.transcript,
           validation: ddsCrewCalls.validation,
           asrStatus: ddsCrewCalls.asrStatus,
+          purpose: ddsCrewCalls.purpose,
+          reportedStatus: ddsCrewCalls.reportedStatus,
+          reportText: ddsCrewCalls.reportText,
         })
         .from(ddsCrewCalls)
         .leftJoin(rescueCrews, eq(rescueCrews.id, ddsCrewCalls.crewId))
