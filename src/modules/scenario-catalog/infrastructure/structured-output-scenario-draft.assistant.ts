@@ -1,6 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 
-import { AliceAiStructuredOutputClient } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-structured-output.client";
+import {
+  STRUCTURED_OUTPUT_PORT,
+  type StructuredOutputPort,
+} from "@/modules/ai-gateway/ports/structured-output.port";
 
 import {
   scenarioAssistantJsonSchema,
@@ -25,8 +28,13 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 @Injectable()
-export class AliceAiScenarioDraftAssistant implements ScenarioDraftAssistantPort {
-  constructor(private readonly client: AliceAiStructuredOutputClient) {}
+export class StructuredOutputScenarioDraftAssistant
+  implements ScenarioDraftAssistantPort
+{
+  constructor(
+    @Inject(STRUCTURED_OUTPUT_PORT)
+    private readonly client: StructuredOutputPort,
+  ) {}
 
   async generate(
     request: ScenarioDraftAssistantRequest,

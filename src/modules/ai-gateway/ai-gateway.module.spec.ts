@@ -6,9 +6,7 @@ import { DialogueGenerationModule } from "@/modules/dialogue-generation/dialogue
 import { SpeechSynthesisModule } from "@/modules/speech-synthesis/speech-synthesis.module";
 
 import { TextAiAdapterModule } from "./adapters/text-ai-adapter.module";
-import { AliceAiStructuredOutputClient } from "./adapters/alice-ai/alice-ai-structured-output.client";
 import { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
-import { createQwenTtsAdapter } from "./adapters/qwen-tts/qwen-tts.factory";
 import {
   QWEN_TTS_CONFIG,
   QWEN_TTS_FETCH,
@@ -48,7 +46,7 @@ describe("AI provider module registration", () => {
     expect(qwenProviders).toContainEqual({
       provide: TTS_PORT,
       inject: [QWEN_TTS_CONFIG, QWEN_TTS_FETCH],
-      useFactory: createQwenTtsAdapter,
+      useFactory: expect.any(Function),
     });
     expect(qwenProviders).not.toContainEqual(
       expect.objectContaining({ provide: LLM_PORT }),
@@ -79,7 +77,6 @@ describe("AI provider module registration", () => {
       getModuleMetadata(MODULE_METADATA.EXPORTS, TextAiAdapterModule),
     ).toEqual([
       LLM_PORT,
-      AliceAiStructuredOutputClient,
       STRUCTURED_OUTPUT_PORT,
       QUESTION_UNDERSTANDING_PORT,
     ]);

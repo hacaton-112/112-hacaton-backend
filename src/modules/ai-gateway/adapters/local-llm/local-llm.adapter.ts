@@ -16,9 +16,9 @@ import type {
 } from "../../ports/structured-output.port";
 import {
   ASKED_FACTS_JSON_SCHEMA,
-  parseAliceAiQuestionResponse,
-} from "../alice-ai/alice-ai.question";
-import { parseAliceAiSse } from "../alice-ai/alice-ai.sse";
+  parseQuestionResponse,
+} from "../openai-compatible/question-response";
+import { parseOpenAiSse } from "../openai-compatible/openai-compatible.sse";
 import { REACTION_ACT_INSTRUCTIONS } from "@/modules/dialogue-generation/domain/reaction-instructions";
 import { InferenceQueue } from "./inference-queue";
 import {
@@ -223,7 +223,7 @@ export class LocalLlmAdapter
       ) {
         throw new Error("Local LLM returned an invalid stream");
       }
-      const stream = parseAliceAiSse(response.body, deadline);
+      const stream = parseOpenAiSse(response.body, deadline);
       if (callerV2) {
         yield* expandCallerV2Reply(stream, request, (message) =>
           this.logger.warn(`${message} request=${request.requestId}`),
@@ -280,7 +280,7 @@ export class LocalLlmAdapter
       },
       this.config.concurrency,
     );
-    return parseAliceAiQuestionResponse(
+    return parseQuestionResponse(
       { choices: [{ message: { content: JSON.stringify(content) } }] },
       request,
     );

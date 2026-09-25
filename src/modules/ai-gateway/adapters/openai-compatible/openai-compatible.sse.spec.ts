@@ -1,6 +1,6 @@
 import type { LlmStreamEvent } from "@/contracts";
 
-import { parseAliceAiSse } from "./alice-ai.sse";
+import { parseOpenAiSse } from "./openai-compatible.sse";
 
 const encoder = new TextEncoder();
 
@@ -21,7 +21,7 @@ const collect = async (
 ): Promise<LlmStreamEvent[]> => {
   const events: LlmStreamEvent[] = [];
 
-  for await (const event of parseAliceAiSse(
+  for await (const event of parseOpenAiSse(
     body,
     new AbortController().signal,
   )) {
@@ -31,7 +31,7 @@ const collect = async (
   return events;
 };
 
-describe(parseAliceAiSse.name, () => {
+describe(parseOpenAiSse.name, () => {
   it("parses fragmented UTF-8, CRLF, and multiple events per chunk", async () => {
     const payload = [
       ": keep-alive\r\n\r\n",

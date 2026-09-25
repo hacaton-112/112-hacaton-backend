@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { dialoguePreparations } from "@/drizzle/schema";
 import type { AuditLogService } from "@/modules/audit-log/audit-log.service";
-import type { AliceAiStructuredOutputClient } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-structured-output.client";
+import type { StructuredOutputPort } from "@/modules/ai-gateway/ports/structured-output.port";
 import type { SpeechSynthesisService } from "@/modules/speech-synthesis";
 import { ScenarioSeedSchema } from "@/modules/scenario-engine/domain/scenario-seed.schema";
 import { initialEntries, preparationHash } from "./domain/dialogue-preparation";
@@ -107,7 +107,7 @@ const setup = (job = makeJob(), selects: unknown[] = [[], [], [], [job]]) => {
     db as unknown as DrizzleService["db"],
     storage,
     { synthesize } as unknown as SpeechSynthesisService,
-    { complete } as unknown as AliceAiStructuredOutputClient,
+    { complete } as unknown as StructuredOutputPort,
   );
   return {
     service,

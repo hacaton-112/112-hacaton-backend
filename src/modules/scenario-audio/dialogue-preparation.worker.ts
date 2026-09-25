@@ -9,7 +9,10 @@ import {
   dialoguePreparations,
   scenarioAudioPacks,
 } from "@/drizzle/schema";
-import { AliceAiStructuredOutputClient } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai-structured-output.client";
+import {
+  STRUCTURED_OUTPUT_PORT,
+  type StructuredOutputPort,
+} from "@/modules/ai-gateway/ports/structured-output.port";
 import {
   RECORDING_STORAGE,
   type RecordingStorage,
@@ -34,7 +37,8 @@ export class DialoguePreparationWorker {
     @Inject(DRIZZLE) private readonly db: DrizzleService["db"],
     @Inject(RECORDING_STORAGE) private readonly storage: RecordingStorage,
     private readonly synthesis: SpeechSynthesisService,
-    private readonly assistant: AliceAiStructuredOutputClient,
+    @Inject(STRUCTURED_OUTPUT_PORT)
+    private readonly assistant: StructuredOutputPort,
   ) {}
 
   /** One fact proposal or PCM asset per durable lease. Called by the existing worker. */

@@ -2,27 +2,27 @@ import { z } from "zod";
 
 import { LlmStreamEventSchema, type LlmStreamEvent } from "@/contracts";
 
-import { AliceAiError } from "./alice-ai.error";
+import { OpenAiCompatibleError } from "./openai-compatible.error";
 
-// Provider envelopes are deliberately passthrough: Alice AI may add compatible
+// Provider envelopes are deliberately passthrough: an OpenAI-compatible server may add
 // metadata fields. Only the subset used at our boundary is validated below.
-const AliceAiDeltaSchema = z
+const StreamDeltaSchema = z
   .object({
     content: z.string().nullable().optional(),
     role: z.string().optional(),
   })
   .passthrough();
 
-const AliceAiChoiceSchema = z
+const StreamChoiceSchema = z
   .object({
     index: z.number().int().nonnegative(),
-    delta: AliceAiDeltaSchema,
+    delta: StreamDeltaSchema,
   })
   .passthrough();
 
-export const AliceAiStreamChunkSchema = z
+export const StreamChunkSchema = z
   .object({
-    choices: z.array(AliceAiChoiceSchema),
+    choices: z.array(StreamChoiceSchema),
   })
   .passthrough();
 
@@ -51,18 +51,18 @@ const parseChunk = (rawData: string): LlmStreamEvent | null => {
   try {
     decoded = JSON.parse(rawData);
   } catch {
-    throw new AliceAiError(
+    throw new OpenAiCompatibleError(
       "invalid-response",
-      "Alice AI returned malformed stream data",
+      "The model returned malformed stream data",
     );
   }
 
-  const parsed = AliceAiStreamChunkSchema.safeParse(decoded);
+  const parsed = StreamChunkSchema.safeParse(decoded);
 
   if (!parsed.success) {
-    throw new AliceAiError(
+    throw new OpenAiCompatibleError(
       "invalid-response",
-      "Alice AI returned an invalid stream event",
+      "The model returned an invalid stream event",
     );
   }
 
@@ -76,7 +76,7 @@ const parseChunk = (rawData: string): LlmStreamEvent | null => {
   return LlmStreamEventSchema.parse({ type: "text.delta", delta: content });
 };
 
-export async function* parseAliceAiSse(
+export async function* parseOpenAiSse(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
 ): AsyncIterable<LlmStreamEvent> {

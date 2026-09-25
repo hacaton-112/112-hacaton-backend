@@ -2,8 +2,12 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { TTS_PORT } from "../../ai-gateway.tokens";
-import { type QwenTtsEnvironment, parseQwenTtsConfig } from "./qwen-tts.config";
-import { createQwenTtsAdapter } from "./qwen-tts.factory";
+import {
+  type QwenTtsConfig,
+  type QwenTtsEnvironment,
+  parseQwenTtsConfig,
+} from "./qwen-tts.config";
+import { PiperTtsAdapter } from "./piper/piper-tts.adapter";
 import {
   assertOfflineEndpoint,
   guardedOfflineFetch,
@@ -16,12 +20,6 @@ import {
 } from "./qwen-tts.tokens";
 
 const QWEN_TTS_ENVIRONMENT_KEYS = [
-  "TTS_PROVIDER",
-  "TTS_MODE",
-  "TTS_BASE_URL",
-  "TTS_MODEL",
-  "TTS_REFERENCE_VOICES_PATH",
-  "TTS_STREAMING_INTERVAL_SECONDS",
   "TTS_REQUEST_TIMEOUT_MS",
   "PIPER_TTS_BASE_URL",
   "PIPER_TTS_MALE_VOICE",
@@ -56,7 +54,8 @@ const createQwenTtsConfig = (configService: ConfigService) => {
     {
       provide: TTS_PORT,
       inject: [QWEN_TTS_CONFIG, QWEN_TTS_FETCH],
-      useFactory: createQwenTtsAdapter,
+      useFactory: (config: QwenTtsConfig, fetchImplementation: QwenTtsFetch) =>
+        new PiperTtsAdapter(config, fetchImplementation),
     },
   ],
   exports: [TTS_PORT],

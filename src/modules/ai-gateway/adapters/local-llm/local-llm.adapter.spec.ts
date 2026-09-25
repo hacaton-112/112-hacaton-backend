@@ -1,13 +1,14 @@
 import { ConfigService } from "@nestjs/config";
 import type { GenerateCallerReplyRequest, LlmStreamEvent } from "@/contracts";
-import { ALICE_AI_SYSTEM_PROMPT } from "../alice-ai/alice-ai.request";
-import type { StructuredOutputRequest } from "../alice-ai/alice-ai-structured-output.client";
+import type { StructuredOutputRequest } from "../../ports/structured-output.port";
 import { createAiProviders } from "../text-ai-adapter.module";
 import {
   buildReplyPrompt,
   LocalLlmAdapter,
   LocalLlmConfigSchema,
 } from "./local-llm.adapter";
+
+const MAX_PROMPT_LENGTH = 2_000;
 
 const config = LocalLlmConfigSchema.parse({
   baseUrl: "http://127.0.0.1:8080/v1/",
@@ -179,9 +180,9 @@ describe(LocalLlmAdapter.name, () => {
     ]);
     expect(body.messages[0].content).toContain("{t, f}");
     expect(body.messages[0].content).toContain("дословно");
-    expect(body.messages[0].content.length).toBeLessThan(
-      ALICE_AI_SYSTEM_PROMPT.length,
-    );
+    // Промпт своей модели держим коротким: на процессоре каждая лишняя
+    // сотня знаков — это задержка ответа заявителя.
+    expect(body.messages[0].content.length).toBeLessThan(MAX_PROMPT_LENGTH);
     expect(body.max_tokens).toBe(256);
     expect(body).toMatchObject({
       temperature: 0.3,
@@ -525,12 +526,11 @@ describe(LocalLlmAdapter.name, () => {
       model: "tools-model-v2",
     });
   });
-  it("keeps an explicitly selected dialogue provider separate from tools", () => {
+  it("keeps the tools model separate from the dialogue model", () => {
     const providers = createAiProviders(
       new ConfigService({
-        LLM_PROVIDER: "alice",
-        YANDEX_AI_API_KEY: "test-key",
-        YANDEX_AI_FOLDER_ID: "test-folder",
+        LLM_BASE_URL: "http://127.0.0.1:8080/v1",
+        LLM_MODEL: "dialogue-model",
         TOOLS_LLM_BASE_URL: "http://127.0.0.1:8081/v1",
       }),
       jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(),

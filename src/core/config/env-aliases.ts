@@ -1,19 +1,12 @@
 /**
  * Имена переменных окружения, оставшиеся от прежнего выбора моделей.
  *
- * `QWEN_TTS_*` называл провайдером Qwen там, где давно работает Piper, а
- * `LOCAL_LLM_*` дублировал уже существующий `LLM_PROVIDER`. Старое имя
- * продолжает работать: развёрнутые окружения и чужие `.env` не должны падать
- * из-за переименования.
+ * Старое имя продолжает работать: развёрнутые окружения и чужие `.env` не
+ * должны падать из-за переименования. Имена удалённых облачных провайдеров
+ * здесь не перечислены — переносить их больше некуда.
  */
 export const DEPRECATED_ENVIRONMENT_ALIASES: Readonly<Record<string, string>> =
   {
-    QWEN_TTS_PROVIDER: "TTS_PROVIDER",
-    QWEN_TTS_MODE: "TTS_MODE",
-    QWEN_TTS_BASE_URL: "TTS_BASE_URL",
-    QWEN_TTS_MODEL: "TTS_MODEL",
-    QWEN_TTS_REFERENCE_VOICES_PATH: "TTS_REFERENCE_VOICES_PATH",
-    QWEN_TTS_STREAMING_INTERVAL_SECONDS: "TTS_STREAMING_INTERVAL_SECONDS",
     QWEN_TTS_REQUEST_TIMEOUT_MS: "TTS_REQUEST_TIMEOUT_MS",
     LOCAL_LLM_BASE_URL: "LLM_BASE_URL",
     LOCAL_LLM_MODEL: "LLM_MODEL",

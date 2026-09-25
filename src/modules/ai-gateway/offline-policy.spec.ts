@@ -21,17 +21,18 @@ describe("offline AI policy", () => {
   ])("rejects endpoint %s", (url) => {
     expect(() => assertOfflineEndpoint(url, ["8.8.8.8"])).toThrow();
   });
-  it("refuses cloud provider at startup without making a request", () => {
+  it("refuses an external dialogue endpoint at startup without making a request", () => {
     const fetcher = jest.fn();
     expect(() =>
       createAiProviders(
         new ConfigService({
           VOICE_EXECUTION_PROFILE: "offline-hybrid",
-          LLM_PROVIDER: "alice",
+          LLM_BASE_URL: "https://example.org/v1",
+          LLM_MODEL: "dialogue-model",
         }),
         fetcher,
       ),
-    ).toThrow("requires LLM_PROVIDER=local");
+    ).toThrow();
     expect(fetcher).not.toHaveBeenCalled();
   });
   it("refuses an external tools endpoint in offline-hybrid mode", () => {

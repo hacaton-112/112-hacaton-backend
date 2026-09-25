@@ -1,53 +1,4 @@
 services:
-  # Серверный Qwen3-TTS runtime. Профиль не включается обычным `compose up`,
-  # потому что требует Linux, NVIDIA Container Toolkit и доступную CUDA GPU.
-  qwen-tts:
-    profiles: ["tts-cuda"]
-    image: ${TTS_CUDA_IMAGE:-vllm/vllm-omni:v0.28.0}
-    container_name: system-112-training-qwen-tts
-    restart: unless-stopped
-    init: true
-    ipc: host
-    command:
-      - vllm
-      - serve
-      - ${TTS_CUDA_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-Base}
-      - --deploy-config
-      - /app/vllm-omni/vllm_omni/deploy/qwen3_tts.yaml
-      - --omni
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8091"
-      - --trust-remote-code
-    environment:
-      HF_TOKEN: ${HF_TOKEN:-}
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    ports:
-      # Speech API не имеет прикладной авторизации: наружу его по умолчанию
-      # не публикуем. Для отдельного GPU-хоста задайте адрес приватной сети.
-      - "${TTS_CUDA_BIND_ADDRESS:-127.0.0.1}:${TTS_CUDA_PORT:-8091}:8091"
-    volumes:
-      - qwen_tts_hf_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=5)
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 20m
-    stop_grace_period: 2m
-
   # ── Голосовой конвейер на CPU ─────────────────────────────────────────────
   # Поднимается обычным `docker compose up -d`, без профилей и без разовых
   # контейнеров-загрузчиков: модели ASR зашиты в образ, а llama-server берёт
@@ -440,7 +391,6 @@ services:
       CALL_RECORDING_S3_ACCESS_KEY_ID: ${CALL_RECORDING_S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-system112}}
       CALL_RECORDING_S3_SECRET_ACCESS_KEY: ${CALL_RECORDING_S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-system112secret}}
       ASR_SERVICE_URL: http://asr:8787
-      LLM_PROVIDER: local
       LLM_BASE_URL: http://local-llm:8080/v1
       LLM_MODEL: training-model
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
@@ -453,7 +403,6 @@ services:
       LLM_REPLY_MAX_TOKENS: ${LLM_REPLY_MAX_TOKENS:-256}
       LLM_REPLY_TEMPERATURE: ${LLM_REPLY_TEMPERATURE:-0.3}
       LLM_REPLY_THINKING: ${LLM_REPLY_THINKING:-false}
-      TTS_PROVIDER: piper
       PIPER_TTS_BASE_URL: http://piper-tts:5000
       PIPER_TTS_MALE_VOICE: ${PIPER_TTS_MALE_VOICE:-ru_RU-dmitri-medium}
       PIPER_TTS_FEMALE_VOICE: ${PIPER_TTS_FEMALE_VOICE:-ru_RU-irina-medium}
@@ -545,7 +494,6 @@ services:
       start_period: 10s
 
 volumes:
-  qwen_tts_hf_cache:
   llm_models:
   postgres_data:
   pgadmin-data:

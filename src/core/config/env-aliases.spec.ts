@@ -7,16 +7,16 @@ describe("applyDeprecatedEnvironmentAliases", () => {
   it("carries a deprecated value over to its current name", () => {
     const environment: Record<string, string | undefined> = {
       LOCAL_LLM_BASE_URL: "http://local-llm:8080/v1",
-      QWEN_TTS_PROVIDER: "piper",
+      QWEN_TTS_REQUEST_TIMEOUT_MS: "60000",
     };
 
     const used = applyDeprecatedEnvironmentAliases(environment);
 
     expect(environment.LLM_BASE_URL).toBe("http://local-llm:8080/v1");
-    expect(environment.TTS_PROVIDER).toBe("piper");
+    expect(environment.TTS_REQUEST_TIMEOUT_MS).toBe("60000");
     expect([...used].sort()).toEqual([
       "LOCAL_LLM_BASE_URL",
-      "QWEN_TTS_PROVIDER",
+      "QWEN_TTS_REQUEST_TIMEOUT_MS",
     ]);
   });
 
@@ -34,7 +34,7 @@ describe("applyDeprecatedEnvironmentAliases", () => {
   it("reports nothing when only current names are used", () => {
     const environment: Record<string, string | undefined> = {
       LLM_MODEL: "training-model",
-      TTS_PROVIDER: "piper",
+      TTS_REQUEST_TIMEOUT_MS: "60000",
     };
 
     expect(applyDeprecatedEnvironmentAliases(environment)).toEqual([]);
