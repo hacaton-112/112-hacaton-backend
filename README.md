@@ -214,18 +214,20 @@ TileServer из своих тайлов, адрес по точке считае
 
 ## Запуск
 
-Нужен Docker с поддержкой compose. Две языковые модели подключаются каталогом
-`models/` — что в него положить, описано в [models/README.md](models/README.md).
+Проверенные команды, времена сборки, содержимое `.env` и известные препятствия
+собраны в [протоколе сборки и запуска](docs/сборка-и-запуск.md). Две языковые
+модели нужно положить в `models/` по [описанию](models/README.md).
 
-```bash
-cp .env.example .env
-echo 'LLM_MODELS_DIR=./models' >> .env
-sh infra/tls/generate-self-signed.sh
+```powershell
+Copy-Item .env.example .env
+# После настройки .env и размещения моделей и карты:
 docker compose --profile app up -d --build
 ```
 
-Открыть `https://localhost`. Учебные данные и демонстрационные учётные записи —
-в [docs/учетные-записи.md](docs/учетные-записи.md).
+На проверенной машине команда запуска остановилась на загрузке образа MinIO с
+`401 Unauthorized`; в протоколе перечислены фактически проверенные части
+комплекса. Демонстрационные учётные записи — в
+[docs/учетные-записи.md](docs/учетные-записи.md).
 
 Разработка одного backend без контейнеров описана в
 [apps/backend/README.md](apps/backend/README.md).
