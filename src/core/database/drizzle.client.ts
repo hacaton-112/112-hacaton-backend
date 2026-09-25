@@ -9,7 +9,7 @@ import winstonLogger from "@/core/config/winston.config";
 // ── Pool Configuration ───────────────────────────────────────────
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 10,
+  max: env.DATABASE_POOL_MAX,
   connectionTimeoutMillis: 5_000,
   idleTimeoutMillis: 60_000,
 });

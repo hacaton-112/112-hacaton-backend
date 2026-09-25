@@ -569,4 +569,73 @@ describe(LocalLlmAdapter.name, () => {
     ).rejects.toMatchObject({ status: 429 });
     expect(fetcher).not.toHaveBeenCalled();
   });
+
+  it("второй одновременный звонок дожидается модели, а не получает заглушку", async () => {
+    // Модель отвечает по одному ходу за раз: держим первый запрос открытым,
+    // пока второй не встанет в очередь.
+    const delta = JSON.stringify({
+      choices: [
+        { index: 0, delta: { content: '{"t":"Во дворе.","f":[1]}' } },
+      ],
+    });
+    let releaseFirst = () => {};
+    const firstInFlight = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let served = 0;
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockImplementation(async () => {
+        served += 1;
+        if (served === 1) await firstInFlight;
+        return new Response(`data: ${delta}\n\ndata: [DONE]\n\n`, {
+          headers: { "content-type": "text/event-stream" },
+        });
+      });
+    const adapter = new LocalLlmAdapter(
+      LocalLlmConfigSchema.parse({
+        baseUrl: "http://127.0.0.1:8080/v1/",
+        model: "training-model",
+        literalFactReplies: true,
+      }),
+      fetcher,
+    );
+    const request: GenerateCallerReplyRequest = {
+      requestId: "reply",
+      sessionId: "session",
+      scenarioVersionId: "version",
+      operatorText: "Где вы?",
+      context: {
+        persona: {
+          id: "caller",
+          description: "Учебный заявитель",
+          language: "Russian",
+        },
+        allowedFacts: [{ id: "place", value: "Во дворе." }],
+        recentTurns: [],
+      },
+    };
+
+    const collect = async (requestId: string) => {
+      const events: LlmStreamEvent[] = [];
+      for await (const event of adapter.streamReply(
+        { ...request, requestId },
+        new AbortController().signal,
+      ))
+        events.push(event);
+      return events
+        .filter((event) => event.type === "text.delta")
+        .map((event) => event.delta)
+        .join("");
+    };
+
+    const both = Promise.all([collect("first"), collect("second")]);
+    releaseFirst();
+
+    // Оба хода дошли до модели: очередь задержала второй, но не отказала ему.
+    const [first, second] = await both;
+    expect(JSON.parse(first)).toMatchObject({ text: "Во дворе." });
+    expect(JSON.parse(second)).toMatchObject({ text: "Во дворе." });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });
