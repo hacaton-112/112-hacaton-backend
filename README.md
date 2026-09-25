@@ -707,12 +707,28 @@ Zod-контрактом на backend: модель не может раскры
 
 ## Структура
 
+Каждый модуль разложен по одним и тем же слоям: `domain/` — чистая логика без
+Nest, `application/` — сервисы, которые её связывают, `infrastructure/` — выход
+наружу (база, HTTP, файлы), `ports/` — контракты между ними, `dto/` — схемы
+запросов и ответов. В корне модуля остаются только сам модуль, контроллеры,
+токены и HTTP-guard'ы.
+
+Тесты лежат отдельно от кода, в `test/unit/`, повторяя дерево `src/`: файл
+`src/modules/dds-exercise/application/dds-archive.service.ts` проверяет
+`test/unit/modules/dds-exercise/application/dds-archive.service.spec.ts`.
+
 ```text
 src/
   common/       # общие ошибки, фильтры, interceptors и утилиты
   contracts/    # публичные константы и типы API
   core/         # конфигурация, Fastify adapter и подключение инфраструктуры
   modules/      # изолированные NestJS-модули
+test/
+  unit/         # модульные тесты, зеркало src/
+  e2e/          # сквозные проверки на поднятой базе
+  golden/       # эталонные прогоны диалога
+  manual/       # запускаемые руками сценарии и нагрузочный прогон
+  fixtures/     # данные для тестов
 drizzle/
   schema/       # Drizzle-схемы
   migrations/   # генерируется drizzle-kit
