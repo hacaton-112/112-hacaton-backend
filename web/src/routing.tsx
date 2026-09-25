@@ -55,6 +55,7 @@ const GroupPage = lazyImport(() => import("./pages/main/group-page"));
 const StudentPage = lazyImport(() => import("./pages/main/student-page"));
 const StudentsPage = lazyImport(() => import("./pages/main/students-page"));
 const AdminPage = lazyImport(() => import("./pages/main/admin-page"));
+const AuditLogPage = lazyImport(() => import("./pages/main/audit-log-page"));
 const ClassifierPage = lazyImport(() => import("./pages/main/classifier-page"));
 const MethodicalMaterialsPage = lazyImport(
   () => import("./pages/main/methodical-materials-page"),
@@ -191,6 +192,10 @@ export function Routing() {
               <Route
                 path={ROUTE_PATTERNS.admin}
                 element={lazyPage(<AdminPage />)}
+              />
+              <Route
+                path={ROUTE_PATTERNS.auditLog}
+                element={lazyPage(<AuditLogPage />)}
               />
             </Route>
           </Route>

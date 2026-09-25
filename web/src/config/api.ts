@@ -9,6 +9,7 @@ export const API_CONFIG = {
   getLoginUrl: () => `/auth/login`,
   getRefreshUrl: () => `/auth/refresh`,
   getLogoutUrl: () => `/auth/logout`,
+  getAuditLogUrl: () => `/audit-log`,
   getCurrentUserUrl: () => `/auth/me`,
   getMethodicalMaterialsUrl: () => `/methodical-materials`,
   getMethodicalMaterialUrl: (materialId: string) =>

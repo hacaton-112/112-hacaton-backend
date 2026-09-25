@@ -15,6 +15,7 @@ export const QUERY_KEYS = {
     ["dds-lessons", lessonId, "report"] as const,
   ddsReferences: (filters: object = {}) => ["dds-references", filters] as const,
   adminQueues: () => ["admin-queues"] as const,
+  auditLog: (filter: object) => ["audit-log", filter] as const,
   ddsArchive: (filter: object) => ["dds-archive", filter] as const,
   myDdsResults: () => ["dds-results", "my"] as const,
   myDdsResult: (exerciseId?: string) =>

@@ -31,6 +31,7 @@ export const ROUTE_PATTERNS = {
   students: "/students",
   student: "/students/:userId",
   admin: "/admin",
+  auditLog: "/admin/audit-log",
   scenarioNew: "/scenarios/new",
   scenarioEdit: "/scenarios/:scenarioVersionId/edit",
   map: "/map",
@@ -68,6 +69,7 @@ export const ROUTES = {
   students: () => "/students",
   student: (userId: string) => `/students/${encodeURIComponent(userId)}`,
   admin: () => "/admin",
+  auditLog: () => "/admin/audit-log",
   scenarioNew: () => "/scenarios/new",
   scenarioEdit: (scenarioVersionId: string) =>
     `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,
