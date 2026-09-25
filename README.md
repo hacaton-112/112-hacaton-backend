@@ -4,6 +4,13 @@ Backend на NestJS 11 с HTTP runtime Fastify 5 для desktop-тренажёр
 Старые домены шаблонного проекта удалены; сохранены только применимые к кейсу
 архитектурные паттерны и интеграция PostgreSQL через Drizzle ORM.
 
+## Состав репозитория
+
+Проект поставляется одним монорепозиторием: backend и общая инфраструктура находятся
+в корне, а React-клиент — в каталоге [`web/`](web/README.md). Backend и клиент сохраняют
+собственные `package.json` и `bun.lock`, поэтому их зависимости и команды запускаются
+независимо из соответствующих каталогов.
+
 Подробное объяснение ролей `dto`, `contracts`, `domain`, `application`, `ports`
 и `infrastructure` находится в
 [`docs/module-architecture.md`](docs/module-architecture.md).

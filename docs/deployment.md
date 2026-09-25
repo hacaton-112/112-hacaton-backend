@@ -497,9 +497,9 @@ PostgreSQL, MinIO и pgAdmin: теперь они слушают только lo
 # Веб-клиент
 
 Клиент — обычный сайт, отдельного desktop-приложения нет. Gateway собирает его
-из соседнего репозитория `trainer-client` при сборке своего образа
-(`docker/gateway/Dockerfile`, контекст `web-src`, путь меняется
-`WEB_SOURCE_DIR`), раздаёт на `/`, а `/api/` вместе с WebSocket проксирует в
+из каталога `web/` этого репозитория при сборке своего образа
+(`docker/gateway/Dockerfile`, контекст `web-src`), раздаёт на `/`, а `/api/`
+вместе с WebSocket проксирует в
 backend:
 
 ```bash

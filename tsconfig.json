@@ -33,5 +33,6 @@
       "@/database/*": ["./src/core/database/*"],
       "@/drizzle/*": ["./drizzle/*"]
     }
-  }
+  },
+  "exclude": ["node_modules", "dist", "web"]
 }
