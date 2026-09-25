@@ -46,16 +46,16 @@ export function InstructorDdsSummary({
   return (
     <Card size="2" variant="surface" className="grid gap-4">
       <Heading size="3">Работа с карточками ДДС</Heading>
-      <Grid columns={{ initial: "2", md: "5" }} gap="3">
+      <div className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-5">
         {metrics.map(([label, metric]) => (
-          <div key={label}>
+          <div key={label} className="min-w-0">
             <Text as="p" color="gray" size="1">
               {label}
             </Text>
             <Heading size="5">{metric}</Heading>
           </div>
         ))}
-      </Grid>
+      </div>
       <div>
         <Text as="p" weight="bold" size="2">
           Исходы

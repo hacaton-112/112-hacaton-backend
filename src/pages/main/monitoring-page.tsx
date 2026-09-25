@@ -112,7 +112,7 @@ export default function MonitoringPage() {
           ) : (
             <InstructorCallsTable
               calls={finishedCalls}
-              backLabel="К мониторингу"
+              backLabel="Мониторинг"
               showOperator
             />
           )}

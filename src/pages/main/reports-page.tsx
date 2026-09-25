@@ -108,7 +108,10 @@ export default function ReportsPage() {
       </div>
 
       <Card size="2" variant="surface">
-        <form onSubmit={submit} className="grid gap-3 lg:grid-cols-5">
+        <form
+          onSubmit={submit}
+          className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-5"
+        >
           <TrainingField label="Тип отчёта">
             <Select.Root
               value={scope}
