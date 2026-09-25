@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { CrewPrompt } from "./crew-handoff-script";
 import type { CrewHandoffField } from "./crew-handoff-validation";
+import type { CrewProgressReportStatus } from "./crew-call";
 
 /**
  * Что говорит наряд.
@@ -54,6 +55,27 @@ export const crewPhrases = (callsign: string): readonly string[] => [
   CREW_INCOMPLETE,
   CREW_RECOGNITION_UNAVAILABLE,
 ];
+
+/**
+ * Детерминированный доклад наряда при контрольном звонке.
+ *
+ * Статус выбирает Scenario Engine, а не TTS/LLM. Поэтому одна и та же карточка
+ * всегда даёт один и тот же доклад и не может самопроизвольно «продвинуться».
+ */
+export const crewProgressReport = (
+  callsign: string,
+  status: CrewProgressReportStatus,
+  card: { readonly addressText: string; readonly incidentType: string },
+): string => {
+  switch (status) {
+    case "arrived":
+      return `${callsign.trim()}. Прибыли по адресу: ${card.addressText}.`;
+    case "working":
+      return `${callsign.trim()}. Работы по происшествию «${card.incidentType}» проводятся.`;
+    case "completed":
+      return `${callsign.trim()}. Работы по происшествию «${card.incidentType}» завершены.`;
+  }
+};
 
 /**
  * Имя файла реплики.

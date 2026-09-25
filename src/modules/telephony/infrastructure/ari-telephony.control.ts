@@ -11,6 +11,10 @@ import type {
 } from "../ports/telephony-control.port";
 import { decodeRtpMulaw, isNewerRtpSequence } from "./rtp-mulaw";
 import type { TelephonyConfig } from "./telephony.config";
+import {
+  isCrewCallPurpose,
+  isCrewProgressReportStatus,
+} from "../domain/crew-call";
 
 const MAX_RECONNECT_DELAY_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -354,6 +358,12 @@ export function translateAriEvent(event: AriEvent): TelephonyEvent | null {
               event.args?.[0] ?? event.channel?.dialplan?.exten ?? "",
             ...(event.args?.[1] ? { exerciseId: event.args[1] } : {}),
             ...(event.args?.[2] ? { requestEventId: event.args[2] } : {}),
+            ...(event.args?.[3] && isCrewCallPurpose(event.args[3])
+              ? { callPurpose: event.args[3] }
+              : {}),
+            ...(event.args?.[4] && isCrewProgressReportStatus(event.args[4])
+              ? { reportedStatus: event.args[4] }
+              : {}),
           }
         : null;
     case "StasisEnd":

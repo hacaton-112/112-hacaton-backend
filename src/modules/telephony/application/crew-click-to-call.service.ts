@@ -6,7 +6,10 @@ import {
   AppServiceUnavailableException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
-import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
+import {
+  crewCallPlan,
+  DdsExerciseService,
+} from "@/modules/dds-exercise/application/dds-exercise.service";
 
 import type { CrewCallCommand } from "../dto/telephony.dto";
 import {
@@ -44,15 +47,19 @@ export class CrewClickToCallService {
     }
 
     const exercise = await this.exercises.get(exerciseId, operatorId);
-    if (exercise.status !== "accepted" || exercise.completedAt !== null) {
+    const handoff = exercise.crewHandoff;
+    const plan = handoff ? crewCallPlan(exercise.status, handoff) : null;
+    if (!handoff || !plan || exercise.completedAt !== null) {
       throw new AppConflictException(
         ErrorCodes.DDS_STATUS_TRANSITION_INVALID,
-        "Accept the DDS card before calling a crew",
+        "There is no crew call required for the current DDS status",
       );
     }
 
-    const crew = exercise.crewHandoff?.crews.find(
-      ({ phoneNumber }) => phoneNumber === input.dialedNumber,
+    const crew = handoff.crews.find(
+      ({ phoneNumber }) =>
+        phoneNumber === input.dialedNumber &&
+        plan.allowedCrewPhoneNumbers.includes(phoneNumber),
     );
     if (!crew) {
       throw new AppBadRequestException(
@@ -76,19 +83,29 @@ export class CrewClickToCallService {
       callerExtension: extension,
       dialedNumber: crew.phoneNumber,
       channelId: input.eventId,
+      purpose: plan.purpose,
+      reportedStatus: plan.reportedStatus,
     });
     this.assertSameCommand(command, {
       exerciseId,
       operatorId,
       callerExtension: extension,
       dialedNumber: crew.phoneNumber,
+      purpose: plan.purpose,
+      reportedStatus: plan.reportedStatus,
     });
 
     if (command.startedAt === null) {
       try {
         await this.control.originate({
           endpoint: `PJSIP/${extension}`,
-          appArgs: [crew.phoneNumber, exerciseId, input.eventId],
+          appArgs: [
+            crew.phoneNumber,
+            exerciseId,
+            input.eventId,
+            plan.purpose,
+            plan.reportedStatus ?? "",
+          ],
           callerId: extension,
           channelId: command.channelId,
           timeoutSeconds: RING_TIMEOUT_SECONDS,
@@ -118,14 +135,21 @@ export class CrewClickToCallService {
     command: CrewCallCommandRecord,
     expected: Pick<
       CrewCallCommandRecord,
-      "exerciseId" | "operatorId" | "callerExtension" | "dialedNumber"
+      | "exerciseId"
+      | "operatorId"
+      | "callerExtension"
+      | "dialedNumber"
+      | "purpose"
+      | "reportedStatus"
     >,
   ): void {
     if (
       command.exerciseId !== expected.exerciseId ||
       command.operatorId !== expected.operatorId ||
       command.callerExtension !== expected.callerExtension ||
-      command.dialedNumber !== expected.dialedNumber
+      command.dialedNumber !== expected.dialedNumber ||
+      command.purpose !== expected.purpose ||
+      command.reportedStatus !== expected.reportedStatus
     ) {
       throw new AppConflictException(
         ErrorCodes.TELEPHONY_CALL_CONFLICT,

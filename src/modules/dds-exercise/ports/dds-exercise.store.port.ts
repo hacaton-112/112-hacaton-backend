@@ -6,6 +6,10 @@ import type {
   IncidentCardField,
   ScenarioCategory,
 } from "@/drizzle/schema";
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "@/modules/telephony/domain/crew-call";
 
 import type { DdsResponseStatus } from "../domain/dds-response-status";
 import type {
@@ -159,6 +163,9 @@ export interface StoredCrewCall {
     readonly missingFields: readonly string[];
   } | null;
   readonly asrStatus: CrewCallAsrStatus;
+  readonly purpose: CrewCallPurpose;
+  readonly reportedStatus: CrewProgressReportStatus | null;
+  readonly reportText: string | null;
 }
 
 export interface StoredCrewHandoff {
