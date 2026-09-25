@@ -42,6 +42,8 @@ interface Options {
   password: string;
   wav: string | null;
   scenarioVersionId: string | null;
+  /** Брать назначение из базы: нужно только для прогона от лица обучающегося. */
+  assignment: boolean;
 }
 
 interface TurnMeasurement {
@@ -79,6 +81,7 @@ const parseOptions = (argv: readonly string[]): Options => {
     password: values.get("password") ?? DEFAULTS.password,
     wav: values.get("wav") ?? null,
     scenarioVersionId: values.get("scenario") ?? null,
+    assignment: values.get("assignment") !== "false",
   };
 };
 
@@ -184,10 +187,25 @@ const login = async (options: Options): Promise<string> => {
   return session.accessToken;
 };
 
+/**
+ * Назначение для синтетических операторов.
+ *
+ * Прогон под учётной записью преподавателя назначения не требует: попытку
+ * сервер резервирует только обучающемуся, а нагрузка на распознавание, модель
+ * и синтез от этого не меняется. Тогда достаточно указать версию сценария —
+ * и прогон не оставляет в занятиях десяток фальшивых попыток.
+ */
 const findAssignment = async (
   email: string,
   scenarioVersionId: string | null,
-): Promise<{ assignmentId: string; scenarioVersionId: string }> => {
+  useAssignment: boolean,
+): Promise<{ assignmentId: string | undefined; scenarioVersionId: string }> => {
+  if (!useAssignment) {
+    if (scenarioVersionId === null)
+      throw new Error("Без назначения нужен --scenario=<версия сценария>");
+    return { assignmentId: undefined, scenarioVersionId };
+  }
+
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
 
@@ -292,13 +310,17 @@ class SyntheticOperator {
 
   async run(
     scenarioVersionId: string,
-    assignmentId: string,
+    assignmentId: string | undefined,
     turns: number,
     pcm: Uint8Array,
   ): Promise<void> {
     await once(this.socket, "open");
 
-    this.send({ type: "start", scenarioVersionId, assignmentId });
+    this.send({
+      type: "start",
+      scenarioVersionId,
+      ...(assignmentId ? { assignmentId } : {}),
+    });
     await this.expect("call.offered");
 
     this.send({ type: "accept" });
@@ -440,6 +462,7 @@ async function main(): Promise<void> {
   const assignment = await findAssignment(
     options.email,
     options.scenarioVersionId,
+    options.assignment,
   );
   const pcm =
     options.wav === null ? syntheticPcm(3) : await readPcm(options.wav);
