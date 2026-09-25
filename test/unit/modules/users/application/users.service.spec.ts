@@ -125,7 +125,7 @@ describe(UsersService.name, () => {
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
-  it("audits deactivation without storing a password", async () => {
+  it("audits blocking and password changes without storing a password", async () => {
     const { service, audit } = createService();
 
     await service.update(adminActor, otherId, {
@@ -135,13 +135,16 @@ describe(UsersService.name, () => {
 
     expect(audit.log).toHaveBeenCalledWith({
       actorId,
-      action: "user.deactivated",
+      action: "user.blocked",
       resource: "user",
       resourceId: otherId,
-      details: {
-        fields: ["isActive"],
-        passwordChanged: true,
-      },
     });
+    expect(audit.log).toHaveBeenCalledWith({
+      actorId,
+      action: "user.password_changed",
+      resource: "user",
+      resourceId: otherId,
+    });
+    expect(JSON.stringify(audit.log.mock.calls)).not.toContain("NewPassword1");
   });
 });

@@ -13,6 +13,7 @@ import {
 import { ErrorCodes } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import type { UserRecord } from "@/drizzle/schema";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 import type { AuthSessionService } from "@/modules/auth/application/auth-session.service";
 import { AuthService } from "@/modules/auth/application/auth.service";
@@ -68,6 +69,7 @@ const createService = (
   service: AuthService;
   signAsync: jest.Mock;
   sessions: SessionMocks;
+  audit: { log: jest.Mock };
 } => {
   const tokenSigner: TokenSigner = { signAsync };
   const sessions: SessionMocks = {
@@ -78,19 +80,25 @@ const createService = (
       refreshExpiresIn: 2_592_000,
     }),
     rotate: jest.fn(),
-    revokeByToken: jest.fn().mockResolvedValue(undefined),
+    revokeByToken: jest.fn().mockResolvedValue({
+      sessionId: "session-1",
+      userId: "0f6f1d68-2b0e-4bd9-8f2f-6f1f0f0f0f0f",
+    }),
     revokeAllForUser: jest.fn().mockResolvedValue(undefined),
     ...sessionOverrides,
   };
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
 
   return {
     service: new AuthService(
       db,
       tokenSigner,
       sessions as unknown as AuthSessionService,
+      audit as unknown as AuditLogService,
     ),
     signAsync,
     sessions,
+    audit,
   };
 };
 
@@ -101,7 +109,7 @@ describe(AuthService.name, () => {
 
   it("issues a token with the account claims", async () => {
     const user = await createUserRecord();
-    const { service, signAsync } = createService(createDb([user]));
+    const { service, signAsync, audit } = createService(createDb([user]));
 
     const session = await service.login(
       { email: user.email, password: PASSWORD },
@@ -128,6 +136,14 @@ describe(AuthService.name, () => {
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
       },
+    });
+    expect(audit.log).toHaveBeenCalledWith({
+      actorId: user.id,
+      action: "auth.login.succeeded",
+      resource: "auth-session",
+      resourceId: "session-1",
+      sessionId: "session-1",
+      ipAddress: METADATA.ipAddress,
     });
   });
 
@@ -169,7 +185,7 @@ describe(AuthService.name, () => {
 
   it("rejects an inactive account with the same public login error", async () => {
     const user = { ...(await createUserRecord()), isActive: false };
-    const { service, sessions } = createService(createDb([user]));
+    const { service, sessions, audit } = createService(createDb([user]));
 
     await expect(
       service.login({ email: user.email, password: PASSWORD }, METADATA),
@@ -178,6 +194,14 @@ describe(AuthService.name, () => {
     });
 
     expect(sessions.issue).not.toHaveBeenCalled();
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "auth.login.failed",
+        ipAddress: METADATA.ipAddress,
+        details: expect.objectContaining({ email: user.email }),
+      }),
+    );
+    expect(JSON.stringify(audit.log.mock.calls)).not.toContain(PASSWORD);
   });
 
   it("opens a session with the client metadata", async () => {
@@ -207,7 +231,7 @@ describe(AuthService.name, () => {
 
   it("returns a fresh pair when a refresh token is rotated", async () => {
     const user = await createUserRecord();
-    const { service, sessions } = createService(
+    const { service, sessions, audit } = createService(
       createDb([user]),
       jest.fn().mockResolvedValue("new-access-token"),
       {
@@ -222,12 +246,22 @@ describe(AuthService.name, () => {
 
     const session = await service.refresh("refresh-token");
 
-    expect(sessions.rotate).toHaveBeenCalledWith("refresh-token");
+    expect(sessions.rotate).toHaveBeenCalledWith(
+      "refresh-token",
+      undefined,
+      null,
+    );
     expect(session).toMatchObject({
       accessToken: "new-access-token",
       refreshToken: "next-refresh-token",
       user: { id: user.id },
     });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "auth.refresh.rotated",
+        sessionId: "session-1",
+      }),
+    );
   });
 
   it("hides a deleted account behind the refresh error", async () => {
@@ -263,11 +297,14 @@ describe(AuthService.name, () => {
   });
 
   it("revokes the session on logout, including for an unknown token", async () => {
-    const { service, sessions } = createService(createDb([]));
+    const { service, sessions, audit } = createService(createDb([]));
 
     await expect(service.logout("refresh-token")).resolves.toBeUndefined();
 
     expect(sessions.revokeByToken).toHaveBeenCalledWith("refresh-token");
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "auth.logout.succeeded" }),
+    );
   });
 
   it("rejects a profile lookup for a deleted account", async () => {

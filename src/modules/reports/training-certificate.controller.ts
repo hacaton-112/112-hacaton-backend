@@ -14,6 +14,7 @@ import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 import { TrainingService } from "@/modules/training/application/training.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 import { TrainingCertificateQueryDto } from "./dto/training-certificate.dto";
 import { ReportExporter } from "./infrastructure/report-exporter";
@@ -25,6 +26,7 @@ export class TrainingCertificateController {
   constructor(
     private readonly training: TrainingService,
     private readonly exporter: ReportExporter,
+    private readonly audit: AuditLogService,
   ) {}
 
   @Get(":assignmentId/certificate")
@@ -39,6 +41,12 @@ export class TrainingCertificateController {
       query.studentId,
     );
     const artifact = await this.exporter.exportCertificate(data);
+    await this.audit.log({
+      actorId: request.user.sub,
+      action: "training.certificate.issued",
+      resource: "training-assignment",
+      resourceId: assignmentId,
+    });
     return new StreamableFile(artifact.buffer, {
       type: artifact.contentType,
       disposition: `attachment; filename="${artifact.filename}"`,

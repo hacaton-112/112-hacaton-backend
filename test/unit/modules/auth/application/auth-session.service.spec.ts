@@ -12,6 +12,7 @@ import type {
   RefreshTokenWithSession,
 } from "@/modules/auth/ports/auth-session-store.port";
 import { hashRefreshToken } from "@/modules/auth/domain/refresh-token";
+import type { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 const NOW = new Date("2026-09-08T10:00:00.000Z");
 const HOUR = 3_600;
@@ -33,7 +34,11 @@ interface StoreMocks {
 const createService = (
   overrides: Partial<StoreMocks> = {},
   sessionConfig: AuthSessionConfig = config,
-): { service: AuthSessionService; store: StoreMocks } => {
+): {
+  service: AuthSessionService;
+  store: StoreMocks;
+  audit: { log: jest.Mock };
+} => {
   const store: StoreMocks = {
     createSession: jest.fn().mockResolvedValue(undefined),
     findRefreshToken: jest.fn().mockResolvedValue(null),
@@ -42,13 +47,16 @@ const createService = (
     revokeUserSessions: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
 
   return {
     service: new AuthSessionService(
       store as unknown as AuthSessionStore,
       sessionConfig,
+      audit as unknown as AuditLogService,
     ),
     store,
+    audit,
   };
 };
 
@@ -163,7 +171,7 @@ describe(`${AuthSessionService.name} rotate`, () => {
   });
 
   it("revokes the whole session when a token is presented twice", async () => {
-    const { service, store } = createService({
+    const { service, store, audit } = createService({
       findRefreshToken: jest
         .fn()
         .mockResolvedValue(found({ token: { usedAt: new Date(NOW) } })),
@@ -179,6 +187,13 @@ describe(`${AuthSessionService.name} rotate`, () => {
       NOW,
     );
     expect(store.replaceRefreshToken).not.toHaveBeenCalled();
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "auth.refresh.revoked",
+        resourceId: "session-1",
+        details: { reason: "token_reuse" },
+      }),
+    );
   });
 
   it("revokes the session when the row was claimed by a concurrent refresh", async () => {
@@ -345,13 +360,14 @@ describe(`${AuthSessionService.name} revokeByToken`, () => {
       findRefreshToken: jest.fn().mockResolvedValue(found()),
     });
 
-    await service.revokeByToken("raw-token", NOW);
+    const revoked = await service.revokeByToken("raw-token", NOW);
 
     expect(store.revokeSession).toHaveBeenCalledWith(
       "session-1",
       "logout",
       NOW,
     );
+    expect(revoked).toEqual({ sessionId: "session-1", userId: "user-1" });
   });
 
   it("stays silent about an unknown token", async () => {
@@ -359,7 +375,7 @@ describe(`${AuthSessionService.name} revokeByToken`, () => {
 
     await expect(
       service.revokeByToken("raw-token", NOW),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
 
     expect(store.revokeSession).not.toHaveBeenCalled();
   });
