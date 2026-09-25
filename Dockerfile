@@ -44,9 +44,6 @@ RUN bun install --frozen-lockfile --production \
     && rm -rf /root/.bun/install/cache
 
 COPY --from=build /app/dist ./dist
-# Референсные голоса читаются во время работы: без них режим Base ICL не
-# стартует.
-COPY assets ./assets
 # Миграции применяет сам контейнер перед стартом: отдельная разовая задача
 # оставляла бы в compose завершившийся контейнер.
 COPY drizzle/migrate.ts ./drizzle/migrate.ts
