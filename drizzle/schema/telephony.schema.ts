@@ -15,6 +15,10 @@ import {
 import { ddsExercises } from "./dds-exercise.schema";
 import { dispatchService } from "./incident-card.schema";
 import { users } from "./user.schema";
+import type {
+  CrewCallPurpose,
+  CrewProgressReportStatus,
+} from "@/modules/telephony/domain/crew-call";
 
 /**
  * Наряды, которым диспетчер ДДС передаёт карточку по телефону.
@@ -55,8 +59,9 @@ export const telephonyWorkstations = pgTable(
     extension: text("extension").primaryKey(),
     name: text("name").notNull(),
     service: dispatchService("service").notNull(),
-    userId: text("user_id")
-      .references(() => users.id, { onDelete: "set null" }),
+    userId: text("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -112,6 +117,14 @@ export const ddsCrewCalls = pgTable(
     dialedNumber: text("dialed_number").notNull(),
     /** Идентификатор канала Asterisk: по нему приходят события звонка. */
     channelId: text("channel_id").notNull(),
+    purpose: text("purpose")
+      .$type<CrewCallPurpose>()
+      .notNull()
+      .default("handoff"),
+    /** Этап, о котором доложил наряд при контрольном звонке. */
+    reportedStatus: text("reported_status").$type<CrewProgressReportStatus>(),
+    /** Точная реплика виртуального старшего наряда, услышанная диспетчером. */
+    reportText: text("report_text"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     acknowledgements: integer("acknowledgements").notNull().default(0),
@@ -138,6 +151,14 @@ export const ddsCrewCalls = pgTable(
       "dds_crew_calls_asr_status_check",
       sql`${table.asrStatus} in ('not_started', 'completed', 'unavailable')`,
     ),
+    check(
+      "dds_crew_calls_purpose_check",
+      sql`${table.purpose} in ('handoff', 'progress_check')`,
+    ),
+    check(
+      "dds_crew_calls_reported_status_check",
+      sql`(${table.purpose} = 'handoff' and ${table.reportedStatus} is null) or (${table.purpose} = 'progress_check' and ${table.reportedStatus} in ('arrived', 'working', 'completed'))`,
+    ),
   ],
 );
 
@@ -161,6 +182,11 @@ export const ddsCrewCallCommands = pgTable(
     callerExtension: text("caller_extension").notNull(),
     dialedNumber: text("dialed_number").notNull(),
     channelId: text("channel_id").notNull(),
+    purpose: text("purpose")
+      .$type<CrewCallPurpose>()
+      .notNull()
+      .default("handoff"),
+    reportedStatus: text("reported_status").$type<CrewProgressReportStatus>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -171,5 +197,13 @@ export const ddsCrewCallCommands = pgTable(
       table.channelId,
     ),
     index("dds_crew_call_commands_exercise_idx").on(table.exerciseId),
+    check(
+      "dds_crew_call_commands_purpose_check",
+      sql`${table.purpose} in ('handoff', 'progress_check')`,
+    ),
+    check(
+      "dds_crew_call_commands_reported_status_check",
+      sql`(${table.purpose} = 'handoff' and ${table.reportedStatus} is null) or (${table.purpose} = 'progress_check' and ${table.reportedStatus} in ('arrived', 'working', 'completed'))`,
+    ),
   ],
 );
