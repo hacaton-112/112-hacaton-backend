@@ -118,8 +118,17 @@ export const LocalLlmConfigSchema = z
     apiKey: z.string().min(1).optional(),
     timeoutMs: z.coerce.number().int().min(500).max(300_000).default(8_000),
     concurrency: z.coerce.number().int().min(1).max(4).default(1),
-    queueSize: z.coerce.number().int().min(0).max(16).default(0),
-    queueWaitMs: z.coerce.number().int().min(10).max(300_000).default(500),
+    /**
+     * Сколько ходов ждут своей очереди к модели.
+     *
+     * На процессоре модель отвечает по одному ходу за раз, а занятие идёт
+     * сразу у нескольких операторов. Без очереди второй в ту же секунду
+     * получал сценарную заглушку «повторите, вас плохо слышно»: заявитель у
+     * него замолкал, хотя система была исправна. Пауза в несколько секунд для
+     * учебного разговора честнее, чем потерянный ответ.
+     */
+    queueSize: z.coerce.number().int().min(0).max(16).default(2),
+    queueWaitMs: z.coerce.number().int().min(10).max(300_000).default(5_000),
     reserveLiveSlot: z.boolean().default(true),
     literalFactReplies: z.boolean().default(false),
     replyMaxTokens: z.coerce.number().int().min(32).max(512).default(256),

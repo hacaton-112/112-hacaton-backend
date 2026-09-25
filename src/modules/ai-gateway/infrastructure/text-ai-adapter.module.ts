@@ -78,7 +78,7 @@ export const createAiProviders = (
       replyTemperature: config.get("LLM_REPLY_TEMPERATURE"),
       replyThinking: config.get("LLM_REPLY_THINKING"),
       concurrency: config.get("LLM_CONCURRENCY"),
-      queueSize: config.get("LLM_QUEUE_SIZE") ?? (offline.enabled ? 2 : 0),
+      queueSize: config.get("LLM_QUEUE_SIZE"),
       queueWaitMs: config.get("LLM_QUEUE_WAIT_MS"),
       literalFactReplies: offline.enabled,
       replyProtocol: config.get("LLM_REPLY_PROTOCOL"),
