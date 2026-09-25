@@ -4,7 +4,7 @@ import type { OpenAPIObject } from "@nestjs/swagger";
 
 const document = JSON.parse(
   readFileSync(
-    join(process.cwd(), "docs", "сдача", "openapi.json"),
+    join(process.cwd(), "..", "..", "docs", "сдача", "openapi.json"),
     "utf8",
   ),
 ) as OpenAPIObject;

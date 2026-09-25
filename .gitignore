@@ -4,8 +4,8 @@ coverage/
 logs/
 var/tts-reference/
 var/backups/
-ops/tls/certs/*
-!ops/tls/certs/.gitkeep
+infra/tls/certs/*
+!infra/tls/certs/.gitkeep
 
 .env
 .env.*
@@ -26,3 +26,7 @@ maps/data/*
 maps/build/
 maps/tmp/
 *.mbtiles
+
+# Large local GGUF models are never committed; keep the usage guide.
+/models/**
+!/models/README.md

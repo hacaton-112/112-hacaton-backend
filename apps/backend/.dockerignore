@@ -1,0 +1,24 @@
+# Зависимости и сборка ставятся внутри образа заново.
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Секреты не должны попадать ни в слой образа, ни в кеш сборки: переменные
+# окружения передаются контейнеру при запуске.
+.env
+.env.*
+!.env.example
+
+# Всё, что к работе backend не относится.
+.git
+.github
+.idea
+.vscode
+.claude
+logs
+*.log
+docker-compose*.yml
+observability
+docs
+maps

@@ -20,7 +20,7 @@ metrics port доступен только внутри compose-сети. ASR `/
 
 ## Dashboard
 
-Все dashboard read-only и загружаются из `observability/grafana/dashboards`:
+Все dashboard read-only и загружаются из `infra/observability/grafana/dashboards`:
 
 - **Тренажёр 112 — состояние системы**: оба target, активные сессии, HTTP rate,
   ошибки, p95 и временная шкала alert rules;
@@ -34,7 +34,7 @@ dashboard не зависят от автоматически присвоенн
 
 ## Recording rules
 
-`observability/prometheus/rules/system112.rules.yml` сохраняет часто
+`infra/observability/prometheus/rules/system112.rules.yml` сохраняет часто
 используемые агрегаты:
 
 - backend request rate, 5xx ratio и HTTP p95;
@@ -70,9 +70,9 @@ dashboard Grafana через метрику `ALERTS`. Для внешних ув
 ## Проверка конфигурации
 
 ```bash
-promtool check config observability/prometheus.yml
-promtool check rules observability/prometheus/rules/system112.rules.yml
-jq empty observability/grafana/dashboards/*.json
+promtool check config infra/observability/prometheus.yml
+promtool check rules infra/observability/prometheus/rules/system112.rules.yml
+jq empty infra/observability/grafana/dashboards/*.json
 docker compose config --quiet
 ```
 
