@@ -12,9 +12,6 @@ services:
   asr:
     build:
       context: ./docker/asr
-      additional_contexts:
-        # Исходники сервиса распознавания — соседний репозиторий.
-        asr-src: ${ASR_SOURCE_DIR:-../asr-service}
     image: system-112-asr-cpu:${ASR_IMAGE_TAG:-local}
     container_name: system-112-asr
     restart: unless-stopped

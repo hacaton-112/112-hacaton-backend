@@ -5,10 +5,10 @@
 # образ работает на боевом сервере — прежняя сборка на Whisper.cpp давала
 # заметно худший разбор русской речи и здесь больше не используется.
 #
-# Исходники сервиса лежат в соседнем репозитории asr-service и приходят сюда
-# отдельным контекстом `asr-src` (см. docker-compose.yml). Модели зашиты в
-# образ: сервису не нужен ни разовый контейнер-загрузчик, ни каталог моделей
-# на хосте.
+# Сервис — один файл рядом с этим Dockerfile: раньше он приходил отдельным
+# контекстом из соседнего репозитория, и склонировавший только этот репозиторий
+# собрать образ не мог. Модели зашиты в образ: сервису не нужен ни разовый
+# контейнер-загрузчик, ни каталог моделей на хосте.
 
 FROM curlimages/curl:8.16.0 AS models
 ARG ASR_MODEL_URL=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zipformer-ru-int8-2025-04-20.tar.bz2
@@ -41,7 +41,7 @@ RUN pip install --no-cache-dir \
     aiohttp==3.12.15 \
     numpy==2.3.3
 WORKDIR /app
-COPY --from=asr-src sherpa-asr/sherpa_full_service.py ./
+COPY sherpa_full_service.py ./
 COPY --from=models /models /models
 ENV SHERPA_MODEL_DIR=/models/sherpa-onnx-zipformer-ru-int8-2025-04-20 \
     SHERPA_VAD_MODEL=/models/silero_vad.onnx \
