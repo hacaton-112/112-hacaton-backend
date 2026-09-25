@@ -97,6 +97,32 @@ export interface BrowserPhoneWindowSession {
   dispose(): void;
 }
 
+/** Keeps SIP.js transport details and private PBX URLs out of the operator UI. */
+export function formatBrowserPhoneError(reason: unknown): string {
+  const message =
+    reason instanceof Error
+      ? reason.message.trim()
+      : typeof reason === "string"
+        ? reason.trim()
+        : "";
+
+  if (
+    /websocket|transport|server\s+disconnect|connection\s+(?:was\s+)?closed/iu.test(
+      message,
+    )
+  ) {
+    return "Телефон не подключился к Asterisk. Проверьте доступность защищённого WebSocket (WSS) и повторите попытку.";
+  }
+
+  if (
+    /register|registration|unauthorized|forbidden|\b40[13]\b/iu.test(message)
+  ) {
+    return "Asterisk отклонил регистрацию телефона. Проверьте номер рабочего места и учётные данные SIP.";
+  }
+
+  return message || "Не удалось подключить телефон к Asterisk";
+}
+
 /**
  * Opens the shell synchronously so browser popup blockers see the user click.
  * Configuration is sent over a same-origin BroadcastChannel and never appears
