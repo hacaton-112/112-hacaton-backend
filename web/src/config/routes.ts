@@ -1,0 +1,113 @@
+/**
+ * Маршруты приложения — по образцу `config/api.ts`, где так же собраны адреса
+ * backend.
+ *
+ * Шаблоны (`*_PATTERN`) объявляют маршрут в `routing.tsx`, функции строят
+ * адрес для перехода. Пока путь писался литералом и в дереве роутов, и в
+ * каждой кнопке, переименование маршрута означало правку в девяти местах.
+ */
+
+/** Шаблоны для `<Route path>`: только здесь встречаются `:параметры`. */
+export const ROUTE_PATTERNS = {
+  operator: "/operator",
+  auth: "/auth",
+  debrief: "/debrief",
+  debriefSession: "/debrief/:trainingSessionId",
+  dds: "/dds",
+  ddsLessonReport: "/dds-lessons/:lessonId/report",
+  ddsResults: "/dds-results",
+  ddsResult: "/dds-results/:exerciseId",
+  ddsArchive: "/dds-archive",
+  scenarios: "/scenarios",
+  ddsReferences: "/dds-references",
+  assignments: "/assignments",
+  monitoring: "/monitoring",
+  reports: "/reports",
+  classifier: "/classifier",
+  methodicalMaterials: "/methodical-materials",
+  groups: "/groups",
+  group: "/groups/:groupId",
+  groupStudent: "/groups/:groupId/students/:userId",
+  students: "/students",
+  student: "/students/:userId",
+  admin: "/admin",
+  scenarioNew: "/scenarios/new",
+  scenarioEdit: "/scenarios/:scenarioVersionId/edit",
+  map: "/map",
+  phone: "/phone",
+  operatorPhone: "/operator-phone",
+} as const;
+
+export const ROUTES = {
+  operator: () => "/operator",
+  operatorWorkplace: () => "/operator",
+  auth: () => "/auth",
+  debrief: () => "/debrief",
+  dds: () => "/dds",
+  ddsExercise: (exerciseId: string) =>
+    `/dds?exercise=${encodeURIComponent(exerciseId)}`,
+  ddsLessonReport: (lessonId: string) =>
+    `/dds-lessons/${encodeURIComponent(lessonId)}/report`,
+  ddsResults: () => "/dds-results",
+  ddsResult: (exerciseId: string) =>
+    `/dds-results/${encodeURIComponent(exerciseId)}`,
+  ddsArchive: () => "/dds-archive",
+  debriefSession: (trainingSessionId: string) =>
+    `/debrief/${encodeURIComponent(trainingSessionId)}`,
+  scenarios: () => "/scenarios",
+  ddsReferences: () => "/dds-references",
+  assignments: () => "/assignments",
+  monitoring: () => "/monitoring",
+  reports: () => "/reports",
+  classifier: () => "/classifier",
+  methodicalMaterials: () => "/methodical-materials",
+  groups: () => "/groups",
+  group: (groupId: string) => `/groups/${encodeURIComponent(groupId)}`,
+  groupStudent: (groupId: string, userId: string) =>
+    `/groups/${encodeURIComponent(groupId)}/students/${encodeURIComponent(userId)}`,
+  students: () => "/students",
+  student: (userId: string) => `/students/${encodeURIComponent(userId)}`,
+  admin: () => "/admin",
+  scenarioNew: () => "/scenarios/new",
+  scenarioEdit: (scenarioVersionId: string) =>
+    `/scenarios/${encodeURIComponent(scenarioVersionId)}/edit`,
+  /** Рабочее место с уже выбранным сценарием: брифинг открывает звонок так. */
+  operatorWithScenario: (scenarioVersionId: string) =>
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}`,
+  operatorWithAssignment: (scenarioVersionId: string, assignmentId: string) =>
+    `/operator?scenario=${encodeURIComponent(scenarioVersionId)}&assignment=${encodeURIComponent(assignmentId)}`,
+} as const;
+
+/** Имя параметра, которым брифинг передаёт сценарий на рабочее место. */
+export const SCENARIO_QUERY_PARAM = "scenario";
+export const ASSIGNMENT_QUERY_PARAM = "assignment";
+export const WORKPLACE_QUERY_PARAM = "workplace";
+
+/**
+ * Окно карты адресуется стабильным именем браузерного popup, а открывается
+ * по обычному пути того же маршрута.
+ */
+export const MAP_WINDOW_LABEL = "incident-map";
+export const MAP_WINDOW_URL = ROUTE_PATTERNS.map;
+
+export const PHONE_WINDOW_LABEL = "dds-phone";
+export const PHONE_WINDOW_URL = ROUTE_PATTERNS.phone;
+
+/** Телефон оператора 112: тот же звонок, но в отдельном окне рабочего места. */
+export const OPERATOR_PHONE_WINDOW_LABEL = "operator-phone";
+export const OPERATOR_PHONE_WINDOW_URL = ROUTE_PATTERNS.operatorPhone;
+
+/**
+ * Сопоставляет пункт навигации с текущим URL по границе сегмента.
+ *
+ * Обычный `startsWith("/dds")` ошибочно считает активными одновременно
+ * `/dds`, `/dds-results` и `/dds-references`.
+ */
+export const isRouteActive = (
+  pathname: string,
+  route: string,
+  includeNested = false,
+): boolean =>
+  pathname === route ||
+  (includeNested &&
+    pathname.startsWith(route.endsWith("/") ? route : `${route}/`));

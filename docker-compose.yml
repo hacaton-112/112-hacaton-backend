@@ -450,8 +450,8 @@ services:
     build:
       context: ./docker/gateway
       additional_contexts:
-        # Веб-клиент — соседний репозиторий; собирается внутри образа.
-        web-src: ${WEB_SOURCE_DIR:-../trainer-client}
+        # Веб-клиент хранится в монорепозитории и собирается внутри образа.
+        web-src: ./web
     image: system-112-gateway:${GATEWAY_IMAGE_TAG:-local}
     container_name: system-112-training-gateway
     restart: unless-stopped

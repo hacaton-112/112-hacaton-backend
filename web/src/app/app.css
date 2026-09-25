@@ -1,0 +1,3072 @@
+@import "@bolid-ui/themes/styles.css";
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant translucent (&:where([data-panel-background="translucent"] *));
+@custom-variant solid (&:where([data-panel-background="solid"] *));
+
+.operator-tour-popover.driver-popover {
+  max-width: min(360px, calc(100vw - 32px));
+  border: 0;
+  border-radius: var(--radius-5);
+  background: var(--color-panel-solid);
+  color: var(--gray-12);
+  box-shadow: var(--shadow-6);
+  font-family: inherit;
+}
+
+.operator-tour-popover .driver-popover-title {
+  color: var(--gray-12);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.operator-tour-popover .driver-popover-description,
+.operator-tour-popover .driver-popover-progress-text {
+  color: var(--gray-11);
+}
+
+.operator-tour-popover.driver-popover .driver-popover-navigation-btns button {
+  border: 1px solid var(--gray-a6);
+  border-radius: var(--radius-5);
+  background: var(--gray-a3);
+  color: var(--gray-12);
+  text-shadow: none;
+}
+
+.operator-tour-popover.driver-popover
+  .driver-popover-navigation-btns
+  button:hover {
+  background: var(--gray-a4);
+}
+
+.operator-tour-blur-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.operator-tour-blur-layer > div {
+  position: absolute;
+  background: rgb(0 0 0 / 1%);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Колонка выбора узкая, и флажок, прижатый к левому краю, стоит вплотную к
+   соседней колонке. В ячейке и в заголовке он встаёт по центру. */
+.data-table-cell:has(.data-table-selection-checkbox),
+.data-table-header-cell:has(.data-table-selection-checkbox) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-table-cell:has(.data-table-selection-checkbox)
+  .data-table-selection-checkbox,
+.data-table-header-cell:has(.data-table-selection-checkbox)
+  .data-table-selection-checkbox {
+  margin-inline: auto;
+}
+
+.data-table-row.scenario-row--job {
+  background-color: var(--violet-a2) !important;
+}
+
+/* Неопределённый ход генерации: модель не сообщает процент готовности. */
+.scenario-job-progress > div {
+  animation: scenario-job-progress 1.4s ease-in-out infinite;
+}
+
+@keyframes scenario-job-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scenario-job-progress > div {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
+.debrief-detail-tabs .rt-BaseTabListTrigger:hover .rt-BaseTabListTriggerInner {
+  background-color: transparent;
+}
+
+/* Scrollbars внутри скруглённых поверхностей не пересекают их углы. */
+:where(.rt-Card) .rt-ScrollAreaRoot {
+  --scrollarea-scrollbar-vertical-margin-top: var(--space-3);
+  --scrollarea-scrollbar-vertical-margin-bottom: var(--space-3);
+  --scrollarea-scrollbar-vertical-margin-right: var(--space-2);
+  --scrollarea-scrollbar-horizontal-margin-right: var(--space-3);
+  --scrollarea-scrollbar-horizontal-margin-left: var(--space-3);
+  --scrollarea-scrollbar-horizontal-margin-bottom: var(--space-2);
+}
+
+:root {
+  --app-scaling: 1;
+  --app-titlebar-height: calc(32px * var(--app-scaling));
+  --app-transition-duration-fast: 120ms;
+  --app-transition-duration-base: 200ms;
+  --app-transition-duration-sheet-close: 300ms;
+  --app-transition-duration-sheet-open: 500ms;
+  --app-viewport-height: calc(100vh - var(--app-titlebar-height));
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-viewport-height: calc(100dvh - var(--app-titlebar-height));
+  }
+}
+
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+    -webkit-appearance: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility noselect {
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none; /* Safari */
+  -khtml-user-select: none; /* Konqueror HTML */
+  -moz-user-select: none; /* Old versions of Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+  user-select: none; /* Non-prefixed version, currently
+	supported by Chrome, Edge, Opera and Firefox */
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+@utility scrollbar-width-auto {
+  scrollbar-width: auto;
+}
+
+@utility scrollbar-gutter-auto {
+  scrollbar-gutter: auto;
+}
+
+@utility scrollbar-stable {
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Безопасные dvh/dvw-утилиты с фолбэком для браузеров без динамических единиц:
+ * базово vh/vw, dvh/dvw включаем через @supports — иначе полноэкранные оверлеи
+ * схлопываются до auto.
+ */
+@utility h-screen-safe {
+  height: 100vh;
+  @supports (height: 100dvh) {
+    height: 100dvh;
+  }
+}
+
+@utility w-screen-safe {
+  width: 100vw;
+  @supports (width: 100dvw) {
+    width: 100dvw;
+  }
+}
+
+@utility min-h-screen-safe {
+  min-height: 100vh;
+  @supports (min-height: 100dvh) {
+    min-height: 100dvh;
+  }
+}
+
+@utility min-w-screen-safe {
+  min-width: 100vw;
+  @supports (min-width: 100dvw) {
+    min-width: 100dvw;
+  }
+}
+
+@utility max-h-screen-safe {
+  max-height: 100vh;
+  @supports (max-height: 100dvh) {
+    max-height: 100dvh;
+  }
+}
+
+@utility max-w-screen-safe {
+  max-width: 100vw;
+  @supports (max-width: 100dvw) {
+    max-width: 100dvw;
+  }
+}
+
+@theme inline {
+  /* colors - other */
+  --color-overlay: var(--color-overlay);
+  --color-panel: var(--color-panel);
+  --color-panel-solid: var(--color-panel-solid);
+  --color-panel-translucent: var(--color-panel-translucent);
+  --color-transparent: transparent;
+  --color-background: var(--color-background);
+
+  --color-whiteA-1: var(--white-a1);
+  --color-whiteA-2: var(--white-a2);
+  --color-whiteA-3: var(--white-a3);
+  --color-whiteA-4: var(--white-a4);
+  --color-whiteA-5: var(--white-a5);
+  --color-whiteA-6: var(--white-a6);
+  --color-whiteA-7: var(--white-a7);
+  --color-whiteA-8: var(--white-a8);
+  --color-whiteA-9: var(--white-a9);
+  --color-whiteA-10: var(--white-a10);
+  --color-whiteA-11: var(--white-a11);
+  --color-whiteA-12: var(--white-a12);
+
+  --color-blackA-1: var(--black-a1);
+  --color-blackA-2: var(--black-a2);
+  --color-blackA-3: var(--black-a3);
+  --color-blackA-4: var(--black-a4);
+  --color-blackA-5: var(--black-a5);
+  --color-blackA-6: var(--black-a6);
+  --color-blackA-7: var(--black-a7);
+  --color-blackA-8: var(--black-a8);
+  --color-blackA-9: var(--black-a9);
+  --color-blackA-10: var(--black-a10);
+  --color-blackA-11: var(--black-a11);
+  --color-blackA-12: var(--black-a12);
+
+  /* spacing с масштабом (--scaling задаёт Radix Theme) */
+  --spacing-rx: calc(1px * var(--scaling));
+  --spacing-rx-0_5: calc(2px * var(--scaling));
+  --spacing-rx-1: calc(4px * var(--scaling));
+  --spacing-rx-1_5: calc(6px * var(--scaling));
+  --spacing-rx-2: calc(8px * var(--scaling));
+  --spacing-rx-2_5: calc(10px * var(--scaling));
+  --spacing-rx-3: calc(12px * var(--scaling));
+  --spacing-rx-3_5: calc(14px * var(--scaling));
+  --spacing-rx-4: calc(16px * var(--scaling));
+  --spacing-rx-5: calc(20px * var(--scaling));
+  --spacing-rx-6: calc(24px * var(--scaling));
+  --spacing-rx-7: calc(28px * var(--scaling));
+  --spacing-rx-8: calc(32px * var(--scaling));
+  --spacing-rx-9: calc(36px * var(--scaling));
+  --spacing-rx-10: calc(40px * var(--scaling));
+  --spacing-rx-11: calc(44px * var(--scaling));
+  --spacing-rx-12: calc(48px * var(--scaling));
+  --spacing-rx-14: calc(56px * var(--scaling));
+  --spacing-rx-16: calc(64px * var(--scaling));
+  --spacing-rx-20: calc(80px * var(--scaling));
+  --spacing-rx-24: calc(96px * var(--scaling));
+  --spacing-rx-28: calc(112px * var(--scaling));
+  --spacing-rx-32: calc(128px * var(--scaling));
+  --spacing-rx-36: calc(144px * var(--scaling));
+  --spacing-rx-40: calc(160px * var(--scaling));
+  --spacing-rx-44: calc(176px * var(--scaling));
+  --spacing-rx-48: calc(192px * var(--scaling));
+  --spacing-rx-52: calc(208px * var(--scaling));
+  --spacing-rx-56: calc(224px * var(--scaling));
+  --spacing-rx-60: calc(240px * var(--scaling));
+  --spacing-rx-64: calc(256px * var(--scaling));
+  --spacing-rx-72: calc(288px * var(--scaling));
+  --spacing-rx-80: calc(320px * var(--scaling));
+  --spacing-rx-96: calc(384px * var(--scaling));
+
+  /* font size */
+  --text-1: calc(12px * var(--scaling));
+  --text-2: calc(14px * var(--scaling));
+  --text-3: calc(16px * var(--scaling));
+  --text-4: calc(18px * var(--scaling));
+  --text-5: calc(20px * var(--scaling));
+  --text-6: calc(24px * var(--scaling));
+  --text-7: calc(28px * var(--scaling));
+  --text-8: calc(35px * var(--scaling));
+  --text-9: calc(60px * var(--scaling));
+
+  /* line height */
+  --text-1--line-height: calc(16px * var(--scaling));
+  --text-2--line-height: calc(20px * var(--scaling));
+  --text-3--line-height: calc(24px * var(--scaling));
+  --text-4--line-height: calc(26px * var(--scaling));
+  --text-5--line-height: calc(28px * var(--scaling));
+  --text-6--line-height: calc(30px * var(--scaling));
+  --text-7--line-height: calc(36px * var(--scaling));
+  --text-8--line-height: calc(40px * var(--scaling));
+  --text-9--line-height: calc(60px * var(--scaling));
+
+  --leading-1: calc(16px * var(--scaling));
+  --leading-2: calc(20px * var(--scaling));
+  --leading-3: calc(24px * var(--scaling));
+  --leading-4: calc(26px * var(--scaling));
+  --leading-5: calc(28px * var(--scaling));
+  --leading-6: calc(30px * var(--scaling));
+  --leading-7: calc(36px * var(--scaling));
+  --leading-8: calc(40px * var(--scaling));
+  --leading-9: calc(60px * var(--scaling));
+
+  /* letter spacing */
+  --text-1--letter-spacing: var(--letter-spacing-1);
+  --text-2--letter-spacing: var(--letter-spacing-2);
+  --text-3--letter-spacing: var(--letter-spacing-3);
+  --text-4--letter-spacing: var(--letter-spacing-4);
+  --text-5--letter-spacing: var(--letter-spacing-5);
+  --text-6--letter-spacing: var(--letter-spacing-6);
+  --text-7--letter-spacing: var(--letter-spacing-7);
+  --text-8--letter-spacing: var(--letter-spacing-8);
+  --text-9--letter-spacing: var(--letter-spacing-9);
+
+  --tracking-1: var(--letter-spacing-1);
+  --tracking-2: var(--letter-spacing-2);
+  --tracking-3: var(--letter-spacing-3);
+  --tracking-4: var(--letter-spacing-4);
+  --tracking-5: var(--letter-spacing-5);
+  --tracking-6: var(--letter-spacing-6);
+  --tracking-7: var(--letter-spacing-7);
+  --tracking-8: var(--letter-spacing-8);
+  --tracking-9: var(--letter-spacing-9);
+
+  /* font weight */
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semi-bold: 600;
+  --font-weight-bold: 700;
+
+  /* border radius */
+  --radius-1: calc(3px * var(--scaling) * var(--radius-factor));
+  --radius-2: calc(4px * var(--scaling) * var(--radius-factor));
+  --radius-3: calc(6px * var(--scaling) * var(--radius-factor));
+  --radius-4: calc(8px * var(--scaling) * var(--radius-factor));
+  --radius-5: calc(12px * var(--scaling) * var(--radius-factor));
+  --radius-6: calc(16px * var(--scaling) * var(--radius-factor));
+  --radius-item: max(var(--radius-2), var(--radius-full));
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+  --shadow-4: var(--shadow-4);
+  --shadow-5: var(--shadow-5);
+  --shadow-6: var(--shadow-6);
+
+  /* accent */
+  --color-accent-1: var(--accent-1);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --color-accent-4: var(--accent-4);
+  --color-accent-5: var(--accent-5);
+  --color-accent-6: var(--accent-6);
+  --color-accent-7: var(--accent-7);
+  --color-accent-8: var(--accent-8);
+  --color-accent-9: var(--accent-9);
+  --color-accent-10: var(--accent-10);
+  --color-accent-11: var(--accent-11);
+  --color-accent-12: var(--accent-12);
+  --color-accentA-1: var(--accent-a1);
+  --color-accentA-2: var(--accent-a2);
+  --color-accentA-3: var(--accent-a3);
+  --color-accentA-4: var(--accent-a4);
+  --color-accentA-5: var(--accent-a5);
+  --color-accentA-6: var(--accent-a6);
+  --color-accentA-7: var(--accent-a7);
+  --color-accentA-8: var(--accent-a8);
+  --color-accentA-9: var(--accent-a9);
+  --color-accentA-10: var(--accent-a10);
+  --color-accentA-11: var(--accent-a11);
+  --color-accentA-12: var(--accent-a12);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-surface: var(--accent-surface);
+  --color-accent-track: var(--accent-track);
+  --color-accent-indicator: var(--accent-indicator);
+
+  /* gray */
+  --color-gray-1: var(--gray-1);
+  --color-gray-2: var(--gray-2);
+  --color-gray-3: var(--gray-3);
+  --color-gray-4: var(--gray-4);
+  --color-gray-5: var(--gray-5);
+  --color-gray-6: var(--gray-6);
+  --color-gray-7: var(--gray-7);
+  --color-gray-8: var(--gray-8);
+  --color-gray-9: var(--gray-9);
+  --color-gray-10: var(--gray-10);
+  --color-gray-11: var(--gray-11);
+  --color-gray-12: var(--gray-12);
+  --color-grayA-1: var(--gray-a1);
+  --color-grayA-2: var(--gray-a2);
+  --color-grayA-3: var(--gray-a3);
+  --color-grayA-4: var(--gray-a4);
+  --color-grayA-5: var(--gray-a5);
+  --color-grayA-6: var(--gray-a6);
+  --color-grayA-7: var(--gray-a7);
+  --color-grayA-8: var(--gray-a8);
+  --color-grayA-9: var(--gray-a9);
+  --color-grayA-10: var(--gray-a10);
+  --color-grayA-11: var(--gray-a11);
+  --color-grayA-12: var(--gray-a12);
+  --color-gray-contrast: var(--gray-contrast);
+  --color-gray-surface: var(--gray-surface);
+  --color-gray-track: var(--gray-track);
+  --color-gray-indicator: var(--gray-indicator);
+
+  /* breakpoints */
+  --breakpoint-xs: 520px;
+  --breakpoint-sm: 768px;
+  --breakpoint-md: 1024px;
+  --breakpoint-lg: 1280px;
+  --breakpoint-xl: 1640px;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+/* Корневая тема сама красит фон — тянем её на всю высоту, иначе под коротким
+   контентом просвечивает светлый фон body. */
+.perchik-themes:where([data-is-root-theme="true"]) {
+  min-height: 100%;
+}
+
+/*
+ * На узком экране скроллится вся операторская страница. На desktop общий
+ * viewport фиксируется, а каждая рабочая колонка получает собственный
+ * ScrollArea. Так рядом не появляются общий и вложенный scrollbar.
+ */
+.operator-page-scroll,
+.operator-page-scroll > .rt-ScrollAreaViewport {
+  height: 100%;
+}
+
+.operator-incident-column {
+  container: incident-column / inline-size;
+}
+
+.operator-caller-column {
+  container: caller-column / inline-size;
+}
+
+.person-name-grid,
+.person-contact-grid,
+.victim-meta-grid,
+.incident-pair-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container caller-column (min-width: 400px) {
+  .person-name-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .person-contact-grid,
+  .victim-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.location-details-grid,
+.incident-counts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.location-details-grid > *,
+.incident-meta-grid > *,
+.incident-counts-grid > * {
+  min-width: 0;
+}
+
+@container incident-column (min-width: 420px) {
+  .incident-pair-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container incident-column (min-width: 520px) {
+  .incident-meta-grid {
+    grid-template-columns: minmax(260px, 1fr) minmax(140px, 180px);
+  }
+
+  .incident-counts-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .location-details-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container incident-column (min-width: 780px) {
+  .location-details-grid {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr)
+      minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+.operator-map .maplibregl-canvas {
+  filter: grayscale(1) contrast(0.82);
+  opacity: 0.72;
+}
+
+.dispatch-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.dispatch-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 1479px), (max-height: 953px) {
+  .operator-column-scroll {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .operator-column-scroll > .rt-ScrollAreaViewport {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .operator-column-scroll > .rt-ScrollAreaScrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 1480px) and (max-height: 953px) {
+  .operator-workspace {
+    height: auto !important;
+    min-height: 954px !important;
+  }
+}
+
+@media (min-width: 1480px) and (min-height: 954px) {
+  /*
+   * Контент-обёртка Radix-ScrollArea растёт под содержимое, поэтому h-full у
+   * рабочей области резолвится в высоту самой длинной колонки, а не окна: строка
+   * грида распухает, и панели уезжают под нижнюю границу вместо своих скроллов.
+   * Задаём высоту явно — тогда grid-rows-1 (minmax(0, 1fr)) держит колонки в окне.
+   */
+  .operator-workspace {
+    height: var(--app-viewport-height) !important;
+  }
+
+  .operator-column-scroll {
+    height: 100%;
+  }
+
+  /*
+   * Здесь вьюпорт колонки обрезает содержимое. Radix задаёт обёртке
+   * width: fit-content, и при дробной ширине колонки (например, на 1920) она
+   * выходит на долю пикселя за край — у карточек пропадает правая граница.
+   */
+  .operator-column-scroll > .rt-ScrollAreaViewport > * {
+    width: 100% !important;
+    min-width: 0;
+    padding-inline: 1px;
+  }
+
+  .operator-incident-scroll {
+    --scrollarea-scrollbar-vertical-margin-top: var(--space-2);
+    --scrollarea-scrollbar-vertical-margin-bottom: var(--space-2);
+    --scrollarea-scrollbar-vertical-margin-right: var(--space-1);
+  }
+
+  .operator-incident-scroll > .rt-ScrollAreaViewport > * {
+    padding-right: var(--space-3);
+  }
+}
+
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+ * Reference ARM-112 visual system
+ * --------------------------------------------------------------------------
+ * The supplied operator and DDS references use a deliberately utilitarian
+ * desktop language: cool gray work surfaces, white input sheets, graphite
+ * status rails, blue selected facts and a high-visibility orange action bar.
+ * These tokens are independent of the product domain colors, so status colors
+ * remain meaningful throughout the training and reporting workspaces.
+ */
+
+:root {
+  --arm-orange: #f15a31;
+  --arm-orange-dark: #a9472d;
+  --arm-orange-soft: #fff0e9;
+  --arm-blue: #1787c4;
+  --arm-blue-dark: #0c678f;
+  --arm-blue-soft: #e8f4fa;
+  --arm-graphite: #30363a;
+  --arm-graphite-2: #465158;
+  --arm-graphite-3: #647178;
+  --arm-workspace: #c9ced1;
+  /* Цвета сняты со скриншотов реального АРМ-112 для ДДС. */
+  --arm-slate: #838f97;
+  --arm-slate-cell: #49555d;
+  --arm-maroon: #6c364b;
+  --arm-panel: #f5f5f3;
+  --arm-panel-muted: #e8eaeb;
+  --arm-line: #b7bdc0;
+  --arm-line-dark: #7c878d;
+  --arm-ink: #253038;
+  --arm-muted: #69747a;
+  --arm-danger: #df392c;
+  --arm-success: #187b59;
+}
+
+.reference-theme {
+  --color-background: var(--arm-workspace);
+  --color-panel-solid: var(--arm-panel);
+  --color-panel: rgb(245 245 243 / 96%);
+  --color-panel-translucent: rgb(245 245 243 / 92%);
+  --accent-1: #fff8f4;
+  --accent-2: #fff0e9;
+  --accent-3: #ffe2d5;
+  --accent-4: #ffd1be;
+  --accent-5: #ffbfa5;
+  --accent-6: #f6a889;
+  --accent-7: #ec8e68;
+  --accent-8: #e2734b;
+  --accent-9: var(--arm-orange);
+  --accent-10: #df4d26;
+  --accent-11: #b63b1e;
+  --accent-12: #572313;
+  --accent-contrast: white;
+  --gray-1: #fafaf8;
+  --gray-2: #f3f3f1;
+  --gray-3: #e9ebeb;
+  --gray-4: #dfe2e3;
+  --gray-5: #d2d6d8;
+  --gray-6: #c4c9cb;
+  --gray-7: #b2b9bc;
+  --gray-8: #98a2a7;
+  --gray-9: #727d83;
+  --gray-10: #657077;
+  --gray-11: #59646b;
+  --gray-12: var(--arm-ink);
+  color: var(--arm-ink);
+}
+
+.arm-shell,
+.arm-content {
+  background: var(--arm-workspace);
+}
+
+.arm-content {
+  border-left: 1px solid #20272b;
+}
+
+.arm-sidebar [data-slot="sidebar-inner"],
+.arm-sidebar [data-mobile="true"] {
+  background: var(--arm-graphite);
+  color: #eef0f1;
+}
+
+.arm-sidebar-header {
+  border-bottom: 1px solid #566168;
+  background: #252b2f;
+}
+
+.arm-sidebar-logo {
+  filter: grayscale(1) brightness(3.2);
+}
+
+.arm-sidebar [data-slot="sidebar-group-label"] {
+  color: #9fa8ad;
+}
+
+.arm-sidebar [data-slot="sidebar-menu-button"] {
+  border-left: 3px solid transparent;
+  border-radius: 0 !important;
+  color: #dce0e2;
+}
+
+.arm-sidebar [data-slot="sidebar-menu-button"]:hover {
+  background: #414b50 !important;
+  color: white !important;
+}
+
+.arm-sidebar [data-slot="sidebar-menu-button"][data-active="true"] {
+  border-left-color: var(--arm-orange);
+  background: var(--arm-orange-dark) !important;
+  color: white !important;
+}
+
+.arm-sidebar [data-slot="sidebar-menu-button"][data-active="true"] svg {
+  color: white !important;
+  stroke: white !important;
+}
+
+.arm-sidebar [data-slot="sidebar-separator"] {
+  background: #566168;
+}
+
+/* Square, high-density controls shared by every role workspace. */
+.reference-theme :where(.rt-Card) {
+  border: 1px solid var(--arm-line);
+  border-radius: 1px;
+  background: var(--arm-panel);
+  box-shadow: none;
+}
+
+.reference-theme :where(.rt-BaseButton, .rt-Button, .rt-IconButton) {
+  border-radius: 1px !important;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.reference-theme :where(.rt-TextFieldRoot, .rt-SelectTrigger, .rt-TextArea) {
+  border-radius: 0 !important;
+  border-color: var(--arm-line);
+  background: #fff;
+  box-shadow: none;
+}
+
+.reference-theme
+  :where(.rt-TextFieldRoot, .rt-SelectTrigger, .rt-TextArea):focus-within {
+  outline: 1px solid var(--arm-blue);
+  outline-offset: -1px;
+}
+
+.reference-theme :where(.rt-DialogContent, .rt-PopoverContent) {
+  border: 1px solid var(--arm-line-dark);
+  border-radius: 1px;
+  box-shadow: 0 12px 32px rgb(25 32 36 / 24%);
+}
+
+.reference-theme :where(.rt-Badge) {
+  border-radius: 1px;
+  font-weight: 650;
+}
+
+.reference-theme :where(main > header) {
+  border-bottom: 1px solid var(--arm-line-dark);
+  background: var(--arm-panel);
+  padding: 14px 18px;
+}
+
+.reference-theme :where(main > header) + * {
+  margin-top: 0;
+}
+
+.reference-theme :where(table) {
+  border-collapse: collapse;
+}
+
+.reference-theme :where(th) {
+  background: var(--arm-graphite-2);
+  color: #f6f7f7;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.reference-theme :where(td, th) {
+  border-color: var(--arm-line) !important;
+}
+
+/* Login closely follows the blue full-screen reference terminal. */
+.arm-login {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(112deg, rgb(27 105 151 / 18%), transparent 52%),
+    linear-gradient(135deg, #bfe2f5 0%, #80bddf 54%, #6eb1d7 100%);
+  color: white;
+}
+
+.arm-login::before {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    radial-gradient(circle at 70% 20%, rgb(255 255 255 / 18%), transparent 32%),
+    linear-gradient(90deg, rgb(255 255 255 / 8%) 1px, transparent 1px);
+  background-size:
+    auto,
+    64px 100%;
+  content: "";
+}
+
+.arm-login-city {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -2;
+  display: flex;
+  height: 73%;
+  align-items: flex-end;
+  gap: clamp(28px, 5vw, 96px);
+  padding-inline: clamp(32px, 8vw, 150px);
+  overflow: hidden;
+  opacity: 0.56;
+}
+
+.arm-login-city span {
+  display: block;
+  width: clamp(90px, 10vw, 190px);
+  border-top: 8px solid rgb(255 255 255 / 18%);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 42px,
+      rgb(25 94 135 / 17%) 43px 52px
+    ),
+    linear-gradient(90deg, #d8eef9, #9acbe5);
+  clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+}
+
+.arm-login-city span:nth-child(1) {
+  height: 92%;
+}
+.arm-login-city span:nth-child(2) {
+  height: 61%;
+}
+.arm-login-city span:nth-child(3) {
+  height: 78%;
+}
+.arm-login-city span:nth-child(4) {
+  height: 52%;
+}
+.arm-login-city span:nth-child(5) {
+  height: 69%;
+}
+.arm-login-city span:nth-child(6) {
+  height: 38%;
+}
+
+.arm-login-illustration {
+  position: absolute;
+  bottom: 1%;
+  left: 4%;
+  z-index: -1;
+  width: min(54vw, 900px);
+  opacity: 0.24;
+  filter: grayscale(1) brightness(1.7) contrast(0.75);
+}
+
+.arm-login-illustration img {
+  display: block;
+  width: 100%;
+}
+
+.arm-login-panel {
+  display: flex;
+  width: min(100%, 700px);
+  margin-left: auto;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(36px, 7vw, 118px);
+}
+
+.arm-login-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  margin-bottom: 42px;
+  color: white;
+}
+
+.arm-login-brand strong {
+  font-size: clamp(64px, 7vw, 108px);
+  font-weight: 300;
+  line-height: 0.8;
+  letter-spacing: -0.06em;
+}
+
+.arm-login-brand span {
+  font-size: clamp(20px, 2.2vw, 34px);
+  font-weight: 350;
+  white-space: nowrap;
+}
+
+.arm-login-form {
+  width: min(100%, 550px);
+}
+
+.arm-login-form label,
+.arm-login-form .rt-Text {
+  color: white;
+}
+
+.arm-login-form :where(.rt-TextFieldRoot) {
+  min-height: 46px;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 92%);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: white;
+}
+
+/* В оригинале у полей только нижняя линия, рамки не появляется и в фокусе. */
+.arm-login-form :where(.rt-TextFieldRoot):focus-within {
+  box-shadow: none;
+  outline: 0;
+}
+
+.arm-login-form label,
+.arm-login-form .rt-Text:not(.arm-login-support) {
+  font-size: 13px;
+  text-transform: lowercase;
+}
+
+.arm-login-form :where(input) {
+  color: white;
+  font-size: 16px;
+}
+
+.arm-login-form :where(input::placeholder) {
+  color: rgb(255 255 255 / 70%);
+}
+
+.arm-login-submit {
+  min-height: 48px;
+  background: var(--arm-orange) !important;
+  color: white !important;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+}
+
+.arm-login-submit:hover {
+  background: var(--arm-orange-dark) !important;
+}
+
+.arm-login-support {
+  margin-top: 34px;
+  color: white !important;
+  font-size: 22px !important;
+  line-height: 1.35 !important;
+}
+
+@media (max-width: 767px) {
+  .arm-login-panel {
+    width: 100%;
+    padding: 32px;
+    background: rgb(55 133 178 / 30%);
+    backdrop-filter: blur(4px);
+  }
+
+  .arm-login-brand {
+    gap: 16px;
+  }
+
+  .arm-login-brand span {
+    white-space: normal;
+  }
+
+  .arm-login-illustration {
+    width: 110vw;
+  }
+}
+
+/* Operator card ----------------------------------------------------------- */
+
+.arm-operator-page {
+  background: var(--arm-workspace);
+}
+
+.arm-telephone-strip {
+  display: grid;
+  min-height: 74px;
+  flex: none;
+  grid-template-columns:
+    150px repeat(3, minmax(170px, 1fr)) minmax(210px, 0.8fr)
+    112px;
+  gap: 7px;
+  border-bottom: 1px solid var(--arm-line-dark);
+  background: #dde0e1;
+  padding: 7px;
+}
+
+.arm-phone-state,
+.arm-telephone-field,
+.arm-incident-identity {
+  min-width: 0;
+  border: 1px solid #c1c6c8;
+  background: #f5f5f3;
+}
+
+.arm-phone-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.arm-phone-state svg {
+  color: var(--arm-graphite);
+}
+
+.arm-telephone-field {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  align-items: center;
+}
+
+.arm-telephone-icon {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  border-right: 1px solid var(--arm-line);
+  background: #d9ddde;
+  color: var(--arm-muted);
+}
+
+.arm-telephone-value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.arm-telephone-value > span {
+  color: var(--arm-muted);
+}
+
+.arm-telephone-value strong {
+  overflow: hidden;
+  color: #3a4d66;
+  font-size: 17px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-telephone-field > svg {
+  color: var(--arm-graphite-3);
+}
+
+.arm-incident-identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+}
+
+.arm-incident-identity strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-incident-identity span {
+  margin-top: 3px;
+  color: var(--arm-muted);
+  font-size: 11px;
+}
+
+.arm-incident-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--arm-graphite);
+  color: white;
+}
+
+.arm-incident-timer[data-overdue="true"] {
+  background: var(--arm-danger);
+}
+
+.arm-incident-timer strong {
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm-incident-timer span {
+  margin-top: 7px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.operator-workspace {
+  height: auto !important;
+  min-height: 0 !important;
+  grid-template-areas:
+    "caller incident"
+    "dispatch dispatch";
+  grid-template-columns: minmax(360px, 0.82fr) minmax(560px, 1.35fr);
+  grid-template-rows: auto auto;
+}
+
+.operator-workspace > div[data-tour="caller"] {
+  grid-area: caller;
+}
+
+.operator-incident-column {
+  grid-area: incident;
+}
+
+.arm-dispatch-panel {
+  grid-area: dispatch;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(320px, 0.9fr) minmax(
+      420px,
+      1.2fr
+    );
+}
+
+.operator-caller-column,
+.arm-incident-form {
+  align-content: start;
+}
+
+.arm-operator-section,
+.arm-location-card,
+.arm-incident-card,
+.dispatch-services-card,
+.dispatch-chat-card,
+.dispatch-map-card {
+  background: #f4f4f2 !important;
+}
+
+.arm-operator-section > :first-child,
+.arm-location-card > :first-child,
+.arm-incident-card > :first-child {
+  color: var(--arm-ink);
+  letter-spacing: 0.01em;
+}
+
+.arm-caller-summary {
+  border-top: 4px solid var(--arm-graphite-2) !important;
+}
+
+.arm-caller-details {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.arm-victims-panel,
+.arm-incident-card {
+  border-top: 4px solid var(--arm-graphite) !important;
+}
+
+.arm-location-card {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.arm-routing-summary {
+  border-color: #86bcd7;
+  background: var(--arm-blue-soft);
+}
+
+.arm-classifier
+  :where(button[data-state="checked"], button[aria-pressed="true"]) {
+  background: var(--arm-blue) !important;
+  color: white !important;
+}
+
+.arm-dialogue-operator,
+.arm-dialogue-caller {
+  border: 1px solid var(--arm-line);
+  border-radius: 1px;
+}
+
+.arm-dialogue-operator {
+  background: #eceeed;
+}
+
+.arm-dialogue-caller {
+  border-color: #9bc8dc;
+  background: var(--arm-blue-soft);
+}
+
+.dispatch-services-card {
+  border-top: 4px solid var(--arm-orange) !important;
+}
+
+.dispatch-chat-card {
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.dispatch-map-card {
+  border-top: 4px solid var(--arm-graphite-2) !important;
+}
+
+/* Незавершённые обязательные поля карточки видны непосредственно в форме. */
+.arm-required-target {
+  border: 2px solid transparent;
+  border-radius: var(--radius-3);
+  padding: var(--space-2);
+  margin-inline: calc(-1 * var(--space-2));
+}
+
+.arm-required-target[data-missing="true"] {
+  border-color: var(--red-9);
+  background: var(--red-a2);
+  box-shadow: 0 0 0 2px var(--red-a4);
+}
+
+.dispatch-services-card[data-missing="true"],
+.dispatch-map-card[data-missing="true"] {
+  outline: 3px solid var(--red-9);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 3px var(--red-a4) !important;
+}
+
+.arm-operator-dock {
+  border-top: 1px solid #d84d28;
+  background: var(--arm-orange);
+  box-shadow: 0 -4px 12px rgb(45 49 52 / 18%);
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-SelectTrigger) {
+  border-color: rgb(255 255 255 / 45%);
+  background: rgb(111 49 32 / 32%);
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-BaseButton, .rt-IconButton) {
+  border: 1px solid rgb(255 255 255 / 58%);
+  background: transparent;
+  color: white;
+}
+
+.arm-operator-dock :where(.rt-BaseButton, .rt-IconButton):hover {
+  background: rgb(116 47 28 / 30%);
+}
+
+.arm-dock-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.arm-operator-dock canvas,
+.arm-operator-dock [aria-hidden="true"] span {
+  filter: brightness(0) invert(1);
+}
+
+@media (max-width: 1439px) {
+  .arm-telephone-strip {
+    grid-template-columns:
+      132px repeat(2, minmax(160px, 1fr)) minmax(200px, 0.8fr)
+      104px;
+  }
+
+  .arm-telephone-field:nth-of-type(4) {
+    display: none;
+  }
+
+  .arm-dispatch-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dispatch-map-card {
+    grid-column: 1 / -1;
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .operator-workspace {
+    grid-template-areas:
+      "caller"
+      "incident"
+      "dispatch";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm-telephone-strip {
+    grid-template-columns: 118px minmax(180px, 1fr) minmax(190px, 1fr) 100px;
+  }
+
+  .arm-telephone-field:nth-of-type(3),
+  .arm-telephone-field:nth-of-type(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .arm-telephone-strip {
+    min-height: 60px;
+    grid-template-columns: minmax(0, 1fr) 90px;
+  }
+
+  .arm-phone-state,
+  .arm-telephone-field,
+  .arm-incident-identity {
+    display: none;
+  }
+
+  .arm-dispatch-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dispatch-map-card {
+    grid-column: auto;
+  }
+
+  .arm-operator-dock > div {
+    grid-template-columns: auto minmax(80px, 1fr) auto;
+  }
+
+  .arm-dock-label {
+    display: none;
+  }
+}
+
+/* DDS workstation -------------------------------------------------------- */
+
+.arm-dds-page {
+  min-width: 0;
+  background: var(--arm-slate);
+  color: var(--arm-ink);
+}
+
+.arm-dds-search-header {
+  display: flex;
+  min-height: 82px;
+  align-items: stretch;
+  justify-content: space-between;
+  background: transparent;
+}
+
+.arm-dds-search-header > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 20px;
+}
+
+.arm-dds-search-header h1 {
+  margin: 0;
+  color: #ebecec;
+  font-size: clamp(24px, 2.2vw, 34px);
+  font-weight: 350;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.arm-dds-primary-search {
+  height: 42px;
+  border: 0 !important;
+  border-bottom: 1px solid #ebecec !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ebecec !important;
+}
+
+.arm-dds-primary-search:focus-within {
+  outline: 0 !important;
+  box-shadow: inset 0 -2px 0 var(--arm-orange) !important;
+}
+
+.arm-dds-primary-search input {
+  color: #ebecec !important;
+  font-size: clamp(24px, 2.2vw, 34px) !important;
+  font-weight: 350;
+  letter-spacing: -0.03em;
+}
+
+.arm-dds-primary-search input::placeholder {
+  color: #ebecec !important;
+  opacity: 1;
+}
+
+.arm-dds-search-header p {
+  margin-top: 8px;
+  border-top: 1px solid #ebecec;
+  padding-top: 6px;
+  color: #e3e6e8;
+}
+
+.arm-dds-clock {
+  display: flex;
+  min-width: 300px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  border-left: 1px solid #687278;
+  background: var(--arm-graphite);
+  padding: 10px 20px;
+  color: white;
+}
+
+.arm-dds-clock span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-dds-clock strong {
+  margin-top: 2px;
+  font-size: 40px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.arm-dds-toolbar {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.65fr) minmax(580px, 1.35fr);
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  padding: 7px 8px;
+}
+
+.arm-dds-toolbar-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.arm-dds-toolbar > :where(.rt-TextFieldRoot) {
+  height: 38px;
+  background: #f7f7f5;
+}
+
+.arm-dds-shift-panel {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 16px !important;
+  border-color: #b7bdc0 !important;
+  background: #eceeed !important;
+  padding: 5px 6px 5px 12px !important;
+}
+
+.arm-dds-shift-state p {
+  line-height: 1.25;
+}
+
+.arm-dds-online-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: #238636;
+  box-shadow: 0 0 0 3px rgb(35 134 54 / 16%);
+}
+
+.arm-dds-shift-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--arm-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.arm-dds-shift-count strong {
+  color: var(--arm-ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.arm-dds-shift-norm {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  min-width: 132px;
+  border-radius: 3px;
+  background: var(--arm-graphite);
+  padding: 5px 9px;
+  color: white;
+}
+
+.arm-dds-shift-norm span {
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.arm-dds-shift-norm strong {
+  grid-column: 1 / -1;
+  margin-top: -1px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.arm-dds-queue {
+  margin: 4px 8px 0;
+  background: transparent;
+}
+
+.arm-dds-section-title {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  padding: 6px 2px;
+  color: #e7e3d6;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.arm-dds-section-title span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #eceeef;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.arm-dds-table {
+  overflow-x: auto;
+  background: transparent;
+}
+
+.arm-dds-table-head,
+.arm-dds-table-row {
+  display: grid;
+  min-width: 1108px;
+  grid-template-columns:
+    44px 104px 92px 84px minmax(190px, 1.05fr)
+    minmax(270px, 1.5fr) minmax(160px, 0.7fr) 44px;
+  align-items: stretch;
+}
+
+.arm-dds-table-head {
+  min-height: 26px;
+  background: transparent;
+  color: #edeff0;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.arm-dds-table-head > span,
+.arm-dds-table-row > span,
+.arm-dds-table-row > strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-right: 1px solid var(--arm-slate);
+  padding: 7px 8px;
+}
+
+.arm-dds-table-head > span {
+  border-color: transparent;
+}
+
+.arm-dds-table-row {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-bottom: 2px solid var(--arm-slate);
+  background: #2f353a;
+  color: #f3f4f4;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  transition: background-color 100ms ease;
+}
+
+.arm-dds-table-row:hover {
+  background: #3b434a;
+}
+
+.arm-dds-table-row[data-selected="true"] {
+  background: #157dbd;
+  box-shadow: inset 4px 0 0 #8ed8fb;
+}
+
+.arm-dds-table-row[data-terminal="true"]:not([data-selected="true"]) {
+  background: #2a3034;
+  color: #c5c9cb;
+}
+
+/* Номер оператора в реальном АРМ выделен бордовой ячейкой. */
+.arm-dds-operator-cell {
+  justify-content: center;
+  background: var(--arm-maroon);
+  font-weight: 700;
+}
+
+/* Статус службы — светлая вставка на правом краю строки. */
+.arm-dds-status-cell {
+  background: var(--arm-slate-cell);
+  color: #edeff0;
+}
+
+.arm-dds-cell-main {
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-start !important;
+  justify-content: center;
+  gap: 2px;
+}
+
+.arm-dds-cell-main strong,
+.arm-dds-cell-main small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-dds-cell-main small {
+  color: #c6cccf;
+  font-size: 9px;
+}
+
+/* Кнопка открытия карточки на правом краю строки, как в АРМ. */
+.arm-dds-row-open {
+  justify-content: center;
+  background: var(--arm-slate-cell);
+  color: #edeff0;
+}
+
+/* Полоса описания под раскрытой строкой. */
+.arm-dds-row-description {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 2px solid var(--arm-slate);
+  background: var(--arm-slate-cell);
+  padding: 5px 10px;
+  color: #eceeef;
+  font-size: 11px;
+}
+
+.arm-dds-row-description em {
+  color: #cdd3d6;
+  font-style: normal;
+}
+
+.arm-dds-row-description strong {
+  font-size: 12px;
+}
+
+/* Лупа в заголовке и строка фильтров под ним. */
+.arm-dds-search-glass {
+  color: #ebecec;
+  flex: none;
+}
+
+.arm-dds-search-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  border-top: 1px solid #ebecec;
+  padding-top: 6px;
+  color: #e3e6e8;
+  font-size: 12px;
+}
+
+.arm-dds-search-filters button {
+  border: 1px solid #b7bdc0;
+  background: #d9dcdd;
+  padding: 3px 14px;
+  color: #3c4348;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.arm-dds-search-filters button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Счётчик страниц под таблицей, справа, как в оригинале. */
+.arm-dds-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 8px 4px 2px;
+  color: #eceeef;
+  font-size: 11px;
+}
+
+.arm-dds-pagination strong {
+  font-size: 12px;
+}
+
+.arm-dds-section-title strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arm-dds-empty {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #e6e8e8;
+}
+
+.arm-dds-detail {
+  padding: 8px;
+}
+
+.arm-dds-card-navigation {
+  display: flex;
+  padding: 4px 8px 0;
+}
+
+.arm-dds-card-navigation .rt-Button {
+  background: rgb(255 255 255 / 88%);
+}
+
+.arm-dds-card-empty {
+  min-height: 250px;
+  border-top: 4px solid var(--arm-blue) !important;
+}
+
+.arm-dds-card-panel {
+  max-width: none;
+}
+
+.arm-dds-card {
+  overflow: hidden;
+  border-top: 0 !important;
+  background: #f4f4f2 !important;
+  padding: 0 !important;
+}
+
+.arm-dds-card
+  > :not(.arm-dds-card-header, .arm-dds-service-tabs, .arm-dds-status-editor) {
+  margin-inline: 12px;
+}
+
+.arm-dds-card-header {
+  border-bottom: 1px solid #293136;
+  background: var(--arm-graphite);
+  padding: 12px 14px;
+  color: white;
+}
+
+.arm-dds-card-header :where(.rt-Text) {
+  color: #d8dcde;
+}
+
+.arm-dds-card-header :where(.rt-Heading) {
+  color: white;
+}
+
+.arm-dds-info-grid {
+  align-items: stretch;
+}
+
+.arm-dds-info-block {
+  border-color: #c7cbcd !important;
+  border-left: 4px solid var(--arm-blue) !important;
+  background: #eceeed !important;
+}
+
+.arm-dds-phone-panel {
+  border-color: #1f272c !important;
+  border-left-color: var(--arm-blue) !important;
+  background: var(--arm-graphite) !important;
+  color: white !important;
+}
+
+.arm-dds-phone-panel :where(.rt-Text) {
+  color: white !important;
+}
+
+.arm-dds-phone-panel .arm-dds-phone-help {
+  color: #d8dcde !important;
+}
+
+.arm-dds-incident-block {
+  border-left-color: var(--arm-graphite-2) !important;
+}
+
+.arm-dds-field > :first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.arm-dds-service-tabs {
+  display: flex;
+  min-height: 54px;
+  overflow-x: auto;
+  border-block: 1px solid #222a2e;
+  background: var(--arm-graphite);
+}
+
+.arm-dds-service-tabs > div {
+  display: flex;
+  min-width: 150px;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid #697278;
+  padding: 8px 12px;
+  color: #e4e7e8;
+}
+
+.arm-dds-service-tabs > div[data-active="true"] {
+  background: var(--arm-blue);
+  color: white;
+}
+
+.arm-dds-service-tabs strong {
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.arm-dds-service-tabs span {
+  margin-top: 3px;
+  font-size: 9px;
+}
+
+.arm-dds-status-editor {
+  display: grid;
+  gap: 6px;
+  background: #d7dadb;
+  padding: 8px;
+}
+
+.arm-dds-status-fields {
+  display: grid;
+  grid-template-columns: minmax(185px, 0.7fr) 125px minmax(300px, 1.4fr) auto;
+  align-items: start;
+  gap: 6px;
+}
+
+.arm-dds-status-fields label {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.arm-dds-status-fields label > span:first-child {
+  color: #4e5a60;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.arm-dds-status-fields :where(.rt-SelectTrigger, .rt-TextFieldRoot) {
+  width: 100%;
+  min-width: 0;
+  background: #f5f5f3;
+}
+
+.arm-dds-status-submit {
+  min-width: 126px;
+  margin-top: 15px;
+  background: var(--arm-orange) !important;
+  color: white !important;
+}
+
+.arm-dds-ack-timer {
+  align-self: center;
+}
+
+.arm-dds-ack-badge {
+  min-height: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.arm-dds-result {
+  border-left: 5px solid var(--arm-blue) !important;
+  background: #eef0ef !important;
+}
+
+.arm-dds-history {
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.arm-dds-history-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #566168;
+  padding: 9px 12px;
+  color: white;
+}
+
+.arm-dds-history-title :where(.rt-Heading, .rt-Text) {
+  color: white;
+}
+
+.arm-dds-history-events {
+  padding: 12px;
+}
+
+@media (max-width: 1199px) {
+  .arm-dds-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm-dds-search-header > div:first-child {
+    padding-inline: 12px;
+  }
+
+  .arm-dds-primary-search input {
+    font-size: 22px !important;
+  }
+
+  .arm-dds-clock {
+    min-width: 220px;
+  }
+
+  .arm-dds-status-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .arm-dds-search-header {
+    min-height: 70px;
+  }
+
+  .arm-dds-search-header > div:first-child {
+    padding: 10px 12px;
+  }
+
+  .arm-dds-search-header h1 {
+    font-size: 22px;
+  }
+
+  .arm-dds-search-header p,
+  .arm-dds-clock span {
+    display: none;
+  }
+
+  .arm-dds-clock {
+    min-width: 110px;
+    padding: 8px 10px;
+  }
+
+  .arm-dds-clock strong {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .arm-dds-shift-panel,
+  .arm-dds-status-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm-dds-status-submit {
+    margin-top: 0;
+  }
+
+  .arm-dds-shift-count,
+  .arm-dds-shift-norm {
+    justify-self: stretch;
+  }
+
+  .arm-dds-queue {
+    margin-inline: 4px;
+  }
+
+  .arm-dds-detail {
+    padding: 4px;
+  }
+}
+
+/* DDS card, скопирована с АРМ-112 ---------------------------------------- */
+
+.arm-card {
+  display: grid;
+  gap: 2px;
+  background: var(--arm-slate);
+}
+
+.arm-card-phonebar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(230px, 0.9fr);
+  gap: 2px;
+}
+
+.arm-card-phone,
+.arm-card-incident {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: #efefef;
+  padding: 8px 10px;
+  color: var(--arm-ink);
+}
+
+.arm-card-phone > span {
+  color: #6b7176;
+  font-size: 11px;
+}
+
+.arm-card-phone > strong {
+  min-height: 17px;
+  font-size: 13px;
+}
+
+.arm-card-phone-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.arm-card-phone-buttons > span {
+  border: 1px solid #b7bdc0;
+  background: #dcdcdc;
+  padding: 2px 8px;
+  color: #454c50;
+  font-size: 10px;
+}
+
+.arm-card-incident > strong {
+  font-size: 14px;
+}
+
+.arm-card-incident > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-body {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 2px;
+}
+
+.arm-card-left,
+.arm-card-right {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 2px;
+}
+
+.arm-card-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: #efefef;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.arm-card-strip > span {
+  color: #6b7176;
+}
+
+.arm-card-address {
+  display: grid;
+  gap: 2px;
+  background: #e6e6e6;
+  padding: 9px 10px;
+}
+
+.arm-card-address > strong {
+  font-size: 13px;
+}
+
+.arm-card-address > span {
+  color: #5c6266;
+  font-size: 11px;
+}
+
+.arm-card-journal {
+  min-height: 120px;
+  border: 1px solid #d5d5d5;
+  background: #efefef;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.arm-card-journal p {
+  margin: 0;
+  color: #2c3237;
+}
+
+.arm-card-journal span {
+  color: #4a5155;
+}
+
+.arm-card-journal-text {
+  margin-top: 2px !important;
+}
+
+.arm-card-flags {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #b7bdc0;
+  background: #e4e4e4;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-badge-warn {
+  border-color: #d2531f;
+  background: #ec653b;
+  color: white;
+}
+
+.arm-card-block {
+  display: grid;
+  gap: 2px;
+}
+
+.arm-card-block-head {
+  background: #303335;
+  padding: 5px 10px;
+  color: #f1f1f1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-block-row {
+  background: #efefef;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.arm-card-block-row-muted {
+  color: #6b7176;
+}
+
+.arm-card-services {
+  display: flex;
+  align-items: stretch;
+  /* Плитки, которым не хватило места, уходят строкой выше — как в АРМ. */
+  flex-wrap: wrap-reverse;
+  gap: 2px;
+  background: #2f353a;
+  padding: 6px;
+}
+
+.arm-card-services-label {
+  align-self: center;
+  padding: 0 8px;
+  color: #e4e6e7;
+  font-size: 11px;
+}
+
+.arm-card-services > div {
+  display: grid;
+  min-width: 132px;
+  gap: 2px;
+  background: #3c444a;
+  padding: 4px 10px 6px;
+  color: #eceeef;
+  text-align: center;
+}
+
+.arm-card-service-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+}
+
+.arm-card-service-tools button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+  padding: 1px 4px;
+}
+
+.arm-card-service-tools button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.arm-card-service-tools button:not(:disabled):hover {
+  color: white;
+}
+
+/* Карандаш стоит у края своей плитки, как в оригинале. */
+.arm-card-service-tools button + button {
+  margin-left: auto;
+}
+
+.arm-card-services > div[data-active="true"] {
+  background: #157dbd;
+}
+
+.arm-card-services strong {
+  font-size: 12px;
+}
+
+.arm-card-services span {
+  font-size: 10px;
+}
+
+.arm-card-journal-panel {
+  display: grid;
+  gap: 1px;
+  background: #157dbd;
+  padding: 8px 10px;
+  color: white;
+}
+
+.arm-card-journal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+.arm-card-journal-head span {
+  font-size: 11px;
+}
+
+.arm-card-journal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.arm-card-journal-actor {
+  color: #d6ecfa;
+  font-size: 11px;
+}
+
+.arm-card-journal-comment {
+  color: #e8f4fc;
+}
+
+@media (max-width: 1199px) {
+  .arm-card-phonebar,
+  .arm-card-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Рабочее место 112: раскладка снята со скриншотов реального АРМ ─── */
+
+.arm112-strip {
+  display: grid;
+  min-height: 76px;
+  flex: none;
+  grid-template-columns:
+    210px repeat(3, minmax(190px, 1fr)) minmax(230px, 0.9fr)
+    112px;
+  gap: 6px;
+  border-bottom: 1px solid var(--arm-line-dark);
+  background: #dfe2e3;
+  padding: 6px;
+}
+
+.arm112-hangup,
+.arm112-phone,
+.arm112-identity {
+  min-width: 0;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+}
+
+.arm112-hangup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+}
+
+.arm112-hangup svg {
+  color: #4a555c;
+}
+
+.arm112-hangup strong {
+  display: block;
+  color: var(--arm-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.arm112-connection-kind {
+  display: block;
+  margin-top: 3px;
+  color: #5d686e;
+  font-size: 10px;
+}
+
+.arm112-phone {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.arm112-phone-icon {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  border-right: 1px solid #d5d9da;
+  color: #5d686e;
+}
+
+.arm112-phone-value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 5px 9px;
+}
+
+.arm112-phone-value > span {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+/* Номер набирается крупно и синим: в АРМ это самая читаемая строка полосы. */
+.arm112-phone-value strong {
+  overflow: hidden;
+  color: #2f4257;
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm112-phone[data-primary] .arm112-phone-value strong {
+  border-bottom: 2px solid var(--arm-blue);
+}
+
+.arm112-phone-badge {
+  margin-right: 8px;
+  border: 1px solid #c4c9cb;
+  background: #f3f4f4;
+  padding: 3px 9px;
+  color: #5d686e;
+  font-size: 11px;
+}
+
+.arm112-identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+}
+
+.arm112-identity strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm112-identity span {
+  color: #6d787e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.arm112-timer {
+  display: grid;
+  background: var(--arm-graphite);
+  color: #fff;
+  place-content: center;
+  text-align: center;
+}
+
+.arm112-timer[data-overdue="true"] {
+  background: #e51f27;
+}
+
+.arm112-timer strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm112-timer span {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 9px;
+}
+
+.arm112-timer span i {
+  font-style: normal;
+}
+
+.arm112-browser-notice {
+  flex: none;
+  border-bottom: 1px solid #d39c25;
+  background: #fff4ce;
+  padding: 5px 12px;
+  color: #6b4d08;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.arm112-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  background: #e6e8e8;
+  padding: 6px;
+  overflow: hidden;
+}
+
+.arm112-card {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1.08fr);
+  gap: 6px;
+  overflow: hidden;
+}
+
+.arm112-column {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.arm112-block {
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.arm112-address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #5d686e;
+  font-size: 12px;
+}
+
+.arm112-address-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.arm112-map-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--arm-blue);
+  background: #eef6fb;
+  padding: 4px 8px;
+  color: var(--arm-blue);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.arm112-map-button:disabled {
+  border-color: #c4c9cb;
+  color: #8a959a;
+  cursor: not-allowed;
+}
+
+.arm112-address-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arm112-icon-button,
+.arm112-flat-button {
+  border: 1px solid transparent;
+  background: none;
+  color: #5d686e;
+  cursor: pointer;
+}
+
+.arm112-flat-button {
+  border-color: #c4c9cb;
+  background: #f3f4f4;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.arm112-icon-button:disabled,
+.arm112-flat-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Адрес одной строкой: в реальной системе это самое крупное поле карточки. */
+.arm112-address-value {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #c4c9cb;
+  background: none;
+  padding: 4px 0 6px;
+  color: var(--arm-ink);
+  font-size: 19px;
+  outline: none;
+}
+
+.arm112-address-value:focus {
+  border-bottom-color: var(--arm-blue);
+}
+
+.arm112-grid {
+  display: grid;
+  margin-top: 10px;
+  gap: 10px 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.arm112-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.arm112-field[data-wide] {
+  margin-top: 10px;
+  grid-column: 1 / -1;
+}
+
+.arm112-field span {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-field input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #c4c9cb;
+  background: none;
+  padding: 3px 0 4px;
+  color: var(--arm-ink);
+  font-size: 13px;
+  outline: none;
+}
+
+.arm112-field input:focus {
+  border-bottom-color: var(--arm-blue);
+}
+
+.arm112-nearby {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  padding-bottom: 4px;
+  color: #5d686e;
+  font-size: 12px;
+}
+
+.arm112-address-actions {
+  display: flex;
+  justify-content: end;
+  margin-top: 10px;
+}
+
+.arm112-description {
+  display: flex;
+  min-height: 150px;
+  flex: 1;
+  flex-direction: column;
+}
+
+.arm112-block-label {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-description textarea {
+  width: 100%;
+  min-height: 110px;
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 6px 0;
+  color: var(--arm-ink);
+  font-size: 14px;
+  outline: none;
+  resize: none;
+}
+
+.arm112-counter {
+  align-self: end;
+  color: #8a959a;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.arm112-facts {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 8px 12px;
+  gap: 8px 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.arm112-classifier {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.arm112-type-search {
+  display: flex;
+  flex-direction: column;
+}
+
+.arm112-type-search span {
+  color: var(--arm-blue);
+  font-size: 12px;
+}
+
+.arm112-type-search input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--arm-blue);
+  background: none;
+  padding: 4px 0 6px;
+  color: var(--arm-ink);
+  font-size: 20px;
+  outline: none;
+}
+
+.arm112-type-search input::placeholder {
+  color: #9aa4a9;
+}
+
+.arm112-type-matches {
+  max-height: 230px;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  overflow: auto;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+}
+
+.arm112-type-matches button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  border-bottom: 1px solid #edefef;
+  background: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.arm112-type-matches button:hover {
+  background: #eef6fb;
+}
+
+.arm112-type-matches strong {
+  color: var(--arm-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.arm112-type-matches span {
+  color: #8a959a;
+  font-size: 11px;
+}
+
+/* Тёмная шапка выбранного происшествия — как в реальном опроснике АРМ. */
+.arm112-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #3b4247;
+  padding: 7px 12px;
+  color: #fff;
+}
+
+.arm112-q-head strong {
+  border-bottom: 1px solid #8e9ba2;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.arm112-q-head button {
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.arm112-q-row {
+  display: grid;
+  align-items: start;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 210px) minmax(0, 1fr);
+}
+
+.arm112-q-label {
+  padding-top: 5px;
+  color: #5d686e;
+  font-size: 13px;
+}
+
+.arm112-q-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Плитка признака: невыбранная — контур, выбранная — заливка. */
+.arm112-chip {
+  border: 1px solid var(--arm-blue);
+  background: #fff;
+  padding: 5px 12px;
+  color: var(--arm-blue);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.arm112-chip[aria-pressed="true"] {
+  background: var(--arm-blue);
+  color: #fff;
+}
+
+.arm112-chip:disabled {
+  border-color: #c4c9cb;
+  color: #9aa4a9;
+  cursor: not-allowed;
+}
+
+@media (width <= 1100px) {
+  .arm112-card {
+    display: block;
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .arm112-column {
+    overflow: visible;
+  }
+
+  .arm112-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .arm112-q-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Полоса служб внизу карточки: вкладка на каждую выбранную службу. */
+.arm112-dock-row {
+  display: grid;
+  align-items: center;
+  padding: 0 10px;
+  gap: 10px;
+  grid-template-columns: 7rem minmax(0, 1fr) minmax(6rem, 12rem) auto;
+}
+
+.arm112-services {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.arm112-services-label,
+.arm112-services-empty {
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  color: #ffd9cc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.arm112-service-tab {
+  display: grid;
+  align-items: center;
+  border-left: 1px solid rgb(255 255 255 / 35%);
+  padding: 4px 10px 6px;
+  gap: 0 6px;
+  grid-template-areas:
+    "icon close"
+    "name name";
+}
+
+.arm112-service-tab:last-of-type {
+  border-right: 1px solid rgb(255 255 255 / 35%);
+}
+
+.arm112-service-tab > svg {
+  grid-area: icon;
+  color: #fff;
+}
+
+.arm112-service-tab strong {
+  border-bottom: 1px solid #fff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  grid-area: name;
+  white-space: nowrap;
+}
+
+.arm112-service-close {
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  grid-area: close;
+  justify-self: end;
+}
+
+.arm112-service-close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-add {
+  align-self: center;
+  margin-left: 10px;
+  border: 1px solid rgb(255 255 255 / 55%);
+  background: none;
+  padding: 4px 10px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.arm112-service-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.arm112-service-menu {
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  gap: 2px;
+}
+
+.arm112-service-menu button {
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  color: var(--arm-ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.arm112-service-menu button:hover {
+  background: var(--arm-blue-soft);
+}
+
+.arm112-service-directory {
+  display: grid;
+  max-height: min(52vh, 460px);
+  margin-top: 12px;
+  border: 1px solid #d2d6d8;
+  overflow-y: auto;
+}
+
+.arm112-service-directory button {
+  display: grid;
+  min-height: 58px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid #e5e7e8;
+  background: #fff;
+  padding: 8px 12px;
+  color: var(--arm-ink);
+  cursor: pointer;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  text-align: left;
+}
+
+.arm112-service-directory button:hover,
+.arm112-service-directory button:focus-visible {
+  background: var(--arm-blue-soft);
+}
+
+.arm112-service-directory button[data-selected="true"] {
+  background: var(--arm-blue);
+  color: white;
+}
+
+.arm112-service-directory button[data-selected="true"]:hover,
+.arm112-service-directory button[data-selected="true"]:focus-visible {
+  background: #126fa8;
+}
+
+.arm112-service-directory button[data-selected="true"] small {
+  color: #e1f2fa;
+}
+
+.arm112-service-directory button:disabled {
+  cursor: not-allowed;
+}
+
+.arm112-service-directory button > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.arm112-service-directory strong {
+  font-size: 14px;
+}
+
+.arm112-service-directory small {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-map-dialog-map {
+  height: min(62vh, 620px);
+  min-height: 340px;
+  border: 1px solid #c4c9cb;
+  overflow: hidden;
+}
+
+.arm112-map-status {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d2d6d8;
+  border-top: 0;
+  background: #f3f4f4;
+  padding: 8px 10px;
+}
+
+@media (width <= 1440px) {
+  .arm112-strip {
+    grid-template-columns:
+      180px repeat(2, minmax(170px, 1fr)) minmax(210px, 0.9fr)
+      100px;
+  }
+
+  .arm112-phone:nth-child(4) {
+    display: none;
+  }
+}
+
+@media (width <= 1280px) {
+  .arm112-dock-row {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+  }
+
+  .arm112-dock-row > :nth-child(3) {
+    display: none;
+  }
+}
+
+/* Окно телефона 112: узкое окно рядом с карточкой. */
+.arm112-phone-window {
+  display: grid;
+  /* Окно телефона открывается отдельно, и страница в нём — это всё окно. */
+  min-height: 100dvh;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: #e6e8e8;
+  padding: 10px;
+  gap: 8px;
+}
+
+.arm112-phone-window > header {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  gap: 2px;
+}
+
+.arm112-phone-window-label {
+  color: #7d888e;
+  font-size: 11px;
+}
+
+.arm112-phone-window > header strong {
+  color: #2f4257;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.arm112-phone-window-state {
+  color: #7d888e;
+  font-size: 12px;
+}
+
+.arm112-phone-window-state[data-live] {
+  color: var(--arm-success);
+  font-weight: 600;
+}
+
+.arm112-phone-window-timer {
+  display: grid;
+  border: 1px solid #c4c9cb;
+  background: var(--arm-graphite);
+  padding: 8px 12px;
+  color: #fff;
+  gap: 2px;
+}
+
+.arm112-phone-window-timer strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.arm112-phone-window-timer span {
+  color: #c7ced2;
+  font-size: 11px;
+}
+
+.arm112-phone-window-chat {
+  display: grid;
+  min-height: 0;
+  border: 1px solid #c4c9cb;
+  background: #fff;
+  padding: 10px 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+.arm112-phone-window > footer {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+}

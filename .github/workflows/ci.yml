@@ -1,6 +1,8 @@
-name: Backend CI
+name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -8,8 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -18,8 +23,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
+          key: ${{ runner.os }}-bun-backend-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-backend-
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
@@ -27,31 +32,11 @@ jobs:
       - run: bun run build
       - run: bun run test:golden
 
-  e2e:
-    if: github.event_name == 'workflow_dispatch'
+  web:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: system112
-          POSTGRES_PASSWORD: system112
-          POSTGRES_DB: system112_e2e
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U system112 -d system112_e2e"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      NODE_ENV: test
-      RUN_E2E: "1"
-      DATABASE_URL: postgresql://system112:system112@127.0.0.1:5432/system112_e2e
-      JWT_SECRET: e2e-only-secret-that-is-longer-than-thirty-two-characters
-      GRAMMAR_MODEL_REVIEW_ENABLED: "false"
-      SCENARIO_AUDIO_WORKER_ENABLED: "false"
-      VOICE_PIPELINE_DEMO_ENABLED: "false"
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -60,9 +45,10 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
+          key: ${{ runner.os }}-bun-web-${{ hashFiles('web/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-web-
       - run: bun install --frozen-lockfile
-      - run: bun run db:migrate
-      - run: bun run db:seed
-      - run: bun run test:e2e
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun test
+      - run: bun run build
