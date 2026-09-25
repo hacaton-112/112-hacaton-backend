@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 import type { DialogueEntry } from "@/contracts/dialogue-preparation";
 
 import {

@@ -5,8 +5,8 @@ import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 
-import { openApiHtml } from "./openapi-document";
-import { OpenApiDocumentStore } from "./openapi-document.store";
+import { openApiHtml } from "./domain/openapi-document";
+import { OpenApiDocumentStore } from "./infrastructure/openapi-document.store";
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)

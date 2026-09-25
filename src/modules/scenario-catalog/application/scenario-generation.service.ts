@@ -16,7 +16,7 @@ import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
 import { BackgroundQueueScheduler } from "@/core/background-queue/background-queue.scheduler";
 import type { ScenarioGenerationJobRecord } from "@/drizzle/schema";
-import type { TrainingActor } from "@/modules/training/training.service";
+import type { TrainingActor } from "@/modules/training/application/training.service";
 
 import type { ScenarioGenerationJob } from "../dto/scenario-generation.dto";
 import {

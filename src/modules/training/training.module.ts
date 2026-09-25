@@ -4,7 +4,7 @@ import { AuthModule } from "@/modules/auth/auth.module";
 import { ScenarioEngineModule } from "@/modules/scenario-engine";
 
 import { TrainingController } from "./training.controller";
-import { TrainingService } from "./training.service";
+import { TrainingService } from "./application/training.service";
 
 @Module({
   imports: [AuthModule, ScenarioEngineModule],

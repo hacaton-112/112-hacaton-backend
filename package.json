@@ -23,14 +23,7 @@
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --config ./test/jest-e2e.json",
     "test:golden": "jest --config ./test/jest-golden.json",
     "openapi:dump": "bun scripts/dump-openapi.ts",
-    "diagnose:alice-ai": "bun --env-file=.env test/manual/alice-ai-request.diagnostic.ts",
     "diagnose:tts": "bun --env-file=.env test/manual/tts-diagnostic.runner.ts",
-    "prepare:tts-reference": "bun --env-file=.env test/manual/prepare-tts-reference.ts",
-    "tts:cuda:config": "docker compose --profile tts-cuda config --quiet",
-    "tts:cuda:up": "docker compose --profile tts-cuda up -d qwen-tts",
-    "tts:cuda:gpu": "docker compose --profile tts-cuda exec qwen-tts nvidia-smi",
-    "tts:cuda:logs": "docker compose --profile tts-cuda logs -f qwen-tts",
-    "tts:cuda:stop": "docker compose --profile tts-cuda stop qwen-tts",
     "smoke:voice-pipeline": "bun --env-file=.env test/manual/voice-pipeline.smoke.ts",
     "profile:pipeline": "bun --env-file=.env test/manual/pipeline-stage-profiler.ts",
     "smoke:scenario-engine": "bun --env-file=.env test/manual/scenario-engine.smoke.ts",
@@ -134,21 +127,23 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": ".",
+    "testMatch": [
+      "<rootDir>/test/unit/**/*.spec.ts"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
       "^@/(.*)$": [
-        "<rootDir>/$1",
-        "<rootDir>/../$1"
+        "<rootDir>/src/$1",
+        "<rootDir>/$1"
       ]
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node"
   }
 }

@@ -19,7 +19,7 @@ import {
 } from "@/contracts";
 import { DialogueGenerationService } from "@/modules/dialogue-generation";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis";
-import { ScenarioAudioService } from "@/modules/scenario-audio/scenario-audio.service";
+import { ScenarioAudioService } from "@/modules/scenario-audio/application/scenario-audio.service";
 import { OfflineReplyService } from "./offline-reply.service";
 import { assertCallerReplyContent } from "@/modules/dialogue-generation/domain/caller-reply-content";
 import { canUsePreparedReply } from "../domain/prepared-reply";

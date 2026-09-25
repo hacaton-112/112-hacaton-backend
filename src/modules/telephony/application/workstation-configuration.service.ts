@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 
 import {
   parseWorkstationConfiguration,

@@ -7,17 +7,16 @@ import { z } from "zod";
 import {
   AiIdentifierSchema,
   CallerGenderSchema,
-  findQwenTtsVoice,
+  findCallerVoice,
   type AudioChunk,
   type SpeechSynthesisMetrics,
   type TtsSynthesisRequest,
 } from "@/contracts";
 import {
-  type QwenTtsEnvironment,
-  parseQwenTtsConfig,
-} from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
-import { createQwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.factory";
-import { resolveQwenTtsReferenceVoice } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.reference-voices";
+  type TtsEnvironment,
+  parseTtsConfig,
+} from "@/modules/ai-gateway/infrastructure/tts/tts.config";
+import { PiperTtsAdapter } from "@/modules/ai-gateway/infrastructure/tts/piper/piper-tts.adapter";
 import {
   characterErrorRate,
   concatPcmChunks,
@@ -27,7 +26,7 @@ import {
   TTS_DIAGNOSTIC_CASES,
   type TtsDiagnosticAsrResult,
   type TtsDiagnosticEntry,
-} from "@/modules/ai-gateway/diagnostics/tts-diagnostic";
+} from "@/modules/ai-gateway/domain/tts-diagnostic";
 import { SpeechSynthesisService } from "@/modules/speech-synthesis/application/speech-synthesis.service";
 import { TtsStreamValidator } from "@/modules/speech-synthesis/application/tts-stream.validator";
 
@@ -36,18 +35,12 @@ const ASR_TIMEOUT_MS = 60_000;
 const DEFAULT_ASR_SERVICE_URL = "http://127.0.0.1:8787";
 const ASR_FRAME_MS = 100;
 
-const QWEN_ENVIRONMENT_KEYS = [
-  "TTS_PROVIDER",
-  "TTS_MODE",
-  "TTS_BASE_URL",
-  "TTS_MODEL",
-  "TTS_REFERENCE_VOICES_PATH",
-  "TTS_STREAMING_INTERVAL_SECONDS",
+const TTS_ENVIRONMENT_KEYS = [
   "TTS_REQUEST_TIMEOUT_MS",
   "PIPER_TTS_BASE_URL",
   "PIPER_TTS_MALE_VOICE",
   "PIPER_TTS_FEMALE_VOICE",
-] as const satisfies readonly (keyof QwenTtsEnvironment)[];
+] as const satisfies readonly (keyof TtsEnvironment)[];
 
 const TtsDiagnosticOptionsSchema = z
   .object({
@@ -111,7 +104,7 @@ const parseOptions = (argv: readonly string[]): TtsDiagnosticOptions => {
   }
 
   const voiceId = AiIdentifierSchema.parse(values.get("voice") ?? "Dylan");
-  const gender = values.get("gender") ?? findQwenTtsVoice(voiceId)?.gender;
+  const gender = values.get("gender") ?? findCallerVoice(voiceId)?.gender;
 
   if (gender === undefined) {
     throw new Error(
@@ -315,8 +308,8 @@ const main = async (): Promise<void> => {
   const output = resolve(options.output);
   await ensureEmptyOutputDirectory(output);
 
-  const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
-  const adapter = createQwenTtsAdapter(
+  const config = parseTtsConfig(selectEnvironment(TTS_ENVIRONMENT_KEYS));
+  const adapter = new PiperTtsAdapter(
     config,
     globalThis.fetch.bind(globalThis),
   );
@@ -364,35 +357,13 @@ const main = async (): Promise<void> => {
     }
   }
 
-  const reference =
-    config.mode === "base-icl"
-      ? resolveQwenTtsReferenceVoice(
-          config.referenceVoices,
-          options.voiceId,
-          options.gender,
-        )
-      : null;
   const manifest = createTtsDiagnosticManifest({
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     provider: {
-      provider: config.provider,
-      mode: config.mode,
       baseUrl: config.baseUrl,
       model: config.model,
       requestTimeoutMs: config.requestTimeoutMs,
-      streamingIntervalSeconds:
-        config.provider === "mlx-audio"
-          ? config.streamingIntervalSeconds
-          : null,
-      reference:
-        reference === null
-          ? null
-          : {
-              id: reference.id,
-              source: reference.source,
-              sha256: reference.sha256,
-            },
     },
     options: {
       repetitions: options.repetitions,

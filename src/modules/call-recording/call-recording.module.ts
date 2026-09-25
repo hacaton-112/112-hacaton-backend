@@ -4,7 +4,7 @@ import {
   assertOfflineEndpoint,
   guardedOfflineFetch,
   offlineSettings,
-} from "@/modules/ai-gateway/offline-policy";
+} from "@/modules/ai-gateway/domain/offline-policy";
 
 import {
   CallRecordingService,

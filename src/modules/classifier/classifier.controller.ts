@@ -29,7 +29,7 @@ import {
   RouteClassifierRequestDto,
   RouteClassifierResponseDto,
 } from "./dto/classifier.dto";
-import { ClassifierService } from "./classifier.service";
+import { ClassifierService } from "./application/classifier.service";
 import { readClassifierUpload } from "./infrastructure/fastify-classifier-upload";
 
 @Controller(ApiRoutes.Classifiers)

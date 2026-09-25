@@ -22,7 +22,7 @@ import { DdsReportService } from "@/modules/dds-exercise/application/dds-report.
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
 import { SCENARIO_CATALOG } from "@/modules/scenario-catalog/ports/scenario-catalog.port";
 import type { ScenarioCatalog } from "@/modules/scenario-catalog/ports/scenario-catalog.port";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 import type { DdsExercise } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 
 const DEMO_CODE = "DDS-DEMO";

@@ -16,7 +16,7 @@ import {
   scenarioAudioPacks,
   dialoguePreparations,
 } from "@/drizzle/schema";
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import {
   preparationHash,
   preparationRequests,

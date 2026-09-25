@@ -1,6 +1,6 @@
 export { AiGatewayModule } from "./ai-gateway.module";
-export { TextAiAdapterModule } from "./adapters/text-ai-adapter.module";
-export { QwenTtsAdapterModule } from "./adapters/qwen-tts/qwen-tts-adapter.module";
+export { TextAiAdapterModule } from "./infrastructure/text-ai-adapter.module";
+export { TtsAdapterModule } from "./infrastructure/tts/tts-adapter.module";
 export { LLM_PORT, TTS_PORT } from "./ai-gateway.tokens";
 export { QUESTION_UNDERSTANDING_PORT } from "./ports/question-understanding.port";
 export type { LlmPort } from "./ports/llm.port";

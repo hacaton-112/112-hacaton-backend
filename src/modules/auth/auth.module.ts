@@ -3,22 +3,22 @@ import { JwtModule, JwtService } from "@nestjs/jwt";
 
 import { env } from "@/core/config/env.config";
 
-import { AccessTokenVerifier } from "./access-token.verifier";
+import { AccessTokenVerifier } from "./infrastructure/access-token.verifier";
 import {
   type AuthSessionConfig,
   AuthSessionService,
-} from "./auth-session.service";
+} from "./application/auth-session.service";
 import { AuthController } from "./auth.controller";
-import { AuthService } from "./auth.service";
+import { AuthService } from "./application/auth.service";
 import {
   AUTH_SESSION_CONFIG,
   AUTH_SESSION_STORE,
   TOKEN_SIGNER,
   TOKEN_VERIFIER,
 } from "./auth.tokens";
-import { DrizzleAuthSessionStore } from "./drizzle-auth-session.store";
+import { DrizzleAuthSessionStore } from "./infrastructure/drizzle-auth-session.store";
 import { JwtAuthGuard } from "./jwt-auth.guard";
-import { JWT_ALGORITHM } from "./jwt.constants";
+import { JWT_ALGORITHM } from "./domain/jwt.constants";
 import type { TokenSigner } from "./ports/token-signer.port";
 import type { TokenVerifier } from "./ports/token-verifier.port";
 import { RolesGuard } from "./roles.guard";

@@ -28,12 +28,11 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 - audit service для значимых действий с привязкой к учебной сессии;
 - строгие Zod-контракты и потоковые порты для LLM и TTS;
 - безопасная сборка потокового LLM-ответа с проверкой фактов и fallback;
-- потоковый адаптер Alice AI LLM Flash через OpenAI-compatible API;
 - локальный CPU runtime llama-server с Qwen3 0.6B Q4_K_M; образ собран из
   пропатченного `bitnet.cpp`, но BitNet b1.58 2B/4T отклонён по замерам
   (см. [`docs/LLM_CPU_BENCHMARK.md`](docs/LLM_CPU_BENCHMARK.md));
 - потоковая TTS-оркестрация с проверкой PCM-протокола, retry и latency-метриками;
-- заменяемые потоковые адаптеры Qwen3-TTS для MLX-Audio и vLLM-Omni;
+- потоковый синтез речи Piper на процессоре;
 - типизированный voice pipeline от проверенной LLM-реплики до потокового PCM;
 - WebSocket transport для потоковой передачи validated reply и raw PCM клиенту;
 - rate limiting и security headers.
@@ -41,13 +40,12 @@ CPU-only режима описаны в [`docs/HYBRID_DIALOGUE.md`](docs/HYBRID_
 Особенности Fastify runtime, ограничения multipart и правила добавления новых
 HTTP-интеграций описаны в [`docs/fastify-runtime.md`](docs/fastify-runtime.md).
 
-`AliceAiAdapterModule` предоставляет `LLM_PORT` только для
+`TextAiAdapterModule` предоставляет `LLM_PORT` только для
 `DialogueGenerationModule`, а `QwenTtsAdapterModule` предоставляет `TTS_PORT`
 только для `SpeechSynthesisModule`. `AiGatewayModule` агрегирует оба адаптера для
 будущих composition roots, не создавая взаимной зависимости их конфигураций.
-`VoicePipelineModule` подключён к `CoreModule`; Alice AI credentials проверяются
-при запуске, а для обработки голосовой команды должен быть доступен выбранный TTS
-runtime. Следующими вертикальными модулями должны стать `scenarios`,
+`VoicePipelineModule` подключён к `CoreModule`; адреса моделей проверяются при
+запуске, а для обработки голосовой команды должен быть доступен синтез речи. Следующими вертикальными модулями должны стать `scenarios`,
 `training-sessions`, `scenario-engine`, `incident-cards` и `evaluation`.
 
 `SpeechSynthesisModule` валидирует последовательность и метаданные PCM-чанков,
@@ -218,7 +216,7 @@ Zod-схема проверяет ручной ввод и черновик от
 - `POST /api/v1/scenarios/assistant/draft` принимает синтетическое текстовое
   описание и возвращает редактируемый черновик без `location`. Адрес,
   координаты и область геолокации остаются ручными полями преподавателя и не
-  входят в JSON Schema модели. Описание уходит во внешний Alice AI, но маршрут
+  входят в JSON Schema модели. Описание уходит в локальную модель, но маршрут
   ничего не записывает в базу;
 - `POST /api/v1/scenarios` повторно валидирует весь `ScenarioSeed` и только по
   явному действию преподавателя публикует новый сценарий с неизменяемой версией
@@ -684,159 +682,40 @@ binary WebSocket frames с raw PCM S16LE и завершает ответ соб
 разделяет распознавание, очередь перед ним и время от конца реплики до первого
 байта голоса заявителя.
 
-## Alice AI
+## Локальная модель и синтез речи
 
-Адаптер использует встроенный `fetch` и потоковый OpenAI-compatible endpoint
-Alice AI без дополнительного SDK. В запрос передаётся только минимальный контекст:
-персонаж, разрешённые Scenario Engine факты, последние реплики и текущая реплика
-оператора. Provider JSON Schema фиксирует строгую структуру ответа совместимым с
-Alice AI подмножеством, а все ограничения значений и разрешённые факты повторно
-проверяются полным Zod-контрактом на backend. `safety_identifier` не передаётся,
-поскольку Alice AI LLM Flash отклоняет этот параметр; исходный `sessionId` также
-не покидает backend.
+Разговор ведёт своя модель по OpenAI-совместимому протоколу: `LocalLlmAdapter`
+обращается к llama-server через встроенный `fetch`, без SDK. В запрос уходит
+только минимальный контекст — персонаж, разрешённые Scenario Engine факты,
+последние реплики и текущая реплика оператора. Структуру ответа фиксирует JSON
+Schema, а значения и разрешённые факты повторно проверяются полным
+Zod-контрактом на backend: модель не может раскрыть то, чего сценарий не открыл.
 
-Для включения модуля потребуются `YANDEX_AI_API_KEY` и
-`YANDEX_AI_FOLDER_ID`. Опциональные настройки и их значения по умолчанию приведены
-в `.env.example`. Нельзя добавлять ключи или реальные записи звонков в репозиторий
-и логи.
+Разбор SSE и ответа на служебный вопрос вынесены в
+`adapters/openai-compatible`: это общий протокол, а не свойство конкретного
+сервера.
 
-## Qwen3-TTS
+Речь синтезирует Piper (`PiperTtsAdapter`). Он реализует `TTS_PORT` и отдаёт
+клиенту raw PCM S16LE без Base64 и WAV-заголовков, mono 24 kHz; последний
+непустой чанк помечается `isFinal`, а разделённые HTTP-границей `int16` samples
+безопасно объединяются. Голоса задаются `PIPER_TTS_MALE_VOICE` и
+`PIPER_TTS_FEMALE_VOICE`, адрес сервиса — `PIPER_TTS_BASE_URL`.
 
-`QwenTtsAdapterModule` выбирает runtime через `TTS_PROVIDER`. Значение
-`mlx-audio` использует нативный MLX-Audio на Apple Silicon, а `vllm-omni` —
-vLLM-Omni, например в Linux-контейнере с CUDA. Оба адаптера реализуют один
-`TTS_PORT` и передают клиенту raw PCM S16LE без Base64 и WAV-заголовков. Формат
-фиксирован как mono 24 kHz. Последний непустой PCM-чанк помечается `isFinal`, а
-разделённые HTTP-границей `int16` samples безопасно объединяются.
-
-Режим задаёт `TTS_MODE`. Совместимый `custom-voice` использует встроенного
-диктора. `base-icl` выбирает синтетический WAV по сценарному `voiceId`, проверяет
-его SHA-256 при старте и передаёт тот же референс с точной расшифровкой на каждый
-запрос. Если точного профиля нет, допускается только явно заданный default того
-же пола. MLX-Audio получает проверенный локальный путь, vLLM-Omni — сформированный
-backend `data:audio/wav;base64`; произвольный путь из WebSocket не принимается.
-
-Provider-specific запросы разделены: MLX-Audio получает `lang_code`, `instruct`
-и `streaming_interval`, а vLLM-Omni — `language`, `instructions`,
-`max_new_tokens` и обязательный `stream_format: "audio"`. Поскольку vLLM-Omni не
-поддерживает изменение `speed` при потоковой выдаче, `speechRate` преобразуется в
-контролируемую текстовую инструкцию. Параметры обоих runtime приведены в
-`.env.example`.
-
-Каждая TTS-инструкция начинается с одинакового ограничения на голос выбранного
-диктора: эмоция и темп могут менять только подачу, но не тембр, высоту, возраст
-или акцент. Инструкция также требует дословно произносить текст, сохранять
-разборчивость и не переходить на крик, фальцет или неречевые звуки. В
-`base-icl` текстовая инструкция дополняет, но не заменяет voice-clone conditioning.
-
-### Референсные голоса
-
-В `base-icl` у модели нет собственных дикторов: она говорит тем голосом, который
-пришёл в запросе. Репозиторий везёт готовый реестр в
-`assets/tts-references/reference-voices.json`, поэтому клон говорит сразу, без
-подготовки. Backend читает реестр при старте, сверяет SHA-256 каждого файла и
-вкладывает WAV в каждый запрос синтеза как `data:audio/wav;base64` — на
-TTS-сервере настраивать нечего.
-
-Профиль ищется по `voiceId` персоны сценария, а если его нет — берётся запасной
-того же пола. Персона, для пола которой запасного нет, не заговорит вовсе:
-реестр обязан покрывать оба пола, если в каталоге есть и мужские, и женские
-заявители.
-
-### Подготовка синтетического ICL-голоса
-
-Сначала запустите текущий CustomVoice runtime и оставьте в `.env`
-`TTS_MODE=custom-voice`. Команда создаст нейтральный синтетический WAV,
-точную `refText` и реестр с SHA-256:
-
-```bash
-bun run prepare:tts-reference -- --output=/tmp/system112-dylan --voice=Dylan --gender=male
-```
-
-Прослушайте `/tmp/system112-dylan/dylan.wav`. Затем переключите runtime на Base
-и укажите реестр:
-
-```dotenv
-TTS_MODE=base-icl
-TTS_MODEL=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
-TTS_REFERENCE_VOICES_PATH=/tmp/system112-dylan/reference-voices.json
-```
-
-Для vLLM-Omni используйте модель `Qwen/Qwen3-TTS-12Hz-1.7B-Base`. После
-перезапуска backend тот же `Dylan` в сценарии становится ключом синтетического
-ICL-профиля, а не именем встроенного диктора.
-
-### Серверный запуск с NVIDIA CUDA
-
-Целевой серверный runtime — официальный образ
-`vllm/vllm-omni:v0.28.0` с моделью `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
-Сервис находится в опциональном Compose-профиле `tts-cuda`, резервирует одну
-NVIDIA GPU, использует CUDA внутри контейнера и сохраняет скачанные веса в
-именованном Docker volume. Обычный `docker compose up` этот профиль не запускает.
-
-На сервере нужны Linux, NVIDIA driver, Docker Engine с Compose и NVIDIA
-Container Toolkit. Сначала проверьте, что `nvidia-smi` работает на хосте, затем:
-
-```bash
-bun run tts:cuda:config
-bun run tts:cuda:up
-bun run tts:cuda:gpu
-docker compose --profile tts-cuda ps qwen-tts
-```
-
-Первый запуск скачивает модель и может занимать несколько минут. До окончания
-загрузки healthcheck показывает `starting`; прогресс доступен через
-`bun run tts:cuda:logs`. Готовность API проверяется без генерации аудио:
-
-```bash
-curl --fail http://127.0.0.1:8091/health
-```
-
-Backend на том же сервере настраивается так:
-
-```dotenv
-TTS_PROVIDER=vllm-omni
-TTS_MODE=base-icl
-TTS_BASE_URL=http://127.0.0.1:8091
-TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-Base
-TTS_REFERENCE_VOICES_PATH=/absolute/path/to/reference-voices.json
-```
-
-Если синтетического референса ещё нет, его можно один раз подготовить на том же
-CUDA-сервере. Сначала временно задайте в `.env`:
-
-```dotenv
-TTS_CUDA_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
-TTS_PROVIDER=vllm-omni
-TTS_MODE=custom-voice
-TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
-TTS_BASE_URL=http://127.0.0.1:8091
-```
-
-Пересоздайте контейнер и сгенерируйте референс:
-
-```bash
-docker compose --profile tts-cuda up -d --force-recreate qwen-tts
-bun run prepare:tts-reference -- \
-  --output=var/tts-reference/dylan \
-  --voice=Dylan \
-  --gender=male
-```
-
-Прослушайте созданный WAV. Затем верните обе настройки модели на
-`Qwen/Qwen3-TTS-12Hz-1.7B-Base`, включите `base-icl`, укажите абсолютный путь к
-`var/tts-reference/dylan/reference-voices.json` и ещё раз пересоздайте контейнер.
-Каталог референсов исключён из Git.
-
-После перезапуска backend выполните `bun run diagnose:tts`. Манифест диагностики
-фиксирует provider, режим и SHA-256 референса, но не копирует reference audio.
-
-API vLLM-Omni не имеет авторизации проекта и по умолчанию привязан только к
-`127.0.0.1`. Если GPU runtime и backend находятся на разных хостах, задайте
-`TTS_CUDA_BIND_ADDRESS` адресом приватной сети и ограничьте порт 8091
-сетевым firewall; публиковать его напрямую в интернет нельзя.
+Облачных провайдеров в тренажёре нет: он рассчитан на закрытый контур, где
+внешние сервисы недоступны, и выбор между ними давал только возможность
+настроить стенд так, что он замолкает.
 
 ## Структура
+
+Каждый модуль разложен по одним и тем же слоям: `domain/` — чистая логика без
+Nest, `application/` — сервисы, которые её связывают, `infrastructure/` — выход
+наружу (база, HTTP, файлы), `ports/` — контракты между ними, `dto/` — схемы
+запросов и ответов. В корне модуля остаются только сам модуль, контроллеры,
+токены и HTTP-guard'ы.
+
+Тесты лежат отдельно от кода, в `test/unit/`, повторяя дерево `src/`: файл
+`src/modules/dds-exercise/application/dds-archive.service.ts` проверяет
+`test/unit/modules/dds-exercise/application/dds-archive.service.spec.ts`.
 
 ```text
 src/
@@ -844,6 +723,12 @@ src/
   contracts/    # публичные константы и типы API
   core/         # конфигурация, Fastify adapter и подключение инфраструктуры
   modules/      # изолированные NestJS-модули
+test/
+  unit/         # модульные тесты, зеркало src/
+  e2e/          # сквозные проверки на поднятой базе
+  golden/       # эталонные прогоны диалога
+  manual/       # запускаемые руками сценарии и нагрузочный прогон
+  fixtures/     # данные для тестов
 drizzle/
   schema/       # Drizzle-схемы
   migrations/   # генерируется drizzle-kit
@@ -914,7 +799,7 @@ bun run ops:check
 
 ### Ручная проверка AI pipeline
 
-После заполнения `.env` и запуска выбранного Qwen3-TTS runtime можно независимо
+После заполнения `.env` и запуска синтеза речи можно независимо
 проверить каждый этап на синтетическом сценарии:
 
 ```bash
@@ -929,8 +814,8 @@ bun run smoke:voice-pipeline -- pipeline
 bun run smoke:voice-pipeline -- tts Vivian
 ```
 
-Режим `generation` проверяет Alice AI, SSE, JSON и allowed-fact validation без TTS.
-Режим `tts` проверяет выбранный Qwen3-TTS runtime без Alice AI. `pipeline`
+Режим `generation` проверяет модель, SSE, JSON и allowed-fact validation без TTS.
+Режим `tts` проверяет синтез речи без модели. `pipeline`
 запускает всю цепочку и при недоступности LLM также позволяет проверить озвучивание
 безопасной fallback-реплики. Скрипт не выводит credentials; созданные `.pcm` и
 `.wav` файлы сохраняются в системной временной директории, а точные пути печатаются
@@ -967,15 +852,6 @@ Runner передискретизирует синтезированный PCM �
 локальным Whisper и добавляет transcript, processing time и CER в manifest. CER
 здесь диагностический: он включает ошибки сразу TTS и ASR и не должен служить
 единственным критерием приёмки голоса.
-
-Если Alice AI возвращает `400`, запустите поэтапную проверку совместимости запроса:
-
-```bash
-bun run diagnose:alice-ai
-```
-
-Диагностика останавливается на первом несовместимом этапе и выводит только
-ограниченный ответ ошибки с удалёнными API key и folder ID.
 
 ## Архитектурные ограничения
 

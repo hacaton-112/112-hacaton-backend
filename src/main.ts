@@ -13,8 +13,8 @@ import winstonLogger from "@/core/config/winston.config";
 import { CoreModule } from "@/core/core.module";
 import { HttpMetrics } from "@/modules/metrics/application/http-metrics";
 import { AuthenticatedWsAdapter } from "@/core/http/authenticated-ws.adapter";
-import { createOpenApiDocument } from "@/modules/openapi/openapi-document";
-import { OpenApiDocumentStore } from "@/modules/openapi/openapi-document.store";
+import { createOpenApiDocument } from "@/modules/openapi/domain/openapi-document";
+import { OpenApiDocumentStore } from "@/modules/openapi/infrastructure/openapi-document.store";
 
 const GLOBAL_API_PREFIX = "api";
 

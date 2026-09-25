@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 
 import { Inject, Logger, type OnModuleInit } from "@nestjs/common";
-import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/scenario-audio.service";
+import { OfflineAudioNotReadyError } from "@/modules/scenario-audio/application/scenario-audio.service";
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -28,8 +28,8 @@ import {
   type AsrStreamer,
   type AsrStreamHandle,
   type AsrTranscript,
-} from "@/modules/asr/asr-stream.port";
-import { AccessTokenVerifier } from "@/modules/auth/access-token.verifier";
+} from "@/modules/asr/ports/asr-stream.port";
+import { AccessTokenVerifier } from "@/modules/auth/infrastructure/access-token.verifier";
 import {
   CALL_RECORDER,
   type CallRecorder,
@@ -44,7 +44,7 @@ import {
   type CallSnapshot,
   type EngineOpeningTurn,
 } from "@/modules/scenario-engine";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 import { VoicePipelineService } from "../../application/voice-pipeline.service";
 import {

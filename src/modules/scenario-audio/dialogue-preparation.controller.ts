@@ -25,8 +25,8 @@ import {
   DialoguePreparationDto,
   PreparationRevisionDto,
   ReviewPreparationDto,
-} from "./dialogue-preparation.dto";
-import { DialoguePreparationService } from "./dialogue-preparation.service";
+} from "./dto/dialogue-preparation.dto";
+import { DialoguePreparationService } from "./application/dialogue-preparation.service";
 
 @Controller(`${ApiRoutes.Scenarios}/dialogue-preparations`)
 @UseGuards(JwtAuthGuard, RolesGuard)

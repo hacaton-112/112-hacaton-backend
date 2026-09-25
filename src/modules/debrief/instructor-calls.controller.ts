@@ -22,11 +22,11 @@ import {
   StudentProfileDto,
   type InstructorCallView,
 } from "@/modules/training/dto/training.dto";
-import { MethodicalMaterialsService } from "@/modules/methodical-materials/methodical-materials.service";
+import { MethodicalMaterialsService } from "@/modules/methodical-materials/application/methodical-materials.service";
 import {
   summarizeStudentCalls,
   TrainingService,
-} from "@/modules/training/training.service";
+} from "@/modules/training/application/training.service";
 
 import { DebriefService } from "./application/debrief.service";
 import { type Debrief, DebriefDto } from "./dto/debrief.dto";

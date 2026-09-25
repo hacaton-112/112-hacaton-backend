@@ -20,7 +20,7 @@ import { DdsTrainingService } from "./application/dds-training.service";
 import { DdsLessonService } from "./application/dds-lesson.service";
 import { DrizzleDdsExerciseStore } from "./infrastructure/drizzle-dds-exercise.store";
 import { DDS_EXERCISE_STORE } from "./ports/dds-exercise.store.port";
-import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/infrastructure/text-ai-adapter.module";
 import { GrammarModule } from "@/modules/grammar";
 import { DdsTextEvaluationService } from "./application/dds-text-evaluation.service";
 import { DdsReferenceService } from "./application/dds-reference.service";

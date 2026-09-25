@@ -5,7 +5,7 @@ import { JwtAuthGuard } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
 
-import { AdminQueuesService } from "./admin-queues.service";
+import { AdminQueuesService } from "./application/admin-queues.service";
 import { AdminQueuesDto } from "./dto/admin-queues.dto";
 
 @Controller("admin/queues")
