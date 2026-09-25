@@ -105,7 +105,10 @@ services:
     ports:
       - "127.0.0.1:${LLM_PORT:-8080}:8080"
     volumes:
-      - llm_models:/models
+      # По умолчанию модели живут в томе. Для локального запуска достаточно
+      # указать каталог в LLM_MODELS_DIR — тогда сюда примонтируется он, и
+      # файлы не нужно перекладывать внутрь тома вручную.
+      - ${LLM_MODELS_DIR:-llm_models}:/models
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -153,7 +156,10 @@ services:
     ports:
       - "127.0.0.1:${TOOLS_LLM_PORT:-8081}:8080"
     volumes:
-      - llm_models:/models
+      # По умолчанию модели живут в томе. Для локального запуска достаточно
+      # указать каталог в LLM_MODELS_DIR — тогда сюда примонтируется он, и
+      # файлы не нужно перекладывать внутрь тома вручную.
+      - ${LLM_MODELS_DIR:-llm_models}:/models
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
       interval: 10s

@@ -747,6 +747,8 @@ ops/
 
 ## Локальный запуск
 
+Разработка одного backend: база в контейнере, приложение на хосте.
+
 ```bash
 cp .env.example .env
 docker compose up -d postgres
@@ -755,6 +757,32 @@ bun run db:generate
 bun run db:migrate
 bun run start:dev
 ```
+
+### Весь комплекс на своей машине
+
+Поднимается тем же `docker-compose.yml`, что и на сервере: образы собираются
+из этого репозитория, модели распознавания и синтеза скачиваются на этапе
+сборки. Руками нужно положить только две GGUF-модели — их нет в открытом
+доступе целиком: диалоговая `caller.gguf` дообучена нами, а инструментальная
+велика для репозитория.
+
+```bash
+cp .env.example .env
+# каталог с моделями рядом с репозиторием
+echo 'LLM_MODELS_DIR=../models' >> .env
+echo 'TOOLS_LLM_MODEL_FILE=gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf' >> .env
+sh ops/tls/generate-self-signed.sh          # сертификат для gateway
+docker compose --profile app up -d --build
+```
+
+В `../models` ожидаются `caller.gguf` и файл инструментальной модели. Без
+`LLM_MODELS_DIR` compose берёт том `llm_models`, как на сервере, и модели
+нужно класть в него.
+
+Первая сборка тянет модели ASR и голоса Piper из интернета — на машине без
+доступа наружу собирайте образы заранее или переносите их через `docker save`.
+Карта работает офлайн из `maps/`; если каталога нет, соберите его
+`bun run map:prepare`.
 
 ## Запуск в Docker и выкладка на сервер
 
