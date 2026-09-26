@@ -1,6 +1,6 @@
 import { Text } from "@bolid-ui/themes";
 import { Fragment } from "react";
-import { ClipboardList, Inbox } from "lucide-react";
+import { ChevronDown, ClipboardList, Inbox, Link2 } from "lucide-react";
 
 import type { DdsExercise } from "../../contracts/dds-exercise";
 import { DDS_SERVICE_LABELS, DDS_STATUS_LABELS } from "./dds-formatters";
@@ -26,7 +26,11 @@ export function DdsExerciseList({
   return (
     <div className="arm-dds-table" role="table" aria-label="Происшествия">
       <div className="arm-dds-table-head" role="row">
+        <span />
+        <span>Связи</span>
+        <span>ЧС</span>
         <span>Опер.</span>
+        <span>АРМ</span>
         <span>Номер</span>
         <span>Дата</span>
         <span>Время</span>
@@ -50,7 +54,17 @@ export function DdsExerciseList({
               onClick={() => onSelect(exercise.id)}
               role="row"
             >
+              <span className="arm-dds-row-chevron" aria-hidden="true">
+                <ChevronDown size={14} />
+              </span>
+              <span className="arm-dds-links-cell" aria-hidden="true">
+                <Link2 size={13} />
+              </span>
+              <span className="arm-dds-emergency-cell">—</span>
               <span className="arm-dds-operator-cell">0</span>
+              <span className="arm-dds-workstation-cell">
+                {exercise.addressedService.slice(-2)}
+              </span>
               <strong>{exercise.id.slice(-8).toUpperCase()}</strong>
               <span>
                 {createdAt.toLocaleDateString("ru-RU", {
@@ -75,16 +89,14 @@ export function DdsExerciseList({
                 <ClipboardList size={15} />
               </span>
             </button>
-            {selectedId === exercise.id && (
-              <div className="arm-dds-row-description">
-                <span>Описание:</span>
-                <em>
-                  {createdAt.toLocaleString("ru-RU")}{" "}
-                  {DDS_SERVICE_LABELS[exercise.addressedService]}
-                </em>
-                <strong>{exercise.card.description}</strong>
-              </div>
-            )}
+            <div className="arm-dds-row-description">
+              <span>Описание:</span>
+              <em>
+                {createdAt.toLocaleString("ru-RU")}{" "}
+                {DDS_SERVICE_LABELS[exercise.addressedService]}
+              </em>
+              <strong>{exercise.card.description}</strong>
+            </div>
           </Fragment>
         );
       })}

@@ -1,13 +1,5 @@
-import {
-  Badge,
-  Button,
-  Callout,
-  Card,
-  Flex,
-  Heading,
-  Text,
-} from "@bolid-ui/themes";
-import { CircleCheck, ClipboardCheck, Pencil, Trophy } from "lucide-react";
+import { Badge, Button, Card, Flex, Heading, Text } from "@bolid-ui/themes";
+import { ClipboardCheck, Trophy } from "lucide-react";
 import { useState } from "react";
 
 import type {
@@ -17,7 +9,7 @@ import type {
 import { ddsReferenceService } from "../../services/dds-reference.service";
 import { DdsAcknowledgementTimer } from "./dds-acknowledgement-timer";
 import { DdsCardArmHeader } from "./dds-card-arm-header";
-import { DdsCrewHandoffBlock } from "./dds-crew-handoff";
+import { DdsPhonePanel } from "./dds-phone-panel";
 import {
   ddsTextEvaluationMode,
   DDS_STATUS_LABELS,
@@ -36,17 +28,17 @@ export function DdsCardPanel({
   error,
   onTransition,
   readOnly = false,
+  onClose,
 }: {
   exercise?: DdsExercise;
   pending: boolean;
   error?: string;
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
   readOnly?: boolean;
+  onClose?: () => void;
 }) {
-  // Журнал и следующий статус видны сразу: карандаш из реального АРМ остаётся
-  // коротким путём, но учебная попытка не должна зависеть от неочевидной иконки.
-  const [journalOpen, setJournalOpen] = useState(true);
-  const [editorOpen, setEditorOpen] = useState(true);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   if (!exercise) {
     return (
@@ -65,74 +57,60 @@ export function DdsCardPanel({
     );
   }
 
-  return (
-    <div className="arm-dds-card-panel grid content-start gap-2">
-      <DdsCardArmHeader
-        exercise={exercise}
-        journalOpen={journalOpen}
-        onToggleJournal={() => setJournalOpen((open) => !open)}
-        canEdit={!readOnly}
-        onEdit={() => setEditorOpen(true)}
-      />
-
-      <Card size="3" variant="classic" className="arm-dds-card grid gap-3">
-        <Flex align="center" justify="between" gap="3" wrap="wrap">
-          <Text size="2" weight="bold">
-            Статус службы: {DDS_STATUS_LABELS[exercise.status]}
-          </Text>
+  const serviceOverlay = (
+    <div className="arm-card-service-overlays">
+      <div className="arm-card-workflow-summary">
+        <span>
+          Статус службы: <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
+        </span>
+        {!readOnly && !exercise.result && (
+          <span className="arm-card-workflow-help">
+            Попытка завершится после «Выполнено» или «Отказ»
+          </span>
+        )}
+        {!exercise.result && (
           <DdsAcknowledgementTimer key={exercise.id} exercise={exercise} />
-        </Flex>
-
-        {!readOnly && !exercise.result && (
-          <Callout.Root color="blue" size="1" role="status">
-            <Callout.Icon>
-              <CircleCheck size={16} />
-            </Callout.Icon>
-            <Callout.Text>
-              Попытка завершится автоматически после итогового статуса
-              «Выполнено» или «Отказ». До этого её можно продолжить из раздела
-              «Мои назначения».
-            </Callout.Text>
-          </Callout.Root>
         )}
+      </div>
 
-        {exercise.crewHandoff && (
-          <DdsCrewHandoffBlock
-            exerciseId={exercise.id}
-            handoff={exercise.crewHandoff}
-            canCall={exercise.crewHandoff.callMode !== null}
-            readOnly={readOnly}
-          />
-        )}
-
-        {!readOnly && !exercise.result && (
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              size="1"
-              variant="soft"
-              className="w-fit"
-              onClick={() => setEditorOpen((open) => !open)}
-              aria-expanded={editorOpen}
-            >
-              <Pencil size={14} />
-              {editorOpen ? "Скрыть изменение статуса" : "Изменить статус"}
-            </Button>
-            {editorOpen && (
-              <DdsStatusActions
-                key={`${exercise.id}:${exercise.status}`}
-                exercise={exercise}
-                pending={pending}
-                error={error}
-                onTransition={onTransition}
-              />
-            )}
+      {journalOpen && (
+        <div className="arm-card-journal-panel">
+          <div className="arm-card-journal-head">
+            <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
+            <span>Событий: {exercise.events.length}</span>
           </div>
-        )}
-      </Card>
+          {exercise.events.map((event) => (
+            <div key={event.sequence} className="arm-card-journal-row">
+              <span className="arm-card-journal-actor">оп. 0</span>
+              <span className="arm-card-journal-time">
+                {new Date(event.occurredAt).toLocaleString("ru-RU")}
+              </span>
+              <span className="arm-card-journal-status">
+                {DDS_STATUS_LABELS[event.toStatus]}
+              </span>
+              {event.comment && (
+                <span className="arm-card-journal-comment">
+                  {event.comment}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!readOnly && !exercise.result && editorOpen && (
+        <DdsStatusActions
+          key={`${exercise.id}:${exercise.status}`}
+          exercise={exercise}
+          pending={pending}
+          error={error}
+          onTransition={onTransition}
+          onCancel={() => setEditorOpen(false)}
+        />
+      )}
 
       {exercise.result && (
-        <Card size="3" variant="classic" className="arm-dds-result">
+        <Card size="2" variant="classic" className="arm-dds-result">
           <Flex align="center" gap="3" wrap="wrap">
             <Trophy
               size={28}
@@ -169,6 +147,36 @@ export function DdsCardPanel({
           </Flex>
         </Card>
       )}
+    </div>
+  );
+
+  return (
+    <div className="arm-dds-card-panel">
+      <DdsCardArmHeader
+        exercise={exercise}
+        journalOpen={journalOpen}
+        onToggleJournal={() => {
+          setJournalOpen((open) => !open);
+          setEditorOpen(false);
+        }}
+        canEdit={!readOnly && !exercise.result}
+        onEdit={() => {
+          setEditorOpen((open) => !open);
+          setJournalOpen(false);
+        }}
+        onClose={onClose}
+        serviceOverlay={serviceOverlay}
+        phoneControl={
+          exercise.crewHandoff && !readOnly ? (
+            <DdsPhonePanel
+              compact
+              exerciseId={exercise.id}
+              handoff={exercise.crewHandoff}
+              canCall={exercise.crewHandoff.callMode !== null}
+            />
+          ) : undefined
+        }
+      />
 
       {exercise.result && (
         <DdsTextResult
@@ -176,32 +184,6 @@ export function DdsCardPanel({
           evaluation={exercise.textEvaluation}
           instructorView={readOnly}
         />
-      )}
-
-      {/* Журнал статусов службы: в реальном АРМ он раскрывается с плитки. */}
-      {journalOpen && (
-        <div className="arm-card-journal-panel">
-          <div className="arm-card-journal-head">
-            <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
-            <span>Событий: {exercise.events.length}</span>
-          </div>
-          {exercise.events.map((event) => (
-            <div key={event.sequence} className="arm-card-journal-row">
-              <span className="arm-card-journal-actor">оп. 0</span>
-              <span className="arm-card-journal-time">
-                {new Date(event.occurredAt).toLocaleString("ru-RU")}
-              </span>
-              <span className="arm-card-journal-status">
-                {DDS_STATUS_LABELS[event.toStatus]}
-              </span>
-              {event.comment && (
-                <span className="arm-card-journal-comment">
-                  {event.comment}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
       )}
     </div>
   );
