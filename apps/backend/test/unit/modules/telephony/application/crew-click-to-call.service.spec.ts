@@ -20,6 +20,13 @@ const setup = (overrides?: {
     originate: jest.fn(async () => undefined),
   } as unknown as jest.Mocked<TelephonyControlPort>;
   const directory = {
+    findCrewByNumber: jest.fn(async () => ({
+      id: "crew-1",
+      service: "dds_01" as const,
+      callsign: "ПСЧ-12",
+      phoneNumber: "1012",
+      voiceId: "serena",
+    })),
     findWorkstationExtension: jest.fn(async () =>
       overrides?.extension === undefined ? "201" : overrides.extension,
     ),
@@ -35,6 +42,8 @@ const setup = (overrides?: {
       startedAt: overrides?.startedAt ?? null,
     })),
     markCrewCallCommandStarted: jest.fn(async () => undefined),
+    listUnansweredCrewCallCommandsBefore: jest.fn(async () => []),
+    recordUnansweredCrewCall: jest.fn(async () => undefined),
   } as unknown as jest.Mocked<DrizzleTelephonyDirectory>;
   const exercises = {
     get: jest.fn(async () => ({
@@ -109,6 +118,29 @@ describe(CrewClickToCallService.name, () => {
     });
 
     expect(control.originate).not.toHaveBeenCalled();
+  });
+
+  it("records a call that never reached Stasis after the ring timeout", async () => {
+    jest.useFakeTimers();
+    const { service, directory } = setup();
+
+    await service.start("operator-1", EXERCISE_ID, {
+      eventId: EVENT_ID,
+      dialedNumber: "1012",
+    });
+    await jest.advanceTimersByTimeAsync(32_000);
+
+    expect(directory.recordUnansweredCrewCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exerciseId: EXERCISE_ID,
+        channelId: EVENT_ID,
+        dialedNumber: "1012",
+        callerExtension: "201",
+        endedAt: expect.any(Date),
+      }),
+    );
+    service.onModuleDestroy();
+    jest.useRealTimers();
   });
 
   it("starts a control call only to the crew that accepted the card", async () => {
