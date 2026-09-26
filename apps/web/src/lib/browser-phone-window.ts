@@ -73,6 +73,17 @@ export const PhoneWindowMessageSchema = z.discriminatedUnion("type", [
       number: z.string().regex(/^\d{1,12}$/u),
     })
     .strict(),
+  // Телефон сообщает карточке о фактическом состоянии SIP-вызова. HTTP-ответ
+  // click-to-call означает только то, что Asterisk начал звонить на АРМ, а не
+  // то, что оператор уже ответил или разговор завершился.
+  z
+    .object({
+      type: z.literal("call-state"),
+      requestId: z.uuid(),
+      state: z.enum(["ringing", "connected", "ended", "error"]),
+      message: z.string().min(1).optional(),
+    })
+    .strict(),
 ]);
 
 export type PhoneHostMessage = z.infer<typeof PhoneHostMessageSchema>;
@@ -94,7 +105,32 @@ export interface BrowserPhoneWindowSession {
   notify(kind: "sent" | "error", message: string): void;
   /** Набор в окне телефона: возвращает отписку. */
   onDial(handler: (number: string) => void): () => void;
+  /** Фактическое состояние SIP-вызова: возвращает отписку. */
+  onCallState(
+    handler: (
+      state: "ringing" | "connected" | "ended" | "error",
+      message?: string,
+    ) => void,
+  ): () => void;
   dispose(): void;
+}
+
+export function isBrowserMicrophonePermissionError(reason: unknown): boolean {
+  const name = reason instanceof Error ? reason.name : "";
+  const message =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === "string"
+        ? reason
+        : "";
+
+  return (
+    name === "NotAllowedError" ||
+    name === "SecurityError" ||
+    /permission\s+denied|notallowederror|user\s+denied|microphone[^.]*not\s+allowed/iu.test(
+      message,
+    )
+  );
 }
 
 /** Keeps SIP.js transport details and private PBX URLs out of the operator UI. */
@@ -105,6 +141,16 @@ export function formatBrowserPhoneError(reason: unknown): string {
       : typeof reason === "string"
         ? reason.trim()
         : "";
+
+  if (isBrowserMicrophonePermissionError(reason)) {
+    return "Браузер не дал доступ к микрофону. Разрешите микрофон в настройках сайта (значок слева от адреса), затем нажмите «Ответить» ещё раз.";
+  }
+
+  if (
+    /peer\s+connection[^.]*closed|rtcpeerconnection[^.]*closed/iu.test(message)
+  ) {
+    return "Медиасоединение текущего звонка закрылось. Телефон остаётся подключённым — повторите вызов.";
+  }
 
   if (
     /websocket|transport|server\s+disconnect|connection\s+(?:was\s+)?closed/iu.test(
@@ -225,6 +271,22 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
           parsed.data.requestId === requestId
         ) {
           handler(parsed.data.number);
+        }
+      };
+
+      channel.addEventListener("message", onMessage);
+
+      return () => channel.removeEventListener("message", onMessage);
+    },
+    onCallState(handler) {
+      const onMessage = (event: MessageEvent<unknown>) => {
+        const parsed = PhoneWindowMessageSchema.safeParse(event.data);
+        if (
+          parsed.success &&
+          parsed.data.type === "call-state" &&
+          parsed.data.requestId === requestId
+        ) {
+          handler(parsed.data.state, parsed.data.message);
         }
       };
 
