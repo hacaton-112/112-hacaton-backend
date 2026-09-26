@@ -1,6 +1,7 @@
 import { Web } from "sip.js";
 
 import type { BrowserPhoneConfig } from "../contracts/telephony";
+import { requestMicrophoneAccess } from "../lib/media-permissions";
 
 export interface BrowserPhoneEvents {
   onRegistered(): void;
@@ -8,6 +9,24 @@ export interface BrowserPhoneEvents {
   onCallAnswered(): void;
   onCallEnded(): void;
   onDisconnected(error?: Error): void;
+}
+
+type AnswerablePhone = Pick<Web.SimpleUser, "answer">;
+
+/**
+ * Requests the browser permission before SIP.js starts accepting the INVITE.
+ *
+ * SIP.js moves an invitation to `Establishing` before it calls getUserMedia.
+ * If that call is denied, the library has to terminate the invitation. Asking
+ * first keeps the incoming call intact so the operator can allow the
+ * microphone and press «Ответить» again.
+ */
+export async function answerBrowserPhone(
+  phone: AnswerablePhone,
+  requestAccess: () => Promise<void> = requestMicrophoneAccess,
+): Promise<void> {
+  await requestAccess();
+  await phone.answer();
 }
 
 /** Thin adapter around SIP.js so the React window owns presentation only. */
@@ -52,7 +71,7 @@ export class BrowserPhoneClient {
   }
 
   answer(): Promise<void> {
-    return this.phone.answer();
+    return answerBrowserPhone(this.phone);
   }
 
   decline(): Promise<void> {
