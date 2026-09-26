@@ -10,7 +10,7 @@ import { CallerGenderSchema } from "./speech.contracts";
  * принадлежит. Мужчина, говорящий женским голосом, разрушает занятие быстрее
  * любой ошибки в тексте.
  */
-export const QWEN_TTS_VOICES = [
+export const CALLER_VOICES = [
   { id: "aiden", gender: "male" },
   { id: "dylan", gender: "male" },
   { id: "eric", gender: "male" },
@@ -25,12 +25,12 @@ export const QWEN_TTS_VOICES = [
   gender: z.infer<typeof CallerGenderSchema>;
 }[];
 
-export type QwenTtsVoiceId = (typeof QWEN_TTS_VOICES)[number]["id"];
+export type CallerVoiceId = (typeof CALLER_VOICES)[number]["id"];
 
-export const findQwenTtsVoice = (
+export const findCallerVoice = (
   voiceId: string,
-): (typeof QWEN_TTS_VOICES)[number] | undefined => {
+): (typeof CALLER_VOICES)[number] | undefined => {
   const normalized = voiceId.toLowerCase();
 
-  return QWEN_TTS_VOICES.find((voice) => voice.id === normalized);
+  return CALLER_VOICES.find((voice) => voice.id === normalized);
 };

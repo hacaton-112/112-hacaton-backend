@@ -3,7 +3,7 @@ import { Module } from "@nestjs/common";
 import { AuthModule } from "@/modules/auth/auth.module";
 
 import { ClassifierController } from "./classifier.controller";
-import { ClassifierService } from "./classifier.service";
+import { ClassifierService } from "./application/classifier.service";
 import { ReadExcelFileWorkbookReader } from "./infrastructure/read-excel-file-workbook.reader";
 import { CLASSIFIER_WORKBOOK_READER } from "./ports/classifier-workbook-reader.port";
 

@@ -4,12 +4,12 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import {
   assertOfflineEndpoint,
   offlineSettings,
-} from "@/modules/ai-gateway/offline-policy";
+} from "@/modules/ai-gateway/domain/offline-policy";
 
-import { ASR_SOCKET_FACTORY, ASR_STREAMER } from "./asr-stream.port";
+import { ASR_SOCKET_FACTORY, ASR_STREAMER } from "./ports/asr-stream.port";
 import { AsrController } from "./asr.controller";
-import { AsrService } from "./asr.service";
-import { WhisperAsrStreamer } from "./whisper-asr.streamer";
+import { AsrService } from "./application/asr.service";
+import { WhisperAsrStreamer } from "./infrastructure/whisper-asr.streamer";
 
 @Module({
   imports: [ConfigModule],

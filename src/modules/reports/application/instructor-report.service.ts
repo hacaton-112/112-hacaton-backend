@@ -19,14 +19,14 @@ import {
   buildDdsReportTiming,
   detectDdsProcessErrors,
 } from "@/modules/dds-exercise/domain/dds-report-aggregation";
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import { DebriefService } from "@/modules/debrief/application/debrief.service";
 import type { Debrief } from "@/modules/debrief/dto/debrief.dto";
 import type { InstructorCallView } from "@/modules/training/dto/training.dto";
 import {
   type TrainingActor,
   TrainingService,
-} from "@/modules/training/training.service";
+} from "@/modules/training/application/training.service";
 
 import {
   type InstructorReport,

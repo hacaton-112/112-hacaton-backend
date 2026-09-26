@@ -16,8 +16,8 @@ import {
 } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
-import { ScenarioAudioService } from "./scenario-audio.service";
-import { ScenarioAudioStatusDto } from "./scenario-audio.dto";
+import { ScenarioAudioService } from "./application/scenario-audio.service";
+import { ScenarioAudioStatusDto } from "./dto/scenario-audio.dto";
 
 @Controller(
   `${ApiRoutes.Scenarios}/versions/:scenarioVersionId/audio-preparation`,

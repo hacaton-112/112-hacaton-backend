@@ -27,7 +27,7 @@ import {
   UserDto,
   UserListDto,
 } from "./dto/users.dto";
-import { UsersService } from "./users.service";
+import { UsersService } from "./application/users.service";
 
 const actor = (request: AuthenticatedRequest) => ({
   id: request.user.sub,

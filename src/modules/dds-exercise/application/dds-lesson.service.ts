@@ -32,8 +32,8 @@ import {
   type DdsLessonRecord,
   type DispatchService,
 } from "@/drizzle/schema";
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
-import type { TrainingActor } from "@/modules/training/training.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
+import type { TrainingActor } from "@/modules/training/application/training.service";
 
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import { normalizeDdsServiceTag } from "../domain/dds-service-access";

@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 
-import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/infrastructure/text-ai-adapter.module";
 import { GrammarModule } from "@/modules/grammar";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { TrainingModule } from "@/modules/training/training.module";
@@ -8,7 +8,7 @@ import { TrainingModule } from "@/modules/training/training.module";
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import { ScenarioGenerationService } from "./application/scenario-generation.service";
 import { ScenarioPackageService } from "./application/scenario-package.service";
-import { AliceAiScenarioDraftAssistant } from "./infrastructure/alice-ai-scenario-draft.assistant";
+import { StructuredOutputScenarioDraftAssistant } from "./infrastructure/structured-output-scenario-draft.assistant";
 import { DrizzleScenarioAuthoringRepository } from "./infrastructure/drizzle-scenario-authoring.repository";
 import { DrizzleScenarioCatalog } from "./infrastructure/drizzle-scenario.catalog";
 import { DrizzleScenarioGenerationRepository } from "./infrastructure/drizzle-scenario-generation.repository";
@@ -37,13 +37,13 @@ import { ScenarioCatalogController } from "./scenario-catalog.controller";
       provide: SCENARIO_GENERATION_REPOSITORY,
       useExisting: DrizzleScenarioGenerationRepository,
     },
-    AliceAiScenarioDraftAssistant,
+    StructuredOutputScenarioDraftAssistant,
     DrizzleScenarioAuthoringRepository,
     DrizzleScenarioCatalog,
     { provide: SCENARIO_CATALOG, useExisting: DrizzleScenarioCatalog },
     {
       provide: SCENARIO_DRAFT_ASSISTANT,
-      useExisting: AliceAiScenarioDraftAssistant,
+      useExisting: StructuredOutputScenarioDraftAssistant,
     },
     {
       provide: SCENARIO_AUTHORING_REPOSITORY,

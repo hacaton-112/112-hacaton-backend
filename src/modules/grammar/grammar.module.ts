@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
-import { TextAiAdapterModule } from "@/modules/ai-gateway/adapters/text-ai-adapter.module";
+import { TextAiAdapterModule } from "@/modules/ai-gateway/infrastructure/text-ai-adapter.module";
 
 import { GrammarService } from "./application/grammar.service";
 import { StructuredOutputGrammarReview } from "./infrastructure/structured-output-grammar.review";

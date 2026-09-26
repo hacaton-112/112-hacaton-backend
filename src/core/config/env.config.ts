@@ -37,7 +37,6 @@ export const env = createEnv({
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
     VOICE_PIPELINE_DEMO_ENABLED: BooleanEnvironmentSchema,
     SCENARIO_AUDIO_WORKER_ENABLED: BooleanEnvironmentSchema,
-    LLM_PROVIDER: z.enum(["alice", "local"]).default("alice"),
     LLM_REPLY_PROTOCOL: z.enum(["legacy", "caller-v2"]).default("legacy"),
     TOOLS_LLM_BASE_URL: z
       .url()
@@ -149,34 +148,6 @@ export const env = createEnv({
       .max(256)
       .optional(),
 
-    // ── Alice AI ─────────────────────────────────────────────────
-    YANDEX_AI_API_KEY: z.string().trim().min(1).max(1_024).optional(),
-    YANDEX_AI_FOLDER_ID: z
-      .string()
-      .trim()
-      .min(1)
-      .max(128)
-      .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
-      .optional(),
-    YANDEX_AI_BASE_URL: z
-      .url()
-      .refine((url) => /^https?:\/\//.test(url), {
-        message: "YANDEX_AI_BASE_URL must use the http:// or https:// scheme",
-      })
-      .default("https://ai.api.cloud.yandex.net/v1"),
-    YANDEX_AI_MODEL: z
-      .string()
-      .trim()
-      .min(1)
-      .max(128)
-      .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
-      .default("aliceai-llm-flash"),
-    YANDEX_AI_REQUEST_TIMEOUT_MS: z.coerce
-      .number()
-      .int()
-      .min(500)
-      .max(30_000)
-      .default(5_000),
 
     // ── Grammar ──────────────────────────────────────────────────
     /**
@@ -226,6 +197,17 @@ export const env = createEnv({
       .max(30_000)
       .default(3_000),
 
+    // ── База данных ─────────────────────────────────────────────
+    /**
+     * Соединений в пуле.
+     *
+     * Занятие идёт сразу у нескольких операторов, и каждый звонок дёргает базу
+     * короткими запросами: снимок звонка, карточка, журнал. Пул — то общее
+     * место, где нехватка превращает «медленно» в «не удалось»; на стенде у
+     * PostgreSQL сотня соединений, и держать десяток из них незачем.
+     */
+    DATABASE_POOL_MAX: z.coerce.number().int().min(2).max(80).default(20),
+
     // ── Журнал аудита ───────────────────────────────────────────
     // Записи аудита хранятся ограниченный срок: журнал растёт с каждым
     // действием, а бессрочное хранение персональных данных обучающихся не
@@ -241,30 +223,7 @@ export const env = createEnv({
       .max(3_650)
       .default(365),
 
-    // ── Qwen TTS ────────────────────────────────────────────────
-    TTS_PROVIDER: z
-      .enum(["mlx-audio", "vllm-omni", "piper"])
-      .default("mlx-audio"),
-    TTS_MODE: z.enum(["custom-voice", "base-icl"]).default("custom-voice"),
-    TTS_BASE_URL: z
-      .url()
-      .refine((url) => /^https?:\/\//.test(url), {
-        message: "TTS_BASE_URL must use the http:// or https:// scheme",
-      })
-      .optional(),
-    TTS_MODEL: z
-      .string()
-      .trim()
-      .min(1)
-      .max(256)
-      .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
-      .optional(),
-    TTS_REFERENCE_VOICES_PATH: z.string().trim().min(1).max(1_024).optional(),
-    TTS_STREAMING_INTERVAL_SECONDS: z.coerce
-      .number()
-      .min(0.08)
-      .max(2)
-      .optional(),
+    // ── Синтез речи ─────────────────────────────────────────────
     TTS_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()

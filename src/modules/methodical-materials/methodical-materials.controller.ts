@@ -25,7 +25,7 @@ import {
   UpdateMethodicalMaterialDto,
   UpdateSectionCompletionDto,
 } from "./dto/methodical-materials.dto";
-import { MethodicalMaterialsService } from "./methodical-materials.service";
+import { MethodicalMaterialsService } from "./application/methodical-materials.service";
 
 @Controller(ApiRoutes.MethodicalMaterials)
 @UseGuards(JwtAuthGuard, RolesGuard)

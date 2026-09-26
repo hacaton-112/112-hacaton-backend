@@ -26,7 +26,7 @@ import {
 } from "@/modules/auth/jwt-auth.guard";
 import { Roles } from "@/modules/auth/roles.decorator";
 import { RolesGuard } from "@/modules/auth/roles.guard";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 import { ScenarioAuthoringService } from "./application/scenario-authoring.service";
 import { ScenarioGenerationService } from "./application/scenario-generation.service";

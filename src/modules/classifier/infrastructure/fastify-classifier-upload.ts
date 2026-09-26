@@ -6,7 +6,7 @@ import { ErrorCodes } from "@/contracts";
 import {
   MAX_CLASSIFIER_FILE_BYTES,
   type ClassifierUpload,
-} from "../classifier.service";
+} from "../application/classifier.service";
 
 const MULTIPART_LIMIT_CODES = new Set([
   "ERR_STREAM_PREMATURE_CLOSE",

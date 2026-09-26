@@ -9,7 +9,7 @@ import { CoreModule } from "@/core/core.module";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { authSessions, users } from "@/drizzle/schema";
-import { AuthService } from "@/modules/auth/auth.service";
+import { AuthService } from "@/modules/auth/application/auth.service";
 
 /**
  * Manual check of refresh rotation against a real database.

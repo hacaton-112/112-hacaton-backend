@@ -7,7 +7,7 @@ import { ErrorCodes } from "@/contracts";
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
 import { ddsExercises, ddsLessons, users } from "@/drizzle/schema";
-import type { TrainingActor } from "@/modules/training/training.service";
+import type { TrainingActor } from "@/modules/training/application/training.service";
 
 import {
   archiveOwner,

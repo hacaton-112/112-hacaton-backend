@@ -279,7 +279,7 @@ export const changePanicLevel = (
 - из будущего другого транспорта.
 
 Поэтому domain не должен знать о `Request`, `Response`, WebSocket client,
-Drizzle query или формате ответа Alice AI.
+Drizzle query или формате ответа модели.
 
 ### Domain содержит поведение, а не только типы
 
@@ -415,8 +415,8 @@ VoicePipelineGateway
     ▼
 VoicePipelineService
     ├── Scenario Engine domain rules
-    ├── LLM port → Alice AI adapter
-    └── TTS port → MLX-Audio / vLLM-Omni adapter
+    ├── LLM port → local LLM adapter
+    └── TTS port → Piper adapter
     │
     ▼
 WebSocket server event contract
@@ -586,7 +586,7 @@ adapter.
 
 ### Provider response как domain model
 
-Плохо передавать сырой ответ Alice AI глубоко в систему. Сначала adapter должен
+Плохо передавать сырой ответ модели глубоко в систему. Сначала adapter должен
 преобразовать его в общий LLM contract, после чего Scenario Engine проверяет
 доменные ограничения.
 

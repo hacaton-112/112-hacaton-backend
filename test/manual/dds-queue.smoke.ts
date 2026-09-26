@@ -21,7 +21,7 @@ import { DdsDispatchService } from "@/modules/dds-exercise/application/dds-dispa
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 /**
  * Ручная проверка доставки карточки из 112 в дежурную смену ДДС.

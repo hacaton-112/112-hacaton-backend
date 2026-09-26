@@ -17,20 +17,15 @@ import {
   type TtsSynthesisRequest,
   type VoicePipelineStreamEvent,
 } from "@/contracts";
-import { AliceAiLlmAdapter } from "@/modules/ai-gateway/adapters/alice-ai/alice-ai.adapter";
-import {
-  type AliceAiEnvironment,
-  parseAliceAiConfig,
-} from "@/modules/ai-gateway/adapters/alice-ai/alice-ai.config";
 import {
   LocalLlmAdapter,
   LocalLlmConfigSchema,
-} from "@/modules/ai-gateway/adapters/local-llm/local-llm.adapter";
+} from "@/modules/ai-gateway/infrastructure/local-llm/local-llm.adapter";
 import {
-  type QwenTtsEnvironment,
-  parseQwenTtsConfig,
-} from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.config";
-import { createQwenTtsAdapter } from "@/modules/ai-gateway/adapters/qwen-tts/qwen-tts.factory";
+  type TtsEnvironment,
+  parseTtsConfig,
+} from "@/modules/ai-gateway/infrastructure/tts/tts.config";
+import { PiperTtsAdapter } from "@/modules/ai-gateway/infrastructure/tts/piper/piper-tts.adapter";
 import type { LlmPort, TtsPort } from "@/modules/ai-gateway";
 import { CallerReplySafetyService } from "@/modules/dialogue-generation/application/caller-reply-safety.service";
 import { DialogueGenerationService } from "@/modules/dialogue-generation/application/dialogue-generation.service";
@@ -59,14 +54,6 @@ const ProviderErrorSummarySchema = z
 
 type ProviderErrorSummary = z.infer<typeof ProviderErrorSummarySchema>;
 
-const ALICE_ENVIRONMENT_KEYS = [
-  "YANDEX_AI_API_KEY",
-  "YANDEX_AI_FOLDER_ID",
-  "YANDEX_AI_BASE_URL",
-  "YANDEX_AI_MODEL",
-  "YANDEX_AI_REQUEST_TIMEOUT_MS",
-] as const satisfies readonly (keyof AliceAiEnvironment)[];
-
 const LOCAL_LLM_ENVIRONMENT_KEYS = [
   "LLM_BASE_URL",
   "LLM_MODEL",
@@ -76,18 +63,12 @@ const LOCAL_LLM_ENVIRONMENT_KEYS = [
   "LLM_REPLY_PROTOCOL",
 ] as const;
 
-const QWEN_ENVIRONMENT_KEYS = [
-  "TTS_PROVIDER",
-  "TTS_MODE",
-  "TTS_BASE_URL",
-  "TTS_MODEL",
-  "TTS_REFERENCE_VOICES_PATH",
-  "TTS_STREAMING_INTERVAL_SECONDS",
+const TTS_ENVIRONMENT_KEYS = [
   "TTS_REQUEST_TIMEOUT_MS",
   "PIPER_TTS_BASE_URL",
   "PIPER_TTS_MALE_VOICE",
   "PIPER_TTS_FEMALE_VOICE",
-] as const satisfies readonly (keyof QwenTtsEnvironment)[];
+] as const satisfies readonly (keyof TtsEnvironment)[];
 
 const selectEnvironment = (keys: readonly string[]): Record<string, unknown> =>
   Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -254,31 +235,19 @@ const createGenerationRequest = (
   },
 });
 
+/** Разговор ведёт только своя модель: облачного провайдера у стенда нет. */
 const createDialogueRuntime = () => {
-  if (process.env.LLM_PROVIDER === "local") {
-    const environment = selectEnvironment(LOCAL_LLM_ENVIRONMENT_KEYS);
-    const config = LocalLlmConfigSchema.parse({
-      baseUrl: environment.LLM_BASE_URL,
-      model: environment.LLM_MODEL,
-      apiKey: environment.LLM_API_KEY,
-      timeoutMs: environment.LLM_TIMEOUT_MS,
-      concurrency: environment.LLM_CONCURRENCY,
-      replyProtocol: environment.LLM_REPLY_PROTOCOL,
-    });
-    const port = new ObservedLlmPort(
-      new LocalLlmAdapter(config, globalThis.fetch.bind(globalThis)),
-    );
-    const service = new DialogueGenerationService(
-      port,
-      new LlmReplyStreamCollector(new CallerReplySafetyService()),
-    );
-
-    return { config, port, service };
-  }
-
-  const config = parseAliceAiConfig(selectEnvironment(ALICE_ENVIRONMENT_KEYS));
+  const environment = selectEnvironment(LOCAL_LLM_ENVIRONMENT_KEYS);
+  const config = LocalLlmConfigSchema.parse({
+    baseUrl: environment.LLM_BASE_URL,
+    model: environment.LLM_MODEL,
+    apiKey: environment.LLM_API_KEY,
+    timeoutMs: environment.LLM_TIMEOUT_MS,
+    concurrency: environment.LLM_CONCURRENCY,
+    replyProtocol: environment.LLM_REPLY_PROTOCOL,
+  });
   const port = new ObservedLlmPort(
-    new AliceAiLlmAdapter(config, globalThis.fetch.bind(globalThis)),
+    new LocalLlmAdapter(config, globalThis.fetch.bind(globalThis)),
   );
   const service = new DialogueGenerationService(
     port,
@@ -289,9 +258,9 @@ const createDialogueRuntime = () => {
 };
 
 const createSpeechRuntime = () => {
-  const config = parseQwenTtsConfig(selectEnvironment(QWEN_ENVIRONMENT_KEYS));
+  const config = parseTtsConfig(selectEnvironment(TTS_ENVIRONMENT_KEYS));
   const port = new ObservedTtsPort(
-    createQwenTtsAdapter(config, globalThis.fetch.bind(globalThis)),
+    new PiperTtsAdapter(config, globalThis.fetch.bind(globalThis)),
   );
   const service = new SpeechSynthesisService(port, new TtsStreamValidator());
 

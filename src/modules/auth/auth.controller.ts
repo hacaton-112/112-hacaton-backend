@@ -14,8 +14,8 @@ import { ZodSerializerDto } from "nestjs-zod";
 
 import { ApiRoutes } from "@/contracts";
 
-import { AuthService } from "./auth.service";
-import { readClientMetadata } from "./client-metadata";
+import { AuthService } from "./application/auth.service";
+import { readClientMetadata } from "./domain/client-metadata";
 import {
   type AuthSession,
   AuthSessionDto,

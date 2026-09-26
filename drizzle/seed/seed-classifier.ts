@@ -5,11 +5,11 @@ import { eq } from "drizzle-orm";
 
 import { db, pool } from "@/core/database/drizzle.client";
 import { users } from "@/drizzle/schema";
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import {
   ClassifierService,
   type ClassifierUpload,
-} from "@/modules/classifier/classifier.service";
+} from "@/modules/classifier/application/classifier.service";
 import { ReadExcelFileWorkbookReader } from "@/modules/classifier/infrastructure/read-excel-file-workbook.reader";
 
 const CLASSIFIER_PATH = join(

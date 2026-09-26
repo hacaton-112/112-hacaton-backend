@@ -18,11 +18,11 @@ import {
   trainingGroups,
   users,
 } from "@/drizzle/schema";
-import { AuthService } from "@/modules/auth/auth.service";
+import { AuthService } from "@/modules/auth/application/auth.service";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
 import { DdsExerciseService } from "@/modules/dds-exercise/application/dds-exercise.service";
 import { DdsTrainingService } from "@/modules/dds-exercise/application/dds-training.service";
-import { TrainingService } from "@/modules/training/training.service";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 /**
  * Ручная проверка групп, назначений и попыток на реальной базе.

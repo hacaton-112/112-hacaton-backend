@@ -31,13 +31,13 @@ import {
   trainingGroupMembers,
   users,
 } from "@/drizzle/schema";
-import { AuditLogService } from "@/modules/audit-log/audit-log.service";
+import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import {
   attemptBlocker,
   isAssignedToOperator,
   TrainingService,
   type TrainingActor,
-} from "@/modules/training/training.service";
+} from "@/modules/training/application/training.service";
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import {
   DDS_EXERCISE_STORE,

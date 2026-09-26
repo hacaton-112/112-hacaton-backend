@@ -17,7 +17,7 @@ import {
   type AsrStreamer,
   type AsrStreamHandle,
   type AsrTranscript,
-} from "@/modules/asr/asr-stream.port";
+} from "@/modules/asr/ports/asr-stream.port";
 import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 
 import type {
