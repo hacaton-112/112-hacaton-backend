@@ -1,4 +1,10 @@
-import { Inject, Injectable } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from "@nestjs/common";
 
 import {
   AppBadRequestException,
@@ -6,6 +12,7 @@ import {
   AppServiceUnavailableException,
 } from "@/common/exceptions/app.exception";
 import { ErrorCodes } from "@/contracts";
+import { generateId } from "@/common/utils/id";
 import {
   crewCallPlan,
   DdsExerciseService,
@@ -23,16 +30,39 @@ import {
 import { TELEPHONY_ENABLED } from "./crew-handoff.service";
 
 const RING_TIMEOUT_SECONDS = 30;
+const UNANSWERED_CALL_GRACE_MS = 2_000;
+const RECONCILE_INTERVAL_MS = 30_000;
 
 /** Экранная кнопка звонка: медиа остаётся в SIP-телефоне рабочего места. */
 @Injectable()
-export class CrewClickToCallService {
+export class CrewClickToCallService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CrewClickToCallService.name);
+  private readonly unansweredTimers = new Set<ReturnType<typeof setTimeout>>();
+  private reconcileTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     @Inject(TELEPHONY_ENABLED) private readonly enabled: boolean,
     @Inject(TELEPHONY_CONTROL) private readonly control: TelephonyControlPort,
     private readonly directory: DrizzleTelephonyDirectory,
     private readonly exercises: DdsExerciseService,
   ) {}
+
+  onModuleInit(): void {
+    if (!this.enabled) return;
+
+    void this.reconcileUnansweredCommands();
+    this.reconcileTimer = setInterval(
+      () => void this.reconcileUnansweredCommands(),
+      RECONCILE_INTERVAL_MS,
+    );
+    this.reconcileTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    clearInterval(this.reconcileTimer);
+    for (const timer of this.unansweredTimers) clearTimeout(timer);
+    this.unansweredTimers.clear();
+  }
 
   async start(
     operatorId: string,
@@ -110,10 +140,12 @@ export class CrewClickToCallService {
           channelId: command.channelId,
           timeoutSeconds: RING_TIMEOUT_SECONDS,
         });
+        const startedAt = new Date();
         await this.directory.markCrewCallCommandStarted(
           input.eventId,
-          new Date(),
+          startedAt,
         );
+        this.scheduleUnansweredCall({ ...command, startedAt });
       } catch {
         throw new AppServiceUnavailableException(
           ErrorCodes.TELEPHONY_UNAVAILABLE,
@@ -129,6 +161,68 @@ export class CrewClickToCallService {
       workstationExtension: extension,
       state: "ringing",
     };
+  }
+
+  private scheduleUnansweredCall(command: CrewCallCommandRecord): void {
+    const timer = setTimeout(
+      () => {
+        this.unansweredTimers.delete(timer);
+        void this.recordUnansweredCall(command);
+      },
+      RING_TIMEOUT_SECONDS * 1_000 + UNANSWERED_CALL_GRACE_MS,
+    );
+    timer.unref?.();
+    this.unansweredTimers.add(timer);
+  }
+
+  private async reconcileUnansweredCommands(): Promise<void> {
+    const cutoff = new Date(
+      Date.now() - RING_TIMEOUT_SECONDS * 1_000 - UNANSWERED_CALL_GRACE_MS,
+    );
+
+    try {
+      const commands =
+        await this.directory.listUnansweredCrewCallCommandsBefore(cutoff);
+      await Promise.all(
+        commands.map((command) => this.recordUnansweredCall(command)),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not reconcile unanswered DDS calls: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }
+
+  private async recordUnansweredCall(
+    command: CrewCallCommandRecord,
+  ): Promise<void> {
+    if (!command.startedAt) return;
+
+    try {
+      const crew = await this.directory.findCrewByNumber(command.dialedNumber);
+      await this.directory.recordUnansweredCrewCall({
+        id: generateId(),
+        exerciseId: command.exerciseId,
+        crewId: crew?.id ?? null,
+        callerUserId: command.operatorId,
+        callerExtension: command.callerExtension,
+        dialedNumber: command.dialedNumber,
+        channelId: command.channelId,
+        purpose: command.purpose,
+        reportedStatus: command.reportedStatus,
+        startedAt: command.startedAt,
+        endedAt: new Date(),
+        correct: crew !== null,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record unanswered DDS call ${command.channelId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
   }
 
   private assertSameCommand(

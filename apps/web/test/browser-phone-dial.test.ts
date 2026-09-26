@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import {
   formatBrowserPhoneError,
+  isBrowserMicrophonePermissionError,
   PhoneHostMessageSchema,
   PhoneWindowMessageSchema,
 } from "../src/lib/browser-phone-window";
+import { answerBrowserPhone } from "../src/services/browser-phone.service";
 
 const requestId = "68e4085a-a84f-435e-804f-8a242db80385";
 
@@ -37,9 +39,36 @@ describe("browser phone window channel", () => {
       }).type,
     ).toBe("registered");
   });
+
+  test("reports the actual SIP call lifecycle to the DDS card", () => {
+    for (const state of ["ringing", "connected", "ended", "error"] as const) {
+      expect(
+        PhoneWindowMessageSchema.parse({
+          type: "call-state",
+          requestId,
+          state,
+          ...(state === "error" ? { message: "Связь завершена" } : {}),
+        }),
+      ).toMatchObject({ type: "call-state", state });
+    }
+  });
 });
 
 describe("browser phone errors", () => {
+  test("explains a denied microphone instead of exposing the browser error", () => {
+    const reason = new DOMException("Permission denied", "NotAllowedError");
+
+    expect(isBrowserMicrophonePermissionError(reason)).toBe(true);
+    expect(formatBrowserPhoneError(reason)).toContain("настройках сайта");
+    expect(formatBrowserPhoneError(reason)).not.toContain("Permission denied");
+  });
+
+  test("explains a closed media peer without blaming SIP registration", () => {
+    expect(formatBrowserPhoneError(new Error("Peer connection closed."))).toBe(
+      "Медиасоединение текущего звонка закрылось. Телефон остаётся подключённым — повторите вызов.",
+    );
+  });
+
   test("hides the PBX websocket URL from an operator", () => {
     const message = formatBrowserPhoneError(
       new Error("WebSocket closed wss://pbx.internal.example/ws"),
@@ -53,6 +82,35 @@ describe("browser phone errors", () => {
     expect(
       formatBrowserPhoneError(new Error("Registration rejected: 403")),
     ).toContain("учётные данные SIP");
+  });
+});
+
+describe("browser phone answer", () => {
+  test("does not accept the SIP invitation while microphone access is denied", async () => {
+    let accepted = false;
+    const phone = {
+      answer: async () => {
+        accepted = true;
+      },
+    };
+    const denied = new DOMException("Permission denied", "NotAllowedError");
+
+    await expect(
+      answerBrowserPhone(phone, () => Promise.reject(denied)),
+    ).rejects.toBe(denied);
+    expect(accepted).toBe(false);
+  });
+
+  test("accepts the SIP invitation after microphone access succeeds", async () => {
+    let accepted = false;
+    const phone = {
+      answer: async () => {
+        accepted = true;
+      },
+    };
+
+    await answerBrowserPhone(phone, () => Promise.resolve());
+    expect(accepted).toBe(true);
   });
 });
 

@@ -36,6 +36,7 @@ export function DdsPhonePanel({
   const phoneWindow = useRef<BrowserPhoneWindowSession | null>(null);
   const dialContext = useRef({ handoff, canCall });
   const unsubscribeDial = useRef<(() => void) | null>(null);
+  const unsubscribeCallState = useRef<(() => void) | null>(null);
   const callsBeforeCommand = useRef<number | null>(null);
   const call = useMutation({
     mutationFn: async (dialedNumber: string) => {
@@ -71,6 +72,7 @@ export function DdsPhonePanel({
   useEffect(
     () => () => {
       unsubscribeDial.current?.();
+      unsubscribeCallState.current?.();
       phoneWindow.current?.dispose();
       phoneWindow.current = null;
     },
@@ -106,6 +108,7 @@ export function DdsPhonePanel({
       session = prepareBrowserPhoneWindow();
       await session.connect(await telephonyService.getBrowserPhoneConfig());
       unsubscribeDial.current?.();
+      unsubscribeCallState.current?.();
       phoneWindow.current?.dispose();
       phoneWindow.current = session;
       session.setContext(handoff.crews, canCall);
@@ -132,6 +135,19 @@ export function DdsPhonePanel({
 
         activeCall.current.mutate(dialed);
       });
+      unsubscribeCallState.current = connectedSession.onCallState(
+        (state, message) => {
+          if (state === "ended" || state === "error") {
+            callsBeforeCommand.current = null;
+            command.current = null;
+            activeCall.current.reset();
+            void client.invalidateQueries({ queryKey: ["dds-exercises"] });
+          }
+          if (state === "error" && message) {
+            connectedSession.notify("error", message);
+          }
+        },
+      );
     } catch (reason) {
       session?.dispose();
       setWindowError(

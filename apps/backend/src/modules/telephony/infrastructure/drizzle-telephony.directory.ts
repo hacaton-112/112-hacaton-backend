@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, ne } from "drizzle-orm";
 
 import type { DrizzleService } from "@/core/database/drizzle.service";
 import { DRIZZLE } from "@/core/database/drizzle.token";
@@ -246,6 +246,67 @@ export class DrizzleTelephonyDirectory {
       .update(ddsCrewCallCommands)
       .set({ startedAt })
       .where(eq(ddsCrewCallCommands.eventId, eventId));
+  }
+
+  async listUnansweredCrewCallCommandsBefore(
+    cutoff: Date,
+  ): Promise<CrewCallCommandRecord[]> {
+    return this.db
+      .select({
+        eventId: ddsCrewCallCommands.eventId,
+        exerciseId: ddsCrewCallCommands.exerciseId,
+        operatorId: ddsCrewCallCommands.operatorId,
+        callerExtension: ddsCrewCallCommands.callerExtension,
+        dialedNumber: ddsCrewCallCommands.dialedNumber,
+        channelId: ddsCrewCallCommands.channelId,
+        purpose: ddsCrewCallCommands.purpose,
+        reportedStatus: ddsCrewCallCommands.reportedStatus,
+        startedAt: ddsCrewCallCommands.startedAt,
+      })
+      .from(ddsCrewCallCommands)
+      .leftJoin(
+        ddsCrewCalls,
+        eq(ddsCrewCalls.channelId, ddsCrewCallCommands.channelId),
+      )
+      .where(
+        and(
+          lte(ddsCrewCallCommands.startedAt, cutoff),
+          isNull(ddsCrewCalls.id),
+        ),
+      );
+  }
+
+  /**
+   * Если аппарат не ответил, канал не входит в Stasis и обычный журнал звонка
+   * не создаётся. Фиксируем такую попытку после таймаута; если оператор всё же
+   * ответил, уникальный channelId уже занят и вставка ничего не меняет.
+   */
+  async recordUnansweredCrewCall(call: {
+    readonly id: string;
+    readonly exerciseId: string;
+    readonly crewId: string | null;
+    readonly callerUserId: string;
+    readonly callerExtension: string;
+    readonly dialedNumber: string;
+    readonly channelId: string;
+    readonly purpose: CrewCallPurpose;
+    readonly reportedStatus: CrewProgressReportStatus | null;
+    readonly startedAt: Date;
+    readonly endedAt: Date;
+    readonly correct: boolean;
+  }): Promise<void> {
+    await this.db
+      .insert(ddsCrewCalls)
+      .values({
+        ...call,
+        outcome: "abandoned",
+        acknowledgements: 0,
+        transcript: "",
+        validation: null,
+        asrStatus: "not_started",
+        reportText: null,
+      })
+      .onConflictDoNothing({ target: ddsCrewCalls.channelId });
   }
 
   async startCall(call: {

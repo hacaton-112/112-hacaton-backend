@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BrowserPhoneConfig } from "../../contracts/telephony";
 import {
   formatBrowserPhoneError,
+  isBrowserMicrophonePermissionError,
   PHONE_CHANNEL_NAME,
   PhoneHostMessageSchema,
   type PhoneCrewEntry,
@@ -106,18 +107,33 @@ export default function BrowserPhonePage() {
           });
         },
         onIncomingCall: () => {
-          if (requestIdRef.current === requestId) setState("ringing");
+          if (requestIdRef.current !== requestId) return;
+          setError(undefined);
+          setState("ringing");
+          publish({ type: "call-state", requestId, state: "ringing" });
         },
         onCallAnswered: () => {
-          if (requestIdRef.current === requestId) setState("connected");
+          if (requestIdRef.current !== requestId) return;
+          setError(undefined);
+          setState("connected");
+          publish({ type: "call-state", requestId, state: "connected" });
         },
         onCallEnded: () => {
-          if (requestIdRef.current === requestId) setState("ended");
+          if (requestIdRef.current !== requestId) return;
+          setState("ended");
+          publish({ type: "call-state", requestId, state: "ended" });
         },
         onDisconnected: (reason) => {
           if (requestIdRef.current !== requestId) return;
+          const message = formatBrowserPhoneError(reason);
           setState("error");
-          setError(formatBrowserPhoneError(reason));
+          setError(message);
+          publish({
+            type: "call-state",
+            requestId,
+            state: "error",
+            message,
+          });
         },
       });
       phoneRef.current = phone;
@@ -199,12 +215,31 @@ export default function BrowserPhonePage() {
         await phone.hangup();
       }
     } catch (reason) {
-      setState("error");
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Действие телефона не выполнено",
+      const microphoneDenied = isBrowserMicrophonePermissionError(reason);
+      const message = formatBrowserPhoneError(reason);
+      // The permission preflight happens before SIP.js accepts the INVITE, so
+      // the operator may grant access and answer this same incoming call.
+      // Other answer failures terminate only the current SIP session; the
+      // registration remains alive and is ready for the next call.
+      setState(
+        operation === "answer"
+          ? microphoneDenied
+            ? "ringing"
+            : "ended"
+          : "error",
       );
+      setError(message);
+      if (!microphoneDenied) {
+        const requestId = requestIdRef.current;
+        if (requestId) {
+          channelRef.current?.postMessage({
+            type: "call-state",
+            requestId,
+            state: "error",
+            message,
+          } satisfies PhoneWindowMessage);
+        }
+      }
     }
   };
 
@@ -214,6 +249,7 @@ export default function BrowserPhonePage() {
     offeredNumber &&
     extension !== undefined &&
     (state === "registered" || state === "ended");
+  const callInProgress = ["ringing", "answering", "connected"].includes(state);
 
   return (
     <main className="bg-gray-2 min-h-screen p-4">
@@ -238,6 +274,49 @@ export default function BrowserPhonePage() {
           </Text>
         </div>
 
+        {state === "ringing" && (
+          <Card size="2" variant="surface" className="grid gap-3">
+            <div>
+              <Text as="p" size="3" weight="bold">
+                Asterisk звонит на ваш аппарат
+              </Text>
+              <Text as="p" size="2" color="gray" className="mt-1">
+                Ответьте сейчас. После ответа виртуальный наряд начнёт разговор.
+              </Text>
+            </div>
+            <Flex gap="2">
+              <Button
+                color="green"
+                size="3"
+                className="flex-1"
+                onClick={() => void run("answer")}
+              >
+                <PhoneCall size={18} /> Ответить
+              </Button>
+              <Button
+                color="red"
+                size="3"
+                variant="soft"
+                onClick={() => void run("decline")}
+              >
+                <PhoneOff size={18} /> Отклонить
+              </Button>
+            </Flex>
+          </Card>
+        )}
+
+        {state === "answering" && (
+          <Text size="2" color="gray">
+            Подтвердите доступ к микрофону, если браузер запросит разрешение.
+          </Text>
+        )}
+
+        {state === "connected" && (
+          <Button color="red" size="3" onClick={() => void run("hangup")}>
+            <PhoneOff size={18} /> Завершить разговор
+          </Button>
+        )}
+
         {state === "waiting" && (
           <Text size="2" color="gray">
             Откройте карточку ДДС и нажмите «Открыть телефон»: рабочее место
@@ -245,7 +324,7 @@ export default function BrowserPhonePage() {
           </Text>
         )}
 
-        {crews.length > 0 && (
+        {crews.length > 0 && !callInProgress && (
           <div className="grid gap-1" aria-label="Наряды по карточке">
             <Text size="1" color="gray">
               Наряды по карточке
@@ -268,7 +347,7 @@ export default function BrowserPhonePage() {
 
         {/* Клавиатура появляется вместе со справочником карточки: ждать
             регистрации в АТС незачем, она видна по состоянию выше. */}
-        {(extension || crews.length > 0) && (
+        {(extension || crews.length > 0) && !callInProgress && (
           <div className="grid gap-2" aria-label="Набор номера наряда">
             <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
               <Text as="p" size="1" color="gray">
@@ -356,31 +435,6 @@ export default function BrowserPhonePage() {
               </Callout.Root>
             )}
           </div>
-        )}
-
-        {state === "ringing" && (
-          <Flex gap="2">
-            <Button
-              color="green"
-              className="flex-1"
-              onClick={() => void run("answer")}
-            >
-              <PhoneCall size={17} /> Ответить
-            </Button>
-            <Button
-              color="red"
-              variant="soft"
-              onClick={() => void run("decline")}
-            >
-              <PhoneOff size={17} /> Отклонить
-            </Button>
-          </Flex>
-        )}
-
-        {state === "connected" && (
-          <Button color="red" onClick={() => void run("hangup")}>
-            <PhoneOff size={17} /> Завершить разговор
-          </Button>
         )}
 
         {error && (
