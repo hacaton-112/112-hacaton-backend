@@ -76,6 +76,7 @@ async def create_session_handler(request):
     lang = body.get("language", "ru")
     session_id = str(uuid.uuid4())
     sessions[session_id] = {"language": lang, "created_at": time.time()}
+    metrics["stream_sessions_total"] += 1
     
     ws_base = PUBLIC_WS_URL.rstrip("/")
     res = {
@@ -111,6 +112,51 @@ def decode_audio_to_16k_float32(body_bytes, content_type=""):
     else:
         return np.frombuffer(body_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
+# Счётчики для Prometheus. Считаем то, что нужно на дежурстве: сколько реплик
+# распознано, сколько сорвалось и сколько процессорного времени это заняло
+# относительно длительности речи. Без внешних библиотек: формат текстовый и
+# простой, а лишняя зависимость в звуковом тракте дороже удобства.
+metrics = {
+    "requests_total": 0,
+    "failures_total": 0,
+    "audio_seconds_total": 0.0,
+    "decode_seconds_total": 0.0,
+    "stream_sessions_total": 0,
+}
+
+
+def count_decode(audio_seconds: float, decode_seconds: float) -> None:
+    """Учитывает одну распознанную реплику — хоть разовую, хоть из потока."""
+    metrics["requests_total"] += 1
+    metrics["audio_seconds_total"] += audio_seconds
+    metrics["decode_seconds_total"] += decode_seconds
+
+
+def render_metrics() -> str:
+    lines = [
+        "# HELP asr_requests_total Recognition requests served",
+        "# TYPE asr_requests_total counter",
+        f"asr_requests_total {metrics['requests_total']}",
+        "# HELP asr_failures_total Recognition requests that ended with an error",
+        "# TYPE asr_failures_total counter",
+        f"asr_failures_total {metrics['failures_total']}",
+        "# HELP asr_audio_seconds_total Length of the audio that was decoded",
+        "# TYPE asr_audio_seconds_total counter",
+        f"asr_audio_seconds_total {metrics['audio_seconds_total']:.3f}",
+        "# HELP asr_decode_seconds_total Time the recogniser spent decoding",
+        "# TYPE asr_decode_seconds_total counter",
+        f"asr_decode_seconds_total {metrics['decode_seconds_total']:.3f}",
+        "# HELP asr_stream_sessions_total Streaming sessions opened by the backend",
+        "# TYPE asr_stream_sessions_total counter",
+        f"asr_stream_sessions_total {metrics['stream_sessions_total']}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+async def metrics_handler(request):
+    return web.Response(text=render_metrics(), content_type="text/plain")
+
+
 async def transcribe_handler(request):
     try:
         body = await request.read()
@@ -127,6 +173,7 @@ async def transcribe_handler(request):
         text = stream.result.text
         proc_ms = (time.monotonic() - t_start) * 1000
         rtf = (proc_ms / 1000.0) / (duration_sec or 0.001)
+        count_decode(duration_sec, proc_ms / 1000.0)
         
         return add_cors(web.json_response({
             "text": text,
@@ -136,6 +183,7 @@ async def transcribe_handler(request):
             "model": "sherpa-onnx-zipformer-ru-int8"
         }))
     except Exception as e:
+        metrics["failures_total"] += 1
         return add_cors(web.json_response({"error": str(e)}, status=500))
 
 async def ws_handler(request):
@@ -180,6 +228,7 @@ async def ws_handler(request):
                     txt = st.result.text
                     dec_ms = (time.monotonic() - t_dec0) * 1000
                     audio_ms = int(len(seg_samples) * 1000 / 16000)
+                    count_decode(audio_ms / 1000.0, dec_ms / 1000.0)
                     
                     if txt.strip():
                         await ws.send_json({
@@ -214,6 +263,7 @@ async def ws_handler(request):
                         final_txt = st.result.text
                         dec_ms = (time.monotonic() - t_dec0) * 1000
                         total_dur_ms = int(len(combined) * 1000 / 16000)
+                        count_decode(total_dur_ms / 1000.0, dec_ms / 1000.0)
                     elif all_accumulated_samples:
                         # Fallback: decode all samples if VAD didn't segment
                         t_dec0 = time.monotonic()
@@ -246,6 +296,7 @@ def create_app():
     app = web.Application()
     app.router.add_route("OPTIONS", "/{tail:.*}", options_handler)
     app.router.add_get("/health", health_handler)
+    app.router.add_get("/metrics", metrics_handler)
     app.router.add_post("/v1/sessions", create_session_handler)
     app.router.add_get("/v1/ws/{session_id}", ws_handler)
     app.router.add_post("/transcribe", transcribe_handler)

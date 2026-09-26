@@ -73,7 +73,7 @@ describe("instructor report contract", () => {
       attempts: [],
       grammar: {
         status: "unavailable",
-        message: "Проверка грамматики ещё не входит в main.",
+        message: "Грамотность разбирается по каждой карточке ДДС отдельно.",
       },
     });
 

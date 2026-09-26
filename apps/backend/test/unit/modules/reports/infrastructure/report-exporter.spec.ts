@@ -89,7 +89,7 @@ const report: InstructorReport = {
   ],
   grammar: {
     status: "unavailable",
-    message: "Проверка грамматики ещё не входит в main.",
+    message: "Грамотность разбирается по каждой карточке ДДС отдельно.",
   },
   dds: {
     cards: 0,
