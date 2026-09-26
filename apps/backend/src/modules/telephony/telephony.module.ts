@@ -19,6 +19,7 @@ import {
 } from "./application/crew-handoff.service";
 import { BrowserPhoneProvisioningService } from "./application/browser-phone-provisioning.service";
 import { CrewClickToCallService } from "./application/crew-click-to-call.service";
+import { DirectCrewCallService } from "./application/direct-crew-call.service";
 import { AriTelephonyControl } from "./infrastructure/ari-telephony.control";
 import { DrizzleTelephonyDirectory } from "./infrastructure/drizzle-telephony.directory";
 import { FileCrewPromptStore } from "./infrastructure/file-crew-prompt.store";
@@ -32,13 +33,14 @@ import { TELEPHONY_CONTROL } from "./ports/telephony-control.port";
 import { TelephonyController } from "./telephony.controller";
 import { AdminWorkstationsController } from "./admin-workstations.controller";
 import { WorkstationConfigurationService } from "./application/workstation-configuration.service";
+import { DirectCrewCallGateway } from "./transport/websocket/direct-crew-call.gateway";
 
 /**
- * Учебная IP-телефония: диспетчер ДДС передаёт карточку наряду по SIP.
+ * Голосовая передача карточки виртуальному наряду.
  *
- * Asterisk отдаёт звонки приложению Stasis, а этот модуль играет наряд на
- * том конце. Без `TELEPHONY_ENABLED` модуль не подключается к АТС, и рабочее
- * место ДДС работает без шага передачи наряду.
+ * Основной браузерный путь идёт напрямую через backend. Asterisk/ARI остаётся
+ * дополнительным адаптером для аппаратных SIP-телефонов и включается только
+ * через `TELEPHONY_ENABLED`.
  */
 @Module({
   imports: [
@@ -90,6 +92,8 @@ import { WorkstationConfigurationService } from "./application/workstation-confi
           dds.findCrewCallContext(userId, exerciseId),
     },
     CrewHandoffService,
+    DirectCrewCallService,
+    DirectCrewCallGateway,
     CrewClickToCallService,
     BrowserPhoneProvisioningService,
   ],

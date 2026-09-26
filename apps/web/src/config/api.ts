@@ -127,4 +127,6 @@ export const API_CONFIG = {
   getRecordingUrl: (trainingSessionId: string, index: number) =>
     `/calls/${trainingSessionId}/recording/${index}`,
   getVoicePipelineStreamUrl: () => `${API_WS_BASE_URL}/voice-pipeline/stream`,
+  getDirectCrewCallStreamUrl: () =>
+    `${API_WS_BASE_URL}/telephony/direct-crew-calls/stream`,
 } as const;

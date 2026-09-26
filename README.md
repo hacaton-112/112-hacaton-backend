@@ -131,7 +131,7 @@ TileServer из своих тайлов, адрес по точке считае
             браузер (React 19, Bolid UI)
                         │  HTTPS / WSS
                   ┌─────┴─────┐
-                  │  gateway  │  nginx: TLS, статика, /maps/, /asterisk/ws
+                  │  gateway  │  nginx: TLS, статика, /maps/, API WebSocket
                   └─────┬─────┘
                         │
                   ┌─────┴──────────────────────────────┐
@@ -144,7 +144,7 @@ TileServer из своих тайлов, адрес по точке считае
               │ Sherpa │ │ своя  │ │Piper │ │  MinIO    │
               │  ONNX  │ │модель │ │      │ │ TileServer│
               └────────┘ └───────┘ └──────┘ └───────────┘
-                                                Asterisk
+                              Asterisk (опционально для аппаратного SIP)
 ```
 
 Модули backend разложены по одним и тем же слоям: `domain` — чистая логика без
@@ -163,7 +163,7 @@ TileServer из своих тайлов, адрес по точке считае
 | **Диалог** | Свой Qwen3 0.6B (`caller.gguf`), Gemma 4 E2B QAT, llama.cpp | Заявитель — дообученная модель; служебные JSON-задачи вынесены во вторую |
 | **Речь** | Sherpa-ONNX Zipformer RU int8, Silero VAD, Piper | Распознавание и синтез русской речи на процессоре |
 | **Карта** | TileServer GL, OpenMapTiles, MapLibre | Своя Москва с областью; адрес по точке считается по тем же тайлам |
-| **Телефония** | Asterisk 22, ARI, WebRTC, sip.js | Передача карточки наряду голосом внутри контура |
+| **Телефония** | Прямой PCM WebSocket; опционально Asterisk 22 + ARI | Браузерный звонок наряду не требует SIP-регистрации; аппаратные телефоны подключаются отдельно |
 | **Инфраструктура** | Docker Compose, nginx, Prometheus, Grafana | Один `compose up` поднимает весь комплекс |
 | **Качество** | Jest, bun test, ESLint, oxlint | 1373 теста бэкенда, 167 клиента, 11 эталонных прогонов диалога |
 
@@ -176,7 +176,7 @@ TileServer из своих тайлов, адрес по точке считае
 | Требование ТЗ | Где реализовано |
 | --- | --- |
 | Эмуляция работы оператора в реальном времени | [`voice-pipeline`](apps/backend/src/modules/voice-pipeline) · [`scenario-engine`](apps/backend/src/modules/scenario-engine) |
-| Обработка вызовов через виртуальную IP-телефонию | [`telephony`](apps/backend/src/modules/telephony) · [`telephony/asterisk`](telephony/asterisk) |
+| Обработка вызовов через виртуальную телефонию | [`telephony`](apps/backend/src/modules/telephony); прямой браузерный WebSocket по умолчанию, [`telephony/asterisk`](telephony/asterisk) для опционального SIP |
 | Управление учебным процессом, распределение заданий | [`training`](apps/backend/src/modules/training) |
 | Контроль действий обучаемых: тайминг и регламент | [`dds-exercise`](apps/backend/src/modules/dds-exercise) |
 | Оценка эффективности обучения на основе ИИ | [`debrief`](apps/backend/src/modules/debrief) · [`reports`](apps/backend/src/modules/reports) |

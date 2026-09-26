@@ -8,8 +8,8 @@ import { DdsPhonePanel } from "./dds-phone-panel";
 /**
  * Передача карточки наряду по телефону.
  *
- * Окно WebRTC-телефона регистрируется в Asterisk перед Click-to-call; здесь
- * справочник нарядов своей службы и журнал того, кому и чем закончился звонок.
+ * Отдельное окно телефона передаёт PCM через backend; здесь остаются
+ * справочник нарядов и журнал того, кому и чем закончился разговор.
  */
 export function DdsCrewHandoffBlock({
   exerciseId,
@@ -99,7 +99,7 @@ export function DdsCrewHandoffBlock({
         </div>
       )}
 
-      {!readOnly && !handoff.notified && (
+      {!readOnly && handoff.callMode !== null && (
         <DdsPhonePanel
           exerciseId={exerciseId}
           handoff={handoff}

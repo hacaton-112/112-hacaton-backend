@@ -100,7 +100,7 @@ export function DdsCardPanel({
           <DdsCrewHandoffBlock
             exerciseId={exercise.id}
             handoff={exercise.crewHandoff}
-            canCall={exercise.status === "accepted"}
+            canCall={exercise.crewHandoff.callMode !== null}
             readOnly={readOnly}
           />
         )}

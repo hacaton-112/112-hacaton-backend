@@ -1,13 +1,8 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ConfigModule } from "@nestjs/config";
 
 import { AuthModule } from "@/modules/auth/auth.module";
 import { TrainingModule } from "@/modules/training/training.module";
-import {
-  parseTelephonyConfig,
-  TELEPHONY_ENVIRONMENT_KEYS,
-} from "@/modules/telephony/infrastructure/telephony.config";
-
 import { DdsDispatchService } from "./application/dds-dispatch.service";
 import {
   DDS_CREW_HANDOFF_REQUIRED,
@@ -51,13 +46,9 @@ import { DdsArchiveController } from "./dds-archive.controller";
   providers: [
     {
       provide: DDS_CREW_HANDOFF_REQUIRED,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        parseTelephonyConfig(
-          Object.fromEntries(
-            TELEPHONY_ENVIRONMENT_KEYS.map((key) => [key, config.get(key)]),
-          ),
-        ).enabled,
+      // Передача карточки обязательна и в прямом браузерном режиме. Asterisk
+      // теперь только дополнительный транспорт и не управляет правилами ДДС.
+      useValue: true,
     },
     DdsExerciseService,
     DdsTrainingService,
