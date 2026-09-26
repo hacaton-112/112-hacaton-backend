@@ -204,7 +204,9 @@ export class WebMicrophoneCapture {
 export class TelephonePlayer {
   private context: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
+  private outputNode: AudioNode | null = null;
   private outputAudio: HTMLAudioElement | null = null;
+  private preparedOutputKey: string | null = null;
   private generation = 0;
   private outputVolume = 1;
   onLevel: (level: number) => void = () => undefined;
@@ -219,21 +221,96 @@ export class TelephonePlayer {
     this.node?.port.postMessage({ type: "volume", value: volume });
   }
 
+  /**
+   * Активирует Web Audio непосредственно из пользовательского клика.
+   *
+   * Если создавать AudioContext только после пришедшего по WebSocket
+   * `audio.start`, Chromium может оставить его suspended: worklet при этом
+   * способен обработать очередь и прислать `drained`, хотя пользователь ничего
+   * не услышит. Подготовленный контекст переиспользуется для всех реплик звонка.
+   */
+  async prepare(
+    savedOutputDevice: string | null,
+    savedOutputLabel: string | null = null,
+  ): Promise<void> {
+    const outputKey = `${savedOutputDevice ?? "system"}\u0000${savedOutputLabel ?? ""}`;
+    if (
+      this.context &&
+      this.context.state !== "closed" &&
+      this.preparedOutputKey === outputKey
+    ) {
+      await this.context.resume();
+      if (this.context.state !== "running") {
+        throw new Error(
+          "Браузер приостановил звук. Нажмите «Проверить звук» и разрешите воспроизведение.",
+        );
+      }
+      return;
+    }
+
+    await this.cancel();
+    const context = new AudioContext();
+    this.context = context;
+    this.preparedOutputKey = outputKey;
+
+    // resume() вызывается до первого await, пока браузер ещё видит исходный
+    // пользовательский жест кнопки «Позвонить» или «Проверить звук».
+    const resume = context.resume();
+    const [outputDevice] = await Promise.all([
+      resolveDevice("audiooutput", savedOutputDevice, savedOutputLabel).catch(
+        () => null,
+      ),
+      context.audioWorklet.addModule("/worklets/telephone-processor.js"),
+      resume,
+    ]);
+
+    const sinkContext = context as AudioContext & {
+      setSinkId?: (sinkId: string) => Promise<void>;
+    };
+    if (outputDevice && sinkContext.setSinkId) {
+      await sinkContext.setSinkId(outputDevice);
+      this.outputNode = context.destination;
+    } else if (outputDevice) {
+      const destination = context.createMediaStreamDestination();
+      const audio = new Audio();
+      audio.srcObject = destination.stream;
+      const sinkAudio = audio as HTMLAudioElement & {
+        setSinkId?: (sinkId: string) => Promise<void>;
+      };
+      if (sinkAudio.setSinkId) {
+        await sinkAudio.setSinkId(outputDevice);
+        await audio.play();
+        this.outputAudio = audio;
+        this.outputNode = destination;
+      } else {
+        this.outputNode = context.destination;
+      }
+    } else {
+      this.outputNode = context.destination;
+    }
+
+    await context.resume();
+    if (context.state !== "running") {
+      await this.cancel();
+      throw new Error(
+        "Браузер приостановил звук. Нажмите «Проверить звук» и разрешите воспроизведение.",
+      );
+    }
+  }
+
   async start(
     sampleRate: number,
     savedOutputDevice: string | null,
     savedOutputLabel: string | null = null,
   ): Promise<number> {
-    await this.cancel();
-    // Пропавший динамик не должен срывать реплику: звук идёт в системный.
-    const outputDevice = await resolveDevice(
-      "audiooutput",
-      savedOutputDevice,
-      savedOutputLabel,
-    ).catch(() => null);
+    await this.prepare(savedOutputDevice, savedOutputLabel);
+    this.stopPrompt();
     const generation = ++this.generation;
-    const context = new AudioContext();
-    await context.audioWorklet.addModule("/worklets/telephone-processor.js");
+    const context = this.context;
+    const outputNode = this.outputNode;
+    if (!context || !outputNode) {
+      throw new Error("Аудиовыход телефона не подготовлен");
+    }
     const node = new AudioWorkletNode(context, "telephone-processor", {
       outputChannelCount: [1],
       processorOptions: { sampleRate, volume: this.outputVolume, generation },
@@ -252,32 +329,7 @@ export class TelephonePlayer {
       }
     };
 
-    const sinkContext = context as AudioContext & {
-      setSinkId?: (sinkId: string) => Promise<void>;
-    };
-    if (outputDevice && sinkContext.setSinkId) {
-      await sinkContext.setSinkId(outputDevice);
-      node.connect(context.destination);
-    } else if (outputDevice) {
-      const destination = context.createMediaStreamDestination();
-      node.connect(destination);
-      const audio = new Audio();
-      audio.srcObject = destination.stream;
-      const sinkAudio = audio as HTMLAudioElement & {
-        setSinkId?: (sinkId: string) => Promise<void>;
-      };
-      if (sinkAudio.setSinkId) {
-        await sinkAudio.setSinkId(outputDevice);
-        await audio.play();
-        this.outputAudio = audio;
-      } else {
-        node.disconnect(destination);
-        node.connect(context.destination);
-      }
-    } else {
-      node.connect(context.destination);
-    }
-    this.context = context;
+    node.connect(outputNode);
     this.node = node;
     await context.resume();
     return generation;
@@ -292,17 +344,80 @@ export class TelephonePlayer {
   }
 
   async cancel(): Promise<void> {
-    this.generation += 1;
+    this.stopPrompt();
     this.outputAudio?.pause();
     this.outputAudio = null;
-    this.node?.disconnect();
-    this.node = null;
+    this.outputNode = null;
+    this.preparedOutputKey = null;
     const context = this.context;
     this.context = null;
     if (context && context.state !== "closed") await context.close();
   }
+
+  private stopPrompt(): void {
+    this.generation += 1;
+    this.node?.disconnect();
+    this.node = null;
+  }
+}
+
+const TEST_TONE_SAMPLE_RATE = 24_000;
+
+export function createTelephoneTestTone(
+  durationMs = 600,
+  sampleRate = TEST_TONE_SAMPLE_RATE,
+): ArrayBuffer {
+  const sampleCount = Math.max(
+    1,
+    Math.round((durationMs / 1_000) * sampleRate),
+  );
+  const buffer = new ArrayBuffer(sampleCount * Int16Array.BYTES_PER_ELEMENT);
+  const view = new DataView(buffer);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const progress = index / sampleCount;
+    const envelope = Math.sin(Math.PI * progress) ** 2;
+    const seconds = index / sampleRate;
+    const signal =
+      (Math.sin(2 * Math.PI * 660 * seconds) * 0.7 +
+        Math.sin(2 * Math.PI * 880 * seconds) * 0.3) *
+      envelope *
+      0.45;
+    view.setInt16(index * 2, Math.round(signal * 32_767), true);
+  }
+  return buffer;
+}
+
+export async function playTelephoneTestTone({
+  outputDevice,
+  outputDeviceLabel,
+  outputVolume,
+  onLevel = () => undefined,
+}: {
+  outputDevice: string | null;
+  outputDeviceLabel: string | null;
+  outputVolume: number;
+  onLevel?: (level: number) => void;
+}): Promise<void> {
+  const player = new TelephonePlayer();
+  player.setVolume(outputVolume);
+  player.onLevel = onLevel;
+  await player.prepare(outputDevice, outputDeviceLabel);
+  await player.start(TEST_TONE_SAMPLE_RATE, outputDevice, outputDeviceLabel);
+  await new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(resolve, 2_000);
+    player.onDrained = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    player.push(createTelephoneTestTone());
+    player.finish();
+  });
+  await player.cancel();
+  onLevel(0);
 }
 
 export const supportsOutputDeviceSelection =
-  "setSinkId" in AudioContext.prototype ||
-  "setSinkId" in HTMLMediaElement.prototype;
+  (typeof AudioContext !== "undefined" &&
+    "setSinkId" in AudioContext.prototype) ||
+  (typeof HTMLMediaElement !== "undefined" &&
+    "setSinkId" in HTMLMediaElement.prototype);

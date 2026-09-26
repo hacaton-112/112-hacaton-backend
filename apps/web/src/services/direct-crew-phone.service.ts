@@ -9,10 +9,19 @@ import { settingsService } from "./settings.service";
 
 export interface DirectCrewPhoneEvents {
   onReady(): void;
-  onConnected(event: Extract<DirectCrewCallServerEvent, { type: "call.connected" }>): void;
-  onTranscript(event: Extract<DirectCrewCallServerEvent, { type: "transcript" }>): void;
-  onPrompt(event: Extract<DirectCrewCallServerEvent, { type: "audio.start" }>): void;
-  onEnded(event: Extract<DirectCrewCallServerEvent, { type: "call.ended" }>): void;
+  onConnected(
+    event: Extract<DirectCrewCallServerEvent, { type: "call.connected" }>,
+  ): void;
+  onTranscript(
+    event: Extract<DirectCrewCallServerEvent, { type: "transcript" }>,
+  ): void;
+  onPrompt(
+    event: Extract<DirectCrewCallServerEvent, { type: "audio.start" }>,
+  ): void;
+  onPlaybackLevel(level: number): void;
+  onEnded(
+    event: Extract<DirectCrewCallServerEvent, { type: "call.ended" }>,
+  ): void;
   onError(message: string): void;
   onDisconnected(): void;
 }
@@ -30,7 +39,9 @@ export class DirectCrewPhoneClient {
 
   constructor(events: DirectCrewPhoneEvents) {
     this.events = events;
+    this.player.onLevel = (level) => this.events.onPlaybackLevel(level);
     this.player.onDrained = () => {
+      this.events.onPlaybackLevel(0);
       const promptId = this.currentPromptId;
       if (!promptId || !this.callActive) return;
       this.currentPromptId = null;
@@ -78,6 +89,16 @@ export class DirectCrewPhoneClient {
     }
 
     const settings = settingsService.get();
+    if (settings.outputVolume <= 0) {
+      throw new Error(
+        "Громкость телефона выключена. Включите звук перед звонком.",
+      );
+    }
+    this.player.setVolume(settings.outputVolume);
+    await this.player.prepare(
+      settings.outputDevice,
+      settings.outputDeviceLabel,
+    );
     await this.microphone.start({
       inputDevice: settings.inputDevice,
       inputDeviceLabel: settings.inputDeviceLabel,
@@ -101,7 +122,10 @@ export class DirectCrewPhoneClient {
       });
     } catch (reason) {
       this.callActive = false;
-      await this.microphone.stop().catch(() => undefined);
+      await Promise.all([
+        this.microphone.stop().catch(() => undefined),
+        this.player.cancel().catch(() => undefined),
+      ]);
       throw reason;
     }
   }
@@ -111,10 +135,9 @@ export class DirectCrewPhoneClient {
     this.send({ type: "end", eventId: crypto.randomUUID() });
     this.callActive = false;
     this.currentPromptId = null;
-    await Promise.all([
-      this.microphone.stop(),
-      this.player.cancel(),
-    ]).then(() => undefined);
+    await Promise.all([this.microphone.stop(), this.player.cancel()]).then(
+      () => undefined,
+    );
   }
 
   async dispose(): Promise<void> {
@@ -173,7 +196,6 @@ export class DirectCrewPhoneClient {
         this.events.onTranscript(event);
         return;
       case "audio.start": {
-        await this.player.cancel();
         this.currentPromptId = event.promptId;
         const settings = settingsService.get();
         this.player.setVolume(settings.outputVolume);

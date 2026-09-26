@@ -5,9 +5,18 @@ import {
   Card,
   Flex,
   Heading,
+  Select,
   Text,
 } from "@bolid-ui/themes";
-import { AlertTriangle, PhoneCall, PhoneOff } from "lucide-react";
+import {
+  AlertTriangle,
+  AudioLines,
+  PhoneCall,
+  PhoneOff,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -17,7 +26,14 @@ import {
   type DirectCrewPhoneWindowMessage,
 } from "../../lib/direct-crew-phone-window";
 import { isBrowserMicrophonePermissionError } from "../../lib/browser-phone-window";
+import {
+  enumerateAudioDevices,
+  playTelephoneTestTone,
+  supportsOutputDeviceSelection,
+  type AudioDeviceInfo,
+} from "../../lib/web-audio";
 import { DirectCrewPhoneClient } from "../../services/direct-crew-phone.service";
+import { settingsService, useSettings } from "../../services/settings.service";
 
 type PhoneState =
   | "waiting"
@@ -50,6 +66,7 @@ const describeError = (reason: unknown): string => {
 };
 
 export default function DirectCrewPhonePage() {
+  const settings = useSettings();
   const [state, setState] = useState<PhoneState>("waiting");
   const [error, setError] = useState<string>();
   const [number, setNumber] = useState("");
@@ -58,9 +75,27 @@ export default function DirectCrewPhonePage() {
   const [canCall, setCanCall] = useState(false);
   const [crewLine, setCrewLine] = useState<string>();
   const [transcripts, setTranscripts] = useState<readonly string[]>([]);
+  const [playbackLevel, setPlaybackLevel] = useState(0);
+  const [testingOutput, setTestingOutput] = useState(false);
+  const [outputDevices, setOutputDevices] = useState<
+    readonly AudioDeviceInfo[]
+  >([]);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const requestIdRef = useRef<string | undefined>(undefined);
   const phoneRef = useRef<DirectCrewPhoneClient | null>(null);
+
+  useEffect(() => {
+    if (!supportsOutputDeviceSelection) return;
+    const refresh = () => {
+      void enumerateAudioDevices(false)
+        .then(({ outputs }) => setOutputDevices(outputs))
+        .catch(() => setOutputDevices([]));
+    };
+    refresh();
+    navigator.mediaDevices?.addEventListener("devicechange", refresh);
+    return () =>
+      navigator.mediaDevices?.removeEventListener("devicechange", refresh);
+  }, []);
 
   useEffect(() => {
     const channel = new BroadcastChannel(DIRECT_CREW_PHONE_CHANNEL_NAME);
@@ -104,9 +139,16 @@ export default function DirectCrewPhonePage() {
           if (requestIdRef.current !== requestId) return;
           setCrewLine(event.text);
         },
+        onPlaybackLevel: (level) => {
+          if (requestIdRef.current !== requestId) return;
+          setPlaybackLevel((current) =>
+            level >= current ? level : current * 0.75,
+          );
+        },
         onEnded: (event) => {
           if (requestIdRef.current !== requestId) return;
           setState("ended");
+          setPlaybackLevel(0);
           setCrewLine(
             event.outcome === "completed"
               ? "Наряд принял информацию"
@@ -164,6 +206,7 @@ export default function DirectCrewPhonePage() {
       setCanCall(false);
       setNumber("");
       setState("waiting");
+      setPlaybackLevel(0);
       void phoneRef.current?.dispose();
       phoneRef.current = null;
     };
@@ -178,13 +221,15 @@ export default function DirectCrewPhonePage() {
     };
   }, []);
 
-  const offeredNumber = crews.some(
-    ({ phoneNumber }) => phoneNumber === number,
+  const offeredNumber = crews.some(({ phoneNumber }) => phoneNumber === number);
+  const selectableOutputDevices = outputDevices.filter(
+    ({ id }) => id.length > 0,
   );
   const canDial =
     canCall &&
     Boolean(exerciseId) &&
     offeredNumber &&
+    settings.outputVolume > 0 &&
     (state === "ready" || state === "ended");
   const callInProgress = state === "dialing" || state === "connected";
 
@@ -212,6 +257,30 @@ export default function DirectCrewPhonePage() {
     }
   };
 
+  const testOutput = async () => {
+    if (callInProgress || testingOutput || settings.outputVolume <= 0) return;
+    setTestingOutput(true);
+    setError(undefined);
+    setPlaybackLevel(0);
+    try {
+      await playTelephoneTestTone({
+        outputDevice: settings.outputDevice,
+        outputDeviceLabel: settings.outputDeviceLabel,
+        outputVolume: settings.outputVolume,
+        onLevel: setPlaybackLevel,
+      });
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось проверить динамик",
+      );
+    } finally {
+      setTestingOutput(false);
+      setPlaybackLevel(0);
+    }
+  };
+
   return (
     <main className="bg-gray-2 min-h-screen p-4">
       <Card size="3" variant="classic" className="mx-auto grid max-w-md gap-5">
@@ -234,6 +303,130 @@ export default function DirectCrewPhonePage() {
             <Text as="p" size="2" className="mt-2">
               {crewLine}
             </Text>
+          )}
+        </div>
+
+        <div className="border-gray-6 grid gap-3 border p-3">
+          <Flex align="center" justify="between" gap="3">
+            <Flex align="center" gap="2" minWidth="0">
+              {settings.outputVolume > 0 ? (
+                <Volume2 size={18} className="shrink-0" />
+              ) : (
+                <VolumeX size={18} className="shrink-0" />
+              )}
+              <div className="min-w-0">
+                <Text as="p" size="1" color="gray">
+                  Аудиовыход
+                </Text>
+                <Text as="p" size="2" weight="medium" className="truncate">
+                  {settings.outputDeviceLabel || "Системное устройство"} ·{" "}
+                  {Math.round(settings.outputVolume * 100)}%
+                </Text>
+              </div>
+            </Flex>
+            {settings.outputDevice && (
+              <Button
+                aria-label="Вернуть системный аудиовыход"
+                color="gray"
+                size="1"
+                variant="soft"
+                disabled={callInProgress}
+                onClick={() =>
+                  settingsService.update({
+                    outputDevice: null,
+                    outputDeviceLabel: null,
+                  })
+                }
+              >
+                <RotateCcw size={14} /> Системный
+              </Button>
+            )}
+          </Flex>
+
+          {supportsOutputDeviceSelection &&
+            selectableOutputDevices.length > 0 && (
+              <Select.Root
+                value={settings.outputDevice ?? "system"}
+                disabled={callInProgress}
+                onValueChange={(deviceId) => {
+                  const device = selectableOutputDevices.find(
+                    ({ id }) => id === deviceId,
+                  );
+                  settingsService.update({
+                    outputDevice: device?.id ?? null,
+                    outputDeviceLabel: device?.label || null,
+                  });
+                }}
+              >
+                <Select.Trigger
+                  aria-label="Аудиовыход телефона"
+                  className="w-full"
+                  placeholder="Системное устройство"
+                />
+                <Select.Content position="popper">
+                  <Select.Item value="system">Системное устройство</Select.Item>
+                  {selectableOutputDevices.map((device) => (
+                    <Select.Item key={device.id} value={device.id}>
+                      {device.name}
+                      {device.isDefault ? " (по умолчанию)" : ""}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            )}
+
+          <div
+            aria-label="Уровень ответа наряда"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(playbackLevel * 100)}
+            className="bg-gray-4 h-2 overflow-hidden"
+            role="meter"
+          >
+            <div
+              className="bg-green-9 h-full transition-[width] duration-75"
+              style={{
+                width: `${Math.max(0, Math.min(100, playbackLevel * 100))}%`,
+              }}
+            />
+          </div>
+          <Text size="1" color="gray">
+            {playbackLevel > 0.01
+              ? "Ответ наряда поступает в динамик"
+              : testingOutput
+                ? "Воспроизводим проверочный сигнал"
+                : "Перед звонком убедитесь, что слышите проверочный сигнал"}
+          </Text>
+
+          {settings.outputVolume <= 0 ? (
+            <Callout.Root color="amber" size="1">
+              <Callout.Icon>
+                <VolumeX size={16} />
+              </Callout.Icon>
+              <Callout.Text>
+                Звук телефона выключен. Звонок не начнётся, пока динамик
+                отключён.
+              </Callout.Text>
+              <Button
+                color="amber"
+                size="1"
+                variant="soft"
+                onClick={() => settingsService.update({ outputVolume: 1 })}
+              >
+                Включить звук
+              </Button>
+            </Callout.Root>
+          ) : (
+            <Button
+              color="gray"
+              size="2"
+              variant="soft"
+              disabled={callInProgress || testingOutput}
+              onClick={() => void testOutput()}
+            >
+              <AudioLines size={16} />
+              {testingOutput ? "Проверяем динамик…" : "Проверить звук"}
+            </Button>
           )}
         </div>
 
@@ -289,7 +482,12 @@ export default function DirectCrewPhonePage() {
                 ←
               </Button>
             </div>
-            <Button color="green" size="3" disabled={!canDial} onClick={startCall}>
+            <Button
+              color="green"
+              size="3"
+              disabled={!canDial}
+              onClick={startCall}
+            >
               <PhoneCall size={18} /> Позвонить
             </Button>
             {!canCall && (
@@ -338,8 +536,8 @@ export default function DirectCrewPhonePage() {
         )}
 
         <Text size="1" color="gray">
-          Звук идёт напрямую через backend. SIP-телефон и регистрация в
-          Asterisk не требуются.
+          Звук идёт напрямую через backend. SIP-телефон и регистрация в Asterisk
+          не требуются.
         </Text>
       </Card>
     </main>
