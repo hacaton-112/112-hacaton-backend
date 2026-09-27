@@ -16,6 +16,7 @@ import {
   DDS_VIOLATION_LABELS,
 } from "./dds-formatters";
 import { DdsStatusActions } from "./dds-status-actions";
+import { DdsTour } from "./dds-tour";
 
 type TransitionStatus = Exclude<
   DdsResponseStatus,
@@ -59,7 +60,7 @@ export function DdsCardPanel({
 
   const serviceOverlay = (
     <div className="arm-card-service-overlays">
-      <div className="arm-card-workflow-summary">
+      <div className="arm-card-workflow-summary" data-tour="dds-status">
         <span>
           Статус службы: <strong>{DDS_STATUS_LABELS[exercise.status]}</strong>
         </span>
@@ -167,13 +168,18 @@ export function DdsCardPanel({
         onClose={onClose}
         serviceOverlay={serviceOverlay}
         phoneControl={
-          exercise.crewHandoff && !readOnly ? (
-            <DdsPhonePanel
-              compact
-              exerciseId={exercise.id}
-              handoff={exercise.crewHandoff}
-              canCall={exercise.crewHandoff.callMode !== null}
-            />
+          !readOnly ? (
+            <>
+              <DdsTour view="card" />
+              {exercise.crewHandoff && (
+                <DdsPhonePanel
+                  compact
+                  exerciseId={exercise.id}
+                  handoff={exercise.crewHandoff}
+                  canCall={exercise.crewHandoff.callMode !== null}
+                />
+              )}
+            </>
           ) : undefined
         }
       />

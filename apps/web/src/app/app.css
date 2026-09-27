@@ -2304,6 +2304,13 @@ body,
   padding: 12px 18px 10px;
 }
 
+.arm-dds-search-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+}
+
 .arm-dds-primary-search {
   border-bottom-color: #424b50 !important;
   color: #242a2e !important;
