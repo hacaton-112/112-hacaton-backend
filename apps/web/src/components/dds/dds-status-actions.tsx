@@ -7,7 +7,7 @@ import {
   Text,
   TextField,
 } from "@bolid-ui/themes";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 import { useState } from "react";
 
 import type {
@@ -26,11 +26,13 @@ export function DdsStatusActions({
   pending,
   error,
   onTransition,
+  onCancel,
 }: {
   exercise: DdsExercise;
   pending: boolean;
   error?: string;
   onTransition: (status: TransitionStatus, comment?: string) => Promise<void>;
+  onCancel?: () => void;
 }) {
   const available = exercise.allowedTransitions.filter(
     (status): status is TransitionStatus =>
@@ -40,6 +42,10 @@ export function DdsStatusActions({
     available[0],
   );
   const [comment, setComment] = useState("");
+  const crewNumber =
+    exercise.crewHandoff?.selectedCrewPhoneNumber ??
+    exercise.crewHandoff?.crews[0]?.phoneNumber ??
+    "—";
 
   if (available.length === 0 || !selected) return null;
 
@@ -89,7 +95,7 @@ export function DdsStatusActions({
           <Text as="span" size="1">
             Номер наряда
           </Text>
-          <TextField.Root placeholder="—" disabled />
+          <TextField.Root value={crewNumber} disabled />
         </label>
 
         <label className="arm-dds-comment-field">
@@ -120,6 +126,19 @@ export function DdsStatusActions({
           {pending ? <Spinner size="1" /> : <Check size={18} />}
           Сохранить
         </Button>
+        {onCancel && (
+          <Button
+            type="button"
+            className="arm-dds-status-cancel"
+            variant="soft"
+            color="gray"
+            disabled={pending}
+            onClick={onCancel}
+            aria-label="Закрыть редактор статуса"
+          >
+            <X size={18} />
+          </Button>
+        )}
       </div>
 
       {commentMissing && (

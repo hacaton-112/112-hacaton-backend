@@ -8,13 +8,7 @@ import {
   Text,
   TextField,
 } from "@bolid-ui/themes";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ChevronUp,
-  Clock3,
-  Search,
-} from "lucide-react";
+import { AlertTriangle, ChevronUp, Clock3, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ROUTES } from "../../config/routes";
@@ -23,7 +17,6 @@ import { DdsInstructorPanel } from "../../components/dds/dds-instructor-panel";
 
 import { DdsCardPanel } from "../../components/dds/dds-card-panel";
 import { DdsExerciseList } from "../../components/dds/dds-exercise-list";
-import { DdsShiftPanel } from "../../components/dds/dds-shift-panel";
 import { DdsActiveLesson } from "../../components/dds/dds-active-lesson";
 import type {
   DdsExercise,
@@ -118,54 +111,45 @@ function DdsLearnerPage() {
 
   return (
     <ScrollArea className="h-full" scrollbars="vertical" type="auto">
-      <main className="arm-dds-page min-h-full w-full">
-        <header className="arm-dds-search-header">
-          <div>
-            <TextField.Root
-              className="arm-dds-primary-search"
-              value={query}
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Поиск происшествий"
-              aria-label="Поиск происшествий"
-            >
-              <TextField.Slot side="right">
-                <Search className="arm-dds-search-glass" size={26} />
-              </TextField.Slot>
-            </TextField.Root>
-            <div className="arm-dds-search-filters">
-              <span>номер, адрес, сценарий или тип происшествия</span>
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                disabled={query === ""}
+      <main
+        className="arm-dds-page min-h-full w-full"
+        data-card-focused={isCardFocused || undefined}
+      >
+        {!isCardFocused && (
+          <header className="arm-dds-search-header">
+            <div>
+              <TextField.Root
+                className="arm-dds-primary-search"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                placeholder="Поиск происшествий"
+                aria-label="Поиск происшествий"
               >
-                сбросить
-              </button>
+                <TextField.Slot side="right">
+                  <Search className="arm-dds-search-glass" size={26} />
+                </TextField.Slot>
+              </TextField.Root>
+              <div className="arm-dds-search-filters">
+                <span>номер, адрес, сценарий или тип происшествия</span>
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  disabled={query === ""}
+                >
+                  сбросить
+                </button>
+              </div>
             </div>
-          </div>
-          <DdsClock />
-        </header>
+            <DdsClock />
+          </header>
+        )}
 
-        <section
-          className="arm-dds-toolbar arm-dds-toolbar-single"
-          aria-label="Состояние смены ДДС"
-        >
-          <DdsShiftPanel
-            fetching={dds.exercises.isFetching}
-            incoming={
-              list.filter(
-                (exercise) =>
-                  exercise.status !== "completed" &&
-                  exercise.status !== "refused",
-              ).length
-            }
+        {!isCardFocused && (
+          <DdsActiveLesson
+            current={selectedExercise}
+            onReady={(exercise) => focusExercise(exercise.id)}
           />
-        </section>
-
-        <DdsActiveLesson
-          current={selectedExercise}
-          onReady={(exercise) => focusExercise(exercise.id)}
-        />
+        )}
 
         {dds.exercises.error && (
           <Callout.Root color="red" role="alert" className="m-2">
@@ -227,24 +211,18 @@ function DdsLearnerPage() {
         )}
 
         {isCardFocused && (
-          <>
-            <div className="arm-dds-card-navigation">
-              <Button type="button" variant="soft" onClick={returnToQueue}>
-                <ArrowLeft size={16} /> К списку происшествий
-              </Button>
-            </div>
-            <section
-              className="arm-dds-detail"
-              aria-label="Карточка происшествия"
-            >
-              <DdsCardPanel
-                exercise={selectedExercise}
-                pending={dds.transition.isPending}
-                error={dds.transition.error?.message}
-                onTransition={transition}
-              />
-            </section>
-          </>
+          <section
+            className="arm-dds-detail"
+            aria-label="Карточка происшествия"
+          >
+            <DdsCardPanel
+              exercise={selectedExercise}
+              pending={dds.transition.isPending}
+              error={dds.transition.error?.message}
+              onTransition={transition}
+              onClose={returnToQueue}
+            />
+          </section>
         )}
       </main>
     </ScrollArea>

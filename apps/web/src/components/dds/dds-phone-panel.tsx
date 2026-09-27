@@ -15,10 +15,12 @@ export function DdsPhonePanel({
   exerciseId,
   handoff,
   canCall,
+  compact = false,
 }: {
   exerciseId: string;
   handoff: DdsCrewHandoff;
   canCall: boolean;
+  compact?: boolean;
 }) {
   const client = useQueryClient();
   const [windowError, setWindowError] = useState<string>();
@@ -83,6 +85,24 @@ export function DdsPhonePanel({
       setOpening(false);
     }
   };
+
+  if (compact) {
+    return (
+      <div className="arm-dds-phone-compact">
+        <Button
+          type="button"
+          size="1"
+          variant="soft"
+          loading={opening}
+          onClick={() => void openPhone()}
+        >
+          <PhoneCall size={13} /> телефон
+        </Button>
+        {callActive && <span>разговор</span>}
+        {windowError && <span role="alert">{windowError}</span>}
+      </div>
+    );
+  }
 
   return (
     <Card size="2" variant="classic" className="arm-dds-phone-panel grid gap-3">

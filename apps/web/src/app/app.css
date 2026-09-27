@@ -2274,6 +2274,595 @@ body,
   }
 }
 
+/* DDS reference alignment -------------------------------------------------
+ * The reference workstation is a dense full-screen canvas rather than a
+ * stack of dashboard cards. These rules intentionally live after the legacy
+ * DDS styles while the old instructor views still reuse part of that CSS.
+ */
+
+.arm-dds-page {
+  min-height: 100%;
+  background: #bfc4c7;
+}
+
+.arm-dds-page[data-card-focused="true"] {
+  display: grid;
+  height: 100%;
+  min-height: 580px;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+  background: #c6cbce;
+}
+
+.arm-dds-search-header {
+  min-height: 94px;
+  border-bottom: 1px solid #aeb5b9;
+  background: #f2f2f0;
+}
+
+.arm-dds-search-header > div:first-child {
+  padding: 12px 18px 10px;
+}
+
+.arm-dds-primary-search {
+  border-bottom-color: #424b50 !important;
+  color: #242a2e !important;
+}
+
+.arm-dds-primary-search input {
+  color: #242a2e !important;
+}
+
+.arm-dds-primary-search input::placeholder {
+  color: #242a2e !important;
+}
+
+.arm-dds-search-glass {
+  color: #242a2e;
+}
+
+.arm-dds-search-filters {
+  border-top-color: #424b50;
+  color: #5c656a;
+}
+
+.arm-dds-clock {
+  min-width: 285px;
+  border-left-color: #9fa7ab;
+  background: #273137;
+}
+
+.arm-dds-queue {
+  margin: 0;
+  padding: 7px 8px 12px;
+}
+
+.arm-dds-section-title {
+  min-height: 31px;
+  color: #273137;
+}
+
+.arm-dds-section-title span {
+  color: #465057;
+}
+
+.arm-dds-table-head,
+.arm-dds-table-row {
+  min-width: 1260px;
+  grid-template-columns:
+    30px 40px 38px 44px 44px 94px 72px 74px minmax(180px, 0.9fr)
+    minmax(290px, 1.45fr) minmax(145px, 0.7fr) 38px;
+}
+
+.arm-dds-table-head {
+  min-height: 28px;
+  border-bottom: 1px solid #8f989d;
+  color: #30383d;
+}
+
+.arm-dds-table-head > span {
+  justify-content: center;
+  border-right: 1px solid #aab1b5;
+  padding: 5px 4px;
+}
+
+.arm-dds-table-head > span:nth-child(n + 9) {
+  justify-content: flex-start;
+  padding-inline: 8px;
+}
+
+.arm-dds-table-row {
+  min-height: 39px;
+  border-bottom: 1px solid #9ea6aa;
+  background: #3d474d;
+  font-size: 10px;
+}
+
+.arm-dds-table-row:hover {
+  background: #465158;
+}
+
+.arm-dds-table-row > span,
+.arm-dds-table-row > strong {
+  border-right-color: #778087;
+  padding: 5px 7px;
+}
+
+.arm-dds-row-chevron,
+.arm-dds-links-cell,
+.arm-dds-emergency-cell,
+.arm-dds-workstation-cell,
+.arm-dds-row-open {
+  justify-content: center;
+  padding-inline: 3px !important;
+}
+
+.arm-dds-links-cell {
+  color: #d7dcdf;
+}
+
+.arm-dds-emergency-cell,
+.arm-dds-workstation-cell {
+  background: #69747a;
+  font-weight: 700;
+}
+
+.arm-dds-operator-cell {
+  background: #6b2f3f;
+}
+
+.arm-dds-status-cell,
+.arm-dds-row-open {
+  background: #737c81;
+}
+
+.arm-dds-row-description {
+  min-height: 27px;
+  border-bottom: 2px solid #bfc4c7;
+  background: #737c81;
+  padding: 4px 10px 4px 31px;
+  font-size: 10px;
+}
+
+.arm-dds-row-description strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-dds-pagination {
+  color: #30383d;
+}
+
+.arm-dds-detail {
+  display: grid;
+  min-height: 0;
+  padding: 5px;
+}
+
+.arm-dds-card-panel {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 5px;
+}
+
+.arm-card {
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 2px;
+  overflow: hidden;
+  background: #aeb5b9;
+}
+
+.arm-card-phonebar {
+  grid-template-columns: repeat(4, minmax(132px, 1fr)) minmax(270px, 1.15fr);
+  gap: 2px;
+}
+
+.arm-card-phone,
+.arm-card-incident {
+  min-height: 67px;
+  border: 1px solid #c3c7c9;
+  background: #f4f4f2;
+  padding: 6px 8px;
+}
+
+.arm-card-phone-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.arm-card-phone-buttons > span {
+  overflow: hidden;
+  padding: 2px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-card-incident {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.arm-card-incident > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.arm-card-incident > div:first-child strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-card-incident > div:first-child span {
+  color: #5c6266;
+  font-size: 9px;
+}
+
+.arm-card-incident-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(66px, auto));
+  align-content: center;
+  gap: 3px;
+}
+
+.arm-card-incident-actions > button,
+.arm-dds-phone-compact .rt-Button {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #9ea6aa;
+  background: #e1e3e3;
+  padding: 3px 7px;
+  color: #323a3f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.arm-card-incident-actions > button:hover,
+.arm-dds-phone-compact .rt-Button:hover {
+  background: #d4d8da;
+}
+
+.arm-dds-phone-compact {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.arm-dds-phone-compact .rt-Button {
+  width: 100%;
+  box-shadow: none;
+}
+
+.arm-dds-phone-compact > span {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 3px);
+  right: 0;
+  width: max-content;
+  max-width: 290px;
+  border: 1px solid #a8b0b4;
+  background: #edf0ee;
+  padding: 4px 7px;
+  color: #31563a;
+  font-size: 9px;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 18%);
+}
+
+.arm-dds-phone-compact > span[role="alert"] {
+  border-color: #d6a3a3;
+  background: #f8e5e5;
+  color: #9d3030;
+}
+
+.arm-card-body {
+  min-height: 0;
+  grid-template-columns: minmax(340px, 1fr) minmax(420px, 1.16fr);
+}
+
+.arm-card-left,
+.arm-card-right {
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.arm-card-right {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.arm-card-strip,
+.arm-card-address,
+.arm-card-journal,
+.arm-card-flags,
+.arm-card-block-row {
+  background: #f4f4f2;
+}
+
+.arm-card-strip {
+  min-height: 34px;
+}
+
+.arm-card-address {
+  min-height: 72px;
+  align-content: start;
+}
+
+.arm-card-journal {
+  min-height: 0;
+  overflow: auto;
+}
+
+.arm-card-flags {
+  min-height: 42px;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+}
+
+.arm-card-block {
+  min-height: 0;
+  align-content: start;
+  overflow: auto;
+}
+
+.arm-card-block-row {
+  min-height: 35px;
+}
+
+.arm-card-service-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  align-self: end;
+}
+
+.arm-card-service-overlays {
+  display: grid;
+  max-height: min(290px, 42vh);
+  justify-items: start;
+  gap: 3px;
+  overflow: auto;
+  padding: 0 0 3px 13%;
+}
+
+.arm-card-workflow-summary {
+  display: flex;
+  min-height: 29px;
+  width: min(690px, 94%);
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #aeb5b9;
+  background: #efefed;
+  padding: 3px 8px;
+  color: #394248;
+  font-size: 10px;
+}
+
+.arm-card-workflow-help {
+  overflow: hidden;
+  color: #667076;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-card-workflow-summary .arm-dds-ack-badge {
+  min-height: 22px;
+}
+
+.arm-card-journal-panel {
+  width: min(620px, 94%);
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #0c6397;
+  box-shadow: 0 5px 13px rgb(0 0 0 / 24%);
+}
+
+.arm-card-journal-row {
+  flex-wrap: wrap;
+}
+
+.arm-dds-status-editor {
+  width: min(980px, 96%);
+  border: 1px solid #a6adb1;
+  box-shadow: 0 5px 13px rgb(0 0 0 / 24%);
+}
+
+.arm-dds-status-fields {
+  grid-template-columns:
+    minmax(185px, 0.65fr) 125px minmax(260px, 1.35fr) auto
+    38px;
+}
+
+.arm-dds-status-cancel {
+  width: 38px;
+  min-width: 38px !important;
+  margin-top: 15px;
+  padding-inline: 0 !important;
+}
+
+.arm-dds-result {
+  width: min(760px, 96%);
+  border-left-width: 4px !important;
+  box-shadow: 0 5px 13px rgb(0 0 0 / 18%);
+}
+
+.arm-card-services {
+  min-height: 67px;
+  flex-wrap: nowrap;
+  gap: 1px;
+  overflow-x: auto;
+  background: #37434a;
+  padding: 0;
+}
+
+.arm-card-services-label {
+  display: flex;
+  min-width: 78px;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #8a9297;
+  background: #37434a;
+  padding-inline: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arm-card-services > .arm-card-service-tile {
+  display: grid;
+  min-width: 154px;
+  flex: 0 0 auto;
+  gap: 2px;
+  background: #48565e;
+  padding: 4px 10px 6px;
+  color: #eceeef;
+  text-align: center;
+}
+
+.arm-card-services > .arm-card-service-tile[data-active="true"] {
+  background: #167ebd;
+}
+
+.arm-card-services > .arm-card-service-tile strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-card-services > .arm-card-service-tile span {
+  font-size: 10px;
+}
+
+.arm-card-services-spacer {
+  display: block !important;
+  min-width: 0;
+  flex: 1 1 36px;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.arm-card-service-utility {
+  display: flex;
+  min-width: auto;
+  flex: 0 0 auto;
+  align-items: stretch;
+  background: #ee6236;
+  padding: 0;
+}
+
+.arm-card-service-utility button {
+  display: grid;
+  min-width: 39px;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid rgb(255 255 255 / 48%);
+  background: transparent;
+  color: white;
+  cursor: pointer;
+}
+
+.arm-card-service-utility button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+@media (max-width: 1199px) {
+  .arm-card-phonebar {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .arm-card-incident {
+    grid-column: 1 / -1;
+  }
+
+  .arm-card-body {
+    grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
+  }
+
+  .arm-card-service-overlays {
+    padding-left: 5%;
+  }
+
+  .arm-dds-status-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .arm-dds-status-submit,
+  .arm-dds-status-cancel {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .arm-dds-page[data-card-focused="true"] {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .arm-dds-search-header {
+    min-height: 74px;
+  }
+
+  .arm-dds-clock {
+    min-width: 106px;
+  }
+
+  .arm-dds-detail,
+  .arm-dds-card-panel,
+  .arm-card {
+    display: block;
+  }
+
+  .arm-card-phonebar,
+  .arm-card-body {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .arm-card-incident {
+    grid-column: auto;
+  }
+
+  .arm-card-service-overlays {
+    max-height: none;
+    padding-left: 0;
+  }
+
+  .arm-card-workflow-summary,
+  .arm-card-journal-panel,
+  .arm-dds-status-editor,
+  .arm-dds-result {
+    width: 100%;
+  }
+
+  .arm-dds-status-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arm-card-services {
+    position: sticky;
+    bottom: 0;
+  }
+}
+
 /* ─── Рабочее место 112: раскладка снята со скриншотов реального АРМ ─── */
 
 .arm112-strip {
