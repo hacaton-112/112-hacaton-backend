@@ -91,6 +91,15 @@ describe(validateCrewHandoff.name, () => {
     expect(result.coveredFields).not.toContain("address");
   });
 
+  it("tolerates small ASR substitutions in address words", () => {
+    const result = validateCrewHandoff(
+      CARD,
+      "Масква, Миклухо-Моклая, дом два. Наезд на пешехода. Пешеход в сознании, болит нога. Один пострадавший.",
+    );
+
+    expect(result.coveredFields).toContain("address");
+  });
+
   it("asks only for facts that are still missing across several phrases", () => {
     const first = "Москва, Миклухо-Маклая, дом 2. Наезд на пешехода.";
     const result = validateCrewHandoff(

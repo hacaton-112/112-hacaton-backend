@@ -47,7 +47,7 @@ type PhoneState =
 
 const STATE_LABELS: Record<PhoneState, string> = {
   waiting: "Ожидание карточки",
-  connecting: "Подключение к backend",
+  connecting: "Подключение телефона",
   ready: "Готов к звонку",
   dialing: "Соединение с нарядом",
   connected: "Разговор",
@@ -175,7 +175,7 @@ export default function DirectCrewPhonePage() {
         },
         onDisconnected: () => {
           if (requestIdRef.current !== requestId) return;
-          publishError(requestId, "Соединение телефона с backend закрыто");
+          publishError(requestId, "Соединение телефона прервано");
         },
       });
       phoneRef.current = phone;
@@ -565,8 +565,8 @@ export default function DirectCrewPhonePage() {
         )}
 
         <Text size="1" color="gray">
-          Звук идёт напрямую через backend. SIP-телефон и регистрация в Asterisk
-          не требуются.
+          Перед звонком разрешите доступ к микрофону и проверьте звук в
+          выбранных наушниках.
         </Text>
       </Card>
     </main>

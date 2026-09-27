@@ -97,7 +97,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
     "Статус карточки уже изменился. Данные обновлены",
   DDS_CREW_NOT_NOTIFIED: "Сначала передайте карточку наряду по телефону",
   TELEPHONY_DISABLED: "Учебная телефония сейчас отключена",
-  TELEPHONY_UNAVAILABLE: "Asterisk не смог начать звонок",
+  TELEPHONY_UNAVAILABLE: "Не удалось начать учебный звонок",
   TELEPHONY_WORKSTATION_REQUIRED:
     "Администратор ещё не закрепил за вами телефон рабочего места",
   TELEPHONY_BROWSER_PHONE_UNAVAILABLE:

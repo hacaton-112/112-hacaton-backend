@@ -26,6 +26,12 @@ export interface DirectCrewPhoneEvents {
   onDisconnected(): void;
 }
 
+export const shouldStreamCrewMicrophone = (
+  callActive: boolean,
+  speechBlocked: boolean,
+  socketOpen: boolean,
+): boolean => callActive && !speechBlocked && socketOpen;
+
 /** Прямой PCM-транспорт отдельного браузерного телефона ДДС. */
 export class DirectCrewPhoneClient {
   private readonly microphone = new WebMicrophoneCapture();
@@ -33,6 +39,7 @@ export class DirectCrewPhoneClient {
   private socket: WebSocket | null = null;
   private disposed = false;
   private callActive = false;
+  private acceptingSpeech = false;
   private currentPromptId: string | null = null;
   private messageQueue: Promise<void> = Promise.resolve();
   private readonly events: DirectCrewPhoneEvents;
@@ -45,6 +52,7 @@ export class DirectCrewPhoneClient {
       const promptId = this.currentPromptId;
       if (!promptId || !this.callActive) return;
       this.currentPromptId = null;
+      this.acceptingSpeech = true;
       this.send({
         type: "prompt.played",
         eventId: crypto.randomUUID(),
@@ -76,7 +84,7 @@ export class DirectCrewPhoneClient {
       socket.addEventListener("open", () => resolve(), { once: true });
       socket.addEventListener(
         "error",
-        () => reject(new Error("Не удалось подключить телефон к backend")),
+        () => reject(new Error("Не удалось подключить телефон к службе связи")),
         { once: true },
       );
     });
@@ -85,7 +93,7 @@ export class DirectCrewPhoneClient {
   async start(exerciseId: string, dialedNumber: string): Promise<void> {
     if (this.callActive) throw new Error("Предыдущий разговор ещё не завершён");
     if (this.socket?.readyState !== WebSocket.OPEN) {
-      throw new Error("Телефон ещё не подключён к backend");
+      throw new Error("Телефон ещё не готов к звонку");
     }
 
     const settings = settingsService.get();
@@ -103,16 +111,25 @@ export class DirectCrewPhoneClient {
       inputDevice: settings.inputDevice,
       inputDeviceLabel: settings.inputDeviceLabel,
       inputGain: settings.inputGain,
-      processing: false,
+      // Телефон наряда остаётся полудуплексным, но речевая обработка также
+      // защищает ASR от фонового шума и остаточного эха гарнитуры.
+      processing: true,
       onChunk: (chunk) => {
-        if (this.callActive && this.socket?.readyState === WebSocket.OPEN) {
-          this.socket.send(chunk);
+        if (
+          shouldStreamCrewMicrophone(
+            this.callActive,
+            !this.acceptingSpeech,
+            this.socket?.readyState === WebSocket.OPEN,
+          )
+        ) {
+          this.socket?.send(chunk);
         }
       },
       onLevel: () => undefined,
       onFailure: (message) => this.events.onError(message),
     });
     this.callActive = true;
+    this.acceptingSpeech = false;
     try {
       this.send({
         type: "start",
@@ -122,6 +139,7 @@ export class DirectCrewPhoneClient {
       });
     } catch (reason) {
       this.callActive = false;
+      this.acceptingSpeech = false;
       await Promise.all([
         this.microphone.stop().catch(() => undefined),
         this.player.cancel().catch(() => undefined),
@@ -134,6 +152,7 @@ export class DirectCrewPhoneClient {
     if (!this.callActive) return;
     this.send({ type: "end", eventId: crypto.randomUUID() });
     this.callActive = false;
+    this.acceptingSpeech = false;
     this.currentPromptId = null;
     await Promise.all([this.microphone.stop(), this.player.cancel()]).then(
       () => undefined,
@@ -147,6 +166,7 @@ export class DirectCrewPhoneClient {
       this.send({ type: "end", eventId: crypto.randomUUID() });
     }
     this.callActive = false;
+    this.acceptingSpeech = false;
     this.currentPromptId = null;
     await Promise.all([
       this.microphone.stop().catch(() => undefined),
@@ -177,11 +197,11 @@ export class DirectCrewPhoneClient {
     try {
       json = JSON.parse(payload);
     } catch {
-      throw new Error("Backend прислал некорректное событие телефона");
+      throw new Error("Телефон получил повреждённые данные");
     }
     const parsed = DirectCrewCallServerEventSchema.safeParse(json);
     if (!parsed.success) {
-      throw new Error("Backend прислал неизвестное событие телефона");
+      throw new Error("Телефон получил неподдерживаемые данные");
     }
     const event = parsed.data;
 
@@ -196,6 +216,7 @@ export class DirectCrewPhoneClient {
         this.events.onTranscript(event);
         return;
       case "audio.start": {
+        this.acceptingSpeech = false;
         this.currentPromptId = event.promptId;
         const settings = settingsService.get();
         this.player.setVolume(settings.outputVolume);
@@ -212,6 +233,7 @@ export class DirectCrewPhoneClient {
         return;
       case "call.ended":
         this.callActive = false;
+        this.acceptingSpeech = false;
         this.currentPromptId = null;
         await this.microphone.stop();
         this.events.onEnded(event);

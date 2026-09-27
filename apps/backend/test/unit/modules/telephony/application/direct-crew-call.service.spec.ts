@@ -5,6 +5,7 @@ import type {
 } from "@/modules/asr/ports/asr-stream.port";
 import type { DdsCardSnapshot } from "@/modules/dds-exercise/dto/dds-exercise.dto";
 import {
+  DIRECT_CREW_REPORT_SETTLE_MS,
   type DirectCrewCallTransport,
   DirectCrewCallService,
 } from "@/modules/telephony/application/direct-crew-call.service";
@@ -157,6 +158,9 @@ const setup = (context: AwaitingResult | null = awaiting) => {
 };
 
 describe(DirectCrewCallService.name, () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
   it("streams prompts and accepts a complete report without a workstation", async () => {
     const runtime = setup();
     await runtime.start();
@@ -188,6 +192,8 @@ describe(DirectCrewCallService.name, () => {
         (event) => event.type === "transcript" && event.complete,
       ),
     ).toBe(true);
+    jest.advanceTimersByTime(DIRECT_CREW_REPORT_SETTLE_MS);
+    await settle();
     runtime.service.promptPlayed(
       "browser-call-1",
       runtime.transport.lastPromptId(),
@@ -206,6 +212,39 @@ describe(DirectCrewCallService.name, () => {
       type: "call.ended",
       outcome: "completed",
     });
+  });
+
+  it("waits for consecutive ASR fragments before replying", async () => {
+    const runtime = setup();
+    await runtime.start();
+    runtime.service.promptPlayed(
+      "browser-call-1",
+      runtime.transport.lastPromptId(),
+    );
+    await settle();
+
+    runtime.asr.hear("Москва, улица Учебная, дом 12.");
+    await settle();
+    jest.advanceTimersByTime(DIRECT_CREW_REPORT_SETTLE_MS - 1);
+    runtime.asr.hear(
+      "Пожар в квартире. На кухне открытое пламя и сильный дым. Один пострадавший.",
+    );
+    await settle();
+
+    const promptsBeforePause = runtime.transport.events.filter(
+      (event) => event.type === "audio.start",
+    );
+    expect(promptsBeforePause).toHaveLength(1);
+
+    jest.advanceTimersByTime(DIRECT_CREW_REPORT_SETTLE_MS);
+    await settle();
+    const promptsAfterPause = runtime.transport.events.filter(
+      (event) => event.type === "audio.start",
+    );
+    expect(promptsAfterPause).toHaveLength(2);
+    expect(
+      runtime.transport.events.filter((event) => event.type === "transcript"),
+    ).toHaveLength(2);
   });
 
   it("answers an unknown number and records it deterministically", async () => {

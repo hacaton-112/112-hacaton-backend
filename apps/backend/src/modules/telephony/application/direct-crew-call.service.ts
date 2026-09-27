@@ -54,6 +54,7 @@ import {
 
 const SYNTHESIS_TIMEOUT_MS = 60_000;
 const BROWSER_CALLER_EXTENSION = "browser";
+export const DIRECT_CREW_REPORT_SETTLE_MS = 1_000;
 
 export interface DirectCrewCallTransport {
   emit(event: DirectCrewCallServerEventInput): Promise<void>;
@@ -85,6 +86,7 @@ interface ActiveDirectCall {
   recognitionStopped: boolean;
   pendingPromptId?: string;
   responseTimer?: ReturnType<typeof setTimeout>;
+  evaluationTimer?: ReturnType<typeof setTimeout>;
   limitTimer?: ReturnType<typeof setTimeout>;
   directOutcome?: CrewCallOutcome;
   finished: boolean;
@@ -285,6 +287,8 @@ export class DirectCrewCallService implements OnModuleDestroy {
     const call = this.calls.get(channelId);
     if (!call || call.finished) return;
 
+    clearTimeout(call.evaluationTimer);
+    call.evaluationTimer = undefined;
     call.queue = call.queue
       .then(async () => {
         if (call.asrStream && !call.recognitionStopped) {
@@ -337,6 +341,10 @@ export class DirectCrewCallService implements OnModuleDestroy {
       call.card,
       call.transcriptParts.join(" "),
     );
+    call.script = {
+      ...call.script,
+      reportComplete: call.validation.complete,
+    };
     await call.transport.emit({
       type: "transcript",
       text,
@@ -345,11 +353,24 @@ export class DirectCrewCallService implements OnModuleDestroy {
     });
 
     if (announce) {
-      await this.feed(call, {
-        type: "report-evaluated",
-        complete: call.validation.complete,
-        missingFields: call.validation.missingFields,
-      });
+      // Один доклад часто состоит из нескольких ASR-финалов, разделённых
+      // естественными паузами. Не перебиваем оператора после первой части:
+      // отвечаем только когда в течение короткого окна не пришло продолжение.
+      clearTimeout(call.responseTimer);
+      call.responseTimer = undefined;
+      call.evaluationTimer = this.rearm(
+        call.evaluationTimer,
+        () => {
+          const validation = call.validation;
+          if (!validation || call.finished) return;
+          this.enqueue(call, {
+            type: "report-evaluated",
+            complete: validation.complete,
+            missingFields: validation.missingFields,
+          });
+        },
+        DIRECT_CREW_REPORT_SETTLE_MS,
+      );
     } else {
       call.script = {
         ...call.script,
@@ -536,6 +557,7 @@ export class DirectCrewCallService implements OnModuleDestroy {
 
   private clearTimers(call: ActiveDirectCall): void {
     clearTimeout(call.responseTimer);
+    clearTimeout(call.evaluationTimer);
     clearTimeout(call.limitTimer);
   }
 }

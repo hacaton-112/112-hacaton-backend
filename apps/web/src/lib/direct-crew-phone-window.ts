@@ -119,7 +119,7 @@ export function prepareDirectCrewPhoneWindow(): DirectCrewPhoneWindowSession {
         const interval = window.setInterval(discover, DISCOVERY_INTERVAL_MS);
         const timeout = window.setTimeout(() => {
           cleanup();
-          reject(new Error("Телефон не подключился к backend за 15 секунд"));
+          reject(new Error("Телефон не подготовился к звонку за 15 секунд"));
         }, CONNECTION_TIMEOUT_MS);
         const cleanup = () => {
           window.clearInterval(interval);

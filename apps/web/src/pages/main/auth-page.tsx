@@ -36,7 +36,7 @@ export default function AuthPage() {
         <div className="arm-login-form">
           <AuthForm />
           <Text as="p" size="2" className="arm-login-support">
-            Учебный контур Системы-112
+            Учебный симулятор Системы-112
             <br />
             Техническая поддержка: локальный администратор
           </Text>

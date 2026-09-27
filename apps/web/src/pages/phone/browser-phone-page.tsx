@@ -278,7 +278,7 @@ export default function BrowserPhonePage() {
           <Card size="2" variant="surface" className="grid gap-3">
             <div>
               <Text as="p" size="3" weight="bold">
-                Asterisk звонит на ваш аппарат
+                Входящий учебный звонок
               </Text>
               <Text as="p" size="2" color="gray" className="mt-1">
                 Ответьте сейчас. После ответа виртуальный наряд начнёт разговор.
