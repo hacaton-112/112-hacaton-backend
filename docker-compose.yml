@@ -342,6 +342,7 @@ services:
   # подключаются аппаратные телефоны вроде РТУ Т16Р или софтфоны; ARI остаётся
   # внутри сети compose.
   asterisk:
+    profiles: ["telephony"]
     image: ${ASTERISK_IMAGE:-andrius/asterisk:22}
     container_name: system-112-training-asterisk
     restart: unless-stopped
@@ -413,8 +414,8 @@ services:
       PIPER_TTS_BASE_URL: http://piper-tts:5000
       PIPER_TTS_MALE_VOICE: ${PIPER_TTS_MALE_VOICE:-ru_RU-dmitri-medium}
       PIPER_TTS_FEMALE_VOICE: ${PIPER_TTS_FEMALE_VOICE:-ru_RU-irina-medium}
-      # Backend подключается к уже запущенному Asterisk, только когда телефония
-      # явно включена; без неё рабочее место ДДС работает без передачи наряду.
+      # Прямой браузерный звонок ДДС идёт через backend независимо от этого
+      # флага. Asterisk включается только для дополнительных SIP-аппаратов.
       TELEPHONY_ENABLED: ${TELEPHONY_ENABLED:-false}
       ASTERISK_ARI_URL: http://asterisk:8088
       ASTERISK_ARI_USER: ${ASTERISK_ARI_USER:-system112}
@@ -485,8 +486,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-      asterisk:
-        condition: service_started
     healthcheck:
       test:
         - CMD

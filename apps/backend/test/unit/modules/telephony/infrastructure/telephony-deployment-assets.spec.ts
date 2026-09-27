@@ -2,29 +2,27 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 describe("telephony deployment assets", () => {
-  it("proxies the public secure browser-phone path to private Asterisk WS", () => {
+  it("keeps the production gateway independent from Asterisk", () => {
     const nginx = readFileSync(
       join(process.cwd(), "..", "..", "infra", "nginx", "nginx.conf"),
       "utf8",
     );
 
-    expect(nginx).toContain("server asterisk:8088;");
-    expect(nginx).toContain("location = /asterisk/ws");
-    expect(nginx).toContain("proxy_pass http://system112_asterisk/ws;");
+    expect(nginx).not.toContain("server asterisk:8088;");
+    expect(nginx).not.toContain("location = /asterisk/ws");
+    expect(nginx).toContain("location /api/");
     expect(nginx).toContain("proxy_set_header Upgrade $http_upgrade;");
   });
 
-  it("documents a same-origin WSS URL in the production environment", () => {
-    const environment = readFileSync(
-      join(process.cwd(), "..", "..", ".env.production.example"),
+  it("starts Asterisk only through its explicit compose profile", () => {
+    const compose = readFileSync(
+      join(process.cwd(), "..", "..", "docker-compose.yml"),
       "utf8",
     );
 
-    expect(environment).toContain(
-      "ASTERISK_WEBRTC_WS_URL=wss://system112.example.internal/asterisk/ws",
-    );
-    expect(environment).toContain(
-      "ASTERISK_WEBRTC_SIP_DOMAIN=system112.example.internal",
+    expect(compose).toContain('asterisk:\n    profiles: ["telephony"]');
+    expect(compose).not.toContain(
+      "gateway:\n    profiles: [\"app\"]\n    depends_on:\n      asterisk:",
     );
   });
 });
