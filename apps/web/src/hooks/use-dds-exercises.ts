@@ -38,6 +38,9 @@ export function useDdsExercises() {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.myAssignments(),
         }),
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.myDdsResults(),
+        }),
       ]);
     },
   });

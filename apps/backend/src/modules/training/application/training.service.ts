@@ -727,7 +727,10 @@ export class TrainingService {
       .from(trainingAttempts)
       .leftJoin(
         callEvaluations,
-        eq(callEvaluations.trainingSessionId, trainingAttempts.trainingSessionId),
+        eq(
+          callEvaluations.trainingSessionId,
+          trainingAttempts.trainingSessionId,
+        ),
       )
       .leftJoin(
         ddsExercises,
@@ -745,7 +748,11 @@ export class TrainingService {
       const known = scoresByAttempt.get(row.attemptId) ?? null;
       scoresByAttempt.set(
         row.attemptId,
-        score === null ? known : known === null ? score : Math.max(known, score),
+        score === null
+          ? known
+          : known === null
+            ? score
+            : Math.max(known, score),
       );
     }
     const result = trainingCertificateResult(
@@ -1084,6 +1091,28 @@ export class TrainingService {
     await this.closeOrphanedAttempts(
       eq(trainingAttempts.operatorId, operatorId),
     );
+  }
+
+  /**
+   * Восстанавливает старые записи, где карточка ДДС уже получила финальный
+   * статус, а связанная попытка осталась active из-за прерванного обновления.
+   * Новые переходы закрывают обе строки атомарно, но мониторинг не должен
+   * бесконечно показывать данные, созданные до этого инварианта. Время
+   * окончания берём из карточки, а не из момента восстановления.
+   */
+  async reconcileCompletedDdsAttempts(): Promise<void> {
+    await this.db
+      .update(trainingAttempts)
+      .set({ status: "completed", endedAt: ddsExercises.completedAt })
+      .from(ddsExercises)
+      .where(
+        and(
+          inArray(trainingAttempts.status, ACTIVE_ATTEMPT_STATUSES),
+          eq(ddsExercises.trainingAttemptId, trainingAttempts.id),
+          isNotNull(ddsExercises.completedAt),
+          inArray(ddsExercises.status, ["completed", "refused"]),
+        ),
+      );
   }
 
   /**

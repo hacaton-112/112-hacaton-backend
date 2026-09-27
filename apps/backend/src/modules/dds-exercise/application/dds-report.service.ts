@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 
 import { AppNotFoundException } from "@/common/exceptions/app.exception";
 import type { DrizzleService } from "@/core/database/drizzle.service";
@@ -15,6 +15,8 @@ import {
   ddsTextEvaluations,
   scenarios,
   scenarioVersions,
+  trainingAssignments,
+  trainingAttempts,
   trainingGroups,
   users,
 } from "@/drizzle/schema";
@@ -26,6 +28,20 @@ import {
   summarizeDdsLessonReport,
 } from "../domain/dds-report-aggregation";
 import type { DdsLessonReport, DdsReportCard } from "../dto/dds-report.dto";
+
+type OperatorResultRow = {
+  exercise: typeof ddsExercises.$inferSelect;
+  lesson: typeof ddsLessons.$inferSelect | null;
+  assignment: typeof trainingAssignments.$inferSelect | null;
+};
+
+type OperatorResultContext = {
+  id: string;
+  title: string;
+  status: "active" | "finished";
+  startedAt: string;
+  finishedAt: string | null;
+};
 
 @Injectable()
 export class DdsReportService {
@@ -40,25 +56,48 @@ export class DdsReportService {
   }
 
   async myResults(operatorId: string) {
-    const lessons = await this.db
-      .select({ lesson: ddsLessons })
-      .from(ddsLessons)
-      .innerJoin(ddsExercises, eq(ddsExercises.lessonId, ddsLessons.id))
-      .where(eq(ddsExercises.operatorId, operatorId))
-      .groupBy(ddsLessons.id)
-      .orderBy(desc(ddsLessons.startedAt));
-    const rows = await Promise.all(
-      lessons.map(async ({ lesson }) => {
-        const report = await this.buildReport(lesson, operatorId);
+    const sources = await this.operatorResultRows(operatorId);
+    const norms = new Map(
+      sources.map((row) => [row.exercise.id, this.reactionNorm(row)]),
+    );
+    const cards = await this.buildCards(
+      sources.map(({ exercise }) => exercise.id),
+      norms,
+    );
+    const cardsById = new Map(cards.map((card) => [card.exerciseId, card]));
+    const groups = new Map<
+      string,
+      { context: OperatorResultContext; cards: DdsReportCard[] }
+    >();
+
+    for (const source of sources) {
+      const card = cardsById.get(source.exercise.id);
+      if (!card) continue;
+      const context = this.resultContext(source);
+      const group = groups.get(context.id) ?? { context, cards: [] };
+      group.cards.push(card);
+      groups.set(context.id, group);
+    }
+
+    return {
+      lessons: [...groups.values()].map(({ context, cards: resultCards }) => {
+        const summary = summarizeDdsLessonReport(
+          resultCards.map((card) => ({
+            score: card.finalScore,
+            timing: card.timing,
+            processErrors: card.processErrors,
+            finalStatus: card.finalStatus,
+          })),
+        );
         return {
-          lessonId: lesson.id,
-          title: lesson.title,
-          status: lesson.status,
-          startedAt: lesson.startedAt.toISOString(),
-          finishedAt: lesson.finishedAt?.toISOString() ?? null,
-          cards: report.cards.length,
-          averageScore: report.summary.averageScore,
-          attempts: report.cards.map((card) => ({
+          lessonId: context.id,
+          title: context.title,
+          status: context.status,
+          startedAt: context.startedAt,
+          finishedAt: context.finishedAt,
+          cards: resultCards.length,
+          averageScore: summary.averageScore,
+          attempts: resultCards.map((card) => ({
             exerciseId: card.exerciseId,
             scenarioCode: card.scenarioCode,
             scenarioTitle: card.scenarioTitle,
@@ -67,27 +106,94 @@ export class DdsReportService {
           })),
         };
       }),
-    );
-    return { lessons: rows };
+    };
   }
 
   async myResult(operatorId: string, exerciseId: string) {
-    const [row] = await this.db
-      .select({ lesson: ddsLessons })
+    const [row] = await this.operatorResultRows(operatorId, exerciseId);
+    if (!row) this.notFound();
+    const context = this.resultContext(row);
+    const [card] = await this.buildCards(
+      [row.exercise.id],
+      new Map([[row.exercise.id, this.reactionNorm(row)]]),
+    );
+    if (!card) this.notFound();
+    return {
+      lesson: {
+        id: context.id,
+        title: context.title,
+        status: context.status,
+        startedAt: context.startedAt,
+        finishedAt: context.finishedAt,
+        acknowledgementNormSeconds: this.reactionNorm(row),
+        passThreshold: row.exercise.passThreshold,
+      },
+      card,
+    };
+  }
+
+  private operatorResultRows(
+    operatorId: string,
+    exerciseId?: string,
+  ): Promise<OperatorResultRow[]> {
+    return this.db
+      .select({
+        exercise: ddsExercises,
+        lesson: ddsLessons,
+        assignment: trainingAssignments,
+      })
       .from(ddsExercises)
-      .innerJoin(ddsLessons, eq(ddsLessons.id, ddsExercises.lessonId))
+      .leftJoin(ddsLessons, eq(ddsLessons.id, ddsExercises.lessonId))
+      .leftJoin(
+        trainingAttempts,
+        eq(trainingAttempts.id, ddsExercises.trainingAttemptId),
+      )
+      .leftJoin(
+        trainingAssignments,
+        eq(trainingAssignments.id, trainingAttempts.assignmentId),
+      )
       .where(
         and(
-          eq(ddsExercises.id, exerciseId),
           eq(ddsExercises.operatorId, operatorId),
+          isNotNull(ddsExercises.completedAt),
+          exerciseId ? eq(ddsExercises.id, exerciseId) : undefined,
         ),
       )
-      .limit(1);
-    if (!row) this.notFound();
-    const report = await this.buildReport(row.lesson, operatorId);
-    const card = report.cards.find((item) => item.exerciseId === exerciseId);
-    if (!card) this.notFound();
-    return { lesson: report.lesson, card };
+      .orderBy(desc(ddsExercises.completedAt));
+  }
+
+  private resultContext(row: OperatorResultRow): OperatorResultContext {
+    if (row.lesson) {
+      return {
+        id: row.lesson.id,
+        title: row.lesson.title,
+        status: row.lesson.status,
+        startedAt: row.lesson.startedAt.toISOString(),
+        finishedAt: row.lesson.finishedAt?.toISOString() ?? null,
+      };
+    }
+    return {
+      id: row.assignment?.id ?? row.exercise.id,
+      title: row.assignment?.title ?? "Самостоятельная карточка ДДС",
+      status: "finished" as const,
+      startedAt: row.exercise.createdAt.toISOString(),
+      finishedAt: row.exercise.completedAt?.toISOString() ?? null,
+    };
+  }
+
+  private reactionNorm(row: OperatorResultRow): number {
+    return (
+      row.lesson?.acknowledgementNormSeconds ??
+      row.assignment?.answerNormSeconds ??
+      Math.max(
+        1,
+        Math.round(
+          (row.exercise.acknowledgementDeadlineAt.getTime() -
+            row.exercise.createdAt.getTime()) /
+            1_000,
+        ),
+      )
+    );
   }
 
   /** Обезличенная часть отчёта, которую допустимо передавать модели. */
@@ -143,20 +249,9 @@ export class DdsReportService {
     lesson: typeof ddsLessons.$inferSelect,
     operatorId?: string,
   ): Promise<DdsLessonReport> {
-    const cardRows = await this.db
-      .select({
-        exercise: ddsExercises,
-        operatorName: users.fullName,
-        scenarioCode: scenarios.code,
-        scenarioTitle: scenarios.title,
-      })
+    const exerciseRows = await this.db
+      .select({ id: ddsExercises.id })
       .from(ddsExercises)
-      .innerJoin(users, eq(users.id, ddsExercises.operatorId))
-      .innerJoin(
-        scenarioVersions,
-        eq(scenarioVersions.id, ddsExercises.scenarioVersionId),
-      )
-      .innerJoin(scenarios, eq(scenarios.id, scenarioVersions.scenarioId))
       .where(
         and(
           eq(ddsExercises.lessonId, lesson.id),
@@ -164,131 +259,16 @@ export class DdsReportService {
         ),
       )
       .orderBy(asc(ddsExercises.createdAt));
-    const ids = cardRows.map(({ exercise }) => exercise.id);
-    const versionIds = cardRows.map(
-      ({ exercise }) => exercise.scenarioVersionId,
+    const ids = exerciseRows.map(({ id }) => id);
+    const cards = await this.buildCards(
+      ids,
+      new Map(ids.map((id) => [id, lesson.acknowledgementNormSeconds])),
     );
-    const [events, evaluations, reviews, references, insightsRows] =
-      await Promise.all([
-        ids.length
-          ? this.db
-              .select()
-              .from(ddsExerciseEvents)
-              .where(inArray(ddsExerciseEvents.exerciseId, ids))
-              .orderBy(asc(ddsExerciseEvents.sequence))
-          : [],
-        ids.length
-          ? this.db
-              .select()
-              .from(ddsTextEvaluations)
-              .where(inArray(ddsTextEvaluations.exerciseId, ids))
-          : [],
-        ids.length
-          ? this.db
-              .select()
-              .from(ddsExerciseReviews)
-              .where(inArray(ddsExerciseReviews.exerciseId, ids))
-              .orderBy(desc(ddsExerciseReviews.createdAt))
-          : [],
-        ids.length
-          ? this.db
-              .select()
-              .from(ddsCardReferences)
-              .where(
-                or(
-                  inArray(ddsCardReferences.exerciseId, ids),
-                  inArray(ddsCardReferences.scenarioVersionId, versionIds),
-                ),
-              )
-          : [],
-        this.db
-          .select()
-          .from(ddsLessonInsights)
-          .where(eq(ddsLessonInsights.lessonId, lesson.id))
-          .limit(1),
-      ]);
-    const cards: DdsReportCard[] = cardRows.map(
-      ({ exercise, operatorName, scenarioCode, scenarioTitle }) => {
-        const timelineRows = events.filter(
-          ({ exerciseId }) => exerciseId === exercise.id,
-        );
-        const evaluation = evaluations.find(
-          ({ exerciseId }) => exerciseId === exercise.id,
-        );
-        const review = reviews.find(
-          ({ exerciseId }) => exerciseId === exercise.id,
-        );
-        // Эталон конкретной карточки очереди важнее общего эталона версии сценария.
-        const reference =
-          references.find((item) => item.exerciseId === exercise.id) ??
-          references.find(
-            (item) =>
-              item.exerciseId === null &&
-              item.scenarioVersionId === exercise.scenarioVersionId,
-          );
-        const accepted = timelineRows.find(
-          ({ toStatus }) => toStatus === "accepted",
-        );
-        const timing = buildDdsReportTiming({
-          createdAt: exercise.createdAt,
-          acceptedAt: accepted?.occurredAt ?? null,
-          completedAt: exercise.completedAt,
-          reactionNormSeconds: lesson.acknowledgementNormSeconds,
-        });
-        const expectedOutcome = reference?.expectedOutcome ?? null;
-        const processErrors = detectDdsProcessErrors({
-          terminalStatus: exercise.status,
-          expectedOutcome,
-          timing,
-        });
-        const outcomeMatched =
-          expectedOutcome === null
-            ? null
-            : expectedOutcome === "accept"
-              ? exercise.status === "completed"
-              : exercise.status === "refused";
-        return {
-          exerciseId: exercise.id,
-          operatorId: exercise.operatorId!,
-          operatorName,
-          scenarioVersionId: exercise.scenarioVersionId,
-          scenarioCode,
-          scenarioTitle,
-          finalStatus: exercise.status,
-          expectedOutcome,
-          outcomeMatched,
-          timeline: timelineRows.map((event, index) => ({
-            sequence: event.sequence,
-            status: event.toStatus,
-            comment: event.comment,
-            occurredAt: event.occurredAt.toISOString(),
-            elapsedSeconds:
-              index === 0
-                ? 0
-                : Math.max(
-                    0,
-                    Math.round(
-                      (event.occurredAt.getTime() -
-                        timelineRows[index - 1]!.occurredAt.getTime()) /
-                        1_000,
-                    ),
-                  ),
-          })),
-          timing,
-          processErrors,
-          coverage: evaluation?.coverage ?? [],
-          contradictions: evaluation?.contradictions ?? [],
-          grammar: GrammarReportSchema.nullable().parse(
-            evaluation?.grammar ?? null,
-          ),
-          automaticScore: exercise.score,
-          instructorReview: review
-            ? { score: review.score, comment: review.comment }
-            : null,
-          finalScore: review?.score ?? exercise.score,
-        };
-      },
-    );
+    const insightsRows = await this.db
+      .select()
+      .from(ddsLessonInsights)
+      .where(eq(ddsLessonInsights.lessonId, lesson.id))
+      .limit(1);
     const summary = summarizeDdsLessonReport(
       cards.map((card) => ({
         score: card.finalScore,
@@ -345,6 +325,141 @@ export class DdsReportService {
           }
         : null,
     };
+  }
+
+  private async buildCards(
+    exerciseIds: readonly string[],
+    reactionNorms: ReadonlyMap<string, number>,
+  ): Promise<DdsReportCard[]> {
+    if (exerciseIds.length === 0) return [];
+    const cardRows = await this.db
+      .select({
+        exercise: ddsExercises,
+        operatorName: users.fullName,
+        scenarioCode: scenarios.code,
+        scenarioTitle: scenarios.title,
+      })
+      .from(ddsExercises)
+      .innerJoin(users, eq(users.id, ddsExercises.operatorId))
+      .innerJoin(
+        scenarioVersions,
+        eq(scenarioVersions.id, ddsExercises.scenarioVersionId),
+      )
+      .innerJoin(scenarios, eq(scenarios.id, scenarioVersions.scenarioId))
+      .where(inArray(ddsExercises.id, [...exerciseIds]))
+      .orderBy(asc(ddsExercises.createdAt));
+    if (cardRows.length === 0) return [];
+    const ids = cardRows.map(({ exercise }) => exercise.id);
+    const versionIds = cardRows.map(
+      ({ exercise }) => exercise.scenarioVersionId,
+    );
+    const [events, evaluations, reviews, references] = await Promise.all([
+      this.db
+        .select()
+        .from(ddsExerciseEvents)
+        .where(inArray(ddsExerciseEvents.exerciseId, ids))
+        .orderBy(asc(ddsExerciseEvents.sequence)),
+      this.db
+        .select()
+        .from(ddsTextEvaluations)
+        .where(inArray(ddsTextEvaluations.exerciseId, ids)),
+      this.db
+        .select()
+        .from(ddsExerciseReviews)
+        .where(inArray(ddsExerciseReviews.exerciseId, ids))
+        .orderBy(desc(ddsExerciseReviews.createdAt)),
+      this.db
+        .select()
+        .from(ddsCardReferences)
+        .where(
+          or(
+            inArray(ddsCardReferences.exerciseId, ids),
+            inArray(ddsCardReferences.scenarioVersionId, versionIds),
+          ),
+        ),
+    ]);
+    return cardRows.map(
+      ({ exercise, operatorName, scenarioCode, scenarioTitle }) => {
+        const timelineRows = events.filter(
+          ({ exerciseId }) => exerciseId === exercise.id,
+        );
+        const evaluation = evaluations.find(
+          ({ exerciseId }) => exerciseId === exercise.id,
+        );
+        const review = reviews.find(
+          ({ exerciseId }) => exerciseId === exercise.id,
+        );
+        // Эталон конкретной карточки очереди важнее общего эталона версии сценария.
+        const reference =
+          references.find((item) => item.exerciseId === exercise.id) ??
+          references.find(
+            (item) =>
+              item.exerciseId === null &&
+              item.scenarioVersionId === exercise.scenarioVersionId,
+          );
+        const accepted = timelineRows.find(
+          ({ toStatus }) => toStatus === "accepted",
+        );
+        const timing = buildDdsReportTiming({
+          createdAt: exercise.createdAt,
+          acceptedAt: accepted?.occurredAt ?? null,
+          completedAt: exercise.completedAt,
+          reactionNormSeconds: reactionNorms.get(exercise.id) ?? 30,
+        });
+        const expectedOutcome = reference?.expectedOutcome ?? null;
+        const processErrors = detectDdsProcessErrors({
+          terminalStatus: exercise.status,
+          expectedOutcome,
+          timing,
+        });
+        const outcomeMatched =
+          expectedOutcome === null
+            ? null
+            : expectedOutcome === "accept"
+              ? exercise.status === "completed"
+              : exercise.status === "refused";
+        return {
+          exerciseId: exercise.id,
+          operatorId: exercise.operatorId!,
+          operatorName,
+          scenarioVersionId: exercise.scenarioVersionId,
+          scenarioCode,
+          scenarioTitle,
+          finalStatus: exercise.status,
+          expectedOutcome,
+          outcomeMatched,
+          timeline: timelineRows.map((event, index) => ({
+            sequence: event.sequence,
+            status: event.toStatus,
+            comment: event.comment,
+            occurredAt: event.occurredAt.toISOString(),
+            elapsedSeconds:
+              index === 0
+                ? 0
+                : Math.max(
+                    0,
+                    Math.round(
+                      (event.occurredAt.getTime() -
+                        timelineRows[index - 1]!.occurredAt.getTime()) /
+                        1_000,
+                    ),
+                  ),
+          })),
+          timing,
+          processErrors,
+          coverage: evaluation?.coverage ?? [],
+          contradictions: evaluation?.contradictions ?? [],
+          grammar: GrammarReportSchema.nullable().parse(
+            evaluation?.grammar ?? null,
+          ),
+          automaticScore: exercise.score,
+          instructorReview: review
+            ? { score: review.score, comment: review.comment }
+            : null,
+          finalScore: review?.score ?? exercise.score,
+        };
+      },
+    );
   }
 
   private notFound(): never {
