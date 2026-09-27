@@ -36,10 +36,9 @@ import type {
 import { DdsTextEvaluationService } from "./dds-text-evaluation.service";
 
 /**
- * Передача карточки наряду по телефону — обязательный шаг.
- *
- * Включается вместе с учебной IP-телефонией: без АТС звонить некуда, и ДДС
- * работает как раньше.
+ * Передача карточки виртуальному наряду по телефону — обязательный шаг.
+ * Транспорт (прямой браузерный WebSocket или дополнительная SIP-АТС) на это
+ * доменное правило не влияет.
  */
 export const DDS_CREW_HANDOFF_REQUIRED = Symbol("DDS_CREW_HANDOFF_REQUIRED");
 

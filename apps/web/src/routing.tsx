@@ -61,7 +61,7 @@ const MethodicalMaterialsPage = lazyImport(
   () => import("./pages/main/methodical-materials-page"),
 );
 const BrowserPhonePage = lazyImport(
-  () => import("./pages/phone/browser-phone-page"),
+  () => import("./pages/phone/direct-crew-phone-page"),
 );
 const OperatorPhonePage = lazyImport(
   () => import("./pages/phone/operator-phone-page"),

@@ -118,6 +118,12 @@ export const DdsCrewHandoffSchema = z.object({
   notified: z.boolean(),
   crews: z.array(z.object({ callsign: z.string(), phoneNumber: z.string() })),
   calls: z.array(DdsCrewCallSchema),
+  callMode: z.enum(["handoff", "progress_check"]).nullable().default(null),
+  nextReportStatus: z
+    .enum(["arrived", "working", "completed"])
+    .nullable()
+    .default(null),
+  selectedCrewPhoneNumber: z.string().nullable().default(null),
 });
 
 export const DdsExerciseSchema = z.object({
@@ -139,8 +145,8 @@ export const DdsExerciseSchema = z.object({
   result: DdsExerciseResultSchema.nullable(),
   textEvaluation: DdsTextEvaluationSchema.nullable().default(null),
   /**
-   * Передача карточки наряду по телефону; `null` — телефония выключена.
-   * Необязательно: backend без телефонии поля не присылает вовсе.
+   * Передача карточки наряду по телефону. Поле необязательно только для
+   * совместимости со старыми сохранёнными ответами backend.
    */
   crewHandoff: DdsCrewHandoffSchema.nullable().optional(),
 });
