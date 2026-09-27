@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { createTelephoneTestTone } from "../src/lib/web-audio";
+import {
+  createTelephoneTestTone,
+  requireSelectedOutputDevice,
+} from "../src/lib/web-audio";
 
 describe("DDS telephone playback", () => {
   test("sound check produces audible signed PCM", () => {
@@ -19,5 +22,12 @@ describe("DDS telephone playback", () => {
 
   test("sound check always creates at least one sample", () => {
     expect(new Int16Array(createTelephoneTestTone(0))).toHaveLength(1);
+  });
+
+  test("does not silently replace a missing headset with speakers", () => {
+    expect(() =>
+      requireSelectedOutputDevice("headset-id", "Учебная гарнитура", null),
+    ).toThrow("Учебная гарнитура");
+    expect(requireSelectedOutputDevice(null, null, null)).toBeNull();
   });
 });

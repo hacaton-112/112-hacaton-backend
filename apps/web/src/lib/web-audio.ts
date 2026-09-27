@@ -58,6 +58,19 @@ async function resolveDevice(
   );
 }
 
+export function requireSelectedOutputDevice(
+  requestedDevice: string | null,
+  requestedLabel: string | null,
+  resolvedDevice: string | null,
+): string | null {
+  if (requestedDevice !== null && resolvedDevice === null) {
+    throw new Error(
+      `Выбранный аудиовыход «${requestedLabel || "без названия"}» недоступен. Обновите список устройств или выберите системный выход.`,
+    );
+  }
+  return resolvedDevice;
+}
+
 /**
  * Открывает выбранный микрофон, а если его больше нет — системный.
  *
@@ -253,48 +266,57 @@ export class TelephonePlayer {
     this.context = context;
     this.preparedOutputKey = outputKey;
 
-    // resume() вызывается до первого await, пока браузер ещё видит исходный
-    // пользовательский жест кнопки «Позвонить» или «Проверить звук».
-    const resume = context.resume();
-    const [outputDevice] = await Promise.all([
-      resolveDevice("audiooutput", savedOutputDevice, savedOutputLabel).catch(
-        () => null,
-      ),
-      context.audioWorklet.addModule("/worklets/telephone-processor.js"),
-      resume,
-    ]);
+    try {
+      // resume() вызывается до первого await, пока браузер ещё видит исходный
+      // пользовательский жест кнопки «Позвонить» или «Проверить звук».
+      const resume = context.resume();
+      const [outputDevice] = await Promise.all([
+        resolveDevice("audiooutput", savedOutputDevice, savedOutputLabel).then(
+          (resolved) =>
+            requireSelectedOutputDevice(
+              savedOutputDevice,
+              savedOutputLabel,
+              resolved,
+            ),
+        ),
+        context.audioWorklet.addModule("/worklets/telephone-processor.js"),
+        resume,
+      ]);
 
-    const sinkContext = context as AudioContext & {
-      setSinkId?: (sinkId: string) => Promise<void>;
-    };
-    if (outputDevice && sinkContext.setSinkId) {
-      await sinkContext.setSinkId(outputDevice);
-      this.outputNode = context.destination;
-    } else if (outputDevice) {
-      const destination = context.createMediaStreamDestination();
-      const audio = new Audio();
-      audio.srcObject = destination.stream;
-      const sinkAudio = audio as HTMLAudioElement & {
+      const sinkContext = context as AudioContext & {
         setSinkId?: (sinkId: string) => Promise<void>;
       };
-      if (sinkAudio.setSinkId) {
-        await sinkAudio.setSinkId(outputDevice);
-        await audio.play();
-        this.outputAudio = audio;
-        this.outputNode = destination;
+      if (outputDevice && sinkContext.setSinkId) {
+        await sinkContext.setSinkId(outputDevice);
+        this.outputNode = context.destination;
+      } else if (outputDevice) {
+        const destination = context.createMediaStreamDestination();
+        const audio = new Audio();
+        audio.srcObject = destination.stream;
+        const sinkAudio = audio as HTMLAudioElement & {
+          setSinkId?: (sinkId: string) => Promise<void>;
+        };
+        if (sinkAudio.setSinkId) {
+          await sinkAudio.setSinkId(outputDevice);
+          await audio.play();
+          this.outputAudio = audio;
+          this.outputNode = destination;
+        } else {
+          this.outputNode = context.destination;
+        }
       } else {
         this.outputNode = context.destination;
       }
-    } else {
-      this.outputNode = context.destination;
-    }
 
-    await context.resume();
-    if (context.state !== "running") {
+      await context.resume();
+      if (context.state !== "running") {
+        throw new Error(
+          "Браузер приостановил звук. Нажмите «Проверить звук» и разрешите воспроизведение.",
+        );
+      }
+    } catch (reason) {
       await this.cancel();
-      throw new Error(
-        "Браузер приостановил звук. Нажмите «Проверить звук» и разрешите воспроизведение.",
-      );
+      throw reason;
     }
   }
 
