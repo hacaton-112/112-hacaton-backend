@@ -13,11 +13,12 @@ import {
   AudioLines,
   PhoneCall,
   PhoneOff,
+  RefreshCw,
   RotateCcw,
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   DIRECT_CREW_PHONE_CHANNEL_NAME,
@@ -80,22 +81,32 @@ export default function DirectCrewPhonePage() {
   const [outputDevices, setOutputDevices] = useState<
     readonly AudioDeviceInfo[]
   >([]);
+  const [loadingOutputs, setLoadingOutputs] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const requestIdRef = useRef<string | undefined>(undefined);
   const phoneRef = useRef<DirectCrewPhoneClient | null>(null);
 
+  const refreshOutputDevices = useCallback(async (requestAccess: boolean) => {
+    if (!supportsOutputDeviceSelection) return;
+    setLoadingOutputs(true);
+    try {
+      const { outputs } = await enumerateAudioDevices(requestAccess);
+      setOutputDevices(outputs);
+    } catch (reason) {
+      setError(describeError(reason));
+    } finally {
+      setLoadingOutputs(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!supportsOutputDeviceSelection) return;
-    const refresh = () => {
-      void enumerateAudioDevices(false)
-        .then(({ outputs }) => setOutputDevices(outputs))
-        .catch(() => setOutputDevices([]));
-    };
+    const refresh = () => void refreshOutputDevices(false);
     refresh();
     navigator.mediaDevices?.addEventListener("devicechange", refresh);
     return () =>
       navigator.mediaDevices?.removeEventListener("devicechange", refresh);
-  }, []);
+  }, [refreshOutputDevices]);
 
   useEffect(() => {
     const channel = new BroadcastChannel(DIRECT_CREW_PHONE_CHANNEL_NAME);
@@ -374,6 +385,24 @@ export default function DirectCrewPhonePage() {
                 </Select.Content>
               </Select.Root>
             )}
+
+          {supportsOutputDeviceSelection && !callInProgress && (
+            <Button
+              color="gray"
+              size="1"
+              variant="ghost"
+              disabled={loadingOutputs}
+              onClick={() => void refreshOutputDevices(true)}
+            >
+              <RefreshCw
+                className={loadingOutputs ? "animate-spin" : undefined}
+                size={14}
+              />
+              {loadingOutputs
+                ? "Ищем аудиоустройства…"
+                : "Обновить список наушников"}
+            </Button>
+          )}
 
           <div
             aria-label="Уровень ответа наряда"
