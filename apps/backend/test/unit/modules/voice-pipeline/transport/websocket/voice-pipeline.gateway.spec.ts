@@ -31,10 +31,8 @@ import type { TrainingService } from "@/modules/training/application/training.se
 
 import type { VoicePipelineRequestFactory } from "@/modules/voice-pipeline/application/voice-pipeline-request.factory";
 import type { VoicePipelineService } from "@/modules/voice-pipeline/application/voice-pipeline.service";
-import {
-  VoicePipelineGateway,
-  websocketAuthorization,
-} from "@/modules/voice-pipeline/transport/websocket/voice-pipeline.gateway";
+import { websocketAuthorization } from "@/core/http/websocket-authorization";
+import { VoicePipelineGateway } from "@/modules/voice-pipeline/transport/websocket/voice-pipeline.gateway";
 
 const request: VoicePipelineRequest = {
   generation: {
