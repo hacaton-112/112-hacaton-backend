@@ -444,7 +444,12 @@ describe(TrainingService.name, () => {
 
   describe("finishAttempt", () => {
     it("reports whether an active attempt was closed", async () => {
-      const { service } = createService([[{ id: "attempt-1" }], []]);
+      const { service } = createService([
+        [{ assignmentId: "assignment-1" }],
+        // Проверка занятия: оно уже закрыто, дальше смотреть нечего.
+        [{ id: "assignment-1", status: "completed" }],
+        [],
+      ]);
 
       await expect(
         service.finishAttempt("session-1", "cancelled_by_instructor"),
@@ -453,6 +458,66 @@ describe(TrainingService.name, () => {
       await expect(
         service.finishAttempt("session-1", "abandoned"),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe("completeIfLearnersFinished", () => {
+    const lesson = {
+      id: "assignment-1",
+      status: "in_progress",
+      targetUserId: "operator-1",
+      groupId: null,
+      serviceTag: null,
+      maxAttempts: 3,
+      passThreshold: 75,
+    };
+
+    it("closes a lesson whose only learner passed the DDS card", async () => {
+      const { service, calls, audit } = createService([
+        [lesson],
+        [
+          {
+            operatorId: "operator-1",
+            status: "completed",
+            ddsPassed: true,
+            callScore: null,
+          },
+        ],
+        [{ id: "assignment-1" }],
+      ]);
+
+      await expect(
+        service.completeIfLearnersFinished("assignment-1"),
+      ).resolves.toBe(true);
+      expect(
+        calls.find(({ method }) => method === "set")?.args[0],
+      ).toEqual(expect.objectContaining({ status: "completed" }));
+      // Второй аргумент — транзакция: запись журнала идёт в ней же.
+      expect(audit.log.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          action: "training.assignment.completed",
+          details: { reason: "all_learners_finished" },
+        }),
+      );
+    });
+
+    it("keeps the lesson running while a failed learner has attempts left", async () => {
+      const { service, calls } = createService([
+        [lesson],
+        [
+          {
+            operatorId: "operator-1",
+            status: "completed",
+            ddsPassed: false,
+            callScore: 40,
+          },
+        ],
+      ]);
+
+      await expect(
+        service.completeIfLearnersFinished("assignment-1"),
+      ).resolves.toBe(false);
+      expect(calls.some(({ method }) => method === "set")).toBe(false);
     });
   });
 

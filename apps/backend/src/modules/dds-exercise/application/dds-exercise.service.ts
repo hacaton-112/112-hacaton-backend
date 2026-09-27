@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import {
   AppBadRequestException,
@@ -8,6 +8,7 @@ import {
 import { generateId } from "@/common/utils/id";
 import { ErrorCodes } from "@/contracts";
 import type { DdsTextEvaluationRecord } from "@/drizzle/schema";
+import { TrainingService } from "@/modules/training/application/training.service";
 
 import { buildDdsCardSnapshot } from "../domain/dds-card-snapshot";
 import { evaluateDdsExercise } from "../domain/dds-exercise-evaluation";
@@ -139,7 +140,10 @@ export class DdsExerciseService {
     @Inject(DDS_CREW_HANDOFF_REQUIRED)
     private readonly handoffRequired: boolean,
     @Optional() private readonly textEvaluations?: DdsTextEvaluationService,
+    @Optional() private readonly lessons?: TrainingService,
   ) {}
+
+  private readonly logger = new Logger(DdsExerciseService.name);
 
   /** Карточка и разрешённый тип следующего звонка диспетчера наряду. */
   async findCrewCallContext(operatorId: string, exerciseId?: string) {
@@ -364,9 +368,30 @@ export class DdsExerciseService {
 
     if (isTerminalDdsStatus(request.status)) {
       await this.textEvaluations?.enqueue(outcome.exercise.id);
+      await this.completeLesson(outcome.exercise.trainingAttemptId);
     }
 
     return this.presentOne(outcome.exercise);
+  }
+
+  /**
+   * Сданная карточка могла закончить занятие ученика. Статус к этому моменту
+   * уже сохранён, поэтому сбой здесь не должен выглядеть для диспетчера как
+   * несохранённый статус: занятие закроет следующая проверка или
+   * преподаватель.
+   */
+  private async completeLesson(attemptId: string | null): Promise<void> {
+    if (!attemptId || !this.lessons) return;
+
+    try {
+      await this.lessons.completeLessonOfAttempt(attemptId);
+    } catch (error) {
+      this.logger.warn(
+        `Could not complete the lesson of attempt ${attemptId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
   }
 
   private async requireOwn(

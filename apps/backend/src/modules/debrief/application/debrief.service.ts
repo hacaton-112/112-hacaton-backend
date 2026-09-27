@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { z } from "zod";
 
 import { AppNotFoundException } from "@/common/exceptions/app.exception";
@@ -14,6 +14,7 @@ import {
   RECORDING_STORAGE,
   type RecordingStorage,
 } from "@/modules/call-recording/ports/recording-storage.port";
+import { TrainingService } from "@/modules/training/application/training.service";
 import { GrammarService } from "@/modules/grammar";
 import { IncidentCardService } from "@/modules/incident-card/application/incident-card.service";
 import type { IncidentCard } from "@/modules/incident-card/dto/incident-card.dto";
@@ -74,7 +75,23 @@ export class DebriefService {
     @Inject(RECORDING_STORAGE) private readonly recordings: RecordingStorage,
     private readonly cards: IncidentCardService,
     private readonly grammar: GrammarService,
+    @Optional() private readonly lessons?: TrainingService,
   ) {}
+
+  /** Сбой здесь не должен ломать открытие разбора: занятие закроется позже. */
+  private async completeLesson(trainingSessionId: string): Promise<void> {
+    if (!this.lessons) return;
+
+    try {
+      await this.lessons.completeLessonOfSession(trainingSessionId);
+    } catch (error) {
+      this.logger.warn(
+        `Could not complete the lesson of session ${trainingSessionId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }
 
   listCalls(operatorId: string): Promise<readonly CallSummary[]> {
     return this.store.listCalls(operatorId, MAX_CALLS);
@@ -197,6 +214,9 @@ export class DebriefService {
         call.scenarioVersionId,
         evaluation.score,
       );
+      // Зачёт звонка становится известен только здесь: с ним занятие ученика
+      // может закончиться раньше, чем исчерпаны попытки.
+      await this.completeLesson(call.trainingSessionId);
     }
 
     const group = await this.store.loadGroupResult(

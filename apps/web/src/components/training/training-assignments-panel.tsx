@@ -249,7 +249,8 @@ export function TrainingAssignmentsPanel({
     },
     {
       ...ACTION_COLUMN,
-      width: 410,
+      // Самый широкий набор — у черновика: «Запустить» и три значка.
+      width: 260,
       cellRenderer: ({ data }: ICellRendererParams<TrainingAssignment>) => {
         if (!data) return null;
         const actions = assignmentActions(data.status);

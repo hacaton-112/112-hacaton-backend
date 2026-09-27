@@ -48,9 +48,14 @@ export const menuIcon = (icon: LucideIcon): string =>
  * Колонка кнопок строки: всегда последняя, фиксированной ширины, её нельзя
  * перетащить, растянуть или отсортировать.
  */
+/**
+ * Колонка действий закреплена справа: широкая таблица прокручивается вбок, и
+ * без закрепления кнопки вроде «Запустить» уезжали за край страницы.
+ */
 export const ACTION_COLUMN = {
   colId: "actions",
   headerName: "",
+  pinned: "right",
   flex: 0,
   sortable: false,
   resizable: false,

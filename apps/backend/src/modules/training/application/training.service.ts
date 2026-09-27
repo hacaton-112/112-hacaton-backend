@@ -43,6 +43,10 @@ import {
 import { AuditLogService } from "@/modules/audit-log/application/audit-log.service";
 import { ScenarioEngineService } from "@/modules/scenario-engine";
 import { trainingCertificateResult } from "../domain/training-certificate";
+import {
+  everyLearnerFinished,
+  type LessonAttempt,
+} from "../domain/lesson-completion";
 
 import type {
   AddTrainingGroupMember,
@@ -673,8 +677,21 @@ export class TrainingService {
   async listAssignments(
     actor: TrainingActor,
   ): Promise<TrainingAssignmentView[]> {
+    const scope = this.assignmentScope(actor);
+    const rows = await this.assignmentRows(scope);
+
+    // Занятия, пройденные до появления автоматического завершения, досчитываем
+    // при открытии списка: иначе преподаватель так и видел бы у них «Идёт
+    // занятие».
+    let closed = false;
+    for (const row of rows) {
+      if (row.status === "in_progress") {
+        closed = (await this.completeIfLearnersFinished(row.id)) || closed;
+      }
+    }
+
     return this.withAttemptCounts(
-      await this.assignmentRows(this.assignmentScope(actor)),
+      closed ? await this.assignmentRows(scope) : rows,
     );
   }
 
@@ -1079,8 +1096,147 @@ export class TrainingService {
           inArray(trainingAttempts.status, ACTIVE_ATTEMPT_STATUSES),
         ),
       )
-      .returning({ id: trainingAttempts.id });
+      .returning({ assignmentId: trainingAttempts.assignmentId });
+
+    // Последняя попытка могла исчерпать лимит — тогда занятию больше нечего
+    // ждать.
+    for (const { assignmentId } of updated) {
+      await this.completeIfLearnersFinished(assignmentId);
+    }
+
     return updated.length > 0;
+  }
+
+  /**
+   * Завершает занятие, когда каждому адресату в нём больше нечего делать:
+   * карточка ДДС сдана, звонок зачтён или исчерпаны попытки.
+   *
+   * Раньше занятие закрывал только преподаватель, и таблица показывала «Идёт
+   * занятие» у занятия, которое ученик уже прошёл. Закрыть занятие раньше
+   * вручную по-прежнему можно.
+   *
+   * Зачёт звонка известен, только когда разбор уже посчитан: до этого звонок
+   * закрывает занятие лишь вместе с последней попыткой.
+   *
+   * Карточка ДДС знает свою попытку, а не занятие, поэтому для неё есть
+   * вариант `completeLessonOfAttempt`.
+   */
+  /** То же по учебной сессии звонка: разбор знает сессию, а не попытку. */
+  async completeLessonOfSession(trainingSessionId: string): Promise<boolean> {
+    const [attempt] = await this.db
+      .select({ assignmentId: trainingAttempts.assignmentId })
+      .from(trainingAttempts)
+      .where(eq(trainingAttempts.trainingSessionId, trainingSessionId))
+      .limit(1);
+
+    return attempt ? this.completeIfLearnersFinished(attempt.assignmentId) : false;
+  }
+
+  async completeLessonOfAttempt(attemptId: string): Promise<boolean> {
+    const [attempt] = await this.db
+      .select({ assignmentId: trainingAttempts.assignmentId })
+      .from(trainingAttempts)
+      .where(eq(trainingAttempts.id, attemptId))
+      .limit(1);
+
+    return attempt ? this.completeIfLearnersFinished(attempt.assignmentId) : false;
+  }
+
+  async completeIfLearnersFinished(assignmentId: string): Promise<boolean> {
+    const completed = await this.db.transaction(async (tx) => {
+      // Та же блокировка, что у старта попытки и у ручного завершения.
+      const [assignment] = await tx
+        .select()
+        .from(trainingAssignments)
+        .where(eq(trainingAssignments.id, assignmentId))
+        .for("update");
+      if (!assignment || assignment.status !== "in_progress") return false;
+
+      const learners =
+        assignment.targetUserId !== null
+          ? [assignment.targetUserId]
+          : assignment.groupId === null
+            ? []
+            : (
+                await tx
+                  .select({
+                    userId: trainingGroupMembers.userId,
+                    serviceTag: trainingGroupMembers.serviceTag,
+                  })
+                  .from(trainingGroupMembers)
+                  .where(eq(trainingGroupMembers.groupId, assignment.groupId))
+              )
+                .filter(
+                  ({ serviceTag }) =>
+                    assignment.serviceTag === null ||
+                    sameServiceTag(serviceTag, assignment.serviceTag),
+                )
+                .map(({ userId }) => userId);
+
+      const rows = await tx
+        .select({
+          operatorId: trainingAttempts.operatorId,
+          status: trainingAttempts.status,
+          ddsPassed: ddsExercises.passed,
+          callScore: callEvaluations.score,
+        })
+        .from(trainingAttempts)
+        .leftJoin(
+          ddsExercises,
+          eq(ddsExercises.trainingAttemptId, trainingAttempts.id),
+        )
+        .leftJoin(
+          callEvaluations,
+          eq(callEvaluations.trainingSessionId, trainingAttempts.trainingSessionId),
+        )
+        .where(eq(trainingAttempts.assignmentId, assignmentId));
+
+      const attemptsByLearner = new Map<string, LessonAttempt[]>();
+      for (const row of rows) {
+        const passed =
+          row.ddsPassed === true ||
+          (row.callScore !== null && row.callScore >= assignment.passThreshold);
+        const own = attemptsByLearner.get(row.operatorId) ?? [];
+        own.push({ status: row.status, passed });
+        attemptsByLearner.set(row.operatorId, own);
+      }
+
+      if (
+        !everyLearnerFinished(
+          learners,
+          attemptsByLearner,
+          assignment.maxAttempts,
+        )
+      ) {
+        return false;
+      }
+
+      const now = new Date();
+      const [closed] = await tx
+        .update(trainingAssignments)
+        .set({ status: "completed", completedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(trainingAssignments.id, assignmentId),
+            eq(trainingAssignments.status, "in_progress"),
+          ),
+        )
+        .returning({ id: trainingAssignments.id });
+      if (!closed) return false;
+
+      await this.audit.log(
+        {
+          action: "training.assignment.completed",
+          resource: "training-assignment",
+          resourceId: assignmentId,
+          details: { reason: "all_learners_finished" },
+        },
+        tx,
+      );
+      return true;
+    });
+
+    return completed;
   }
 
   /**

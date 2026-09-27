@@ -1,3 +1,4 @@
+import { labelFor } from "../../lib/labels";
 import { DataTableReact } from "@bolid-ui/data-table";
 import type { ColDef } from "@bolid-ui/data-table/community";
 import { Card, Flex, Grid, Heading, Text } from "@bolid-ui/themes";
@@ -106,7 +107,7 @@ export function ReportAnalytics({ analytics }: { analytics: Analytics }) {
           <ul className="grid gap-1 text-sm">
             {analytics.processErrors.map((error) => (
               <li key={error.type}>
-                {PROCESS_ERROR_LABELS[error.type] ?? error.type}: {error.total} · {error.students.map((student) => `${student.operatorName} — ${student.count}`).join("; ")}
+                {labelFor(PROCESS_ERROR_LABELS, error.type, "Другая ошибка")}: {error.total} · {error.students.map((student) => `${student.operatorName} — ${student.count}`).join("; ")}
               </li>
             ))}
           </ul>

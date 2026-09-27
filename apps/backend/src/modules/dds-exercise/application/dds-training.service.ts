@@ -545,9 +545,11 @@ export class DdsTrainingService {
   }
 
   async stop(actor: TrainingActor, id: string, reason: string) {
+    let stoppedAttemptId: string | null = null;
     await this.db.transaction(async (tx) => {
       const exercise = await this.requireManaged(tx, actor, id);
       if (exercise.completedAt) return;
+      stoppedAttemptId = exercise.trainingAttemptId;
       const now = new Date();
       const sequence = exercise.lastSequence + 1;
       await tx
@@ -587,6 +589,11 @@ export class DdsTrainingService {
         tx,
       );
     });
+
+    // Остановленная попытка могла быть последней по лимиту.
+    if (stoppedAttemptId) {
+      await this.training.completeLessonOfAttempt(stoppedAttemptId);
+    }
   }
 
   private async requireManaged(
