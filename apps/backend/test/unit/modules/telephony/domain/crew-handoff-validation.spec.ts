@@ -61,6 +61,34 @@ describe(validateCrewHandoff.name, () => {
     );
 
     expect(result.coveredFields).toContain("address");
+    expect(result.missingFields).not.toContain("address");
+  });
+
+  it("accepts compound and ordinal address numbers from ASR", () => {
+    const result = validateCrewHandoff(
+      {
+        ...CARD,
+        addressText:
+          "улица Юных Ленинцев, дом 83, подъезд 1, квартира 112, этаж 9",
+      },
+      "улица юных ленинца восемьдесят три подъезд один квартира сто двенадцать этаж девятый",
+    );
+
+    expect(result.coveredFields).toContain("address");
+    expect(result.missingFields).not.toContain("address");
+  });
+
+  it("still rejects a wrong compound house number", () => {
+    const result = validateCrewHandoff(
+      {
+        ...CARD,
+        addressText:
+          "улица Юных Ленинцев, дом 83, подъезд 1, квартира 112, этаж 9",
+      },
+      "улица юных ленинцев восемьдесят четыре подъезд один квартира сто двенадцать этаж девятый",
+    );
+
+    expect(result.coveredFields).not.toContain("address");
   });
 
   it("asks only for facts that are still missing across several phrases", () => {
