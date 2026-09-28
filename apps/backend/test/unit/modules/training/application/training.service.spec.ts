@@ -456,6 +456,23 @@ describe(TrainingService.name, () => {
     });
   });
 
+  describe("reconcileCompletedDdsAttempts", () => {
+    it("closes only attempts backed by a terminal DDS exercise", async () => {
+      const { service, calls } = createService([[]]);
+
+      await service.reconcileCompletedDdsAttempts();
+
+      expect(calls.find(({ method }) => method === "set")?.args[0]).toEqual(
+        expect.objectContaining({
+          status: "completed",
+          endedAt: expect.any(Object),
+        }),
+      );
+      expect(calls.some(({ method }) => method === "from")).toBe(true);
+      expect(calls.some(({ method }) => method === "where")).toBe(true);
+    });
+  });
+
   describe("requireManagedSession", () => {
     const row = {
       operatorId: "operator-1",

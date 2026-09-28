@@ -83,6 +83,7 @@ export class DdsTrainingService {
     actor: TrainingActor,
     filters: DdsLiveQuery = {},
   ): Promise<DdsLiveList> {
+    await this.training.reconcileCompletedDdsAttempts();
     const rows = await this.db
       .select({
         id: ddsExercises.id,

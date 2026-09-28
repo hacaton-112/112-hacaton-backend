@@ -51,6 +51,7 @@ const createService = (
   };
   const training = {
     reconcileOperatorAttempts: jest.fn().mockResolvedValue(undefined),
+    reconcileCompletedDdsAttempts: jest.fn().mockResolvedValue(undefined),
   };
   const service = new DdsTrainingService(
     db as never,
@@ -154,12 +155,17 @@ describe(`${DdsTrainingService.name}.live`, () => {
       acknowledgementDeadlineAt: overdue,
       acknowledgedAt: null,
     };
-    const { service } = createService([[assigned], [fromQueue], []], new Map());
+    const { service, training } = createService(
+      [[assigned], [fromQueue], []],
+      new Map(),
+    );
 
     const result = await service.live({
       id: "instructor-1",
       role: "instructor",
     });
+
+    expect(training.reconcileCompletedDdsAttempts).toHaveBeenCalledTimes(1);
 
     expect(result.attempts).toEqual([
       expect.objectContaining({
@@ -218,6 +224,7 @@ describe(`${DdsTrainingService.name}.start`, () => {
     const databaseFailure = new Error("stop after reconciliation");
     const training = {
       reconcileOperatorAttempts: jest.fn().mockResolvedValue(undefined),
+      reconcileCompletedDdsAttempts: jest.fn().mockResolvedValue(undefined),
     };
     const service = new DdsTrainingService(
       { transaction: jest.fn().mockRejectedValue(databaseFailure) } as never,
