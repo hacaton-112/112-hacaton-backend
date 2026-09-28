@@ -614,7 +614,10 @@ body,
  */
 
 :root {
-  --arm-orange: #f15a31;
+  /* Белый текст на оранжевом должен читаться: исходный #f15a31 давал 3,4:1
+     при норме 4,5:1 для обычного текста. Это ближайший к нему оттенок, который
+     проходит норму. */
+  --arm-orange: #ca4b29;
   --arm-orange-dark: #a9472d;
   --arm-orange-soft: #fff0e9;
   --arm-blue: #1787c4;
@@ -652,10 +655,30 @@ body,
   --accent-7: #ec8e68;
   --accent-8: #e2734b;
   --accent-9: var(--arm-orange);
-  --accent-10: #df4d26;
+  --accent-10: #b64324;
   --accent-11: #b63b1e;
   --accent-12: #572313;
   --accent-contrast: white;
+  /* Текст «мягких» плашек и выносок. Их полупрозрачный фон на сером фоне
+     страницы темнеет, и стандартный текст шкалы 11 опускался до 2,7–3,9:1.
+     Значения подобраны расчётом: самые светлые оттенки, дающие не меньше
+     4,6:1 на худшем из встреченных фонов. */
+  --accent-a11: #8e3600;
+  --orange-11: #8e3600;
+  --orange-a11: #8e3600;
+  --amber-11: #814b00;
+  --amber-a11: #814b00;
+  --blue-11: #075293;
+  --blue-a11: #075293;
+  --green-11: #166844;
+  --green-a11: #166844;
+  --red-11: #99191d;
+  --red-a11: #99191d;
+  /* Плейсхолдеры полей — по своей серой шкале: полупрозрачный чёрный по
+     умолчанию давал на белом поле 3,8:1. Приглушённый текст (шкала a11)
+     остаётся полупрозрачным: на сером фоне страницы он так темнее и читается
+     лучше сплошного серого. */
+  --gray-a10: var(--gray-10);
   --gray-1: #fafaf8;
   --gray-2: #f3f3f1;
   --gray-3: #e9ebeb;
@@ -1719,7 +1742,7 @@ body,
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #e6e8e8;
+  color: var(--arm-graphite);
 }
 
 .arm-dds-detail {
@@ -2940,7 +2963,7 @@ body,
 }
 
 .arm112-phone-value > span {
-  color: #7d888e;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3089,7 +3112,7 @@ body,
 
 .arm112-map-button:disabled {
   border-color: #c4c9cb;
-  color: #8a959a;
+  color: #677075;
   cursor: not-allowed;
 }
 
@@ -3155,7 +3178,7 @@ body,
 }
 
 .arm112-field span {
-  color: #7d888e;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3197,7 +3220,7 @@ body,
 }
 
 .arm112-block-label {
-  color: #7d888e;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3216,7 +3239,7 @@ body,
 
 .arm112-counter {
   align-self: end;
-  color: #8a959a;
+  color: #677075;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -3296,7 +3319,7 @@ body,
 }
 
 .arm112-type-matches span {
-  color: #8a959a;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3405,7 +3428,7 @@ body,
   display: flex;
   align-items: center;
   padding-right: 10px;
-  color: #ffd9cc;
+  color: #fff;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -3546,7 +3569,7 @@ body,
 }
 
 .arm112-service-directory small {
-  color: #7d888e;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3610,7 +3633,7 @@ body,
 }
 
 .arm112-phone-window-label {
-  color: #7d888e;
+  color: #677075;
   font-size: 11px;
 }
 
@@ -3622,7 +3645,7 @@ body,
 }
 
 .arm112-phone-window-state {
-  color: #7d888e;
+  color: #677075;
   font-size: 12px;
 }
 
