@@ -1251,6 +1251,13 @@ body,
   box-shadow: 0 0 0 2px var(--red-a4);
 }
 
+/* У края прокручиваемой колонки карточки 112 выступ рамки прокручивал бы
+   колонку вбок, поэтому рамка там прилегает к полю. */
+.arm112-column > .arm-required-target {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
 .dispatch-services-card[data-missing="true"],
 .dispatch-map-card[data-missing="true"] {
   outline: 3px solid var(--red-9);
@@ -3256,7 +3263,9 @@ body,
   background: #fff;
   padding: 8px 12px;
   gap: 8px 14px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Колонка не уже поля даты: в узкой карточке сведения переносятся на
+     вторую строку, а не вылезают за рамку. */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .arm112-classifier {
