@@ -543,8 +543,8 @@ function ScenarioConstructor({ base }: { base?: EditableScenarioVersion }) {
                   <AlertTriangle size={16} />
                 </Callout.Icon>
                 <Callout.Text>
-                  Это не последняя версия сценария, и её правку backend не
-                  примет. Откройте актуальную версию.{" "}
+                  Это не последняя версия сценария, поэтому её нельзя
+                  изменить. Откройте актуальную версию.{" "}
                   <Button
                     type="button"
                     size="1"

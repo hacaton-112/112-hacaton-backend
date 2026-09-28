@@ -157,16 +157,16 @@ export function formatBrowserPhoneError(reason: unknown): string {
       message,
     )
   ) {
-    return "Телефон не подключился к Asterisk. Проверьте доступность защищённого WebSocket (WSS) и повторите попытку.";
+    return "Телефон не подключился к службе связи. Проверьте подключение к сети и повторите попытку.";
   }
 
   if (
     /register|registration|unauthorized|forbidden|\b40[13]\b/iu.test(message)
   ) {
-    return "Asterisk отклонил регистрацию телефона. Проверьте номер рабочего места и учётные данные SIP.";
+    return "Телефон рабочего места не прошёл регистрацию. Обратитесь к администратору.";
   }
 
-  return message || "Не удалось подключить телефон к Asterisk";
+  return message || "Не удалось подключить телефон";
 }
 
 /**
@@ -201,7 +201,7 @@ export function prepareBrowserPhoneWindow(): BrowserPhoneWindowSession {
           cleanup();
           reject(
             new Error(
-              "Окно телефона не зарегистрировалось в Asterisk за 15 секунд",
+              "Окно телефона не подготовилось к звонку за 15 секунд",
             ),
           );
         }, REGISTRATION_TIMEOUT_MS);

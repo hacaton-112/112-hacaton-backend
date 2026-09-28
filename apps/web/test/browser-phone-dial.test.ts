@@ -74,14 +74,17 @@ describe("browser phone errors", () => {
       new Error("WebSocket closed wss://pbx.internal.example/ws"),
     );
 
-    expect(message).toContain("WSS");
+    expect(message).toContain("службе связи");
+    expect(message).not.toMatch(/WSS|Asterisk|backend/iu);
     expect(message).not.toContain("pbx.internal.example");
   });
 
   test("explains rejected SIP registration", () => {
-    expect(
-      formatBrowserPhoneError(new Error("Registration rejected: 403")),
-    ).toContain("учётные данные SIP");
+    const message = formatBrowserPhoneError(
+      new Error("Registration rejected: 403"),
+    );
+    expect(message).toContain("администратору");
+    expect(message).not.toMatch(/SIP|Asterisk|backend/iu);
   });
 });
 
