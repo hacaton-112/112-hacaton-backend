@@ -775,6 +775,12 @@ body,
   outline-offset: -1px;
 }
 
+/* Длинное значение (ФИО с почтой) обрезается многоточием внутри поля, а не
+   растягивает поле поверх соседних колонок формы. */
+.reference-theme :where(.rt-SelectTrigger) {
+  min-width: 0;
+}
+
 .reference-theme :where(.rt-DialogContent, .rt-PopoverContent) {
   border: 1px solid var(--arm-line-dark);
   border-radius: 1px;
