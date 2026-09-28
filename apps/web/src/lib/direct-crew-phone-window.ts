@@ -2,8 +2,7 @@ import { z } from "zod";
 
 import { PHONE_WINDOW_LABEL, PHONE_WINDOW_URL } from "../config/routes";
 
-export const DIRECT_CREW_PHONE_CHANNEL_NAME =
-  "system112-dds-direct-crew-phone";
+export const DIRECT_CREW_PHONE_CHANNEL_NAME = "system112-dds-direct-crew-phone";
 
 export const DirectCrewPhoneHostMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("discover"), requestId: z.uuid() }).strict(),
@@ -66,6 +65,8 @@ export interface DirectCrewPhoneEntry {
 }
 
 export interface DirectCrewPhoneWindowSession {
+  /** Возвращает false, если пользователь уже закрыл окно. */
+  focus(): boolean;
   connect(accessToken: string): Promise<void>;
   setContext(
     exerciseId: string,
@@ -73,12 +74,21 @@ export interface DirectCrewPhoneWindowSession {
     canCall: boolean,
   ): void;
   onCallState(
-    handler: (
-      state: "connected" | "ended" | "error",
-      message?: string,
-    ) => void,
+    handler: (state: "connected" | "ended" | "error", message?: string) => void,
   ): () => void;
   dispose(): void;
+}
+
+/** Повторная кнопка телефона не создаёт второй handshake и второй канал. */
+export function reuseDirectCrewPhoneWindow(
+  session: DirectCrewPhoneWindowSession | null,
+  exerciseId: string,
+  crews: readonly DirectCrewPhoneEntry[],
+  canCall: boolean,
+): boolean {
+  if (!session?.focus()) return false;
+  session.setContext(exerciseId, crews, canCall);
+  return true;
 }
 
 const CONNECTION_TIMEOUT_MS = 15_000;
@@ -106,6 +116,11 @@ export function prepareDirectCrewPhoneWindow(): DirectCrewPhoneWindowSession {
   let disposed = false;
 
   return {
+    focus() {
+      if (disposed || popup.closed) return false;
+      popup.focus();
+      return true;
+    },
     async connect(accessToken) {
       if (disposed) throw new Error("Окно телефона уже закрыто");
 

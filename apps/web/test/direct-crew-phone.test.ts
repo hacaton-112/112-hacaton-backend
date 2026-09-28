@@ -1,9 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 
 import { DirectCrewCallServerEventSchema } from "../src/contracts/direct-crew-call";
 import {
   DirectCrewPhoneHostMessageSchema,
   DirectCrewPhoneWindowMessageSchema,
+  reuseDirectCrewPhoneWindow,
+  type DirectCrewPhoneWindowSession,
 } from "../src/lib/direct-crew-phone-window";
 import { shouldStreamCrewMicrophone } from "../src/services/direct-crew-phone.service";
 
@@ -66,5 +68,23 @@ describe("direct DDS crew phone protocol", () => {
     expect(shouldStreamCrewMicrophone(true, false, true)).toBe(true);
     expect(shouldStreamCrewMicrophone(false, false, true)).toBe(false);
     expect(shouldStreamCrewMicrophone(true, false, false)).toBe(false);
+  });
+
+  test("focuses the existing phone instead of opening another connection", () => {
+    const session = {
+      focus: mock(() => true),
+      connect: mock(async () => undefined),
+      setContext: mock(() => undefined),
+      onCallState: mock(() => () => undefined),
+      dispose: mock(() => undefined),
+    } satisfies DirectCrewPhoneWindowSession;
+    const crews = [{ callsign: "ПСЧ-12", phoneNumber: "1012" }];
+
+    expect(reuseDirectCrewPhoneWindow(session, exerciseId, crews, true)).toBe(
+      true,
+    );
+    expect(session.focus).toHaveBeenCalledTimes(1);
+    expect(session.setContext).toHaveBeenCalledWith(exerciseId, crews, true);
+    expect(session.connect).not.toHaveBeenCalled();
   });
 });

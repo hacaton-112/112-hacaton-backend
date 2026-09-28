@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DdsCrewHandoff } from "../../contracts/dds-exercise";
 import {
   prepareDirectCrewPhoneWindow,
+  reuseDirectCrewPhoneWindow,
   type DirectCrewPhoneWindowSession,
 } from "../../lib/direct-crew-phone-window";
 import { getAccessToken } from "../../stores/auth.store";
@@ -27,6 +28,7 @@ export function DdsPhonePanel({
   const [opening, setOpening] = useState(false);
   const [callActive, setCallActive] = useState(false);
   const phoneWindow = useRef<DirectCrewPhoneWindowSession | null>(null);
+  const openingRef = useRef(false);
   const unsubscribeCallState = useRef<(() => void) | null>(null);
   const callableCrews = useMemo(
     () =>
@@ -53,8 +55,20 @@ export function DdsPhonePanel({
   }, [exerciseId, callableCrews, canCall]);
 
   const openPhone = async () => {
+    if (
+      reuseDirectCrewPhoneWindow(
+        phoneWindow.current,
+        exerciseId,
+        callableCrews,
+        canCall,
+      )
+    )
+      return;
+    if (openingRef.current) return;
+
     setWindowError(undefined);
     setOpening(true);
+    openingRef.current = true;
     let session: DirectCrewPhoneWindowSession | undefined;
 
     try {
@@ -62,10 +76,11 @@ export function DdsPhonePanel({
       if (!token) throw new Error("Сессия входа истекла. Войдите снова.");
 
       session = prepareDirectCrewPhoneWindow();
+      // Сохраняем сразу: повторный клик во время handshake только вернёт
+      // фокус этому окну и не запустит второе подключение.
+      phoneWindow.current = session;
       await session.connect(token);
       unsubscribeCallState.current?.();
-      phoneWindow.current?.dispose();
-      phoneWindow.current = session;
       session.setContext(exerciseId, callableCrews, canCall);
       unsubscribeCallState.current = session.onCallState((state, message) => {
         setCallActive(state === "connected");
@@ -76,12 +91,14 @@ export function DdsPhonePanel({
       });
     } catch (reason) {
       session?.dispose();
+      if (phoneWindow.current === session) phoneWindow.current = null;
       setWindowError(
         reason instanceof Error
           ? reason.message
           : "Не удалось открыть окно телефона",
       );
     } finally {
+      openingRef.current = false;
       setOpening(false);
     }
   };
@@ -126,7 +143,7 @@ export function DdsPhonePanel({
         {canCall
           ? handoff.callMode === "progress_check"
             ? "Позвоните выбранному наряду и получите контрольный доклад."
-            : "Выберите наряд и передайте карточку голосом. SIP-регистрация не требуется."
+            : "Выберите наряд и передайте карточку голосом."
           : "Откройте телефон заранее; звонок станет доступен после принятия карточки."}
       </Text>
 
