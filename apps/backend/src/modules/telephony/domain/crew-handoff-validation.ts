@@ -223,6 +223,30 @@ const tokens = (value: string): readonly string[] => {
   return [...lexical, ...spokenNumberTokens(words)];
 };
 
+const editDistance = (left: string, right: string): number => {
+  let previous = Array.from(
+    { length: right.length + 1 },
+    (_, index) => index,
+  );
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitution =
+        previous[rightIndex - 1]! +
+        (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1);
+      current[rightIndex] = Math.min(
+        previous[rightIndex]! + 1,
+        current[rightIndex - 1]! + 1,
+        substitution,
+      );
+    }
+    previous = current;
+  }
+
+  return previous[right.length]!;
+};
+
 /**
  * ASR и падежи меняют окончания русских слов. Сравниваем длинную общую основу,
  * но не прибегаем к вероятностной модели: одинаковый текст всегда даёт тот же
@@ -233,7 +257,20 @@ const tokenMatches = (expected: string, actual: string): boolean => {
   if (/^\d+$/u.test(expected) || /^\d+$/u.test(actual)) return false;
 
   const common = Math.min(expected.length, actual.length, 5);
-  return common >= 4 && expected.slice(0, common) === actual.slice(0, common);
+  if (common >= 4 && expected.slice(0, common) === actual.slice(0, common)) {
+    return true;
+  }
+
+  // ASR иногда заменяет одну гласную или согласную внутри длинного слова.
+  // Допускаем малую редакционную ошибку только для слов, но никогда для чисел:
+  // номер дома и количество пострадавших обязаны совпасть точно.
+  const longest = Math.max(expected.length, actual.length);
+  const tolerance = longest >= 8 ? 2 : longest >= 4 ? 1 : 0;
+  return (
+    tolerance > 0 &&
+    Math.abs(expected.length - actual.length) <= tolerance &&
+    editDistance(expected, actual) <= tolerance
+  );
 };
 
 const countMatches = (
