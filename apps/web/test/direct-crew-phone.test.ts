@@ -5,6 +5,7 @@ import {
   DirectCrewPhoneHostMessageSchema,
   DirectCrewPhoneWindowMessageSchema,
 } from "../src/lib/direct-crew-phone-window";
+import { shouldStreamCrewMicrophone } from "../src/services/direct-crew-phone.service";
 
 const requestId = "68e4085a-a84f-435e-804f-8a242db80385";
 const exerciseId = "a95237ec-cf7c-4139-a96f-c6201800fd4f";
@@ -58,5 +59,12 @@ describe("direct DDS crew phone protocol", () => {
     });
 
     expect(event.type).toBe("audio.start");
+  });
+
+  test("does not send the crew reply from speakers back to ASR", () => {
+    expect(shouldStreamCrewMicrophone(true, true, true)).toBe(false);
+    expect(shouldStreamCrewMicrophone(true, false, true)).toBe(true);
+    expect(shouldStreamCrewMicrophone(false, false, true)).toBe(false);
+    expect(shouldStreamCrewMicrophone(true, false, false)).toBe(false);
   });
 });

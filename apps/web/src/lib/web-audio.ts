@@ -252,6 +252,17 @@ export class TelephonePlayer {
       this.context.state !== "closed" &&
       this.preparedOutputKey === outputKey
     ) {
+      const resolved = await resolveDevice(
+        "audiooutput",
+        savedOutputDevice,
+        savedOutputLabel,
+      );
+      const outputDevice = requireSelectedOutputDevice(
+        savedOutputDevice,
+        savedOutputLabel,
+        resolved,
+      );
+      await this.refreshOutputRoute(this.context, outputDevice);
       await this.context.resume();
       if (this.context.state !== "running") {
         throw new Error(
@@ -302,7 +313,9 @@ export class TelephonePlayer {
           this.outputAudio = audio;
           this.outputNode = destination;
         } else {
-          this.outputNode = context.destination;
+          throw new Error(
+            "Этот браузер не поддерживает выбор аудиовыхода. Выберите гарнитуру системным устройством по умолчанию.",
+          );
         }
       } else {
         this.outputNode = context.destination;
@@ -380,6 +393,39 @@ export class TelephonePlayer {
     this.generation += 1;
     this.node?.disconnect();
     this.node = null;
+  }
+
+  /**
+   * Браузер может вернуть существующий AudioContext на системный выход после
+   * переподключения USB/Bluetooth-гарнитуры. Поэтому перед каждой репликой
+   * повторно назначаем уже выбранное устройство, не создавая новый контекст.
+   */
+  private async refreshOutputRoute(
+    context: AudioContext,
+    outputDevice: string | null,
+  ): Promise<void> {
+    if (outputDevice === null) return;
+
+    const sinkContext = context as AudioContext & {
+      setSinkId?: (sinkId: string) => Promise<void>;
+    };
+    if (sinkContext.setSinkId) {
+      await sinkContext.setSinkId(outputDevice);
+      return;
+    }
+
+    const sinkAudio = this.outputAudio as
+      | (HTMLAudioElement & {
+          setSinkId?: (sinkId: string) => Promise<void>;
+        })
+      | null;
+    if (!sinkAudio?.setSinkId) {
+      throw new Error(
+        "Выбранный аудиовыход больше недоступен. Обновите список наушников и повторите проверку звука.",
+      );
+    }
+    await sinkAudio.setSinkId(outputDevice);
+    await sinkAudio.play();
   }
 }
 
