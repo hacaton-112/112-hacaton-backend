@@ -34,14 +34,15 @@ export function CategoryChip({ category }: { category: string }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-semibold"
+      className="inline-flex max-w-full items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-semibold"
       style={{
         backgroundColor: `var(--${tone}-a3)`,
         color: `var(--${tone}-11)`,
       }}
+      title={label}
     >
-      <Icon size={12} aria-hidden />
-      {label}
+      <Icon size={12} className="shrink-0" aria-hidden />
+      <span className="truncate">{label}</span>
     </span>
   );
 }

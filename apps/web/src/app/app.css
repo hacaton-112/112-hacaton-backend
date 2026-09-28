@@ -775,6 +775,12 @@ body,
   outline-offset: -1px;
 }
 
+/* Длинное значение (ФИО с почтой) обрезается многоточием внутри поля, а не
+   растягивает поле поверх соседних колонок формы. */
+.reference-theme :where(.rt-SelectTrigger) {
+  min-width: 0;
+}
+
 .reference-theme :where(.rt-DialogContent, .rt-PopoverContent) {
   border: 1px solid var(--arm-line-dark);
   border-radius: 1px;
@@ -1243,6 +1249,13 @@ body,
   border-color: var(--red-9);
   background: var(--red-a2);
   box-shadow: 0 0 0 2px var(--red-a4);
+}
+
+/* У края прокручиваемой колонки карточки 112 выступ рамки прокручивал бы
+   колонку вбок, поэтому рамка там прилегает к полю. */
+.arm112-column > .arm-required-target {
+  margin-inline: 0;
+  padding-inline: 0;
 }
 
 .dispatch-services-card[data-missing="true"],
@@ -3250,7 +3263,9 @@ body,
   background: #fff;
   padding: 8px 12px;
   gap: 8px 14px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Колонка не уже поля даты: в узкой карточке сведения переносятся на
+     вторую строку, а не вылезают за рамку. */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .arm112-classifier {

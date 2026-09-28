@@ -99,8 +99,8 @@ export function DdsLessonsPanel() {
           </Button>
         </Flex>
 
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <label className="grid gap-1">
+        <div className="grid items-end gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <label className="grid min-w-0 gap-1">
             <Text size="2" weight="bold">
               Группа или ученик
             </Text>
@@ -122,7 +122,7 @@ export function DdsLessonsPanel() {
               </Select.Content>
             </Select.Root>
           </label>
-          <label className="grid gap-1">
+          <label className="grid min-w-0 gap-1">
             <Text size="2" weight="bold">
               Название
             </Text>
@@ -131,7 +131,7 @@ export function DdsLessonsPanel() {
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
-          <label className="grid gap-1">
+          <label className="grid min-w-0 gap-1">
             <Text size="2" weight="bold">
               Источник карточек
             </Text>
@@ -149,8 +149,8 @@ export function DdsLessonsPanel() {
               </Select.Content>
             </Select.Root>
           </label>
-          <Flex gap="2">
-            <label className="grid flex-1 gap-1">
+          <Flex gap="2" align="end" className="min-w-0">
+            <label className="grid min-w-0 flex-1 gap-1">
               <Text size="2" weight="bold">
                 Норматив, сек.
               </Text>
@@ -162,7 +162,7 @@ export function DdsLessonsPanel() {
                 onChange={(event) => setNorm(event.target.value)}
               />
             </label>
-            <label className="grid flex-1 gap-1">
+            <label className="grid min-w-0 flex-1 gap-1">
               <Text size="2" weight="bold">
                 Проходной балл
               </Text>

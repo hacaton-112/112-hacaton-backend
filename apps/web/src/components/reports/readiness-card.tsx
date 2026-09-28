@@ -27,7 +27,7 @@ export function ReadinessCard({
   prediction: ReadinessPrediction;
 }) {
   return (
-    <Card size="2" variant="surface" className="grid gap-3">
+    <Card size="2" variant="surface" className="grid shrink-0 gap-3">
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <div>
           <Heading size="3">Готовность к аттестации</Heading>

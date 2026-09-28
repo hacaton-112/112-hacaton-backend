@@ -56,7 +56,7 @@ export function TelephonyWorkstationsCard({
   };
 
   return (
-    <Card size="3" variant="classic" className="grid gap-3">
+    <Card size="3" variant="classic" className="grid shrink-0 gap-3">
       <Flex align="center" gap="2">
         <PhoneCall size={18} />
         <Heading size="4">Рабочие места ДДС</Heading>

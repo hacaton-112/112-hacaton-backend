@@ -1,3 +1,4 @@
+import { INCIDENT_CARD_FIELDS } from "@/drizzle/schema";
 import type { InstructorReportAttempt } from "@/modules/reports/dto/instructor-report.dto";
 import { summarizeGroupAnalytics } from "@/modules/reports/domain/group-analytics";
 
@@ -70,5 +71,22 @@ describe(summarizeGroupAnalytics.name, () => {
     expect(result.ddsReferenceItems[0]).toMatchObject({ id: "address", missRate: 100 });
     expect(result.processErrors[0].students[0].count).toBe(1);
     expect(result.heatmap.rows[0].values).toEqual([50]);
+  });
+
+  it("names every scenario card field in Russian", () => {
+    const withAllFields = attempt("2026-01-01T10:00:00.000Z", true);
+    const report = summarizeGroupAnalytics(
+      [{
+        ...withAllFields,
+        analysis: {
+          ...withAllFields.analysis,
+          fields: INCIDENT_CARD_FIELDS.map((field) => ({ field, matched: true, isRequired: false })),
+        },
+      }],
+      [],
+    );
+
+    const untranslated = report.heatmap.fields.filter(({ field, label }) => label === field);
+    expect(untranslated).toEqual([]);
   });
 });

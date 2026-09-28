@@ -29,6 +29,16 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   deaths_total: "Всего погибших",
   deaths_children: "Погибшие дети",
   description: "Описание происшествия",
+  // Поля эталонной карточки сценария (INCIDENT_CARD_FIELDS).
+  object_type: "Тип объекта",
+  landmarks: "Ориентиры",
+  caller_type: "Тип заявителя",
+  dispatcher_notes: "Примечания диспетчера",
+  category: "Категория происшествия",
+  clarification: "Уточнение",
+  started_at: "Время происшествия",
+  children_count: "Число детей",
+  victims_condition: "Состояние пострадавших",
 };
 
 const average = (values: readonly number[]) =>
