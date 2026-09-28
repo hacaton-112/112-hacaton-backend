@@ -1,3 +1,5 @@
+import { labelFor } from "../../lib/labels";
+import { DDS_STATUS_LABELS } from "./dds-formatters";
 import { Badge, Card, Flex, Heading, Text } from "@bolid-ui/themes";
 
 import type {
@@ -10,18 +12,6 @@ const ERROR_LABELS: Record<DdsProcessErrorType, string> = {
   unexpected_refusal: "Отказ по карточке, которую нужно было отработать",
   missed_refusal: "Карточка отработана, хотя ожидался отказ",
   unfinished: "Карточка не закрыта к концу занятия",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Добавлена",
-  accepted: "Принята",
-  not_accepted: "Не принята",
-  responding: "Реагирование начато",
-  arrived: "Прибытие",
-  working: "Работы ведутся",
-  completed: "Работы завершены",
-  refused: "Отказ",
-  lesson_finished: "Занятие завершено преподавателем",
 };
 
 const seconds = (value: number | null) =>
@@ -47,7 +37,7 @@ export function DdsReportCardDetails({ card }: { card: DdsReportCard }) {
         <div className="grid gap-2 sm:grid-cols-2">
           <Text size="2">
             Итоговый статус:{" "}
-            {STATUS_LABELS[card.finalStatus] ?? card.finalStatus}
+            {labelFor(DDS_STATUS_LABELS, card.finalStatus, "Другой статус")}
           </Text>
           <Text size="2">
             Исход по эталону:{" "}
@@ -83,7 +73,7 @@ export function DdsReportCardDetails({ card }: { card: DdsReportCard }) {
           {card.timeline.map((event) => (
             <Flex key={event.sequence} justify="between" gap="3" wrap="wrap">
               <Text size="2">
-                {event.sequence}. {STATUS_LABELS[event.status] ?? event.status}
+                {event.sequence}. {labelFor(DDS_STATUS_LABELS, event.status, "Другой статус")}
                 {event.comment ? ` — ${event.comment}` : ""}
               </Text>
               <Text size="1" color="gray">

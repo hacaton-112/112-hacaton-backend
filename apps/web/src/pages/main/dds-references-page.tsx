@@ -25,7 +25,9 @@ import type {
   DdsReferenceListItem,
   DdsReferenceStatus,
 } from "../../contracts/dds-reference";
+import { CATEGORY_LABELS } from "../../contracts/scenario-authoring";
 import { DATA_TABLE_DEFAULTS } from "../../lib/data-table";
+import { labelFor } from "../../lib/labels";
 import { ddsReferenceService } from "../../services/dds-reference.service";
 
 const STATUS_LABELS = {
@@ -135,7 +137,12 @@ export default function DdsReferencesPage() {
       },
       { field: "code", headerName: "Код", width: 130 },
       { field: "title", headerName: "Сценарий", flex: 1, minWidth: 220 },
-      { field: "category", headerName: "Категория", width: 150 },
+      {
+        field: "category",
+        headerName: "Категория",
+        width: 180,
+        valueFormatter: ({ value }) => labelFor(CATEGORY_LABELS, value, "Прочее"),
+      },
       {
         field: "status",
         headerName: "Эталон",

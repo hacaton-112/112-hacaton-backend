@@ -1,3 +1,4 @@
+import { labelFor } from "../../lib/labels";
 import { DataTableReact } from "@bolid-ui/data-table";
 import type {
   ColDef,
@@ -145,7 +146,7 @@ export default function DdsArchivePage() {
       headerName: "Класс",
       minWidth: 120,
       valueGetter: ({ data }) =>
-        data ? (DDS_CATEGORY_LABELS[data.category] ?? data.category) : "",
+        data ? labelFor(DDS_CATEGORY_LABELS, data.category, "прочее") : "",
     },
     {
       colId: "service",

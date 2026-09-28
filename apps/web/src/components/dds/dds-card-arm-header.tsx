@@ -1,3 +1,4 @@
+import { labelFor } from "../../lib/labels";
 import {
   Bell,
   ChevronUp,
@@ -167,7 +168,7 @@ export function DdsCardArmHeader({
             </div>
             <div className="arm-card-block-row">
               Класс.:{" "}
-              <b>{DDS_CATEGORY_LABELS[card.category] ?? card.category}</b> ;
+              <b>{labelFor(DDS_CATEGORY_LABELS, card.category, "прочее")}</b> ;
             </div>
             <div className="arm-card-block-row arm-card-block-row-muted">
               [ВИС] Класс.:

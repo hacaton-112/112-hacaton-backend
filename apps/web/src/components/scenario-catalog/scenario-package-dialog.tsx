@@ -1,3 +1,4 @@
+import { labelFor } from "../../lib/labels";
 import { DataTableReact } from "@bolid-ui/data-table";
 import type { ColDef } from "@bolid-ui/data-table/community";
 import { Button, Callout, Dialog, Flex, Spinner, Text } from "@bolid-ui/themes";
@@ -35,7 +36,7 @@ export function ScenarioPackageDialog({
         headerName: "Результат проверки",
         minWidth: 230,
         valueFormatter: ({ value }) =>
-          OUTCOME_LABELS[value as keyof typeof OUTCOME_LABELS] ?? value,
+          labelFor(OUTCOME_LABELS, value),
       },
       { field: "reason", headerName: "Причина", minWidth: 280 },
     ],

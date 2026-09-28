@@ -1,6 +1,8 @@
 import { Badge, Card, Flex, Grid, Heading, Text } from "@bolid-ui/themes";
 
 import type { InstructorReport } from "../../contracts/reports";
+import { labelFor } from "../../lib/labels";
+import { DDS_STATUS_LABELS } from "../dds/dds-formatters";
 import type { DDS_PROCESS_ERROR_TYPES } from "../../contracts/dds-report";
 
 type ProcessError = (typeof DDS_PROCESS_ERROR_TYPES)[number];
@@ -10,12 +12,6 @@ const DDS_PROCESS_ERROR_LABELS: Record<ProcessError, string> = {
   missed_refusal: "Пропущен ожидаемый отказ",
   unfinished: "Карточка не завершена",
 };
-const DDS_STATUS_LABELS: Record<string, string> = {
-  completed: "Завершено",
-  refused: "Отказ",
-  lesson_finished: "Закрыто преподавателем",
-};
-
 const value = (number: number | null, suffix = "") =>
   number === null ? "—" : `${number}${suffix}`;
 
@@ -63,7 +59,7 @@ export function InstructorDdsSummary({
         <Flex gap="2" wrap="wrap" mt="2">
           {dds.outcomes.map((item) => (
             <Badge key={item.status} variant="soft">
-              {DDS_STATUS_LABELS[item.status] ?? item.status}: {item.count}
+              {labelFor(DDS_STATUS_LABELS, item.status, "Другой статус")}: {item.count}
             </Badge>
           ))}
         </Flex>
