@@ -92,7 +92,7 @@ export function DdsCardArmHeader({
           </span>
           <strong>—</strong>
         </div>
-        <div className="arm-card-incident">
+        <div className="arm-card-incident" data-tour="dds-card-summary">
           <div>
             <strong>Происшествие {number}</strong>
             <span>Сохр. {dateTime(exercise.createdAt)}</span>
@@ -122,7 +122,7 @@ export function DdsCardArmHeader({
       </div>
 
       <div className="arm-card-body">
-        <div className="arm-card-left">
+        <div className="arm-card-left" data-tour="dds-incident-details">
           <div className="arm-card-strip">
             <span>ФИО заявителя</span>
             <strong>{card.callerName}</strong>
@@ -142,7 +142,7 @@ export function DdsCardArmHeader({
           </div>
         </div>
 
-        <div className="arm-card-right">
+        <div className="arm-card-right" data-tour="dds-classification">
           <div className="arm-card-flags">
             <span>
               Пострадавшие:{" "}
@@ -176,7 +176,7 @@ export function DdsCardArmHeader({
         </div>
       </div>
 
-      <div className="arm-card-service-stage">
+      <div className="arm-card-service-stage" data-tour="dds-services">
         {serviceOverlay}
         {/* Плитки переносятся строкой выше, как в АРМ: wrap-reverse в стилях. */}
         <div className="arm-card-services" aria-label="Оповещённые службы">

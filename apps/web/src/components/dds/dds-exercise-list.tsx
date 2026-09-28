@@ -24,7 +24,12 @@ export function DdsExerciseList({
   }
 
   return (
-    <div className="arm-dds-table" role="table" aria-label="Происшествия">
+    <div
+      className="arm-dds-table"
+      role="table"
+      aria-label="Происшествия"
+      data-tour="dds-queue-table"
+    >
       <div className="arm-dds-table-head" role="row">
         <span />
         <span>Связи</span>

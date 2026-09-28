@@ -3,6 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { DdsCardArmHeader } from "../src/components/dds/dds-card-arm-header";
 import { DdsExerciseList } from "../src/components/dds/dds-exercise-list";
+import {
+  DDS_CARD_TOUR_STEPS,
+  DDS_QUEUE_TOUR_STEPS,
+  ddsTourSteps,
+} from "../src/components/dds/dds-tour-steps";
 import type { DdsExercise } from "../src/contracts/dds-exercise";
 
 const exercise = {
@@ -69,6 +74,7 @@ describe("DDS workplace", () => {
     expect(html).toContain("Статус службы");
     expect(html).toContain("Описание:");
     expect(html).toContain("Автомобиль задел пешехода во дворе.");
+    expect(html).toContain('data-tour="dds-queue-table"');
   });
 
   it("keeps service actions and the phone control inside the incident card", () => {
@@ -92,5 +98,21 @@ describe("DDS workplace", () => {
     expect(html).toContain("Контекст службы");
     expect(html).toContain('aria-label="Закрыть карточку"');
     expect(html).toContain("Скорая помощь");
+    expect(html).toContain('data-tour="dds-card-summary"');
+    expect(html).toContain('data-tour="dds-incident-details"');
+    expect(html).toContain('data-tour="dds-classification"');
+    expect(html).toContain('data-tour="dds-services"');
+  });
+
+  it("provides separate tours for the queue and an opened card", () => {
+    expect(ddsTourSteps("queue")).toBe(DDS_QUEUE_TOUR_STEPS);
+    expect(ddsTourSteps("card")).toBe(DDS_CARD_TOUR_STEPS);
+    expect(DDS_QUEUE_TOUR_STEPS).toHaveLength(4);
+    expect(DDS_CARD_TOUR_STEPS).toHaveLength(8);
+    expect(
+      DDS_CARD_TOUR_STEPS.some(
+        (step) => step.element === '[data-tour="dds-phone"]',
+      ),
+    ).toBe(true);
   });
 });

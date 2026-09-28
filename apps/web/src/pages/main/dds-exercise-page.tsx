@@ -18,6 +18,7 @@ import { DdsInstructorPanel } from "../../components/dds/dds-instructor-panel";
 import { DdsCardPanel } from "../../components/dds/dds-card-panel";
 import { DdsExerciseList } from "../../components/dds/dds-exercise-list";
 import { DdsActiveLesson } from "../../components/dds/dds-active-lesson";
+import { DdsTour } from "../../components/dds/dds-tour";
 import type {
   DdsExercise,
   DdsResponseStatus,
@@ -116,7 +117,7 @@ function DdsLearnerPage() {
         data-card-focused={isCardFocused || undefined}
       >
         {!isCardFocused && (
-          <header className="arm-dds-search-header">
+          <header className="arm-dds-search-header" data-tour="dds-search">
             <div>
               <TextField.Root
                 className="arm-dds-primary-search"
@@ -140,7 +141,10 @@ function DdsLearnerPage() {
                 </button>
               </div>
             </div>
-            <DdsClock />
+            <div className="arm-dds-search-tools">
+              <DdsTour view="queue" />
+              <DdsClock />
+            </div>
           </header>
         )}
 
@@ -185,7 +189,11 @@ function DdsLearnerPage() {
           )}
 
         {!isCardFocused && (
-          <section className="arm-dds-queue" aria-labelledby="dds-queue-title">
+          <section
+            className="arm-dds-queue"
+            aria-labelledby="dds-queue-title"
+            data-tour="dds-queue"
+          >
             <div className="arm-dds-section-title">
               <strong id="dds-queue-title">
                 Список происшествий <ChevronUp size={15} />

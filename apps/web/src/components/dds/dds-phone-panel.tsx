@@ -105,7 +105,7 @@ export function DdsPhonePanel({
 
   if (compact) {
     return (
-      <div className="arm-dds-phone-compact">
+      <div className="arm-dds-phone-compact" data-tour="dds-phone">
         <Button
           type="button"
           size="1"
