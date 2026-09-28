@@ -101,7 +101,10 @@ export default function ReportsPage() {
   const targetError = groups.error ?? students.error;
 
   return (
-    <main className="grid h-full min-h-0 content-start gap-4 overflow-auto p-4 md:p-6">
+    // Строки по высоте содержимого: у сетки фиксированная высота, а Card
+    // обрезает содержимое, поэтому автоматические строки сжимались бы до
+    // заголовков и отчёт наезжал на форму.
+    <main className="grid h-full min-h-0 auto-rows-max content-start gap-4 overflow-auto p-4 md:p-6">
       <div>
         <Heading size="6">Отчёты преподавателя</Heading>
         <Text as="p" size="2" color="gray" mt="1">

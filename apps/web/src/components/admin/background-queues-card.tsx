@@ -63,7 +63,7 @@ export function BackgroundQueuesCard() {
     refetchInterval: 3_000,
   });
   return (
-    <Card size="2" className="grid gap-3">
+    <Card size="2" className="grid shrink-0 gap-3">
       <div>
         <Heading size="4">Фоновые очереди</Heading>
         <Text color="gray" size="2">

@@ -22,7 +22,7 @@ export function InstructorDdsSummary({
 }) {
   if (dds.cards === 0) {
     return (
-      <Card size="2" variant="surface">
+      <Card size="2" variant="surface" className="shrink-0">
         <Heading size="3">Работа с карточками ДДС</Heading>
         <Text as="p" color="gray" size="2" mt="2">
           За выбранный период карточки ДДС не обрабатывались.
@@ -40,7 +40,7 @@ export function InstructorDdsSummary({
   ];
 
   return (
-    <Card size="2" variant="surface" className="grid gap-4">
+    <Card size="2" variant="surface" className="grid shrink-0 gap-4">
       <Heading size="3">Работа с карточками ДДС</Heading>
       <div className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-5">
         {metrics.map(([label, metric]) => (
@@ -59,7 +59,8 @@ export function InstructorDdsSummary({
         <Flex gap="2" wrap="wrap" mt="2">
           {dds.outcomes.map((item) => (
             <Badge key={item.status} variant="soft">
-              {labelFor(DDS_STATUS_LABELS, item.status, "Другой статус")}: {item.count}
+              {labelFor(DDS_STATUS_LABELS, item.status, "Другой статус")}:{" "}
+              {item.count}
             </Badge>
           ))}
         </Flex>
