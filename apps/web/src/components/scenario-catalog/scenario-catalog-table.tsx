@@ -123,7 +123,8 @@ export function ScenarioCatalogTable({
       {
         colId: "category",
         headerName: "Категория",
-        minWidth: 150,
+        // Под самую длинную подпись — «Медицинская помощь».
+        minWidth: 200,
         valueGetter: ({ data }) =>
           data?.kind === "scenario" ? data.scenario.category : "",
         cellRenderer: ({ data }: ICellRendererParams<CatalogRow>) =>

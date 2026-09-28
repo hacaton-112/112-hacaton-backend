@@ -99,10 +99,12 @@ export default function AdminPage() {
       minWidth: 220,
       cellRenderer: ({ data }: ICellRendererParams<AuthUser>) =>
         data ? (
-          <Flex align="center" gap="2" className="h-full">
-            <Text weight="medium">{data.fullName}</Text>
+          <Flex align="center" gap="2" className="h-full min-w-0">
+            <Text weight="medium" truncate title={data.fullName}>
+              {data.fullName}
+            </Text>
             {data.id === currentUserId && (
-              <Badge color="gray" variant="soft">
+              <Badge color="gray" variant="soft" className="shrink-0">
                 Вы
               </Badge>
             )}
