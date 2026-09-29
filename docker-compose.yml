@@ -32,11 +32,33 @@ services:
   # и векторные тайлы Москвы с областью из maps/. Наружу порт не публикуется —
   # клиент ходит через gateway по /maps/, иначе страница по HTTPS не может
   # загрузить тайлы по HTTP.
+  # Архив тайлов (~470 МБ) в Git не хранится. Если его нет в maps/data,
+  # он скачивается один раз перед стартом TileServer.
+  map-data:
+    profiles: ["app", "maps"]
+    image: curlimages/curl:8.16.0
+    container_name: system-112-training-map-data
+    user: "0:0"
+    environment:
+      MAP_FILE: /data/moscow-oblast.mbtiles
+      MAP_URL: ${MAP_TILES_ARCHIVE_URL:-https://drive.usercontent.google.com/download?id=1rFBt7RPkoCD4-t00WETjAdT_5nWUCXFl&export=download&confirm=t}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -s "$$MAP_FILE" ]; then exit 0; fi;
+        curl -fL --retry 10 --retry-all-errors --retry-delay 3 -sS -o "$$MAP_FILE.part" "$$MAP_URL" &&
+        mv "$$MAP_FILE.part" "$$MAP_FILE"
+    volumes:
+      - ./maps/data:/data
+
   tileserver:
     profiles: ["app", "maps"]
     image: ${MAP_TILESERVER_IMAGE:-maptiler/tileserver-gl:v5.6.0}
     container_name: system-112-training-tileserver
     restart: unless-stopped
+    depends_on:
+      map-data:
+        condition: service_completed_successfully
     command:
       - "-c"
       - ${MAP_TILESERVER_CONFIG:-/data/config.json}

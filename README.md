@@ -242,7 +242,7 @@ TileServer из своих тайлов, адрес по точке считае
 
 ```powershell
 Copy-Item .env.example .env
-# После настройки .env и размещения карты (модели скачаются сами):
+# После настройки .env (модели и карта скачаются сами при первом запуске):
 docker compose --profile app up -d --build
 ```
 
