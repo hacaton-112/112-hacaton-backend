@@ -317,6 +317,91 @@ export default function DirectCrewPhonePage() {
           )}
         </div>
 
+        {crews.length > 0 && !callInProgress && (
+          <div className="grid gap-1" aria-label="Наряды по карточке">
+            <Text size="1" color="gray">
+              Наряды по карточке
+            </Text>
+            {crews.map((crew) => (
+              <Button
+                key={crew.phoneNumber}
+                size="2"
+                variant={number === crew.phoneNumber ? "solid" : "soft"}
+                onClick={() => setNumber(crew.phoneNumber)}
+              >
+                {crew.callsign} · {crew.phoneNumber}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {crews.length > 0 && !callInProgress && (
+          <div className="grid gap-2" aria-label="Набор номера наряда">
+            <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
+              <Text as="p" size="1" color="gray">
+                Номер наряда
+              </Text>
+              <Text as="p" size="6" weight="bold" className="font-mono">
+                {number || "—"}
+              </Text>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {DIAL_KEYS.map((key) => (
+                <Button
+                  key={key}
+                  variant="soft"
+                  color="gray"
+                  size="3"
+                  onClick={() =>
+                    setNumber((current) => `${current}${key}`.slice(0, 12))
+                  }
+                >
+                  {key}
+                </Button>
+              ))}
+              <Button
+                aria-label="Стереть цифру"
+                variant="soft"
+                color="gray"
+                size="3"
+                onClick={() => setNumber((current) => current.slice(0, -1))}
+              >
+                ←
+              </Button>
+            </div>
+            <Button
+              color="green"
+              size="3"
+              disabled={!canDial}
+              onClick={startCall}
+            >
+              <PhoneCall size={18} /> Позвонить
+            </Button>
+            {!canCall && (
+              <Text size="1" color="gray">
+                Сначала примите карточку в рабочем месте.
+              </Text>
+            )}
+            {number && !offeredNumber && (
+              <Text size="1" color="amber">
+                Для этой карточки можно вызвать только наряд из списка.
+              </Text>
+            )}
+          </div>
+        )}
+
+        {state === "connected" && (
+          <Button
+            color="red"
+            size="3"
+            onClick={() => void phoneRef.current?.end()}
+          >
+            <PhoneOff size={18} /> Завершить разговор
+          </Button>
+        )}
+
+        {/* Звук настраивают реже, чем звонят: блок стоит под телефоном,
+            чтобы наряд и клавиатура были сразу под состоянием. */}
         <div className="border-gray-6 grid gap-3 border p-3">
           <Flex align="center" justify="between" gap="3">
             <Flex align="center" gap="2" minWidth="0">
@@ -458,89 +543,6 @@ export default function DirectCrewPhonePage() {
             </Button>
           )}
         </div>
-
-        {crews.length > 0 && !callInProgress && (
-          <div className="grid gap-1" aria-label="Наряды по карточке">
-            <Text size="1" color="gray">
-              Наряды по карточке
-            </Text>
-            {crews.map((crew) => (
-              <Button
-                key={crew.phoneNumber}
-                size="2"
-                variant={number === crew.phoneNumber ? "solid" : "soft"}
-                onClick={() => setNumber(crew.phoneNumber)}
-              >
-                {crew.callsign} · {crew.phoneNumber}
-              </Button>
-            ))}
-          </div>
-        )}
-
-        {crews.length > 0 && !callInProgress && (
-          <div className="grid gap-2" aria-label="Набор номера наряда">
-            <div className="bg-gray-12 rounded-(--radius-2) px-4 py-3 text-white">
-              <Text as="p" size="1" color="gray">
-                Номер наряда
-              </Text>
-              <Text as="p" size="6" weight="bold" className="font-mono">
-                {number || "—"}
-              </Text>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {DIAL_KEYS.map((key) => (
-                <Button
-                  key={key}
-                  variant="soft"
-                  color="gray"
-                  size="3"
-                  onClick={() =>
-                    setNumber((current) => `${current}${key}`.slice(0, 12))
-                  }
-                >
-                  {key}
-                </Button>
-              ))}
-              <Button
-                aria-label="Стереть цифру"
-                variant="soft"
-                color="gray"
-                size="3"
-                onClick={() => setNumber((current) => current.slice(0, -1))}
-              >
-                ←
-              </Button>
-            </div>
-            <Button
-              color="green"
-              size="3"
-              disabled={!canDial}
-              onClick={startCall}
-            >
-              <PhoneCall size={18} /> Позвонить
-            </Button>
-            {!canCall && (
-              <Text size="1" color="gray">
-                Сначала примите карточку в рабочем месте.
-              </Text>
-            )}
-            {number && !offeredNumber && (
-              <Text size="1" color="amber">
-                Для этой карточки можно вызвать только наряд из списка.
-              </Text>
-            )}
-          </div>
-        )}
-
-        {state === "connected" && (
-          <Button
-            color="red"
-            size="3"
-            onClick={() => void phoneRef.current?.end()}
-          >
-            <PhoneOff size={18} /> Завершить разговор
-          </Button>
-        )}
 
         {transcripts.length > 0 && (
           <div className="grid gap-1">
