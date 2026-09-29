@@ -1,15 +1,29 @@
 # Local GGUF models
 
-Place these two large model files in this directory before starting the local
-Compose stack:
+Both language models download automatically. When `local-llm` or `tools-llm`
+starts and its model file is missing, the container fetches it once from the
+project's [Google Drive folder](https://drive.google.com/drive/folders/1dVX4nAiCedEf_GF9W5mkmKWmy6c1Jp-C).
+The next start reuses the file. The healthcheck allows 30 minutes for the
+first download.
 
-- `caller.gguf` — our fine-tuned Qwen3 dialogue model. Obtain the approved
-  training export from the project maintainers.
-- `gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf` — the tool-use model from the
-  [unsloth/gemma-4-E2B-it-qat-GGUF repository on Hugging Face](https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF/blob/main/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf).
+| File | Size | Purpose |
+| --- | --- | --- |
+| `caller.gguf` | 473 MB | Our fine-tuned Qwen3 dialogue model (the virtual caller) |
+| `gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf` | 2.4 GB | Tool-use model, from [unsloth/gemma-4-E2B-it-qat-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF/blob/main/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf) |
 
-Set `LLM_MODELS_DIR=./models` in the repository root `.env` to mount this
-folder into both local LLM containers. Set
-`TOOLS_LLM_MODEL_FILE=gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf` so Compose finds
-the tool-use model at the top level of the folder. These multi-gigabyte files
-are excluded from Git.
+The download URLs default to the Drive files in `docker-compose.yml`. To use a
+mirror, set `LLM_MODEL_URL` and `TOOLS_LLM_MODEL_URL` in `.env`.
+
+By default the models are stored in the `llm_models` Docker volume. To keep
+them in this directory instead, set these values in the repository root `.env`:
+
+```
+LLM_MODELS_DIR=./models
+TOOLS_LLM_MODEL_FILE=gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf
+```
+
+In an offline environment, download both files from the Drive folder ahead of
+time and place them here. These multi-gigabyte files are excluded from Git.
+
+ASR models (Sherpa-ONNX Zipformer RU and Silero VAD) are baked into the ASR
+image at build time and are not needed here.

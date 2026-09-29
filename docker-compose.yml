@@ -2,7 +2,8 @@ services:
   # ── Голосовой конвейер на CPU ─────────────────────────────────────────────
   # Поднимается обычным `docker compose up -d`, без профилей и без разовых
   # контейнеров-загрузчиков: модели ASR зашиты в образ, а llama-server берёт
-  # GGUF из тома llm_models (при заданном LLM_MODEL_URL — скачивает на старте).
+  # GGUF из тома llm_models, а если файла там нет — скачивает его на первом
+  # старте (по умолчанию с Google Drive проекта, см. models/README.md).
   #
   # Потоки рассчитаны на 6 ядер / 12 потоков (Ryzen 5 5600): распознавание,
   # модель и синтез работают по очереди в пределах хода, поэтому квоты cpus
@@ -65,12 +66,12 @@ services:
     init: true
     environment:
       MODEL_FILE: /models/${LLM_MODEL_FILE:-caller.gguf}
-      MODEL_URL: ${LLM_MODEL_URL:-}
+      MODEL_URL: ${LLM_MODEL_URL:-https://drive.usercontent.google.com/download?id=1irrJ9tH2OotA8hgIS2AxTbiqditrbLBK&export=download&confirm=t}
       MODEL_EXTRA_ARGS: ${LLM_EXTRA_ARGS:-}
     # Модель качается, только если её ещё нет в томе. Флаг --model-url сам
     # llama-server не подходит: он сверяется с Hugging Face на каждом старте и
-    # без сети не поднимается даже со скачанной моделью. Без LLM_MODEL_URL файл
-    # кладут в том llm_models заранее.
+    # без сети не поднимается даже со скачанной моделью. Без сети файл кладут
+    # в том llm_models (или каталог LLM_MODELS_DIR) заранее.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
@@ -123,7 +124,7 @@ services:
     init: true
     environment:
       MODEL_FILE: /models/${TOOLS_LLM_MODEL_FILE:-hf/models--unsloth--gemma-4-E2B-it-qat-GGUF/snapshots/66a399f68ddd113b06dff02fca9523e55465d11d/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf}
-      MODEL_URL: ${TOOLS_LLM_MODEL_URL:-}
+      MODEL_URL: ${TOOLS_LLM_MODEL_URL:-https://drive.usercontent.google.com/download?id=1897ak7pYunQf5_jX1luIERuiXf5SF6kf&export=download&confirm=t}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
