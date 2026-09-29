@@ -212,6 +212,27 @@ TileServer из своих тайлов, адрес по точке считае
 
 ---
 
+## Демо-стенд
+
+Развёрнутый комплекс: **https://lct-112.knoxy-proxy.com**
+
+Учётные записи создаются сидом базы данных (`bun run db:seed`). Группы,
+службы и назначения каждого пользователя описаны в
+[docs/учетные-записи.md](docs/учетные-записи.md).
+
+| Роль | Email | Пароль | ФИО |
+| --- | --- | --- | --- |
+| Администратор | `admin@system112.local` | `System112Admin2026!` | Администратор системы |
+| Преподаватель | `instructor@system112.local` | `System112Instructor2026!` | Преподаватель учебного центра |
+| Преподаватель | `petrov.instructor@system112.local` | `System112Instructor2026!` | Петров Алексей Сергеевич |
+| Оператор | `operator@system112.local` | `System112Operator2026!` | Оператор-стажер |
+| Оператор | `smirnov.operator@system112.local` | `System112Operator2026!` | Смирнов Дмитрий Иванович |
+| Оператор | `ivanova.operator@system112.local` | `System112Operator2026!` | Иванова Елена Васильевна |
+| Оператор | `kuznetsov.operator@system112.local` | `System112Operator2026!` | Кузнецов Михаил Павлович |
+| Оператор | `vasilieva.operator@system112.local` | `System112Operator2026!` | Васильева Анна Сергеевна |
+
+---
+
 ## Запуск
 
 Проверенные команды, времена сборки, содержимое `.env` и известные препятствия
