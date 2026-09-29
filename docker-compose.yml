@@ -476,6 +476,36 @@ services:
 
   # Единственная точка входа production-контура. Сертификат выдаёт внутренняя
   # CA организации; self-signed helper ниже предназначен только для dev/stage.
+  # Демонстрационные данные для чистой установки: учётные записи из
+  # docs/учетные-записи.md, классификатор, сценарии, группы, наряды и АРМ.
+  # Запускается вручную после первого старта, когда backend применил миграции:
+  #   docker compose --profile seed run --rm db-seed
+  # Повторный запуск возвращает учётным записям пароли из сида.
+  db-seed:
+    profiles: ["seed"]
+    build:
+      context: ./apps/backend
+      target: tools
+    image: system-112-training-backend-tools:${BACKEND_IMAGE_TAG:-local}
+    env_file: .env
+    environment:
+      # В production сид требует явные SEED_*_PASSWORD, а демо-стенду нужны
+      # пароли по умолчанию.
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-system112}:${POSTGRES_PASSWORD:-system112}@postgres:5432/${POSTGRES_DB:-system112_training}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        bun drizzle/seed/seed-admin.ts &&
+        bun drizzle/seed/seed-classifier.ts &&
+        bun drizzle/seed/seed-scenarios.ts &&
+        bun drizzle/seed/seed-groups.ts &&
+        bun drizzle/seed/seed-crews.ts &&
+        bun drizzle/seed/seed-workstations.ts
+    depends_on:
+      backend:
+        condition: service_healthy
+
   gateway:
     profiles: ["app"]
     build:
